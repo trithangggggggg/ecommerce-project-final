@@ -1,0 +1,158 @@
+1\. Tổng quan Dự án (Project Overview)
+
+1.1. Mục đích tài liệu
+
+Tài liệu này đặc tả các yêu cầu kỹ thuật và chức năng cho dự án thương mại điện tử tối thiểu khả thi (MVP). Được thiết kế riêng cho chu kỳ phát triển 1 tuần với đội ngũ 6 người, tài liệu định hướng rõ ràng phạm vi công nghệ, cấu trúc hệ thống, API, cũng như quy trình phối hợp DevOps và AI-driven development.
+
+1.2. Phân vai nhân sự
+
+\- Quy mô nhân sự: 5-6 thành viên / 1 nhóm
+
+\- Member 1 (Team Lead / AI Integrator): Quản lý chung, tích hợp tính năng AI chatbot hỗ trợ hỏi đáp với người dùng (Spring AI + Chat Model)
+
+\- Member 2, 3, 4 \& 5 (Full-stack Developers): 
+
+&#x20; - Backend: Xây dựng kiến trúc Spring Boot, thiết kế Database, phát triển toàn bộ REST API (Auth, Product, Order, Admin).
+
+&#x20; - Frontend: Dựng giao diện bằng ReactJS + Tailwind CSS, xử lý State (Zustand), tích hợp API và tối ưu UI/UX.
+
+\- Member 6 (QA / Tester / DevOps): Kiểm thử End-to-End (E2E), viết test case. Thiết lập Docker, Docker Compose, cấu hình GitHub Actions (CI/CD) và hỗ trợ deploy hệ thống.
+
+&#x20;
+
+2\. Phạm vi tính năng (1 tuần / MVP)
+
+\- Lưu ý: Sinh viên bắt buộc hoàn thành đầy đủ, chạy đúng.
+
+2.1. Phân hệ Authentication
+
+&#x20; - Đăng ký / Đăng nhập: Hỗ trợ đăng nhập theo phân quyền (CUSTOMER, ADMIN) qua username/password).
+
+&#x20; - Quản lý hồ sơ cá nhân: Cho phép người dùng xem và cập nhật thông tin cá nhân của người dùng trên hệ thống (họ tên, email, mật khẩu, …).
+
+2.2. Phân hệ Catalog \& Search:
+
+&#x20; - Catalog: Xem danh sách sản phẩm, xem chi tiết sản phẩm.
+
+&#x20; - Search: Tìm kiếm sản phẩm theo tên, lọc sản phẩm thuộc danh mục.
+
+2.3. Phân hệ Cart \& Checkout: 
+
+&#x20; - Giỏ hàng (Thêm, Sửa số lượng, Xóa)
+
+&#x20; - Đặt hàng (Checkout) với phương thức COD
+
+3.4. Phân hệ Order History: 
+
+&#x20; - Khách hàng xem lại lịch sử đơn hàng cá nhân
+
+3.5. Phân hệ Admin Dashboard: 
+
+&#x20; - CRUD sản phẩm
+
+&#x20; - Quản lý và cập nhật trạng thái đơn hàng
+
+3.6. Phân hệ AI Integration: 
+
+&#x20; - AI tự động sinh mô tả sản phẩm và hỗ trợ tạo mock data
+
+&#x20; - AI chatbot hỗ trợ người dùng tìm kiếm thông tin sản phẩm
+
+&#x20;
+
+4\. Yêu cầu kỹ thuật bắt buộc
+
+4.1. Sơ đồ Tech Stack
+
+\- Frontend Tech Stack: ReactJS (Vite + Tailwind CSS)
+
+\- Backend Tech Stack: Spring Boot (Java), MySQL
+
+\- DevOps Tech Stack: Docker, GitHub Actions (CI/CD)
+
+\[Image]
+
+4.2. Cấu hình Docker \& Docker Compose
+
+Hệ thống sử dụng Docker để đồng bộ hóa môi trường chạy giữa các thành viên:
+
+\- MySQL Service: Khởi tạo database tự động với biến môi trường chuẩn.
+
+\- Backend Service: Build từ Dockerfile sử dụng OpenJDK + Gradle.
+
+\- Frontend Service: Build từ Dockerfile (Multi-stage build: Node.js build static files kết hợp Nginx).
+
+4.3. Quy trình CI/CD (GitHub Actions)
+
+\- Nhánh chính: main (Production) và dev (Tích hợp).
+
+\- Mỗi khi có lệnh git push lên nhánh main, GitHub Actions tự động:
+
+&#x20; - Kiểm tra build code (Gradle build \& Vite build).
+
+&#x20; - Chạy kiểm thử tự động cơ bản.
+
+&#x20; - Đóng gói và đẩy Docker Image lên Registry.
+
+&#x20; 
+
+5\. Yêu cầu chức năng (Functional Requirements)
+
+5.1. Phân hệ Khách hàng \& Mua sắm
+
+\- FR-01 (Đăng ký/Đăng nhập): Người dùng nhập Email, Mật khẩu để đăng ký. Hệ thống mã hóa mật khẩu bằng BCrypt và trả về JWT Token khi đăng nhập thành công.
+
+\- FR-02 (Danh mục sản phẩm): Hiển thị danh sách sản phẩm dạng lưới (Grid) gồm: Ảnh, Tên, Giá, và nút "Thêm vào giỏ hàng". Hỗ trợ thanh tìm kiếm theo từ khóa.
+
+\- FR-03 (Giỏ hàng \& Đặt hàng):
+
+&#x20; - Lưu trữ giỏ hàng ở Client (Zustand / LocalStorage).
+
+&#x20; - Trang Checkout yêu cầu nhập: Họ tên, Số điện thoại, Địa chỉ giao hàng.
+
+&#x20; - Khi xác nhận đặt hàng, hệ thống trừ số lượng tồn kho (stock) tương ứng trong DB và tạo mới bản ghi đơn hàng với trạng thái PENDING.
+
+5.2. Phân hệ Quản trị (Admin)
+
+\- FR-04 (Quản lý sản phẩm - CRUD): Admin có quyền thêm mới, chỉnh sửa hoặc xóa sản phẩm.
+
+\- FR-05 (AI Description Generator): Tại màn hình thêm/sửa sản phẩm của Admin, tích hợp nút gọi AI để tự động tạo đoạn mô tả sản phẩm chuẩn SEO dựa trên tên sản phẩm.
+
+\- FR-06 (Quản lý đơn hàng): Admin xem toàn bộ danh sách đơn hàng và cập nhật trạng thái đơn hàng qua các bước: PENDING $$\\rightarrow$$ PROCESSING $$\\rightarrow$$ SHIPPING $$\\rightarrow$$ COMPLETED (hoặc CANCELLED).
+
+&#x20;
+
+6\. Yêu cầu phi chức năng (Non-Functional Requirements)
+
+6.1. Hiệu năng \& Khả năng chịu tải (Performance)
+
+&#x20; - NFR-01 (Thời gian phản hồi API): Các API truy vấn danh sách sản phẩm, chi tiết sản phẩm và giỏ hàng phải phản hồi dưới 500ms trong điều kiện mạng nội bộ hoặc cloud chuẩn.
+
+&#x20; - NFR-02 (Tải trang Frontend): Thời gian tải trang ban đầu (First Contentful Paint) của ứng dụng ReactJS sử dụng Vite phải dưới 2 giây.
+
+&#x20; - NFR-03 (Tải đồng thời - Concurrent Users): Hệ thống được cấu hình qua Docker chịu được tối thiểu 50 request đồng thời mà không bị sập hay tràn bộ nhớ (Out of Memory).
+
+6.2. Bảo mật (Security)
+
+&#x20; - NFR-04 (Mã hóa mật khẩu): Mật khẩu người dùng bắt buộc phải được mã hóa một chiều bằng thuật toán BCrypt trước khi lưu trữ vào cơ sở dữ liệu MySQL.
+
+&#x20; - NFR-05 (Xác thực \& Phân quyền): Toàn bộ các API nhạy cảm (như đặt hàng, quản lý admin) phải được bảo vệ bằng JWT (JSON Web Token). Token phải có cơ chế hết hạn (Expiration time) rõ ràng.
+
+&#x20; - NFR-06 (CORS Configuration): Cấu hình CORS chặt chẽ ở phía Spring Boot Backend để chỉ cho phép nguồn từ Frontend (ReactJS) gọi API, tránh các cuộc tấn công Cross-Origin trái phép.
+
+6.3. Khả năng bảo trì \& Phát triển (Maintainability \& Scalability)
+
+&#x20; - NFR-07 (Container hóa): 100% các thành phần của hệ thống (Frontend, Backend, Database) phải được đóng gói bằng Docker để đảm bảo tính nhất quán giữa môi trường Local của 6 thành viên và môi trường Production.
+
+&#x20; - NFR-08 (Tự động hóa CI/CD): Mọi thay đổi code khi đẩy (git push) lên nhánh chính phải thông qua quy trình build tự động bằng GitHub Actions nhằm phát hiện lỗi biên dịch ngay lập tức.
+
+&#x20; - NFR-09 (Clean Code \& Logging): Code phải tuân thủ các quy tắc đặt tên chuẩn (CamelCase cho Java/JS, snake\_case cho database). Backend phải tích hợp Logback/SLF4J để ghi nhận các lỗi quan trọng (Exception logging) phục vụ việc debug trong 1 tuần chạy nước rút.
+
+6.4. Trải nghiệm người dùng \& Giao diện (UI/UX \& Compatibility)
+
+&#x20; - NFR-10 (Responsive Design): Giao diện Frontend được thiết kế bằng Tailwind CSS phải tương thích mượt mà trên cả thiết bị di động (Mobile), máy tính bảng (Tablet) và máy tính để bàn (Desktop).
+
+&#x20; - NFR-11 (Khả năng tương thích trình duyệt): Ứng dụng phải hoạt động ổn định trên các trình duyệt hiện đại phổ biến như Google Chrome, Microsoft Edge, Safari và Firefox.
+
+&#x20;
+
