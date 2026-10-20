@@ -42,3 +42,13 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+// File JAR sau khi build: build/libs/app.jar
+tasks.named('bootJar') {
+    archiveFileName = 'app.jar'
+}
+
+// Không sinh thêm file *-plain.jar
+tasks.named('jar') {
+    enabled = false
+}

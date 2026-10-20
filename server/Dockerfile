@@ -25,10 +25,12 @@ ENV APP_VERSION=${APP_VERSION} \
 WORKDIR /app
 
 # Chạy ứng dụng bằng user thường spring, bảo mật không dùng root
-RUN addgroup -S spring && adduser -S spring -G spring
+RUN addgroup -S spring && adduser -S spring -G spring \
+    && mkdir -p /app/logs \
+    && chown -R spring:spring /app
 
 # Copy file JAR từ stage build
-COPY --from=build --chown=spring:spring /workspace/build/libs/*.jar /app/app.jar
+COPY --from=build --chown=spring:spring /workspace/build/libs/app.jar /app/app.jar
 USER spring
 
 EXPOSE 8080
