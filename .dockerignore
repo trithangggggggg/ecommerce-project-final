@@ -1,0 +1,20 @@
+# Git & IDE
+.git/
+.github/
+.idea/
+.vscode/
+*.iml
+*.log
+
+# Build outputs
+**/build/
+**/.gradle/
+**/dist/
+**/node_modules/
+
+# Local env
+student.env
+.env
+screenshots/
+submission-content/
+*.md

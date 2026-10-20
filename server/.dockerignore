@@ -1,0 +1,11 @@
+build/
+.gradle/
+out/
+logs/
+.idea/
+.vscode/
+*.iml
+*.log
+Dockerfile
+.dockerignore
+HELP.md

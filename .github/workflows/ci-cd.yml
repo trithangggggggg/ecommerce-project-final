@@ -1,0 +1,188 @@
+# =============================================================================
+#  .github/workflows/ci-cd.yml - CI/CD Pipeline cho Dự án E-Commerce
+#  - Tự động kiểm tra mã nguồn (Gradle + Vite), chạy kiểm thử
+#  - Build hệ thống bằng Docker Compose & chạy Smoke Test
+#  - Đóng gói và push Docker Image lên GitHub Container Registry (GHCR)
+#  - Tự động Deploy lên server qua SSH
+# =============================================================================
+name: CI/CD
+
+on:
+  push:
+    branches: [main, dev]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    name: Build, Test & Package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+      frontend_image: ${{ steps.meta.outputs.frontend_image }}
+    steps:
+      - name: Checkout mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Kiểm tra thông tin trong student.env
+        run: |
+          set -a; source student.env; set +a
+          for v in STUDENT_NAME STUDENT_ID STUDENT_CLASS STUDENT_EMAIL GITHUB_USERNAME \
+                   APP_PORT COMPOSE_PROJECT_NAME MYSQL_USER MYSQL_PASSWORD MYSQL_ROOT_PASSWORD; do
+            if [ -z "${!v}" ]; then
+              echo "::error file=student.env::Chưa điền $v trong student.env"
+              exit 1
+            fi
+          done
+          if [ "$APP_PORT" -lt 8080 ]; then
+            echo "::error file=student.env::APP_PORT phải từ 8080 trở lên"
+            exit 1
+          fi
+          echo "### Sinh viên: $STUDENT_NAME - $STUDENT_ID - $STUDENT_CLASS" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Cài đặt JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Kiểm tra Backend (Compile & Unit Tests)
+        working-directory: ./server
+        run: |
+          chmod +x gradlew
+          ./gradlew test --no-daemon
+
+      - name: Cài đặt Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Kiểm tra Frontend (Vite Build)
+        working-directory: ./client
+        run: |
+          npm ci
+          npm run build
+
+      - name: Đặt tên Docker Images
+        id: meta
+        run: |
+          REPO_LOWER="${GITHUB_REPOSITORY,,}"
+          echo "image=${REGISTRY}/${REPO_LOWER}/app" >> "$GITHUB_OUTPUT"
+          echo "frontend_image=${REGISTRY}/${REPO_LOWER}/frontend" >> "$GITHUB_OUTPUT"
+
+      - name: Build & chạy thử bằng Docker Compose
+        env:
+          APP_IMAGE: ${{ steps.meta.outputs.image }}
+          FRONTEND_IMAGE: ${{ steps.meta.outputs.frontend_image }}
+          APP_TAG: ${{ github.sha }}
+          APP_VERSION: ${{ github.sha }}
+        run: docker compose --env-file student.env up -d --build --wait --wait-timeout 300
+
+      - name: Smoke test kiểm tra dịch vụ
+        run: |
+          set -a; source student.env; set +a
+          BASE="http://localhost:${APP_PORT}"
+
+          echo "1. Kiểm tra trang chủ Frontend..."
+          curl -fsS --retry 12 --retry-delay 5 --retry-all-errors "$BASE/" | grep -q 'E-Commerce'
+          echo "Frontend OK!"
+
+          echo "2. Kiểm tra API Categories Backend..."
+          curl -fsS --retry 12 --retry-delay 5 --retry-all-errors "$BASE/api/categories" | grep -q 'success'
+          echo "Backend API Categories OK!"
+
+          echo "3. Kiểm tra API Products Backend..."
+          curl -fsS --retry 12 --retry-delay 5 --retry-all-errors "$BASE/api/products" | grep -q 'content'
+          echo "Backend API Products OK!"
+
+          echo "All Smoke Tests PASSED!"
+
+      - name: In log container khi có lỗi
+        if: failure()
+        run: docker compose --env-file student.env logs --no-color
+
+      - name: Đăng nhập GitHub Container Registry (GHCR)
+        if: success()
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push Images lên GHCR
+        if: success()
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+          FRONTEND_IMAGE: ${{ steps.meta.outputs.frontend_image }}
+        run: |
+          # Push Backend image
+          docker push "$IMAGE:${{ github.sha }}"
+          docker tag "$IMAGE:${{ github.sha }}" "$IMAGE:latest"
+          docker push "$IMAGE:latest"
+
+          # Push Frontend image
+          docker push "$FRONTEND_IMAGE:${{ github.sha }}"
+          docker tag "$FRONTEND_IMAGE:${{ github.sha }}" "$FRONTEND_IMAGE:latest"
+          docker push "$FRONTEND_IMAGE:latest"
+
+      - name: Dọn dẹp môi trường sau khi test
+        if: always()
+        run: docker compose --env-file student.env down -v
+
+  deploy:
+    name: Deploy lên Server
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Kiểm tra cấu hình Secrets Server
+        id: check_secrets
+        run: |
+          if [ -n "${{ secrets.SERVER_HOST }}" ] && [ -n "${{ secrets.SERVER_USER }}" ]; then
+            echo "has_server=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_server=false" >> "$GITHUB_OUTPUT"
+            echo "Chưa cấu hình SERVER_HOST / SERVER_USER trong GitHub Secrets, bỏ qua bước deploy."
+          fi
+
+      - name: Deploy qua SSH lên VPS / Server
+        if: steps.check_secrets.outputs.has_server == 'true'
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          APP_IMAGE: ${{ needs.build.outputs.image }}
+          FRONTEND_IMAGE: ${{ needs.build.outputs.frontend_image }}
+          APP_TAG: ${{ github.sha }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
+          DEPLOY_DIR: ${{ github.event.repository.name }}
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          envs: APP_IMAGE,FRONTEND_IMAGE,APP_TAG,GHCR_USER,GHCR_TOKEN,REPO_URL,DEPLOY_DIR
+          script: |
+            set -e
+            if [ ! -d "$HOME/$DEPLOY_DIR/.git" ]; then
+              git clone "$REPO_URL" "$HOME/$DEPLOY_DIR"
+            fi
+            cd "$HOME/$DEPLOY_DIR"
+            git fetch origin main
+            git reset --hard origin/main
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            export APP_IMAGE FRONTEND_IMAGE APP_TAG
+            docker compose --env-file student.env pull app nginx
+            docker compose --env-file student.env up -d --no-build --wait --wait-timeout 300
+            docker logout ghcr.io
+            docker compose --env-file student.env ps
