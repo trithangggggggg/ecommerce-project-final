@@ -55,6 +55,16 @@ public class ApiResponse<T> {
                 .build();
     }
 
+    public static <T> ApiResponse<T> created(String message, T data) {
+        return ApiResponse.<T>builder()
+                .success(true)
+                .status(HttpStatus.CREATED.value())
+                .message(message)
+                .data(data)
+                .timestamp(LocalDateTime.now())
+                .build();
+    }
+
     public static <T> ApiResponse<T> error(String message) {
         return ApiResponse.<T>builder()
                 .success(false)
@@ -68,6 +78,15 @@ public class ApiResponse<T> {
         return ApiResponse.<T>builder()
                 .success(false)
                 .status(status.value())
+                .message(message)
+                .timestamp(LocalDateTime.now())
+                .build();
+    }
+
+    public static <T> ApiResponse<T> error(int status, String message) {
+        return ApiResponse.<T>builder()
+                .success(false)
+                .status(status)
                 .message(message)
                 .timestamp(LocalDateTime.now())
                 .build();
