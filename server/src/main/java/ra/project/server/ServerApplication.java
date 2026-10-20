@@ -5,7 +5,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 
-@SpringBootApplication
+@SpringBootApplication(excludeName = {
+        "org.springframework.ai.autoconfigure.openai.OpenAiAutoConfiguration"
+})
 @EnableMethodSecurity
 public class ServerApplication {
 

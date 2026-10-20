@@ -49,6 +49,8 @@ services:
       DB_NAME: ${MYSQL_DATABASE:-ecommerce_db}
       DB_USER: ${MYSQL_USER:-ecommerce_user}
       DB_PASSWORD: ${MYSQL_PASSWORD:-Ecommerce@2026}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
       TZ: Asia/Ho_Chi_Minh
     depends_on:
       mysql:
