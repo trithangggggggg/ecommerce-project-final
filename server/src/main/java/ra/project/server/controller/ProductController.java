@@ -26,14 +26,17 @@ public class ProductController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> getAllProducts(
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "categoryId", required = false) Long categoryId,
             @RequestParam(name = "status", required = false) Boolean status,
             @RequestParam(name = "page", defaultValue = "0") Integer page,
             @RequestParam(name = "size", defaultValue = "10") Integer size,
             @RequestParam(name = "sort", defaultValue = "createdAt,desc") String sort
     ) {
+        String searchKeyword = org.springframework.util.StringUtils.hasText(keyword) ? keyword : q;
         Pageable pageable = PaginationUtil.createPageable(page, size, sort);
-        PageResponse<ProductResponse> products = productService.getAllProducts(categoryId, status, pageable);
+        PageResponse<ProductResponse> products = productService.getAllProducts(searchKeyword, categoryId, status, pageable);
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách sản phẩm thành công", products));
     }
 
