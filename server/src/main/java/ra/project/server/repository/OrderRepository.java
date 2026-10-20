@@ -1,0 +1,18 @@
+package ra.project.server.repository;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import ra.project.server.model.entity.Order;
+import ra.project.server.model.enums.OrderStatus;
+
+import java.util.List;
+
+@Repository
+public interface OrderRepository extends JpaRepository<Order, Long> {
+    List<Order> findByUserIdOrderByCreatedAtDesc(Long userId);
+    Page<Order> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+    List<Order> findByStatusOrderByCreatedAtDesc(OrderStatus status);
+    Page<Order> findByStatusOrderByCreatedAtDesc(OrderStatus status, Pageable pageable);
+}
