@@ -11,6 +11,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class PageResponse<T> {
+
     private List<T> content;
     private int pageNumber;
     private int pageSize;
@@ -18,6 +19,7 @@ public class PageResponse<T> {
     private int totalPages;
     private boolean last;
     private boolean first;
+    private boolean empty;
 
     public static <T> PageResponse<T> from(Page<T> page) {
         return PageResponse.<T>builder()
@@ -28,6 +30,7 @@ public class PageResponse<T> {
                 .totalPages(page.getTotalPages())
                 .last(page.isLast())
                 .first(page.isFirst())
+                .empty(page.isEmpty())
                 .build();
     }
 }
