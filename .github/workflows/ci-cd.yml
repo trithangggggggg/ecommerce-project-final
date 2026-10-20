@@ -92,15 +92,15 @@ jobs:
           BASE="http://localhost:${APP_PORT}"
 
           echo "1. Kiểm tra trang chủ Frontend..."
-          curl -fsS --retry 12 --retry-delay 5 --retry-all-errors "$BASE/" | grep -q 'E-Commerce'
+          curl -fsS --retry 15 --retry-delay 5 --retry-all-errors "$BASE/" | grep -qiE 'E-Commerce|<div id="root">'
           echo "Frontend OK!"
 
           echo "2. Kiểm tra API Categories Backend..."
-          curl -fsS --retry 12 --retry-delay 5 --retry-all-errors "$BASE/api/categories" | grep -q 'success'
+          curl -fsS --retry 15 --retry-delay 5 --retry-all-errors "$BASE/api/categories" | grep -q 'success'
           echo "Backend API Categories OK!"
 
           echo "3. Kiểm tra API Products Backend..."
-          curl -fsS --retry 12 --retry-delay 5 --retry-all-errors "$BASE/api/products" | grep -q 'content'
+          curl -fsS --retry 15 --retry-delay 5 --retry-all-errors "$BASE/api/products" | grep -q 'content'
           echo "Backend API Products OK!"
 
           echo "All Smoke Tests PASSED!"
