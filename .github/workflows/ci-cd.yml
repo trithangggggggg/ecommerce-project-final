@@ -140,7 +140,7 @@ jobs:
   deploy:
     name: Deploy lên Server
     needs: build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -167,19 +167,20 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
           DEPLOY_DIR: ${{ github.event.repository.name }}
+          BRANCH_NAME: ${{ github.ref_name }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          envs: APP_IMAGE,FRONTEND_IMAGE,APP_TAG,GHCR_USER,GHCR_TOKEN,REPO_URL,DEPLOY_DIR
+          envs: APP_IMAGE,FRONTEND_IMAGE,APP_TAG,GHCR_USER,GHCR_TOKEN,REPO_URL,DEPLOY_DIR,BRANCH_NAME
           script: |
             set -e
             if [ ! -d "$HOME/$DEPLOY_DIR/.git" ]; then
               git clone "$REPO_URL" "$HOME/$DEPLOY_DIR"
             fi
             cd "$HOME/$DEPLOY_DIR"
-            git fetch origin main
-            git reset --hard origin/main
+            git fetch origin "$BRANCH_NAME"
+            git reset --hard "origin/$BRANCH_NAME"
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             export APP_IMAGE FRONTEND_IMAGE APP_TAG
             docker compose --env-file student.env pull app nginx
