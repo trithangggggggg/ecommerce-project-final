@@ -12,7 +12,6 @@ import {
   Home,
   LayoutGrid,
   ChevronRight,
-  ChevronLeft,
   ArrowRight,
   Zap,
   Truck,
@@ -21,8 +20,6 @@ import {
   Star,
   Heart,
   ShoppingCart,
-  BatteryCharging,
-  Feather,
 } from 'lucide-react';
 import { productService } from '../../api/services/product.service';
 import type { Product } from '../../models/product.model';
@@ -43,38 +40,6 @@ const SIDEBAR_CATEGORIES = [
   { name: 'Điện gia dụng', slug: 'gia-dung', icon: Home },
   { name: 'Gaming', slug: 'gaming', icon: Gamepad2 },
   { name: 'Khác', slug: 'khac', icon: LayoutGrid },
-];
-
-// 2. Hero Center Slides (Default: MacBook Air M3 matching reference image)
-const HERO_SLIDES = [
-  {
-    id: 1,
-    tag: 'SẢN PHẨM BÁN CHẠY',
-    title: 'MacBook Air M3',
-    subtitle: 'Hiệu năng mạnh mẽ. Thiết kế mỏng nhẹ.',
-    pills: [
-      { icon: Cpu, label: 'Chip M3', sub: 'siêu mạnh mẽ' },
-      { icon: BatteryCharging, label: 'Lên đến 18 giờ', sub: 'sử dụng' },
-      { icon: Feather, label: 'Chỉ 1.24 kg', sub: 'siêu nhẹ' },
-    ],
-    buttonText: 'Mua ngay',
-    link: '/products/4',
-    image: '/images/macbook-banner.jpg',
-  },
-  {
-    id: 2,
-    tag: 'MỞ BÁN ĐẶC QUYỀN',
-    title: 'iPhone 16 Pro Max',
-    subtitle: 'Khung viền Titan sa mạc đẳng cấp. Camera 48MP.',
-    pills: [
-      { icon: Cpu, label: 'Chip A18 Pro', sub: 'dẫn đầu sức mạnh' },
-      { icon: BatteryCharging, label: 'Pin trâu 33h', sub: 'xem video liên tục' },
-      { icon: Feather, label: 'Titan Cấp 5', sub: 'bền bỉ vượt trội' },
-    ],
-    buttonText: 'Mua ngay',
-    link: '/products/1',
-    image: '/images/iphone-16-pro-max.jpg',
-  },
 ];
 
 // 3. Quick 6 Categories below Hero (Minimalist line icons without box background)
@@ -156,7 +121,6 @@ const DEFAULT_FLASH_SALE_PRODUCTS: Product[] = [
 ];
 
 export default function HomePage() {
-  const [currentSlide, setCurrentSlide] = useState(0);
   const [latestProducts, setLatestProducts] = useState<Product[]>([]);
   const [flashSaleProducts] = useState<Product[]>(DEFAULT_FLASH_SALE_PRODUCTS);
   const [loading, setLoading] = useState(true);
@@ -199,8 +163,6 @@ export default function HomePage() {
       isMounted = false;
     };
   }, []);
-
-  const slide = HERO_SLIDES[currentSlide];
 
   const toggleWishlist = (id: string | number, e: React.MouseEvent) => {
     e.preventDefault();
@@ -245,94 +207,19 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* COLUMN 2: Main Hero Banner (Center, 6 cols) */}
+          {/* COLUMN 2: Main Hero Banner (Center, 6 cols - Sử dụng banner sạch không watermark) */}
           <div className="lg:col-span-6 flex flex-col">
-            <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#161820] via-[#1a1d26] to-[#20242f] text-white p-7 md:p-8 flex-1 flex flex-col justify-between min-h-[440px] shadow-sm">
-              
-              {/* Top Details */}
-              <div className="relative z-10 max-w-sm">
-                <span className="inline-block bg-white/10 backdrop-blur-md text-[11px] font-bold tracking-wider px-3 py-1 rounded-full text-gray-200 mb-3 border border-white/10">
-                  {slide.tag}
-                </span>
-
-                <h1 className="text-3xl md:text-[38px] font-black tracking-tight text-white mb-2 leading-tight">
-                  {slide.title}
-                </h1>
-                <p className="text-xs md:text-sm text-gray-300 mb-6 font-normal">
-                  {slide.subtitle}
-                </p>
-
-                {/* 3 Pills Specs */}
-                <div className="grid grid-cols-3 gap-2 mb-6">
-                  {slide.pills.map((pill, i) => {
-                    const PIcon = pill.icon;
-                    return (
-                      <div
-                        key={i}
-                        className="bg-white/10 backdrop-blur-md border border-white/10 rounded-xl p-2 text-left"
-                      >
-                        <PIcon size={16} className="text-gray-200 mb-1" />
-                        <div className="text-[11px] font-bold text-white leading-tight">{pill.label}</div>
-                        <div className="text-[10px] text-gray-400 leading-tight">{pill.sub}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* CTA Button */}
-                <Link
-                  to={slide.link}
-                  className="inline-flex items-center gap-2 bg-white text-gray-950 font-bold px-5 py-2.5 rounded-full text-xs hover:bg-gray-100 transition-transform active:scale-95 shadow-md cursor-pointer"
-                >
-                  <span>{slide.buttonText}</span>
-                  <ArrowRight size={14} />
-                </Link>
-              </div>
-
-              {/* Angled MacBook Laptop Image */}
-              <div className="absolute right-0 bottom-0 w-[58%] md:w-[56%] h-full flex items-end justify-end pointer-events-none pr-3 pb-3">
-                <img
-                  src={slide.image}
-                  alt={slide.title}
-                  className="max-h-[92%] w-auto object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.8)]"
-                />
-              </div>
-
-              {/* Slider Controls: Center Dots & Side Arrows */}
-              <div className="flex items-center justify-between pt-4 mt-auto relative z-10">
-                <div className="flex items-center gap-1.5 ml-auto mr-auto">
-                  {HERO_SLIDES.map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setCurrentSlide(i)}
-                      className={`h-2 rounded-full transition-all cursor-pointer ${
-                        currentSlide === i ? 'w-6 bg-white' : 'w-2 bg-white/40 hover:bg-white/60'
-                      }`}
-                      aria-label={`Slide ${i + 1}`}
-                    />
-                  ))}
-                </div>
-
-                <div className="absolute right-4 bottom-4 flex gap-1.5">
-                  <button
-                    onClick={() =>
-                      setCurrentSlide((prev) => (prev - 1 + HERO_SLIDES.length) % HERO_SLIDES.length)
-                    }
-                    className="w-7 h-7 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors cursor-pointer"
-                    aria-label="Previous slide"
-                  >
-                    <ChevronLeft size={14} />
-                  </button>
-                  <button
-                    onClick={() => setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length)}
-                    className="w-7 h-7 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors cursor-pointer"
-                    aria-label="Next slide"
-                  >
-                    <ChevronRight size={14} />
-                  </button>
-                </div>
-              </div>
-            </div>
+            <Link
+              to="/products/4"
+              className="block relative rounded-2xl overflow-hidden shadow-sm h-full group bg-[#161820]"
+              title="MacBook Air M3 - Mua ngay"
+            >
+              <img
+                src="/images/macbook-hero-banner.jpg"
+                alt="MacBook Air M3 - Hiệu năng mạnh mẽ. Thiết kế mỏng nhẹ."
+                className="w-full h-full object-cover group-hover:scale-[1.015] transition-transform duration-300"
+              />
+            </Link>
           </div>
 
           {/* COLUMN 3: Right 3 Promo Cards (Right, 3 cols) */}
