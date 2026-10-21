@@ -166,11 +166,11 @@ export default function AiChatbot() {
       {/* 1. Tooltip chào mời (hiển thị khi chưa mở chat) */}
       {!isOpen && showTooltip && (
         <div className="absolute bottom-16 right-0 mb-2 w-64 bg-white/95 backdrop-blur-md p-3 rounded-2xl shadow-xl border border-gray-100 flex items-start gap-2.5 animate-bounce-subtle">
-          <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm">
-            <Sparkles size={16} />
+          <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center shrink-0 shadow-sm p-1">
+            <img src="/images/logo.png" alt="NEXOR AI" className="w-6 h-6 object-contain" />
           </div>
           <div className="flex-1 text-xs">
-            <div className="font-bold text-gray-900">E-ShopTECH AI</div>
+            <div className="font-bold text-gray-900">NEXOR AI</div>
             <p className="text-gray-600 mt-0.5 leading-tight">
               Cần tư vấn chọn mua đồ công nghệ? Bấm chat ngay nhé! 👋
             </p>
@@ -214,15 +214,15 @@ export default function AiChatbot() {
           <div className="bg-gradient-to-r from-[#161820] via-[#1f232e] to-[#161820] text-white p-4 flex items-center justify-between border-b border-gray-800">
             <div className="flex items-center gap-3">
               <div className="relative">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-md">
-                  <Bot size={22} className="text-white" />
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#1e2230] to-[#2d3345] flex items-center justify-center shadow-md p-1.5 border border-white/10">
+                  <img src="/images/logo.png" alt="NEXOR AI" className="w-7 h-7 object-contain" />
                 </div>
                 <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-[#161820] rounded-full"></span>
               </div>
               <div>
                 <div className="font-extrabold text-sm flex items-center gap-1.5">
-                  <span>E-ShopTECH AI</span>
-                  <span className="text-[10px] bg-blue-500/30 text-blue-300 px-1.5 py-0.2 rounded-md font-semibold">
+                  <span>NEXOR AI</span>
+                  <span className="text-[10px] bg-indigo-500/30 text-indigo-300 px-1.5 py-0.2 rounded-md font-semibold">
                     Trợ lý 24/7
                   </span>
                 </div>
@@ -264,8 +264,8 @@ export default function AiChatbot() {
                 >
                   <div className="flex items-end gap-2 max-w-[92%]">
                     {!isUser && (
-                      <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs mb-1">
-                        <Bot size={15} />
+                      <div className="w-7 h-7 rounded-xl bg-slate-900 flex items-center justify-center shrink-0 shadow-xs mb-1 p-0.5">
+                        <img src="/images/logo.png" alt="NEXOR AI" className="w-5 h-5 object-contain" />
                       </div>
                     )}
                     <div

@@ -57,7 +57,7 @@ export const Header: React.FC = () => {
             <img
               src="/images/logo.png"
               alt="NEXOR Logo"
-              className="w-10 h-10 object-contain rounded-full drop-shadow-md group-hover:scale-105 transition-transform duration-200"
+              className="w-10 h-10 object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-200"
             />
           </div>
           <div className="flex flex-col">

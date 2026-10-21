@@ -103,19 +103,18 @@ export const LoginPage: React.FC = () => {
 
         {/* Modal Brand Logo & Title */}
         <div className="text-center mb-6">
-          <div className="w-11 h-11 mx-auto mb-3 rounded-xl bg-[#181a20] flex items-center justify-center shadow-md">
-            <svg viewBox="0 0 40 40" className="w-6 h-6">
-              <polygon points="20,4 34,12 20,20 6,12" fill="#e2e8f0" />
-              <polygon points="6,12 20,20 20,36 6,28" fill="#94a3b8" />
-              <polygon points="20,20 34,12 34,28 20,36" fill="#64748b" />
-              <polygon points="20,10 27,14 20,18 13,14" fill="#0f172a" opacity="0.15" />
-            </svg>
+          <div className="w-14 h-14 mx-auto mb-3 flex items-center justify-center">
+            <img
+              src="/images/logo.png"
+              alt="NEXOR Logo"
+              className="w-14 h-14 object-contain drop-shadow-md"
+            />
           </div>
           <h1 id="login-modal-title" className="text-xl font-bold text-gray-900 tracking-tight">
             Đăng Nhập Tài Khoản
           </h1>
           <p className="text-xs text-gray-500 mt-1">
-            Nhập thông tin tài khoản E-ShopTECH để tiếp tục
+            Chào mừng bạn quay lại với NEXOR Flagship Tech Store
           </p>
         </div>
 

@@ -80,9 +80,16 @@ export const RegisterPage: React.FC = () => {
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-6 sm:p-8 font-sans">
       {/* Title */}
       <div className="text-center mb-6">
+        <div className="w-14 h-14 mx-auto mb-3 flex items-center justify-center">
+          <img
+            src="/images/logo.png"
+            alt="NEXOR Logo"
+            className="w-14 h-14 object-contain drop-shadow-md"
+          />
+        </div>
         <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Tạo Tài Khoản Mới</h1>
         <p className="text-xs text-gray-500 mt-1.5">
-          Gia nhập cộng đồng mua sắm công nghệ E-ShopTECH
+          Gia nhập cộng đồng mua sắm công nghệ flagship NEXOR
         </p>
       </div>
 

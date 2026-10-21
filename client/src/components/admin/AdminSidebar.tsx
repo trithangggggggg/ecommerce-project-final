@@ -70,7 +70,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             <img
               src="/images/logo.png"
               alt="NEXOR Admin"
-              className="w-9 h-9 rounded-full object-contain shadow-xs border border-slate-100"
+              className="w-9 h-9 object-contain drop-shadow-sm"
             />
             <div className="flex flex-col">
               <span className="text-base font-bold text-slate-900 tracking-tight leading-tight">

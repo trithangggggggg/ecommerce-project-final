@@ -80,11 +80,15 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Column 1: Hotline Support & Store Info */}
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-gray-900 flex items-center justify-center text-white font-black text-sm">
-                ES
-              </div>
-              <span className="text-lg font-black tracking-tight text-gray-900">E-ShopTECH</span>
+            <div className="flex items-center gap-2.5 mb-4">
+              <img
+                src="/images/logo.png"
+                alt="NEXOR Logo"
+                className="w-8 h-8 object-contain drop-shadow-sm"
+              />
+              <span className="text-lg font-black tracking-tight text-gray-900">
+                NEXOR<span className="text-indigo-600">.</span>
+              </span>
             </div>
             <p className="text-xs text-gray-500 mb-4 leading-relaxed">
               Hệ thống bán lẻ thiết bị công nghệ chính hãng hàng đầu Việt Nam. Cam kết chất lượng, bảo hành tận tâm.
