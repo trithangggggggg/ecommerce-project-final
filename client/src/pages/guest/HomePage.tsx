@@ -33,7 +33,7 @@ import { formatPrice } from '../../utils/format';
 
 // 1. Category Sidebar Menu (10 items matching the reference image)
 const SIDEBAR_CATEGORIES = [
-  { name: 'Điện thoại', slug: 'dien-thoai', icon: Smartphone },
+  { name: 'Điện thoại', slug: 'dien-thoai', icon: Smartphone, active: true },
   { name: 'Laptop', slug: 'laptop', icon: Laptop },
   { name: 'Máy tính bảng', slug: 'may-tinh-bang', icon: Tablet },
   { name: 'Phụ kiện', slug: 'phu-kien', icon: Headphones },
@@ -45,7 +45,7 @@ const SIDEBAR_CATEGORIES = [
   { name: 'Khác', slug: 'khac', icon: LayoutGrid },
 ];
 
-// 2. Hero Center Slides (Featured flagship devices)
+// 2. Hero Center Slides (Default: MacBook Air M3 matching reference image)
 const HERO_SLIDES = [
   {
     id: 1,
@@ -59,7 +59,7 @@ const HERO_SLIDES = [
     ],
     buttonText: 'Mua ngay',
     link: '/products/4',
-    image: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=900&auto=format&fit=crop&q=80',
+    image: '/images/macbook-banner.jpg',
   },
   {
     id: 2,
@@ -73,25 +73,11 @@ const HERO_SLIDES = [
     ],
     buttonText: 'Mua ngay',
     link: '/products/1',
-    image: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=900&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 3,
-    tag: 'SIÊU PHẨM AI',
-    title: 'Galaxy S24 Ultra',
-    subtitle: 'Quyền năng Galaxy AI. Zoom quang học 100x.',
-    pills: [
-      { icon: Cpu, label: 'Snapdragon 8 Gen 3', sub: 'tối ưu cho AI' },
-      { icon: BatteryCharging, label: 'Pin 5000 mAh', sub: 'sạc nhanh 45W' },
-      { icon: Feather, label: 'Bút S-Pen', sub: 'tích hợp sẵn' },
-    ],
-    buttonText: 'Mua ngay',
-    link: '/products/2',
-    image: 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=900&auto=format&fit=crop&q=80',
+    image: '/images/iphone-16-pro-max.jpg',
   },
 ];
 
-// 3. Quick 6 Categories below Hero
+// 3. Quick 6 Categories below Hero (Minimalist line icons without box background)
 const QUICK_CATEGORIES = [
   { name: 'Laptop', desc: 'Hiệu năng vượt trội', icon: Laptop, slug: 'laptop' },
   { name: 'Điện thoại', desc: 'Đa dạng thương hiệu', icon: Smartphone, slug: 'dien-thoai' },
@@ -113,7 +99,7 @@ const DEFAULT_FLASH_SALE_PRODUCTS: Product[] = [
     discountPercent: 15,
     rating: 4.9,
     reviewCount: 120,
-    imageUrl: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=500&auto=format&fit=crop&q=80',
+    imageUrl: '/images/iphone-16-pro-max.jpg',
     categoryId: 1,
     stock: 25,
     brand: 'Apple',
@@ -129,7 +115,7 @@ const DEFAULT_FLASH_SALE_PRODUCTS: Product[] = [
     discountPercent: 20,
     rating: 4.9,
     reviewCount: 98,
-    imageUrl: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=500&auto=format&fit=crop&q=80',
+    imageUrl: '/images/macbook-air-m3-card.jpg',
     categoryId: 2,
     stock: 15,
     brand: 'Apple',
@@ -145,7 +131,7 @@ const DEFAULT_FLASH_SALE_PRODUCTS: Product[] = [
     discountPercent: 18,
     rating: 4.8,
     reviewCount: 76,
-    imageUrl: 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=500&auto=format&fit=crop&q=80',
+    imageUrl: '/images/samsung-s24-ultra.jpg',
     categoryId: 1,
     stock: 18,
     brand: 'Samsung',
@@ -161,7 +147,7 @@ const DEFAULT_FLASH_SALE_PRODUCTS: Product[] = [
     discountPercent: 12,
     rating: 4.8,
     reviewCount: 54,
-    imageUrl: 'https://images.unsplash.com/photo-1603302576837-37561b2e2302?w=500&auto=format&fit=crop&q=80',
+    imageUrl: '/images/asus-rog-strix.jpg',
     categoryId: 2,
     stock: 10,
     brand: 'ASUS',
@@ -172,13 +158,13 @@ const DEFAULT_FLASH_SALE_PRODUCTS: Product[] = [
 export default function HomePage() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [latestProducts, setLatestProducts] = useState<Product[]>([]);
-  const [flashSaleProducts, setFlashSaleProducts] = useState<Product[]>(DEFAULT_FLASH_SALE_PRODUCTS);
+  const [flashSaleProducts] = useState<Product[]>(DEFAULT_FLASH_SALE_PRODUCTS);
   const [loading, setLoading] = useState(true);
   const [likedMap, setLikedMap] = useState<Record<string | number, boolean>>({});
 
   const { addItem } = useCartStore();
 
-  // Countdown timer: 01:23:45
+  // Countdown timer: 01:23:45 matching reference
   const [timeLeft, setTimeLeft] = useState({ hours: 1, minutes: 23, seconds: 45 });
 
   useEffect(() => {
@@ -193,27 +179,14 @@ export default function HomePage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Auto carousel slide every 6 seconds
-  useEffect(() => {
-    const slideTimer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
-    }, 6000);
-    return () => clearInterval(slideTimer);
-  }, []);
-
-  // Fetch real data from backend
+  // Fetch real data from backend for latest products
   useEffect(() => {
     let isMounted = true;
     async function loadData() {
       try {
-        const res = await productService.getProducts({ limit: 8, sortBy: 'newest' });
+        const res = await productService.getProducts({ limit: 10, sortBy: 'newest' });
         if (isMounted && res.data && res.data.length > 0) {
           setLatestProducts(res.data);
-          // If backend has flash sale products, use them, otherwise keep the 4 reference products
-          const fs = res.data.filter((p) => p.isFlashSale);
-          if (fs.length >= 4) {
-            setFlashSaleProducts(fs.slice(0, 4));
-          }
         }
       } catch (err) {
         console.warn('Failed to load products from API, using fallback data', err);
@@ -236,63 +209,71 @@ export default function HomePage() {
   };
 
   return (
-    <div className="bg-[#f5f6fa] text-gray-800 font-sans pb-16">
+    <div className="bg-[#f2f4f7] text-gray-800 font-sans pb-16">
       {/* 1. HERO 3-COLUMN SECTION */}
-      <section className="max-w-[1360px] mx-auto px-4 pt-5 pb-6">
+      <section className="max-w-[1360px] mx-auto px-4 pt-4 pb-5">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
           
-          {/* COLUMN 1: Category Sidebar (Left, 3 cols) */}
+          {/* COLUMN 1: Category Sidebar (Left, ~21% width / 3 cols) */}
           <div className="hidden lg:block lg:col-span-3">
-            <div className="bg-white rounded-2xl border border-gray-200/80 p-2 shadow-sm h-full flex flex-col justify-between">
-              <div className="space-y-0.5">
-                {SIDEBAR_CATEGORIES.map(({ name, slug, icon: Icon }) => (
+            <div className="bg-white rounded-2xl border border-gray-200/70 p-2.5 shadow-sm h-full flex flex-col justify-between">
+              <div className="space-y-1">
+                {SIDEBAR_CATEGORIES.map(({ name, slug, icon: Icon, active }) => (
                   <Link
                     key={slug}
                     to={`/products?category=${slug}`}
-                    className="flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] font-semibold text-gray-700 hover:text-blue-600 hover:bg-gray-50 transition-colors group"
+                    className={`flex items-center justify-between px-3 py-2 rounded-xl text-[13px] font-semibold transition-colors group ${
+                      active
+                        ? 'bg-[#edf2f7] text-gray-900'
+                        : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+                    }`}
                   >
                     <div className="flex items-center gap-3">
-                      <Icon size={17} className="text-gray-400 group-hover:text-blue-600 transition-colors" />
+                      <Icon
+                        size={17}
+                        className={active ? 'text-gray-900' : 'text-gray-400 group-hover:text-blue-600 transition-colors'}
+                      />
                       <span>{name}</span>
                     </div>
-                    <ChevronRight size={14} className="text-gray-300 group-hover:text-blue-600 transition-colors" />
+                    <ChevronRight
+                      size={14}
+                      className={active ? 'text-gray-700' : 'text-gray-300 group-hover:text-blue-600 transition-colors'}
+                    />
                   </Link>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* COLUMN 2: Main Banner (Center, 6 cols) */}
+          {/* COLUMN 2: Main Hero Banner (Center, 6 cols) */}
           <div className="lg:col-span-6 flex flex-col">
-            <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#161920] via-[#1a1d26] to-[#252a36] text-white p-7 md:p-8 flex-1 flex flex-col justify-between min-h-[380px] shadow-sm">
+            <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#161820] via-[#1a1d26] to-[#20242f] text-white p-7 md:p-8 flex-1 flex flex-col justify-between min-h-[440px] shadow-sm">
               
-              {/* Top Badge */}
-              <div>
+              {/* Top Details */}
+              <div className="relative z-10 max-w-sm">
                 <span className="inline-block bg-white/10 backdrop-blur-md text-[11px] font-bold tracking-wider px-3 py-1 rounded-full text-gray-200 mb-3 border border-white/10">
                   {slide.tag}
                 </span>
 
-                <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white mb-2">
+                <h1 className="text-3xl md:text-[38px] font-black tracking-tight text-white mb-2 leading-tight">
                   {slide.title}
-                </h2>
-                <p className="text-xs md:text-sm text-gray-300 max-w-sm mb-6">
+                </h1>
+                <p className="text-xs md:text-sm text-gray-300 mb-6 font-normal">
                   {slide.subtitle}
                 </p>
 
                 {/* 3 Pills Specs */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 max-w-md mb-6">
+                <div className="grid grid-cols-3 gap-2 mb-6">
                   {slide.pills.map((pill, i) => {
                     const PIcon = pill.icon;
                     return (
                       <div
                         key={i}
-                        className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-2.5 flex items-center gap-2"
+                        className="bg-white/10 backdrop-blur-md border border-white/10 rounded-xl p-2 text-left"
                       >
-                        <PIcon size={18} className="text-blue-400 shrink-0" />
-                        <div className="text-left leading-tight">
-                          <div className="text-[11px] font-bold text-white">{pill.label}</div>
-                          <div className="text-[10px] text-gray-400">{pill.sub}</div>
-                        </div>
+                        <PIcon size={16} className="text-gray-200 mb-1" />
+                        <div className="text-[11px] font-bold text-white leading-tight">{pill.label}</div>
+                        <div className="text-[10px] text-gray-400 leading-tight">{pill.sub}</div>
                       </div>
                     );
                   })}
@@ -301,38 +282,38 @@ export default function HomePage() {
                 {/* CTA Button */}
                 <Link
                   to={slide.link}
-                  className="inline-flex items-center gap-2 bg-white text-gray-950 font-bold px-5 py-2.5 rounded-full text-xs hover:bg-gray-100 transition-transform active:scale-95 shadow-md"
+                  className="inline-flex items-center gap-2 bg-white text-gray-950 font-bold px-5 py-2.5 rounded-full text-xs hover:bg-gray-100 transition-transform active:scale-95 shadow-md cursor-pointer"
                 >
                   <span>{slide.buttonText}</span>
                   <ArrowRight size={14} />
                 </Link>
               </div>
 
-              {/* Angled Laptop Product Image on the Right */}
-              <div className="absolute -bottom-2 -right-6 w-[56%] md:w-[52%] pointer-events-none drop-shadow-[0_20px_35px_rgba(0,0,0,0.6)]">
+              {/* Angled MacBook Laptop Image */}
+              <div className="absolute right-0 bottom-0 w-[58%] md:w-[56%] h-full flex items-end justify-end pointer-events-none pr-3 pb-3">
                 <img
                   src={slide.image}
                   alt={slide.title}
-                  className="w-full h-auto object-contain transform -rotate-3 hover:rotate-0 transition-transform duration-500"
+                  className="max-h-[92%] w-auto object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.8)]"
                 />
               </div>
 
-              {/* Slider Controls: Dots & Arrows */}
+              {/* Slider Controls: Center Dots & Side Arrows */}
               <div className="flex items-center justify-between pt-4 mt-auto relative z-10">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 ml-auto mr-auto">
                   {HERO_SLIDES.map((_, i) => (
                     <button
                       key={i}
                       onClick={() => setCurrentSlide(i)}
                       className={`h-2 rounded-full transition-all cursor-pointer ${
-                        currentSlide === i ? 'w-6 bg-white' : 'w-2 bg-white/30 hover:bg-white/50'
+                        currentSlide === i ? 'w-6 bg-white' : 'w-2 bg-white/40 hover:bg-white/60'
                       }`}
                       aria-label={`Slide ${i + 1}`}
                     />
                   ))}
                 </div>
 
-                <div className="flex gap-1.5">
+                <div className="absolute right-4 bottom-4 flex gap-1.5">
                   <button
                     onClick={() =>
                       setCurrentSlide((prev) => (prev - 1 + HERO_SLIDES.length) % HERO_SLIDES.length)
@@ -355,43 +336,43 @@ export default function HomePage() {
           </div>
 
           {/* COLUMN 3: Right 3 Promo Cards (Right, 3 cols) */}
-          <div className="lg:col-span-3 flex flex-col justify-between gap-3">
+          <div className="lg:col-span-3 flex flex-col justify-between gap-3.5">
             
             {/* Promo Card 1: Ưu đãi hôm nay */}
-            <div className="bg-white rounded-2xl border border-gray-200/80 p-4 shadow-sm relative overflow-hidden flex-1 flex flex-col justify-between">
+            <div className="bg-white rounded-2xl border border-gray-200/70 p-4 shadow-sm relative overflow-hidden flex-1 flex flex-col justify-between">
               <div>
                 <div className="flex items-center gap-1.5 text-xs text-gray-500 font-semibold mb-1">
-                  <Tag size={13} className="text-blue-600" />
+                  <Tag size={13} className="text-gray-700" />
                   <span>Ưu đãi hôm nay</span>
                 </div>
                 <div className="text-xl font-black text-gray-900 leading-tight">
                   Giảm đến 50%
                 </div>
-                <p className="text-[11px] text-gray-500 mt-1 max-w-[140px]">
+                <p className="text-[11px] text-gray-500 mt-0.5 max-w-[130px]">
                   Cho các sản phẩm laptop, điện thoại
                 </p>
                 <Link
                   to="/products"
-                  className="mt-3 inline-flex items-center gap-1.5 bg-[#161920] text-white text-[11px] font-bold px-3 py-1.5 rounded-full hover:bg-gray-800 transition-colors"
+                  className="mt-3 inline-flex items-center gap-1.5 bg-[#181a20] text-white text-[11px] font-bold px-3 py-1.5 rounded-full hover:bg-black transition-colors"
                 >
                   <span>Xem ngay</span>
                   <ArrowRight size={11} />
                 </Link>
               </div>
-              <div className="absolute right-2 bottom-2 w-24 h-24 pointer-events-none">
+              <div className="absolute right-1 bottom-1 w-28 h-28 pointer-events-none">
                 <img
-                  src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&auto=format&fit=crop&q=80"
+                  src="/images/headphone-promo.jpg"
                   alt="Ưu đãi headphone"
-                  className="w-full h-full object-contain drop-shadow-md"
+                  className="w-full h-full object-contain mix-blend-multiply"
                 />
               </div>
             </div>
 
             {/* Promo Card 2: Miễn phí vận chuyển */}
-            <div className="bg-white rounded-2xl border border-gray-200/80 p-4 shadow-sm flex items-center justify-between">
+            <div className="bg-white rounded-2xl border border-gray-200/70 p-4 shadow-sm flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-1.5 text-xs text-gray-500 font-semibold mb-0.5">
-                  <Truck size={13} className="text-blue-600" />
+                  <Truck size={13} className="text-gray-700" />
                   <span>Miễn phí vận chuyển</span>
                 </div>
                 <div className="text-base font-black text-gray-900">
@@ -399,16 +380,21 @@ export default function HomePage() {
                 </div>
                 <p className="text-[11px] text-gray-500">Áp dụng toàn quốc</p>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-blue-50/70 border border-blue-100 flex items-center justify-center text-blue-600">
-                <Truck size={24} />
+              <div className="w-12 h-12 flex items-center justify-center text-gray-400">
+                <svg viewBox="0 0 48 48" className="w-10 h-10 text-gray-300 stroke-current fill-none stroke-[2]">
+                  <path d="M6 14h24v20H6z" />
+                  <path d="M30 20h8l4 6v8h-12z" />
+                  <circle cx="14" cy="36" r="4" />
+                  <circle cx="36" cy="36" r="4" />
+                </svg>
               </div>
             </div>
 
             {/* Promo Card 3: Bảo hành chính hãng */}
-            <div className="bg-white rounded-2xl border border-gray-200/80 p-4 shadow-sm flex items-center justify-between">
+            <div className="bg-white rounded-2xl border border-gray-200/70 p-4 shadow-sm flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-1.5 text-xs text-gray-500 font-semibold mb-0.5">
-                  <ShieldCheck size={13} className="text-blue-600" />
+                  <ShieldCheck size={13} className="text-gray-700" />
                   <span>Bảo hành chính hãng</span>
                 </div>
                 <div className="text-base font-black text-gray-900">
@@ -416,8 +402,11 @@ export default function HomePage() {
                 </div>
                 <p className="text-[11px] text-gray-500">Tùy sản phẩm</p>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-blue-50/70 border border-blue-100 flex items-center justify-center text-blue-600">
-                <ShieldCheck size={26} />
+              <div className="w-12 h-12 flex items-center justify-center text-blue-500">
+                <svg viewBox="0 0 48 48" className="w-10 h-10 stroke-blue-500 fill-none stroke-[2.2]">
+                  <path d="M24 6l16 6v12c0 10-7 17-16 20C15 41 8 34 8 24V12l16-6z" />
+                  <polyline points="18 24 22 28 30 20" />
+                </svg>
               </div>
             </div>
 
@@ -425,38 +414,38 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 2. QUICK CATEGORIES BAR (6 Items) */}
+      {/* 2. QUICK CATEGORIES BAR (6 Items - Minimalist line icons without box background) */}
       <section className="max-w-[1360px] mx-auto px-4 mb-6">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
           {QUICK_CATEGORIES.map(({ name, desc, icon: Icon, slug }) => (
             <Link
               key={name}
               to={`/products?category=${slug}`}
-              className="bg-white rounded-2xl border border-gray-200/80 p-4 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center group"
+              className="bg-white rounded-2xl border border-gray-200/70 py-4 px-3 shadow-xs hover:shadow-md transition-all flex flex-col items-center text-center group"
             >
-              <div className="w-12 h-12 rounded-xl bg-gray-50 group-hover:bg-blue-50 text-gray-700 group-hover:text-blue-600 flex items-center justify-center transition-colors mb-2.5">
-                <Icon size={24} strokeWidth={1.75} />
+              <div className="text-gray-700 group-hover:text-blue-600 transition-colors mb-2">
+                <Icon size={28} strokeWidth={1.5} />
               </div>
               <div className="text-xs font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
                 {name}
               </div>
-              <div className="text-[10px] text-gray-400 mt-0.5 font-medium">{desc}</div>
+              <div className="text-[10px] text-gray-400 mt-0.5 font-normal">{desc}</div>
             </Link>
           ))}
         </div>
       </section>
 
-      {/* 3. FLASH SALE + RIGHT VERTICAL BANNER */}
-      <section className="max-w-[1360px] mx-auto px-4 mb-10">
+      {/* 3. FLASH SALE + RIGHT VERTICAL TECH BANNER */}
+      <section className="max-w-[1360px] mx-auto px-4 mb-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           
           {/* Flash Sale Block (Left, 9 cols) */}
           <div className="lg:col-span-9 bg-[#1b1e26] rounded-2xl p-4 sm:p-5 shadow-sm text-white flex flex-col justify-between">
             {/* Flash Sale Header Bar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-800">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-800">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-amber-400/20 text-amber-400 flex items-center justify-center">
-                  <Zap size={22} className="fill-amber-400" />
+                <div className="text-white">
+                  <Zap size={24} className="fill-white text-white" />
                 </div>
                 <div>
                   <div className="text-lg font-black tracking-wider text-white">FLASH SALE</div>
@@ -464,34 +453,34 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {/* Countdown Timer */}
-              <div className="flex items-center gap-3">
+              {/* Countdown Timer: [ 01 ] : [ 23 ] : [ 45 ] */}
+              <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1.5">
                   <div className="text-center">
-                    <div className="bg-[#2a2e39] text-white font-mono font-bold text-sm px-2.5 py-1 rounded-md border border-gray-700">
+                    <div className="bg-[#242833] text-white font-mono font-bold text-xs px-2 py-1 rounded border border-gray-700">
                       {String(timeLeft.hours).padStart(2, '0')}
                     </div>
-                    <span className="text-[9px] text-gray-400 uppercase font-semibold">Giờ</span>
+                    <span className="text-[9px] text-gray-400 font-medium">Giờ</span>
                   </div>
-                  <span className="text-white font-bold text-sm -mt-3">:</span>
+                  <span className="text-white font-bold text-xs -mt-3">:</span>
                   <div className="text-center">
-                    <div className="bg-[#2a2e39] text-white font-mono font-bold text-sm px-2.5 py-1 rounded-md border border-gray-700">
+                    <div className="bg-[#242833] text-white font-mono font-bold text-xs px-2 py-1 rounded border border-gray-700">
                       {String(timeLeft.minutes).padStart(2, '0')}
                     </div>
-                    <span className="text-[9px] text-gray-400 uppercase font-semibold">Phút</span>
+                    <span className="text-[9px] text-gray-400 font-medium">Phút</span>
                   </div>
-                  <span className="text-white font-bold text-sm -mt-3">:</span>
+                  <span className="text-white font-bold text-xs -mt-3">:</span>
                   <div className="text-center">
-                    <div className="bg-[#2a2e39] text-white font-mono font-bold text-sm px-2.5 py-1 rounded-md border border-gray-700">
+                    <div className="bg-[#242833] text-white font-mono font-bold text-xs px-2 py-1 rounded border border-gray-700">
                       {String(timeLeft.seconds).padStart(2, '0')}
                     </div>
-                    <span className="text-[9px] text-gray-400 uppercase font-semibold">Giây</span>
+                    <span className="text-[9px] text-gray-400 font-medium">Giây</span>
                   </div>
                 </div>
 
                 <Link
                   to="/products"
-                  className="text-xs font-semibold text-gray-300 hover:text-white flex items-center gap-1 ml-4 group"
+                  className="text-xs font-semibold text-gray-300 hover:text-white flex items-center gap-1 ml-2 group"
                 >
                   <span>Xem tất cả</span>
                   <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
@@ -499,19 +488,19 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* 4 Flash Sale Product Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5 pt-4">
+            {/* 4 Flash Sale Product Cards Grid matching Image 1 */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5 pt-3.5">
               {flashSaleProducts.slice(0, 4).map((p) => {
                 const discount = p.discountPercent || 15;
                 const isLiked = likedMap[p.id];
                 return (
                   <div
                     key={p.id}
-                    className="bg-white rounded-xl p-3.5 flex flex-col justify-between text-gray-800 shadow-sm hover:shadow-md transition-shadow relative group"
+                    className="bg-white rounded-xl p-3 flex flex-col justify-between text-gray-800 shadow-sm hover:shadow-md transition-shadow relative group"
                   >
                     {/* Top Row: Discount Pill & Wishlist */}
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="bg-[#1b1e26] text-white text-[11px] font-bold px-2 py-0.5 rounded-md">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="bg-[#1b1e26] text-white text-[11px] font-bold px-2 py-0.5 rounded">
                         -{discount}%
                       </span>
                       <button
@@ -521,14 +510,14 @@ export default function HomePage() {
                         }`}
                         aria-label="Yêu thích"
                       >
-                        <Heart size={16} fill={isLiked ? 'currentColor' : 'none'} />
+                        <Heart size={15} fill={isLiked ? 'currentColor' : 'none'} />
                       </button>
                     </div>
 
                     {/* Product Image */}
                     <Link
                       to={`/products/${p.id}`}
-                      className="w-full aspect-[4/3] flex items-center justify-center p-2 mb-2 overflow-hidden"
+                      className="w-full aspect-[4/3] flex items-center justify-center p-1.5 mb-2 overflow-hidden"
                     >
                       <img
                         src={p.imageUrl}
@@ -544,14 +533,14 @@ export default function HomePage() {
                     {/* Name */}
                     <Link
                       to={`/products/${p.id}`}
-                      className="text-xs font-bold text-gray-900 line-clamp-1 hover:text-blue-600 transition-colors mb-1.5"
+                      className="text-xs font-bold text-gray-900 truncate hover:text-blue-600 transition-colors mb-1 block"
                       title={p.name}
                     >
                       {p.name}
                     </Link>
 
                     {/* Rating */}
-                    <div className="flex items-center gap-1 text-[11px] text-amber-500 mb-2">
+                    <div className="flex items-center gap-1 text-[11px] text-amber-500 mb-1.5">
                       <div className="flex">
                         {Array.from({ length: 5 }).map((_, i) => (
                           <Star key={i} size={11} fill="currentColor" />
@@ -561,7 +550,7 @@ export default function HomePage() {
                     </div>
 
                     {/* Price Row */}
-                    <div className="flex items-baseline gap-2 mb-3">
+                    <div className="flex items-baseline gap-2 mb-2.5">
                       {p.originalPrice && (
                         <span className="text-[11px] text-gray-400 line-through">
                           {formatPrice(p.originalPrice)}
@@ -587,12 +576,12 @@ export default function HomePage() {
           </div>
 
           {/* Right Vertical Tech Banner (Right, 3 cols) */}
-          <div className="lg:col-span-3 bg-gradient-to-br from-[#13151b] via-[#1a1d26] to-[#111318] rounded-2xl p-6 text-white flex flex-col justify-between shadow-sm relative overflow-hidden">
+          <div className="lg:col-span-3 bg-gradient-to-br from-[#12141a] via-[#161922] to-[#101217] rounded-2xl p-5 text-white flex flex-col justify-between shadow-sm relative overflow-hidden">
             <div>
               <h3 className="text-2xl font-black tracking-tight leading-tight mb-2">
                 Công nghệ<br />dẫn lối tương lai
               </h3>
-              <p className="text-xs text-gray-400 max-w-[200px] mb-5">
+              <p className="text-xs text-gray-400 max-w-[200px] mb-4">
                 Laptop - Điện thoại - Phụ kiện chính hãng
               </p>
               <Link
@@ -605,11 +594,11 @@ export default function HomePage() {
             </div>
 
             {/* Showcase Tech Devices Graphic */}
-            <div className="mt-6 -mb-4 -mr-4 flex justify-end">
+            <div className="mt-4 -mb-5 -mr-5 flex justify-end">
               <img
-                src="https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=500&auto=format&fit=crop&q=80"
+                src="/images/tech-ecosystem.jpg"
                 alt="Tech Ecosystem"
-                className="w-full h-48 object-cover rounded-tl-2xl shadow-2xl opacity-90 hover:opacity-100 transition-opacity"
+                className="w-full h-52 object-cover rounded-tl-2xl shadow-2xl opacity-90 hover:opacity-100 transition-opacity"
               />
             </div>
           </div>
@@ -621,8 +610,8 @@ export default function HomePage() {
       <section className="max-w-[1360px] mx-auto px-4">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <ShieldCheck size={20} className="text-blue-600" />
-            <h2 className="text-lg font-black text-gray-900 tracking-tight">
+            <ShieldCheck size={20} className="text-gray-900" />
+            <h2 className="text-base font-black text-gray-900 tracking-tight">
               Sản phẩm mới nhất
             </h2>
           </div>
