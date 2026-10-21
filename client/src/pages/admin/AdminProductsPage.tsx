@@ -59,6 +59,7 @@ export const AdminProductsPage: React.FC = () => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<FormState>(INITIAL_FORM_STATE);
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
+  const [modalError, setModalError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const [aiMessage, setAiMessage] = useState<string | null>(null);
@@ -104,6 +105,7 @@ export const AdminProductsPage: React.FC = () => {
       categoryId: defaultCatId,
     });
     setFormErrors({});
+    setModalError(null);
     setAiMessage(null);
     setFormMode('create');
     setEditingId(null);
@@ -122,6 +124,7 @@ export const AdminProductsPage: React.FC = () => {
       status: true,
     });
     setFormErrors({});
+    setModalError(null);
     setAiMessage(null);
     setFormMode('edit');
     setEditingId(p.id);
@@ -217,6 +220,7 @@ export const AdminProductsPage: React.FC = () => {
       setIsFormOpen(false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Có lỗi xảy ra khi lưu sản phẩm';
+      setModalError(msg);
       showToast(msg, 'error');
     } finally {
       setIsSubmitting(false);
@@ -261,19 +265,29 @@ export const AdminProductsPage: React.FC = () => {
 
   return (
     <div className="space-y-6 font-sans">
-      {/* Toast Notification */}
+      {/* Toast Notification - High z-index to always stay above modals */}
       {toastMessage && (
         <div
-          className={`fixed top-20 right-6 z-50 text-white text-xs px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2 animate-bounce ${
-            toastMessage.type === 'success' ? 'bg-slate-900 border border-slate-700' : 'bg-rose-600'
+          className={`fixed top-6 right-6 z-[9999] text-white text-xs px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 max-w-md pointer-events-auto border backdrop-blur-md transition-all animate-bounce ${
+            toastMessage.type === 'success'
+              ? 'bg-slate-900/95 border-slate-700'
+              : 'bg-rose-600/95 border-rose-500'
           }`}
         >
           {toastMessage.type === 'success' ? (
-            <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+            <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
           ) : (
-            <AlertCircle size={16} className="text-white shrink-0" />
+            <AlertCircle size={18} className="text-white shrink-0" />
           )}
-          <span>{toastMessage.text}</span>
+          <span className="font-medium flex-1">{toastMessage.text}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="p-1 hover:bg-white/20 rounded text-white/80 hover:text-white transition cursor-pointer shrink-0"
+            title="Đóng thông báo"
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
 
@@ -575,6 +589,25 @@ export const AdminProductsPage: React.FC = () => {
 
             {/* Modal Body: Scrollable Form */}
             <form onSubmit={handleFormSubmit} className="space-y-4 overflow-y-auto pr-1 flex-1">
+              {/* In-Modal Error Alert Banner */}
+              {modalError && (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-3 text-rose-800 animate-fade-in shadow-xs">
+                  <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-rose-600" />
+                  <div className="flex-1 text-xs">
+                    <p className="font-bold text-rose-900">Không thể lưu thông tin sản phẩm</p>
+                    <p className="mt-1 leading-relaxed text-rose-700 font-medium">{modalError}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setModalError(null)}
+                    className="p-1 hover:bg-rose-100 rounded text-rose-500 hover:text-rose-700 transition cursor-pointer"
+                    title="Ẩn thông báo lỗi"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
               {/* Product Name */}
               <div>
                 <Input
