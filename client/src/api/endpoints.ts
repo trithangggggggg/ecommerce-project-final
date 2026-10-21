@@ -21,5 +21,6 @@ export const ENDPOINTS = {
   },
   AI: {
     CHAT: '/ai/chat',
+    GENERATE_DESCRIPTION: '/admin/ai/generate-description',
   },
 } as const;

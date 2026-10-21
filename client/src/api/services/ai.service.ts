@@ -293,9 +293,9 @@ export const aiService = {
       }));
 
       return {
-        reply: data?.reply || 'Dạ E-ShopTECH luôn sẵn sàng hỗ trợ quý khách!',
+        reply: data?.reply || 'Dạ NEXOR luôn sẵn sàng hỗ trợ quý khách!',
         recommendedProducts: formattedProducts,
-        provider: data?.provider || 'E-ShopTECH AI Assistant',
+        provider: data?.provider || 'NEXOR AI Assistant',
       };
     } catch (error: any) {
       console.warn('AI Chat API call fallback to smart local assistant:', error);
@@ -303,4 +303,38 @@ export const aiService = {
       return generateSmartClientFallback(cleanMessage);
     }
   },
+
+  /**
+   * [Admin] Gọi AI tự động sinh mô tả sản phẩm chuẩn SEO (POST /api/admin/ai/generate-description)
+   */
+  async generateProductDescription(
+    productName: string,
+    categoryName = 'Thiết bị công nghệ',
+    keywords: string[] = []
+  ): Promise<string> {
+    try {
+      const response = await axiosClient.post(ENDPOINTS.AI.GENERATE_DESCRIPTION, {
+        productName: productName.trim(),
+        categoryName: categoryName.trim(),
+        keywords,
+      });
+      const data = response.data?.data || response.data;
+      if (data?.description) {
+        return data.description;
+      }
+    } catch (err) {
+      console.warn('Backend AI Description API call fallback to smart generator:', err);
+    }
+
+    // Smart Fallback Description nếu Backend chưa nạp API key
+    return (
+      `✨ **Tổng quan sản phẩm**: ${productName} là dòng sản phẩm cao cấp chính hãng thuộc phân khúc ${categoryName}, được thiết kế tinh tế với ngôn ngữ hiện đại, mang lại trải nghiệm đỉnh cao cho người dùng.\n\n` +
+      `🔥 **Đặc điểm nổi bật**:\n` +
+      `- Hiệu năng mạnh mẽ hàng đầu, vận hành mượt mà mọi tác vụ học tập, làm việc và giải trí.\n` +
+      `- Thiết kế sang trọng, gia công tỉ mỉ với chất liệu cao cấp và độ hoàn thiện vượt trội.\n` +
+      `- Tối ưu hóa thời lượng pin và khả năng kết nối không dây tốc độ cao ổn định.\n\n` +
+      `🛡️ **Chính sách cam kết**: 100% hàng New Seal chính hãng, bảo hành 12 tháng 1 đổi 1 và hỗ trợ giao hàng hỏa tốc toàn quốc.`
+    );
+  },
 };
+

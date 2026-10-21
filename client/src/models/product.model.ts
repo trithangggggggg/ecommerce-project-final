@@ -54,3 +54,13 @@ export interface CartItem {
   product: Product;
   quantity: number;
 }
+
+export interface ProductPayload {
+  name: string;
+  description?: string;
+  price: number;
+  stock: number;
+  imageUrl?: string;
+  categoryId: number;
+  status?: boolean;
+}

@@ -10,12 +10,38 @@ import {
   ExternalLink,
   X,
   Star,
+  Sparkles,
+  AlertCircle,
+  Loader2,
+  Image as ImageIcon,
+  Check,
 } from 'lucide-react';
 import { productService } from '../../api/services/product.service';
+import { aiService } from '../../api/services/ai.service';
 import { formatPrice } from '../../utils/format';
-import type { Product, Category } from '../../models/product.model';
+import type { Product, Category, ProductPayload } from '../../models/product.model';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
+
+interface FormState {
+  name: string;
+  categoryId: number;
+  price: string;
+  stock: string;
+  imageUrl: string;
+  description: string;
+  status: boolean;
+}
+
+const INITIAL_FORM_STATE: FormState = {
+  name: '',
+  categoryId: 1,
+  price: '',
+  stock: '20',
+  imageUrl: '',
+  description: '',
+  status: true,
+};
 
 export const AdminProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -23,8 +49,31 @@ export const AdminProductsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<number | 'ALL'>('ALL');
+
+  // Detail Modal
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Form Modal (Create / Edit)
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [formData, setFormData] = useState<FormState>(INITIAL_FORM_STATE);
+  const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+  const [aiMessage, setAiMessage] = useState<string | null>(null);
+
+  // Delete Confirm Modal
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Toast Notification
+  const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const showToast = (text: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage({ text, type });
+    setTimeout(() => setToastMessage(null), 3500);
+  };
 
   const fetchProductsAndCategories = useCallback(async () => {
     setIsLoading(true);
@@ -37,6 +86,7 @@ export const AdminProductsPage: React.FC = () => {
       setCategories(catRes || []);
     } catch (err) {
       console.warn('Lỗi khi tải danh sách sản phẩm admin:', err);
+      showToast('Không thể kết nối đến máy chủ để tải sản phẩm', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -46,19 +96,152 @@ export const AdminProductsPage: React.FC = () => {
     fetchProductsAndCategories();
   }, [fetchProductsAndCategories]);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+  // Open Create Modal
+  const handleOpenCreateModal = () => {
+    const defaultCatId = categories.length > 0 ? categories[0].id : 1;
+    setFormData({
+      ...INITIAL_FORM_STATE,
+      categoryId: defaultCatId,
+    });
+    setFormErrors({});
+    setAiMessage(null);
+    setFormMode('create');
+    setEditingId(null);
+    setIsFormOpen(true);
   };
 
-  const handleDeleteProduct = (productId: number, productName: string) => {
-    if (window.confirm(`Bạn có chắc chắn muốn xóa sản phẩm "${productName}"?`)) {
-      setProducts((prev) => prev.filter((p) => p.id !== productId));
-      showToast(`Đã xóa sản phẩm "${productName}"`);
+  // Open Edit Modal
+  const handleOpenEditModal = (p: Product) => {
+    setFormData({
+      name: p.name,
+      categoryId: p.categoryId || 1,
+      price: p.price.toString(),
+      stock: (p.stock ?? 0).toString(),
+      imageUrl: p.imageUrl || '',
+      description: p.description || '',
+      status: true,
+    });
+    setFormErrors({});
+    setAiMessage(null);
+    setFormMode('edit');
+    setEditingId(p.id);
+    setIsFormOpen(true);
+  };
+
+  // Call AI Description Generator
+  const handleGenerateAiDescription = async () => {
+    if (!formData.name.trim()) {
+      setFormErrors((prev) => ({
+        ...prev,
+        name: 'Vui lòng nhập tên sản phẩm trước khi tạo mô tả bằng AI',
+      }));
+      return;
+    }
+
+    setFormErrors((prev) => {
+      const copy = { ...prev };
+      delete copy.name;
+      return copy;
+    });
+
+    setIsGeneratingAi(true);
+    setAiMessage(null);
+
+    try {
+      const targetCat = categories.find((c) => c.id === formData.categoryId);
+      const catName = targetCat ? targetCat.name : 'Thiết bị công nghệ';
+      const aiDesc = await aiService.generateProductDescription(formData.name.trim(), catName);
+
+      setFormData((prev) => ({
+        ...prev,
+        description: aiDesc,
+      }));
+      setAiMessage('✨ AI đã tạo xong đoạn mô tả chuẩn SEO chuyên nghiệp!');
+      setTimeout(() => setAiMessage(null), 4000);
+    } catch (err) {
+      console.error('Lỗi khi sinh mô tả AI:', err);
+      setAiMessage('⚠️ Có lỗi khi kết nối AI, vui lòng thử lại.');
+    } finally {
+      setIsGeneratingAi(false);
     }
   };
 
-  // Lọc sản phẩm theo tìm kiếm và danh mục
+  // Validate and Submit Form
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const errors: { [key: string]: string } = {};
+
+    if (!formData.name.trim()) {
+      errors.name = 'Tên sản phẩm không được để trống';
+    }
+    const numPrice = parseFloat(formData.price);
+    if (isNaN(numPrice) || numPrice <= 0) {
+      errors.price = 'Giá bán phải là số lớn hơn 0';
+    }
+    const numStock = parseInt(formData.stock, 10);
+    if (isNaN(numStock) || numStock < 0) {
+      errors.stock = 'Số lượng tồn kho không được âm';
+    }
+    if (!formData.categoryId) {
+      errors.categoryId = 'Vui lòng chọn danh mục';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+
+    setIsSubmitting(true);
+    const payload: ProductPayload = {
+      name: formData.name.trim(),
+      description: formData.description.trim(),
+      price: numPrice,
+      stock: numStock,
+      imageUrl:
+        formData.imageUrl.trim() ||
+        'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600',
+      categoryId: formData.categoryId,
+      status: formData.status,
+    };
+
+    try {
+      if (formMode === 'create') {
+        const newProduct = await productService.createProduct(payload);
+        setProducts((prev) => [newProduct, ...prev]);
+        showToast(`Đã thêm mới sản phẩm "${newProduct.name}" thành công!`);
+      } else if (formMode === 'edit' && editingId !== null) {
+        const updated = await productService.updateProduct(editingId, payload);
+        setProducts((prev) => prev.map((p) => (p.id === editingId ? updated : p)));
+        showToast(`Đã cập nhật sản phẩm "${updated.name}" thành công!`);
+      }
+      setIsFormOpen(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Có lỗi xảy ra khi lưu sản phẩm';
+      showToast(msg, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Confirm Delete Product
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+
+    try {
+      await productService.deleteProduct(deleteTarget.id);
+      setProducts((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+      showToast(`Đã xóa sản phẩm "${deleteTarget.name}" khỏi hệ thống!`);
+      setDeleteTarget(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Không thể xóa sản phẩm';
+      showToast(msg, 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Filter products
   const filteredProducts = products.filter((p) => {
     if (selectedCategory !== 'ALL' && p.categoryId !== selectedCategory) {
       return false;
@@ -80,9 +263,17 @@ export const AdminProductsPage: React.FC = () => {
     <div className="space-y-6 font-sans">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-20 right-6 z-50 bg-slate-900 text-white text-xs px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 animate-bounce">
-          <CheckCircle2 size={16} className="text-emerald-400" />
-          <span>{toastMessage}</span>
+        <div
+          className={`fixed top-20 right-6 z-50 text-white text-xs px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2 animate-bounce ${
+            toastMessage.type === 'success' ? 'bg-slate-900 border border-slate-700' : 'bg-rose-600'
+          }`}
+        >
+          {toastMessage.type === 'success' ? (
+            <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+          ) : (
+            <AlertCircle size={16} className="text-white shrink-0" />
+          )}
+          <span>{toastMessage.text}</span>
         </div>
       )}
 
@@ -97,7 +288,7 @@ export const AdminProductsPage: React.FC = () => {
             </span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Danh sách toàn bộ sản phẩm công nghệ đang được bày bán trong hệ thống E-ShopTECH
+            Danh sách toàn bộ sản phẩm công nghệ đang được bày bán trong hệ thống NEXOR
           </p>
         </div>
 
@@ -117,7 +308,7 @@ export const AdminProductsPage: React.FC = () => {
             variant="primary"
             size="md"
             leftIcon={<Plus className="w-4 h-4" />}
-            onClick={() => alert('Chức năng thêm mới sản phẩm đang được cập nhật form modal!')}
+            onClick={handleOpenCreateModal}
           >
             Thêm sản phẩm mới
           </Button>
@@ -168,7 +359,7 @@ export const AdminProductsPage: React.FC = () => {
               }}
               className="w-full sm:w-auto bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-semibold text-slate-700 py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500/15 cursor-pointer"
             >
-              <option value="ALL">Tất cả danh mục</option>
+              <option value="ALL">Tất cả danh mục ({categories.length})</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -186,7 +377,7 @@ export const AdminProductsPage: React.FC = () => {
         {isLoading && (
           <div className="p-12 text-center space-y-3">
             <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-xs text-slate-500">Đang tải danh sách 12 sản phẩm từ hệ thống...</p>
+            <p className="text-xs text-slate-500">Đang đồng bộ danh sách sản phẩm từ hệ thống...</p>
           </div>
         )}
 
@@ -293,9 +484,9 @@ export const AdminProductsPage: React.FC = () => {
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-1 text-amber-500 font-semibold">
                           <Star className="w-3.5 h-3.5 fill-current" />
-                          <span>{p.rating || 4.9}</span>
+                          <span>{p.rating || 5.0}</span>
                           <span className="text-[10px] text-slate-400 font-normal">
-                            ({p.reviewCount || 42})
+                            ({p.reviewCount || 48})
                           </span>
                         </div>
                       </td>
@@ -327,15 +518,15 @@ export const AdminProductsPage: React.FC = () => {
                           </button>
                           <button
                             type="button"
-                            onClick={() => alert(`Chỉnh sửa sản phẩm: ${p.name}`)}
+                            onClick={() => handleOpenEditModal(p)}
                             className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition cursor-pointer"
-                            title="Chỉnh sửa"
+                            title="Chỉnh sửa sản phẩm"
                           >
                             <Edit className="w-4 h-4" />
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDeleteProduct(p.id, p.name)}
+                            onClick={() => setDeleteTarget({ id: p.id, name: p.name })}
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                             title="Xóa sản phẩm"
                           >
@@ -352,7 +543,305 @@ export const AdminProductsPage: React.FC = () => {
         )}
       </div>
 
-      {/* Product Detail Modal */}
+      {/* ======================================================== */}
+      {/* MODAL 1: FORM THÊM MỚI / CHỈNH SỬA SẢN PHẨM (KÈM NÚT AI)  */}
+      {/* ======================================================== */}
+      {isFormOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-2xl w-full p-6 sm:p-7 shadow-2xl space-y-5 my-8 max-h-[92vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Package className="w-5 h-5 text-blue-600" />
+                  <span>
+                    {formMode === 'create'
+                      ? 'Thêm sản phẩm công nghệ mới'
+                      : `Chỉnh sửa sản phẩm #${editingId}`}
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Điền các thông số kỹ thuật và gọi AI tự động sinh mô tả chuẩn SEO
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFormOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body: Scrollable Form */}
+            <form onSubmit={handleFormSubmit} className="space-y-4 overflow-y-auto pr-1 flex-1">
+              {/* Product Name */}
+              <div>
+                <Input
+                  label="Tên sản phẩm *"
+                  type="text"
+                  placeholder="Ví dụ: Apple iPhone 16 Pro Max 256GB"
+                  value={formData.name}
+                  onChange={(e) => {
+                    setFormData({ ...formData, name: e.target.value });
+                    if (formErrors.name) {
+                      setFormErrors((prev) => {
+                        const copy = { ...prev };
+                        delete copy.name;
+                        return copy;
+                      });
+                    }
+                  }}
+                  error={formErrors.name}
+                  required
+                />
+              </div>
+
+              {/* Category & Price Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Category Dropdown */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                    Danh mục ngành hàng *
+                  </label>
+                  <select
+                    value={formData.categoryId}
+                    onChange={(e) =>
+                      setFormData({ ...formData, categoryId: Number(e.target.value) })
+                    }
+                    className="w-full bg-white border border-gray-200 hover:border-gray-300 rounded-lg text-xs font-semibold text-gray-800 py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500/15 focus:border-blue-600 cursor-pointer"
+                  >
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Price */}
+                <div>
+                  <Input
+                    label="Giá bán (VNĐ) *"
+                    type="number"
+                    min="1000"
+                    step="1000"
+                    placeholder="30990000"
+                    value={formData.price}
+                    onChange={(e) => {
+                      setFormData({ ...formData, price: e.target.value });
+                      if (formErrors.price) {
+                        setFormErrors((prev) => {
+                          const copy = { ...prev };
+                          delete copy.price;
+                          return copy;
+                        });
+                      }
+                    }}
+                    error={formErrors.price}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Stock & Image URL Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Stock */}
+                <div>
+                  <Input
+                    label="Số lượng tồn kho *"
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="15"
+                    value={formData.stock}
+                    onChange={(e) => {
+                      setFormData({ ...formData, stock: e.target.value });
+                      if (formErrors.stock) {
+                        setFormErrors((prev) => {
+                          const copy = { ...prev };
+                          delete copy.stock;
+                          return copy;
+                        });
+                      }
+                    }}
+                    error={formErrors.stock}
+                    required
+                  />
+                </div>
+
+                {/* Image URL */}
+                <div>
+                  <Input
+                    label="Đường dẫn ảnh sản phẩm (URL)"
+                    type="url"
+                    placeholder="https://images.unsplash.com/..."
+                    value={formData.imageUrl}
+                    onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                    leftIcon={<ImageIcon className="w-4 h-4 text-slate-400" />}
+                  />
+                </div>
+              </div>
+
+              {/* Image Live Preview */}
+              {formData.imageUrl && (
+                <div className="flex items-center gap-3 p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl">
+                  <div className="w-12 h-12 rounded-lg bg-white border border-slate-200 p-1 flex items-center justify-center shrink-0 overflow-hidden">
+                    <img
+                      src={formData.imageUrl}
+                      alt="Preview"
+                      className="max-h-full max-w-full object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src =
+                          'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100';
+                      }}
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[11px] font-bold text-slate-700 block">Xem trước ảnh sản phẩm</span>
+                    <span className="text-[10px] text-slate-400 truncate block">{formData.imageUrl}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* AI Description Generator Section */}
+              <div className="space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Mô tả & Thông số kỹ thuật
+                  </label>
+
+                  {/* NÚT AI SINH MÔ TẢ THEO YÊU CẦU CARD [09] / CARD [05] */}
+                  <button
+                    type="button"
+                    onClick={handleGenerateAiDescription}
+                    disabled={isGeneratingAi}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition cursor-pointer disabled:opacity-60"
+                    title="Gọi AI tự động tạo đoạn mô tả chuẩn SEO dựa trên tên và danh mục sản phẩm"
+                  >
+                    {isGeneratingAi ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>AI đang soạn thảo mô tả...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                        <span>✨ Tạo mô tả bằng AI</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* AI Notification Alert */}
+                {aiMessage && (
+                  <div className="p-3 bg-indigo-50 border border-indigo-200 text-indigo-800 text-xs rounded-xl flex items-center gap-2 animate-fade-in">
+                    <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
+                    <span>{aiMessage}</span>
+                  </div>
+                )}
+
+                <textarea
+                  rows={6}
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Nhập mô tả tóm tắt, tính năng nổi bật hoặc nhấn '✨ Tạo mô tả bằng AI' để hệ thống tự động soạn thảo..."
+                  className="w-full px-3.5 py-2.5 bg-white border border-gray-200 hover:border-gray-300 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/15 focus:border-blue-600 transition resize-y font-mono leading-relaxed"
+                />
+              </div>
+
+              {/* Status Checkbox */}
+              <div className="pt-1">
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.checked })}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="text-xs font-semibold text-slate-700">
+                    Kích hoạt hiển thị và cho phép khách hàng đặt mua (Status = Active)
+                  </span>
+                </label>
+              </div>
+
+              {/* Submit Buttons */}
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() => setIsFormOpen(false)}
+                  disabled={isSubmitting}
+                >
+                  Hủy bỏ
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="md"
+                  isLoading={isSubmitting}
+                  leftIcon={<Check className="w-4 h-4" />}
+                >
+                  {formMode === 'create' ? 'Tạo mới sản phẩm' : 'Lưu cập nhật'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 2: XÁC NHẬN XÓA SẢN PHẨM (GỌI API DELETE SERVER)   */}
+      {/* ======================================================== */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-2">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <h3 className="text-base font-bold text-slate-900">Xác nhận xóa sản phẩm</h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Bạn có chắc chắn muốn xóa vĩnh viễn sản phẩm:
+                <br />
+                <strong className="text-slate-800 font-bold">"{deleteTarget.name}"</strong> (#{deleteTarget.id})?
+                <br />
+                <span className="text-rose-600 text-[11px] font-semibold mt-1 block">
+                  Hành động này sẽ gửi yêu cầu DELETE lên máy chủ và không thể hoàn tác.
+                </span>
+              </p>
+            </div>
+
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => setDeleteTarget(null)}
+                disabled={isDeleting}
+              >
+                Hủy bỏ
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                size="md"
+                isLoading={isDeleting}
+                onClick={handleConfirmDelete}
+                leftIcon={<Trash2 className="w-4 h-4" />}
+              >
+                Xác nhận xóa
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 3: XEM CHI TIẾT SẢN PHẨM                           */}
+      {/* ======================================================== */}
       {selectedProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4 font-sans">
@@ -361,7 +850,7 @@ export const AdminProductsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSelectedProduct(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -379,16 +868,30 @@ export const AdminProductsPage: React.FC = () => {
                 <h4 className="font-bold text-slate-900 text-sm leading-snug">{selectedProduct.name}</h4>
                 <p className="text-xs text-slate-500">Danh mục: {selectedProduct.category?.name || 'Công nghệ'}</p>
                 <p className="text-base font-black text-blue-600">{formatPrice(selectedProduct.price)}</p>
-                <p className="text-xs font-semibold text-emerald-600">Tồn kho: {selectedProduct.stock ?? 15} sản phẩm</p>
+                <p className="text-xs font-semibold text-emerald-600">
+                  Tồn kho: {selectedProduct.stock ?? 15} sản phẩm
+                </p>
               </div>
             </div>
 
-            <div className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
-              <span className="font-bold block text-slate-800">Mô tả tóm tắt:</span>
-              <p className="line-clamp-3">{selectedProduct.description || 'Sản phẩm công nghệ chính hãng E-ShopTECH.'}</p>
+            <div className="text-xs text-slate-600 bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1 max-h-48 overflow-y-auto font-mono leading-relaxed whitespace-pre-line">
+              <span className="font-bold block text-slate-800 font-sans">Mô tả chi tiết:</span>
+              <p>{selectedProduct.description || 'Sản phẩm công nghệ chính hãng NEXOR.'}</p>
             </div>
 
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-between items-center pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<Edit className="w-3.5 h-3.5" />}
+                onClick={() => {
+                  const p = selectedProduct;
+                  setSelectedProduct(null);
+                  handleOpenEditModal(p);
+                }}
+              >
+                Chỉnh sửa
+              </Button>
               <Button variant="dark" size="sm" onClick={() => setSelectedProduct(null)}>
                 Đóng
               </Button>

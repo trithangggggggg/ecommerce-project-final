@@ -71,12 +71,40 @@ export const AdminOrdersPage: React.FC = () => {
     fetchOrders();
   }, [fetchOrders]);
 
+  const getNextValidStatuses = (current: OrderStatus): OrderStatus[] => {
+    switch (current) {
+      case 'PENDING':
+        return ['PENDING', 'PROCESSING', 'CANCELLED'];
+      case 'PROCESSING':
+        return ['PROCESSING', 'SHIPPING', 'CANCELLED'];
+      case 'SHIPPING':
+        return ['SHIPPING', 'COMPLETED', 'CANCELLED'];
+      case 'COMPLETED':
+        return ['COMPLETED'];
+      case 'CANCELLED':
+        return ['CANCELLED'];
+      default:
+        return ['PENDING', 'PROCESSING', 'SHIPPING', 'COMPLETED', 'CANCELLED'];
+    }
+  };
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+    setTimeout(() => setToastMessage(null), 3500);
   };
 
   const handleStatusChange = async (orderId: number, newStatus: OrderStatus) => {
+    const targetOrder = orders.find((o) => o.id === orderId);
+    if (targetOrder) {
+      const allowed = getNextValidStatuses(targetOrder.status);
+      if (!allowed.includes(newStatus)) {
+        showToast(
+          `Không thể chuyển từ "${ORDER_STATUS_CONFIG[targetOrder.status]?.label}" sang "${ORDER_STATUS_CONFIG[newStatus]?.label}". Vui lòng tuân thủ quy trình.`
+        );
+        return;
+      }
+    }
+
     setUpdatingId(orderId);
     try {
       const updated = await orderService.updateOrderStatus(orderId, { status: newStatus });
@@ -91,7 +119,7 @@ export const AdminOrdersPage: React.FC = () => {
       showToast(`Đã cập nhật trạng thái đơn #${orderId} sang "${ORDER_STATUS_CONFIG[newStatus]?.label || newStatus}"`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Không thể cập nhật trạng thái đơn hàng.';
-      alert(msg);
+      showToast(`Lỗi: ${msg}`);
     } finally {
       setUpdatingId(null);
     }
@@ -329,21 +357,31 @@ export const AdminOrdersPage: React.FC = () => {
                         <div className="relative inline-block">
                           <select
                             value={order.status}
-                            disabled={isUpdating}
+                            disabled={isUpdating || order.status === 'COMPLETED' || order.status === 'CANCELLED'}
                             onChange={(e) =>
                               handleStatusChange(order.id, e.target.value as OrderStatus)
                             }
-                            className={`text-xs font-bold py-1 pl-2.5 pr-7 rounded-lg border appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+                            className={`text-xs font-bold py-1 pl-2.5 pr-7 rounded-lg border appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
                               statusCfg.bgColor
                             } ${statusCfg.color} ${statusCfg.borderColor} ${
-                              isUpdating ? 'opacity-50 cursor-not-allowed' : ''
-                            }`}
+                              order.status === 'COMPLETED' || order.status === 'CANCELLED'
+                                ? 'opacity-90 cursor-default'
+                                : 'cursor-pointer hover:shadow-xs'
+                            } ${isUpdating ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            title={
+                              order.status === 'COMPLETED' || order.status === 'CANCELLED'
+                                ? 'Đơn hàng ở trạng thái kết thúc'
+                                : 'Cập nhật trạng thái đơn hàng'
+                            }
                           >
-                            {STATUS_OPTIONS.map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                            ))}
+                            {STATUS_OPTIONS.map((opt) => {
+                              const isAllowed = getNextValidStatuses(order.status).includes(opt.value);
+                              return (
+                                <option key={opt.value} value={opt.value} disabled={!isAllowed}>
+                                  {opt.label} {!isAllowed ? '(Không hợp lệ)' : ''}
+                                </option>
+                              );
+                            })}
                           </select>
                           <ChevronDown className="w-3 h-3 text-current absolute right-2 top-2.5 pointer-events-none opacity-60" />
                         </div>

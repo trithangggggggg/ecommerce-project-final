@@ -6,6 +6,7 @@ import type {
   FilterParams,
   Product,
   ProductListResponse,
+  ProductPayload,
 } from '../../models/product.model';
 
 // Helper map backend product response to frontend Product
@@ -176,6 +177,31 @@ export const productService = {
     return res.data
       .filter((p) => (excludeId ? p.id !== excludeId : true))
       .slice(0, limit);
+  },
+
+  /**
+   * [Admin] Thêm sản phẩm mới (POST /api/admin/products)
+   */
+  async createProduct(payload: ProductPayload): Promise<Product> {
+    const res = await axiosClient.post(ENDPOINTS.ADMIN_PRODUCTS, payload);
+    const raw = res.data?.data || res.data;
+    return mapBackendProduct(raw);
+  },
+
+  /**
+   * [Admin] Cập nhật thông tin sản phẩm (PUT /api/admin/products/{id})
+   */
+  async updateProduct(id: number | string, payload: ProductPayload): Promise<Product> {
+    const res = await axiosClient.put(`${ENDPOINTS.ADMIN_PRODUCTS}/${id}`, payload);
+    const raw = res.data?.data || res.data;
+    return mapBackendProduct(raw);
+  },
+
+  /**
+   * [Admin] Xóa sản phẩm (DELETE /api/admin/products/{id})
+   */
+  async deleteProduct(id: number | string): Promise<void> {
+    await axiosClient.delete(`${ENDPOINTS.ADMIN_PRODUCTS}/${id}`);
   },
 };
 
