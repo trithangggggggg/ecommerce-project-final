@@ -4,16 +4,19 @@ import { ROUTES } from '../constants/routes';
 import { ROLES } from '../constants/roles';
 
 // Layouts
+import GuestLayout from '../layouts/GuestLayout';
 import AuthLayout from '../layouts/AuthLayout';
 import AdminLayout from '../layouts/AdminLayout';
 
 // Pages
+import HomePage from '../pages/guest/HomePage';
+import ProductsPage from '../pages/guest/ProductsPage';
+import ProductDetailPage from '../pages/guest/ProductDetailPage';
 import LoginPage from '../pages/auth/LoginPage';
 import RegisterPage from '../pages/auth/RegisterPage';
 import ProfilePage from '../pages/auth/ProfilePage';
 import DashboardPage from '../pages/admin/DashboardPage';
 import AdminProductsPage from '../pages/admin/AdminProductsPage';
-import HomePage from '../pages/guest/HomePage';
 import UnauthorizedPage from '../pages/common/UnauthorizedPage';
 import NotFoundPage from '../pages/common/NotFoundPage';
 
@@ -24,8 +27,12 @@ import PublicRoute from './PublicRoute';
 export const AppRoutes: React.FC = () => {
   return (
     <Routes>
-      {/* Trang Chủ (Khu vực của Hưng) */}
-      <Route path={ROUTES.HOME} element={<HomePage />} />
+      {/* Phân hệ Khách hàng: Guest Layout with Header & Footer */}
+      <Route element={<GuestLayout />}>
+        <Route path={ROUTES.HOME} element={<HomePage />} />
+        <Route path={ROUTES.PRODUCTS} element={<ProductsPage />} />
+        <Route path={ROUTES.PRODUCT_DETAIL} element={<ProductDetailPage />} />
+      </Route>
 
       {/* Phân hệ Xác thực: Login & Register (Chỉ truy cập khi chưa đăng nhập) */}
       <Route element={<PublicRoute />}>
