@@ -15,7 +15,6 @@ import {
   UserCheck,
   Settings,
   LogOut,
-  Laptop,
   X,
 } from 'lucide-react';
 import { ROUTES } from '../../constants/routes';
@@ -68,15 +67,17 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
         {/* Brand Header */}
         <div className="h-16 px-5 border-b border-slate-100 flex items-center justify-between shrink-0">
           <Link to={ROUTES.ADMIN} className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shadow-2xs">
-              <Laptop className="w-5 h-5" />
-            </div>
+            <img
+              src="/images/logo.png"
+              alt="NEXOR Admin"
+              className="w-9 h-9 rounded-full object-contain shadow-xs border border-slate-100"
+            />
             <div className="flex flex-col">
               <span className="text-base font-bold text-slate-900 tracking-tight leading-tight">
-                TechStore
+                NEXOR ADMIN
               </span>
-              <span className="text-[10px] text-slate-400 font-medium">
-                Admin Portal
+              <span className="text-[10px] text-indigo-500 font-medium">
+                Portal Quản Trị
               </span>
             </div>
           </Link>
