@@ -172,33 +172,33 @@ export default function HomePage() {
 
   return (
     <div className="bg-[#f2f4f7] text-gray-800 font-sans pb-16">
-      {/* 1. HERO 3-COLUMN SECTION */}
+      {/* 1. HERO 3-COLUMN SECTION (Sidebar trái và phải thu gọn, Banner trung tâm mở rộng tối đa) */}
       <section className="max-w-[1360px] mx-auto px-4 pt-4 pb-5">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+        <div className="grid grid-cols-1 lg:grid-cols-[210px_1fr_260px] gap-3.5 items-stretch">
           
-          {/* COLUMN 1: Category Sidebar (Left, ~21% width / 3 cols) */}
-          <div className="hidden lg:block lg:col-span-3">
-            <div className="bg-white rounded-2xl border border-gray-200/70 p-2.5 shadow-sm h-full flex flex-col justify-between">
-              <div className="space-y-1">
+          {/* COLUMN 1: Category Sidebar (Left: Thu gọn 210px) */}
+          <div className="hidden lg:block">
+            <div className="bg-white rounded-2xl border border-gray-200/70 p-2 shadow-sm h-full flex flex-col justify-between">
+              <div className="space-y-0.5">
                 {SIDEBAR_CATEGORIES.map(({ name, slug, icon: Icon, active }) => (
                   <Link
                     key={slug}
                     to={`/products?category=${slug}`}
-                    className={`flex items-center justify-between px-3 py-2 rounded-xl text-[13px] font-semibold transition-colors group ${
+                    className={`flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-semibold transition-colors group ${
                       active
                         ? 'bg-[#edf2f7] text-gray-900'
                         : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5">
                       <Icon
-                        size={17}
+                        size={15}
                         className={active ? 'text-gray-900' : 'text-gray-400 group-hover:text-blue-600 transition-colors'}
                       />
                       <span>{name}</span>
                     </div>
                     <ChevronRight
-                      size={14}
+                      size={13}
                       className={active ? 'text-gray-700' : 'text-gray-300 group-hover:text-blue-600 transition-colors'}
                     />
                   </Link>
@@ -207,8 +207,8 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* COLUMN 2: Main Hero Banner (Center, 6 cols - Sử dụng banner sạch không watermark) */}
-          <div className="lg:col-span-6 flex flex-col">
+          {/* COLUMN 2: Main Hero Banner (Center: Mở rộng tối đa 1fr) */}
+          <div className="flex flex-col min-w-0">
             <Link
               to="/products/4"
               className="block relative rounded-2xl overflow-hidden shadow-sm h-full group bg-[#161820]"
@@ -217,36 +217,36 @@ export default function HomePage() {
               <img
                 src="/images/macbook-hero-banner.jpg"
                 alt="MacBook Air M3 - Hiệu năng mạnh mẽ. Thiết kế mỏng nhẹ."
-                className="w-full h-full object-cover group-hover:scale-[1.015] transition-transform duration-300"
+                className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-300"
               />
             </Link>
           </div>
 
-          {/* COLUMN 3: Right 3 Promo Cards (Right, 3 cols) */}
-          <div className="lg:col-span-3 flex flex-col justify-between gap-3.5">
+          {/* COLUMN 3: Right 3 Promo Cards (Right: Thu gọn 260px) */}
+          <div className="flex flex-col justify-between gap-3 shrink-0">
             
             {/* Promo Card 1: Ưu đãi hôm nay */}
-            <div className="bg-white rounded-2xl border border-gray-200/70 p-4 shadow-sm relative overflow-hidden flex-1 flex flex-col justify-between">
+            <div className="bg-white rounded-2xl border border-gray-200/70 p-3.5 shadow-sm relative overflow-hidden flex-1 flex flex-col justify-between">
               <div>
-                <div className="flex items-center gap-1.5 text-xs text-gray-500 font-semibold mb-1">
-                  <Tag size={13} className="text-gray-700" />
+                <div className="flex items-center gap-1.5 text-[11px] text-gray-500 font-semibold mb-0.5">
+                  <Tag size={12} className="text-gray-700" />
                   <span>Ưu đãi hôm nay</span>
                 </div>
-                <div className="text-xl font-black text-gray-900 leading-tight">
+                <div className="text-lg font-black text-gray-900 leading-tight">
                   Giảm đến 50%
                 </div>
-                <p className="text-[11px] text-gray-500 mt-0.5 max-w-[130px]">
-                  Cho các sản phẩm laptop, điện thoại
+                <p className="text-[10px] text-gray-500 mt-0.5 max-w-[120px] leading-tight">
+                  Cho laptop, điện thoại
                 </p>
                 <Link
                   to="/products"
-                  className="mt-3 inline-flex items-center gap-1.5 bg-[#181a20] text-white text-[11px] font-bold px-3 py-1.5 rounded-full hover:bg-black transition-colors"
+                  className="mt-2.5 inline-flex items-center gap-1.5 bg-[#181a20] text-white text-[10px] font-bold px-3 py-1.5 rounded-full hover:bg-black transition-colors"
                 >
                   <span>Xem ngay</span>
-                  <ArrowRight size={11} />
+                  <ArrowRight size={10} />
                 </Link>
               </div>
-              <div className="absolute right-1 bottom-1 w-28 h-28 pointer-events-none">
+              <div className="absolute -right-1 -bottom-1 w-24 h-24 pointer-events-none">
                 <img
                   src="/images/headphone-promo.jpg"
                   alt="Ưu đãi headphone"
@@ -256,19 +256,19 @@ export default function HomePage() {
             </div>
 
             {/* Promo Card 2: Miễn phí vận chuyển */}
-            <div className="bg-white rounded-2xl border border-gray-200/70 p-4 shadow-sm flex items-center justify-between">
+            <div className="bg-white rounded-2xl border border-gray-200/70 p-3 shadow-sm flex items-center justify-between">
               <div>
-                <div className="flex items-center gap-1.5 text-xs text-gray-500 font-semibold mb-0.5">
-                  <Truck size={13} className="text-gray-700" />
+                <div className="flex items-center gap-1.5 text-[11px] text-gray-500 font-semibold mb-0.5">
+                  <Truck size={12} className="text-gray-700" />
                   <span>Miễn phí vận chuyển</span>
                 </div>
-                <div className="text-base font-black text-gray-900">
+                <div className="text-sm font-black text-gray-900">
                   Đơn từ 500.000đ
                 </div>
-                <p className="text-[11px] text-gray-500">Áp dụng toàn quốc</p>
+                <p className="text-[10px] text-gray-500">Áp dụng toàn quốc</p>
               </div>
-              <div className="w-12 h-12 flex items-center justify-center text-gray-400">
-                <svg viewBox="0 0 48 48" className="w-10 h-10 text-gray-300 stroke-current fill-none stroke-[2]">
+              <div className="w-9 h-9 flex items-center justify-center text-gray-400">
+                <svg viewBox="0 0 48 48" className="w-8 h-8 text-gray-300 stroke-current fill-none stroke-[2]">
                   <path d="M6 14h24v20H6z" />
                   <path d="M30 20h8l4 6v8h-12z" />
                   <circle cx="14" cy="36" r="4" />
@@ -278,19 +278,19 @@ export default function HomePage() {
             </div>
 
             {/* Promo Card 3: Bảo hành chính hãng */}
-            <div className="bg-white rounded-2xl border border-gray-200/70 p-4 shadow-sm flex items-center justify-between">
+            <div className="bg-white rounded-2xl border border-gray-200/70 p-3 shadow-sm flex items-center justify-between">
               <div>
-                <div className="flex items-center gap-1.5 text-xs text-gray-500 font-semibold mb-0.5">
-                  <ShieldCheck size={13} className="text-gray-700" />
+                <div className="flex items-center gap-1.5 text-[11px] text-gray-500 font-semibold mb-0.5">
+                  <ShieldCheck size={12} className="text-gray-700" />
                   <span>Bảo hành chính hãng</span>
                 </div>
-                <div className="text-base font-black text-gray-900">
+                <div className="text-sm font-black text-gray-900">
                   12 - 24 tháng
                 </div>
-                <p className="text-[11px] text-gray-500">Tùy sản phẩm</p>
+                <p className="text-[10px] text-gray-500">Tùy sản phẩm</p>
               </div>
-              <div className="w-12 h-12 flex items-center justify-center text-blue-500">
-                <svg viewBox="0 0 48 48" className="w-10 h-10 stroke-blue-500 fill-none stroke-[2.2]">
+              <div className="w-9 h-9 flex items-center justify-center text-blue-500">
+                <svg viewBox="0 0 48 48" className="w-8 h-8 stroke-blue-500 fill-none stroke-[2.2]">
                   <path d="M24 6l16 6v12c0 10-7 17-16 20C15 41 8 34 8 24V12l16-6z" />
                   <polyline points="18 24 22 28 30 20" />
                 </svg>
