@@ -1,5 +1,5 @@
-import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import { ROLES } from '../constants/roles';
 
@@ -24,45 +24,65 @@ import NotFoundPage from '../pages/common/NotFoundPage';
 import ProtectedRoute from './ProtectedRoute';
 import PublicRoute from './PublicRoute';
 
+/**
+ * Tự động cuộn trang lên đầu khi chuyển route
+ */
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [pathname]);
+
+  return null;
+}
+
 export const AppRoutes: React.FC = () => {
   return (
-    <Routes>
-      {/* Phân hệ Khách hàng: Guest Layout with Header & Footer */}
-      <Route element={<GuestLayout />}>
-        <Route path={ROUTES.HOME} element={<HomePage />} />
-        <Route path={ROUTES.PRODUCTS} element={<ProductsPage />} />
-        <Route path={ROUTES.PRODUCT_DETAIL} element={<ProductDetailPage />} />
-      </Route>
-
-      {/* Phân hệ Xác thực: Login & Register (Chỉ truy cập khi chưa đăng nhập) */}
-      <Route element={<PublicRoute />}>
-        <Route element={<AuthLayout />}>
-          <Route path={ROUTES.LOGIN} element={<LoginPage />} />
-          <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
+    <>
+      <ScrollToTop />
+      <Routes>
+        {/* Phân hệ Khách hàng: Vào thẳng trang chủ khi truy cập root hoặc /home */}
+        <Route path="/" element={<GuestLayout />}>
+          <Route index element={<HomePage />} />
+          <Route path="home" element={<HomePage />} />
+          <Route path="trang-chu" element={<HomePage />} />
+          <Route path="products" element={<ProductsPage />} />
+          <Route path="products/:id" element={<ProductDetailPage />} />
         </Route>
-      </Route>
 
-      {/* Hồ sơ cá nhân (Yêu cầu đăng nhập) */}
-      <Route element={<ProtectedRoute />}>
-        <Route path={ROUTES.PROFILE} element={<ProfilePage />} />
-      </Route>
-
-      {/* Phân vùng Quản trị: Admin Portal (Yêu cầu quyền ADMIN) */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]} />}>
-        <Route element={<AdminLayout />}>
-          <Route path={ROUTES.ADMIN} element={<DashboardPage />} />
-          <Route path={ROUTES.ADMIN_DASHBOARD} element={<DashboardPage />} />
-          <Route path={ROUTES.ADMIN_PRODUCTS} element={<AdminProductsPage />} />
-          <Route path={ROUTES.ADMIN_CATEGORIES} element={<AdminProductsPage />} />
-          <Route path={ROUTES.ADMIN_ORDERS} element={<DashboardPage />} />
+        {/* Phân hệ Xác thực: Login & Register (Chỉ truy cập khi chưa đăng nhập) */}
+        <Route element={<PublicRoute />}>
+          <Route element={<AuthLayout />}>
+            <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+            <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
+          </Route>
         </Route>
-      </Route>
 
-      {/* Trang lỗi & Phân quyền */}
-      <Route path={ROUTES.UNAUTHORIZED} element={<UnauthorizedPage />} />
-      <Route path="/404" element={<NotFoundPage />} />
-      <Route path="*" element={<Navigate to="/404" replace />} />
-    </Routes>
+        {/* Hồ sơ cá nhân (Yêu cầu đăng nhập) */}
+        <Route element={<ProtectedRoute />}>
+          <Route path={ROUTES.PROFILE} element={<ProfilePage />} />
+        </Route>
+
+        {/* Phân vùng Quản trị: Admin Portal (Yêu cầu quyền ADMIN) */}
+        <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]} />}>
+          <Route path={ROUTES.ADMIN} element={<AdminLayout />}>
+            <Route index element={<DashboardPage />} />
+            <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="products" element={<AdminProductsPage />} />
+            <Route path="categories" element={<AdminProductsPage />} />
+            <Route path="orders" element={<DashboardPage />} />
+          </Route>
+        </Route>
+
+        {/* Trang thông báo không có quyền */}
+        <Route path={ROUTES.UNAUTHORIZED} element={<UnauthorizedPage />} />
+        <Route path="/404" element={<NotFoundPage />} />
+
+        {/* Bất kỳ đường dẫn không xác định nào cũng chuyển hướng ngay về Trang Chủ */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 };
 
