@@ -14,9 +14,7 @@ import {
   ChevronRight,
   ArrowRight,
   Zap,
-  Truck,
   ShieldCheck,
-  Tag,
   Star,
   Heart,
   ShoppingCart,
@@ -224,79 +222,44 @@ export default function HomePage() {
 
           {/* COLUMN 3: Right 3 Promo Cards (Right: Thu gọn 260px) */}
           <div className="flex flex-col justify-between gap-3 shrink-0">
-            
-            {/* Promo Card 1: Ưu đãi hôm nay */}
-            <div className="bg-white rounded-2xl border border-gray-200/70 p-3.5 shadow-sm relative overflow-hidden flex-1 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center gap-1.5 text-[11px] text-gray-500 font-semibold mb-0.5">
-                  <Tag size={12} className="text-gray-700" />
-                  <span>Ưu đãi hôm nay</span>
-                </div>
-                <div className="text-lg font-black text-gray-900 leading-tight">
-                  Giảm đến 50%
-                </div>
-                <p className="text-[10px] text-gray-500 mt-0.5 max-w-[120px] leading-tight">
-                  Cho laptop, điện thoại
-                </p>
-                <Link
-                  to="/products"
-                  className="mt-2.5 inline-flex items-center gap-1.5 bg-[#181a20] text-white text-[10px] font-bold px-3 py-1.5 rounded-full hover:bg-black transition-colors"
-                >
-                  <span>Xem ngay</span>
-                  <ArrowRight size={10} />
-                </Link>
-              </div>
-              <div className="absolute -right-1 -bottom-1 w-24 h-24 pointer-events-none">
-                <img
-                  src="/images/headphone-promo.jpg"
-                  alt="Ưu đãi headphone"
-                  className="w-full h-full object-contain mix-blend-multiply"
-                />
-              </div>
-            </div>
+            {/* Promo Banner 1: Ưu đãi hôm nay */}
+            <Link
+              to="/products"
+              className="block relative rounded-2xl overflow-hidden shadow-sm group border border-gray-200/70 hover:shadow-md transition-all shrink-0 bg-white"
+              title="Ưu đãi hôm nay - Giảm đến 50%"
+            >
+              <img
+                src="/images/promo-discount-50.jpg"
+                alt="Ưu đãi hôm nay - Giảm đến 50%"
+                className="w-full h-auto object-cover group-hover:scale-[1.02] transition-transform duration-300"
+              />
+            </Link>
 
-            {/* Promo Card 2: Miễn phí vận chuyển */}
-            <div className="bg-white rounded-2xl border border-gray-200/70 p-3 shadow-sm flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-1.5 text-[11px] text-gray-500 font-semibold mb-0.5">
-                  <Truck size={12} className="text-gray-700" />
-                  <span>Miễn phí vận chuyển</span>
-                </div>
-                <div className="text-sm font-black text-gray-900">
-                  Đơn từ 500.000đ
-                </div>
-                <p className="text-[10px] text-gray-500">Áp dụng toàn quốc</p>
-              </div>
-              <div className="w-9 h-9 flex items-center justify-center text-gray-400">
-                <svg viewBox="0 0 48 48" className="w-8 h-8 text-gray-300 stroke-current fill-none stroke-[2]">
-                  <path d="M6 14h24v20H6z" />
-                  <path d="M30 20h8l4 6v8h-12z" />
-                  <circle cx="14" cy="36" r="4" />
-                  <circle cx="36" cy="36" r="4" />
-                </svg>
-              </div>
-            </div>
+            {/* Promo Banner 2: Miễn phí vận chuyển */}
+            <Link
+              to="/products"
+              className="block relative rounded-2xl overflow-hidden shadow-sm group border border-gray-200/70 hover:shadow-md transition-all shrink-0 bg-white"
+              title="Miễn phí vận chuyển - Đơn từ 500.000đ"
+            >
+              <img
+                src="/images/promo-free-shipping.jpg"
+                alt="Miễn phí vận chuyển - Đơn từ 500.000đ"
+                className="w-full h-auto object-cover group-hover:scale-[1.02] transition-transform duration-300"
+              />
+            </Link>
 
-            {/* Promo Card 3: Bảo hành chính hãng */}
-            <div className="bg-white rounded-2xl border border-gray-200/70 p-3 shadow-sm flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-1.5 text-[11px] text-gray-500 font-semibold mb-0.5">
-                  <ShieldCheck size={12} className="text-gray-700" />
-                  <span>Bảo hành chính hãng</span>
-                </div>
-                <div className="text-sm font-black text-gray-900">
-                  12 - 24 tháng
-                </div>
-                <p className="text-[10px] text-gray-500">Tùy sản phẩm</p>
-              </div>
-              <div className="w-9 h-9 flex items-center justify-center text-blue-500">
-                <svg viewBox="0 0 48 48" className="w-8 h-8 stroke-blue-500 fill-none stroke-[2.2]">
-                  <path d="M24 6l16 6v12c0 10-7 17-16 20C15 41 8 34 8 24V12l16-6z" />
-                  <polyline points="18 24 22 28 30 20" />
-                </svg>
-              </div>
-            </div>
-
+            {/* Promo Banner 3: Bảo hành chính hãng */}
+            <Link
+              to="/products"
+              className="block relative rounded-2xl overflow-hidden shadow-sm group border border-gray-200/70 hover:shadow-md transition-all shrink-0 bg-white"
+              title="Bảo hành chính hãng - 12 đến 24 tháng"
+            >
+              <img
+                src="/images/promo-warranty.jpg"
+                alt="Bảo hành chính hãng - 12 đến 24 tháng"
+                className="w-full h-auto object-cover group-hover:scale-[1.02] transition-transform duration-300"
+              />
+            </Link>
           </div>
         </div>
       </section>
@@ -463,31 +426,18 @@ export default function HomePage() {
           </div>
 
           {/* Right Vertical Tech Banner (Right, 3 cols) */}
-          <div className="lg:col-span-3 bg-gradient-to-br from-[#12141a] via-[#161922] to-[#101217] rounded-2xl p-5 text-white flex flex-col justify-between shadow-sm relative overflow-hidden">
-            <div>
-              <h3 className="text-2xl font-black tracking-tight leading-tight mb-2">
-                Công nghệ<br />dẫn lối tương lai
-              </h3>
-              <p className="text-xs text-gray-400 max-w-[200px] mb-4">
-                Laptop - Điện thoại - Phụ kiện chính hãng
-              </p>
-              <Link
-                to="/products"
-                className="inline-flex items-center gap-1.5 bg-white text-gray-950 text-xs font-bold px-4 py-2 rounded-full hover:bg-gray-100 transition-transform active:scale-95 shadow-md"
-              >
-                <span>Khám phá ngay</span>
-                <ArrowRight size={13} />
-              </Link>
-            </div>
-
-            {/* Showcase Tech Devices Graphic */}
-            <div className="mt-4 -mb-5 -mr-5 flex justify-end">
+          <div className="lg:col-span-3 flex flex-col">
+            <Link
+              to="/products"
+              className="block relative rounded-2xl overflow-hidden shadow-sm group h-full bg-[#12141a] hover:shadow-md transition-all"
+              title="Công nghệ dẫn lối tương lai - Khám phá ngay"
+            >
               <img
-                src="/images/tech-ecosystem.jpg"
-                alt="Tech Ecosystem"
-                className="w-full h-52 object-cover rounded-tl-2xl shadow-2xl opacity-90 hover:opacity-100 transition-opacity"
+                src="/images/tech-future-banner.jpg"
+                alt="Công nghệ dẫn lối tương lai - Laptop, Điện thoại, Phụ kiện chính hãng"
+                className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
               />
-            </div>
+            </Link>
           </div>
 
         </div>
