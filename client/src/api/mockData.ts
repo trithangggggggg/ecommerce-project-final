@@ -9,9 +9,9 @@ export const MOCK_CATEGORIES: Category[] = [
   { id: 1, name: 'Điện thoại', slug: 'dien-thoai', imageUrl: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&q=80' },
   { id: 2, name: 'Laptop', slug: 'laptop', imageUrl: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&q=80' },
   { id: 3, name: 'Máy tính bảng', slug: 'may-tinh-bang', imageUrl: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=400&q=80' },
-  { id: 4, name: 'Tai nghe & Loa', slug: 'tai-nghe-loa', imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&q=80' },
-  { id: 5, name: 'Màn hình', slug: 'man-hinh', imageUrl: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=400&q=80' },
-  { id: 6, name: 'Phụ kiện', slug: 'phu-kien', imageUrl: 'https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400&q=80' },
+  { id: 4, name: 'Tai nghe', slug: 'tai-nghe', imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&q=80' },
+  { id: 5, name: 'Đồng hồ thông minh', slug: 'dong-ho-thong-minh', imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80' },
+  { id: 6, name: 'Phụ kiện công nghệ', slug: 'phu-kien-cong-nghe', imageUrl: 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=400&q=80' },
 ];
 
 export const MOCK_PRODUCTS: Product[] = [

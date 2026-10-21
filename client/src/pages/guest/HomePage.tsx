@@ -42,12 +42,12 @@ const SIDEBAR_CATEGORIES = [
 
 // 3. Quick 6 Categories below Hero (Minimalist line icons without box background)
 const QUICK_CATEGORIES = [
-  { name: 'Laptop', desc: 'Hiệu năng vượt trội', icon: Laptop, slug: 'laptop' },
   { name: 'Điện thoại', desc: 'Đa dạng thương hiệu', icon: Smartphone, slug: 'dien-thoai' },
+  { name: 'Laptop', desc: 'Hiệu năng vượt trội', icon: Laptop, slug: 'laptop' },
   { name: 'Máy tính bảng', desc: 'Linh hoạt, tiện lợi', icon: Tablet, slug: 'may-tinh-bang' },
-  { name: 'Phụ kiện', desc: 'Chính hãng, chất lượng', icon: Headphones, slug: 'phu-kien' },
-  { name: 'Gaming', desc: 'Trải nghiệm đỉnh cao', icon: Gamepad2, slug: 'gaming' },
-  { name: 'Đồng hồ thông minh', desc: 'Theo dõi sức khỏe', icon: Watch, slug: 'dong-ho' },
+  { name: 'Tai nghe', desc: 'Âm thanh sống động', icon: Headphones, slug: 'tai-nghe' },
+  { name: 'Đồng hồ thông minh', desc: 'Theo dõi sức khỏe', icon: Watch, slug: 'dong-ho-thong-minh' },
+  { name: 'Phụ kiện', desc: 'Chính hãng, bền bỉ', icon: Cpu, slug: 'phu-kien-cong-nghe' },
 ];
 
 // 4. Fallback Flash Sale products (matching the 4 cards in the image)
