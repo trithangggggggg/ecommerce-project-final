@@ -51,24 +51,18 @@ export const Header: React.FC = () => {
     <header className="bg-[#181a20] text-white sticky top-0 z-50 shadow-sm font-sans">
       {/* 1. Main Top Header */}
       <div className="max-w-[1360px] mx-auto px-4 py-3 flex items-center justify-between gap-4">
-        {/* Left: Brand Logo (3D Isometric Cube Hexagon) */}
+        {/* Left: Brand Logo (NEXOR Emblem) */}
         <Link to="/" className="flex items-center gap-3 shrink-0 group">
-          <div className="w-9 h-9 flex items-center justify-center shrink-0">
-            <svg viewBox="0 0 40 40" className="w-9 h-9 drop-shadow-md">
-              {/* Isometric 3D Hexagon Cube */}
-              {/* Top Face */}
-              <polygon points="20,4 34,12 20,20 6,12" fill="#e2e8f0" />
-              {/* Left Face */}
-              <polygon points="6,12 20,20 20,36 6,28" fill="#94a3b8" />
-              {/* Right Face */}
-              <polygon points="20,20 34,12 34,28 20,36" fill="#64748b" />
-              {/* Internal Accent Cutout */}
-              <polygon points="20,10 27,14 20,18 13,14" fill="#0f172a" opacity="0.15" />
-            </svg>
+          <div className="w-10 h-10 flex items-center justify-center shrink-0">
+            <img
+              src="/images/logo.png"
+              alt="NEXOR Logo"
+              className="w-10 h-10 object-contain rounded-full drop-shadow-md group-hover:scale-105 transition-transform duration-200"
+            />
           </div>
           <div className="flex flex-col">
             <span className="text-xl font-black tracking-tight text-white leading-none">
-              E-Shop<span className="text-gray-200">TECH</span>
+              NEXOR<span className="text-indigo-400">.</span>
             </span>
             <span className="text-[10px] text-gray-400 tracking-wider font-normal mt-0.5">
               Tech for a better life

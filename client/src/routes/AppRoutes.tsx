@@ -17,6 +17,8 @@ import RegisterPage from '../pages/auth/RegisterPage';
 import ProfilePage from '../pages/auth/ProfilePage';
 import DashboardPage from '../pages/admin/DashboardPage';
 import AdminProductsPage from '../pages/admin/AdminProductsPage';
+import AdminCategoriesPage from '../pages/admin/AdminCategoriesPage';
+import AdminOrdersPage from '../pages/admin/AdminOrdersPage';
 import UnauthorizedPage from '../pages/common/UnauthorizedPage';
 import NotFoundPage from '../pages/common/NotFoundPage';
 
@@ -70,8 +72,8 @@ export const AppRoutes: React.FC = () => {
             <Route index element={<DashboardPage />} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="products" element={<AdminProductsPage />} />
-            <Route path="categories" element={<AdminProductsPage />} />
-            <Route path="orders" element={<DashboardPage />} />
+            <Route path="categories" element={<AdminCategoriesPage />} />
+            <Route path="orders" element={<AdminOrdersPage />} />
           </Route>
         </Route>
 

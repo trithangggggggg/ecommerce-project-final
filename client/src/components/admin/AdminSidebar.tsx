@@ -5,7 +5,6 @@ import {
   LayoutDashboard,
   LogOut,
   Package,
-  ShoppingBag,
   ShoppingCart,
   User,
   X,
@@ -64,15 +63,17 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
       >
         {/* Sidebar Brand Header */}
         <div className="h-16 px-6 border-b border-slate-800 flex items-center justify-between">
-          <Link to={ROUTES.ADMIN} className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-purple-500/30">
-              <ShoppingBag className="w-5 h-5" />
-            </div>
+          <Link to={ROUTES.ADMIN} className="flex items-center gap-3">
+            <img
+              src="/images/logo.png"
+              alt="NEXOR Admin"
+              className="w-9 h-9 rounded-full object-contain shadow-md shadow-indigo-500/20"
+            />
             <div>
               <span className="text-base font-bold tracking-tight text-white block leading-tight">
-                E-SHOP ADMIN
+                NEXOR ADMIN
               </span>
-              <span className="text-[10px] text-purple-400 font-medium tracking-wider uppercase">
+              <span className="text-[10px] text-indigo-400 font-medium tracking-wider uppercase">
                 Portal Quản Trị
               </span>
             </div>
