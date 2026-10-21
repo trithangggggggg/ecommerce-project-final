@@ -156,6 +156,13 @@ export const Header: React.FC = () => {
                 >
                   Hồ sơ cá nhân
                 </Link>
+                <Link
+                  to={ROUTES.MY_ORDERS}
+                  onClick={() => setUserDropdownOpen(false)}
+                  className="block px-4 py-2 text-gray-200 hover:bg-gray-700/50 hover:text-white"
+                >
+                  Đơn hàng của tôi
+                </Link>
                 {user?.role === 'ADMIN' && (
                   <Link
                     to={ROUTES.ADMIN}
@@ -191,14 +198,16 @@ export const Header: React.FC = () => {
 
           {/* Shopping Cart */}
           <Link
-            to="/cart"
+            to={ROUTES.CART}
             className="relative w-8 h-8 rounded-full flex items-center justify-center text-gray-300 hover:text-white hover:bg-gray-800 transition cursor-pointer"
             title="Giỏ hàng"
           >
             <ShoppingCart className="w-4.5 h-4.5" />
-            <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border-2 border-[#181a20]">
-              {totalItems > 0 ? totalItems : 2}
-            </span>
+            {totalItems > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border-2 border-[#181a20]">
+                {totalItems > 99 ? '99+' : totalItems}
+              </span>
+            )}
           </Link>
 
           {/* Mobile menu toggle */}

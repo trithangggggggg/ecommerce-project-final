@@ -10,8 +10,15 @@ export const ENDPOINTS = {
   CATEGORIES: '/categories',
   PRODUCTS: '/products',
   ADMIN_PRODUCTS: '/admin/products',
-  ADMIN_ORDERS: '/admin/orders',
-  ORDERS: '/orders',
+  ORDERS: {
+    CHECKOUT: '/orders/checkout',
+    MY_ORDERS: '/orders/my-orders',
+    DETAIL: (id: number | string) => `/orders/${id}`,
+  },
+  ADMIN_ORDERS: {
+    LIST: '/admin/orders',
+    UPDATE_STATUS: (id: number | string) => `/admin/orders/${id}/status`,
+  },
   AI: {
     CHAT: '/ai/chat',
   },
