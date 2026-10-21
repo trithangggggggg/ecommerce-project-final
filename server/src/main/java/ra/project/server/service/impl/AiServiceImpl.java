@@ -278,17 +278,79 @@ public class AiServiceImpl implements AiService {
         Locale vn = Locale.forLanguageTag("vi-VN");
         NumberFormat nf = NumberFormat.getInstance(vn);
 
-        // Lọc theo từ khóa danh mục hoặc tên
+        // 1. Ý định chào hỏi thân thiện
+        if (query.equals("chào") || query.equals("chao") || query.startsWith("xin chào") ||
+                query.contains("chào bạn") || query.contains("chào shop") || query.equals("hello") ||
+                query.equals("hi") || query.startsWith("hi ") || query.contains("alo") || query.contains("ơi")) {
+            List<Product> topFeatured = products.stream().limit(3).collect(Collectors.toList());
+            String greetingReply = "Dạ em chào anh/chị ạ! 👋 Em là **E-ShopTECH AI** — chuyên viên tư vấn công nghệ 24/7 của shop.\n\n" +
+                    "Anh/chị đang quan tâm đến dòng sản phẩm nào để em tư vấn thông số và ưu đãi tốt nhất ạ?\n" +
+                    "- 💻 **Laptop**: MacBook Air/Pro, Dell XPS, ASUS Gaming, Lenovo Legion\n" +
+                    "- 📱 **Điện thoại**: iPhone 16/15 Pro Max, Samsung Galaxy S24 Ultra, ROG Phone\n" +
+                    "- 🎧 **Âm thanh & Phụ kiện**: Tai nghe chống ồn, loa Bluetooth cao cấp\n" +
+                    "- 🛡️ **Chính sách**: 100% chính hãng, bảo hành 12-24 tháng, miễn phí vận chuyển toàn quốc.\n\n" +
+                    "Dưới đây là một số mẫu máy tiêu biểu đang được yêu thích nhất tại cửa hàng:";
+            return AiChatResponse.builder()
+                    .reply(greetingReply)
+                    .recommendedProducts(topFeatured.stream().map(productMapper::toResponse).collect(Collectors.toList()))
+                    .provider("E-ShopTECH AI Assistant")
+                    .build();
+        }
+
+        // 2. Ý định hỏi về chính sách bảo hành / đổi trả
+        if (query.contains("bảo hành") || query.contains("bao hanh") || query.contains("đổi trả") || query.contains("hỏng") || query.contains("lỗi")) {
+            String warrantyReply = "🛡️ **Chính sách bảo hành vàng tại E-ShopTECH:**\n\n" +
+                    "- **100% Hàng chính hãng**: Toàn bộ sản phẩm phân phối đều là hàng chính ngạch nguyên seal, đầy đủ hóa đơn VAT.\n" +
+                    "- **1 Đổi 1 trong 30 ngày**: Nếu sản phẩm phát sinh lỗi phần cứng do nhà sản xuất, shop đổi ngay máy mới 100% không phát sinh chi phí.\n" +
+                    "- **Thời hạn bảo hành**: Từ 12 đến 24 tháng theo đúng tiêu chuẩn khắt khe của hãng (Apple, Samsung, Asus, Dell, Sony).\n" +
+                    "- **Trung tâm bảo hành toàn quốc**: Quý khách có thể mang máy trực tiếp tới các trung tâm bảo hành ủy quyền của hãng trên cả nước hoặc gửi qua shop hỗ trợ miễn phí!\n" +
+                    "- **Hỗ trợ trọn đời**: Miễn phí cài đặt phần mềm bản quyền, vệ sinh máy và hỗ trợ kỹ thuật 24/7.";
+            return AiChatResponse.builder()
+                    .reply(warrantyReply)
+                    .recommendedProducts(products.stream().limit(2).map(productMapper::toResponse).collect(Collectors.toList()))
+                    .provider("E-ShopTECH AI Assistant")
+                    .build();
+        }
+
+        // 3. Ý định hỏi về vận chuyển / giao hàng
+        if (query.contains("vận chuyển") || query.contains("giao hàng") || query.contains("ship") || query.contains("freeship") || query.contains("hỏa tốc")) {
+            String shipReply = "🚚 **Chính sách vận chuyển & Giao hàng tại E-ShopTECH:**\n\n" +
+                    "- **Miễn phí giao hàng toàn quốc**: Áp dụng cho mọi đơn hàng có giá trị từ **500.000đ** trở lên.\n" +
+                    "- **Giao hỏa tốc 2 giờ**: Khu vực nội thành Hà Nội & TP. Hồ Chí Minh nhận hàng ngay trong ngày.\n" +
+                    "- **Đồng kiểm khi nhận (COD)**: Quý khách được quyền mở hộp kiểm tra đúng model, ngoại quan nguyên vẹn trước khi thanh toán.\n" +
+                    "- **Đóng gói chuẩn công nghệ**: Thùng carton 5 lớp kèm túi khí chống sốc và dán niêm phong an toàn tuyệt đối.";
+            return AiChatResponse.builder()
+                    .reply(shipReply)
+                    .recommendedProducts(products.stream().limit(2).map(productMapper::toResponse).collect(Collectors.toList()))
+                    .provider("E-ShopTECH AI Assistant")
+                    .build();
+        }
+
+        // 4. Ý định hỏi về trả góp / khuyến mãi
+        if (query.contains("trả góp") || query.contains("khuyến mãi") || query.contains("ưu đãi") || query.contains("giảm giá") || query.contains("sale")) {
+            String promoReply = "🎁 **Chương trình khuyến mãi & Hỗ trợ trả góp tại E-ShopTECH:**\n\n" +
+                    "- **Trả góp 0% lãi suất**: Hỗ trợ qua thẻ tín dụng hơn 25 ngân hàng hoặc duyệt hồ sơ online qua CCCD chỉ mất 10-15 phút.\n" +
+                    "- **Flash Sale mỗi ngày**: Giảm sâu đến 30% cho các sản phẩm công nghệ hot nhất.\n" +
+                    "- **Ưu đãi Học sinh - Sinh viên**: Tặng thêm voucher giảm giá 500.000đ khi mua laptop hoặc máy tính bảng.\n" +
+                    "- **Thu cũ đổi mới (Trade-in)**: Trợ giá thu mua máy cũ lên đến 2.000.000đ để quý khách lên đời máy mới tiết kiệm nhất!";
+            return AiChatResponse.builder()
+                    .reply(promoReply)
+                    .recommendedProducts(products.stream().limit(3).map(productMapper::toResponse).collect(Collectors.toList()))
+                    .provider("E-ShopTECH AI Assistant")
+                    .build();
+        }
+
+        // 5. Lọc theo danh mục hoặc từ khóa sản phẩm
         for (Product p : products) {
             String pName = p.getName().toLowerCase();
             String catName = p.getCategory() != null ? p.getCategory().getName().toLowerCase() : "";
-            if (query.contains("laptop") && (pName.contains("laptop") || pName.contains("macbook") || pName.contains("rog") || catName.contains("laptop"))) {
+            if (query.contains("laptop") && (pName.contains("laptop") || pName.contains("macbook") || pName.contains("rog") || pName.contains("dell") || pName.contains("zenbook") || catName.contains("laptop"))) {
                 matched.add(p);
             } else if ((query.contains("điện thoại") || query.contains("phone") || query.contains("iphone") || query.contains("samsung")) &&
-                    (pName.contains("iphone") || pName.contains("galaxy") || pName.contains("s24") || catName.contains("thoại"))) {
+                    (pName.contains("iphone") || pName.contains("galaxy") || pName.contains("s24") || pName.contains("rog phone") || catName.contains("thoại"))) {
                 matched.add(p);
             } else if ((query.contains("tai nghe") || query.contains("âm thanh") || query.contains("phụ kiện")) &&
-                    (pName.contains("headphone") || pName.contains("tai nghe") || pName.contains("airpods") || catName.contains("phụ kiện") || catName.contains("âm thanh"))) {
+                    (pName.contains("headphone") || pName.contains("tai nghe") || pName.contains("airpods") || pName.contains("sony") || catName.contains("phụ kiện") || catName.contains("âm thanh"))) {
                 matched.add(p);
             } else if (pName.contains(query) || query.contains(pName)) {
                 matched.add(p);
@@ -300,10 +362,10 @@ public class AiServiceImpl implements AiService {
         }
 
         StringBuilder reply = new StringBuilder();
-        reply.append("Dạ chào bạn! 👋 E-ShopTECH rất vui được hỗ trợ bạn.\n\n");
+        reply.append("Dạ chào anh/chị! 👋 E-ShopTECH rất vui được hỗ trợ.\n\n");
 
         if (!matched.isEmpty()) {
-            reply.append("Dưới đây là một số sản phẩm công nghệ nổi bật rất phù hợp với nhu cầu bạn đang quan tâm:\n\n");
+            reply.append("Dưới đây là một số sản phẩm công nghệ nổi bật rất phù hợp với nhu cầu anh/chị đang quan tâm:\n\n");
             for (Product p : matched) {
                 String priceStr = p.getPrice() != null ? nf.format(p.getPrice()) + "đ" : "Liên hệ";
                 reply.append(String.format("🔹 **%s [ID: %d]**\n", p.getName(), p.getId()));
@@ -316,10 +378,10 @@ public class AiServiceImpl implements AiService {
             reply.append("🌟 **Đặc quyền tại E-ShopTECH:**\n");
             reply.append("- Miễn phí vận chuyển toàn quốc cho đơn từ 500.000đ 🚚\n");
             reply.append("- Bảo hành chính hãng 12 - 24 tháng, 1 đổi 1 trong 30 ngày 🛡️\n\n");
-            reply.append("Bạn hãy bấm vào thẻ sản phẩm bên dưới để xem chi tiết thông số hoặc nhắn thêm nếu cần mình tư vấn thêm nhé! 😊");
+            reply.append("Anh/chị hãy bấm vào thẻ sản phẩm bên dưới để xem chi tiết thông số hoặc nhắn thêm nếu cần em tư vấn thêm nhé! 😊");
         } else {
-            reply.append("Hiện tại E-ShopTECH đang phân phối chính hãng các dòng Laptop cao cấp (MacBook, ASUS ROG), Điện thoại flagship (iPhone 16 Series, Samsung Galaxy S24 Ultra) và Phụ kiện chính hãng.\n\n");
-            reply.append("Bạn có thể mô tả cụ thể hơn về khoảng ngân sách hoặc nhu cầu sử dụng (học tập, làm việc, gaming) để mình gợi ý mẫu máy ưng ý nhất nhé! ✨");
+            reply.append("Hiện tại E-ShopTECH đang phân phối chính hãng các dòng Laptop cao cấp (MacBook, ASUS ROG, Dell XPS), Điện thoại flagship (iPhone 16 Series, Samsung Galaxy S24 Ultra) và Phụ kiện chính hãng.\n\n");
+            reply.append("Anh/chị có thể mô tả cụ thể hơn về khoảng ngân sách hoặc nhu cầu sử dụng (học tập, làm việc, gaming) để em gợi ý mẫu máy ưng ý nhất nhé! ✨");
         }
 
         List<ProductResponse> recommended = matched.stream()
@@ -330,7 +392,7 @@ public class AiServiceImpl implements AiService {
         return AiChatResponse.builder()
                 .reply(reply.toString())
                 .recommendedProducts(recommended)
-                .provider("SMART_ASSISTANT (Local Engine)")
+                .provider("E-ShopTECH AI Assistant")
                 .build();
     }
 

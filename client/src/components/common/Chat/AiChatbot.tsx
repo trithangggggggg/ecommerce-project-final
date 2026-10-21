@@ -113,7 +113,7 @@ export default function AiChatbot() {
   };
 
   // Helper format Markdown đơn giản (bold, bullet points, line breaks)
-  const renderFormattedText = (content: string) => {
+  const renderFormattedText = (content: string, isUser: boolean = false) => {
     const lines = content.split('\n');
     return lines.map((line, idx) => {
       // In đậm cú pháp **text**
@@ -121,7 +121,10 @@ export default function AiChatbot() {
       const formattedParts = parts.map((part, pIdx) => {
         if (part.startsWith('**') && part.endsWith('**')) {
           return (
-            <strong key={pIdx} className="font-bold text-gray-950">
+            <strong
+              key={pIdx}
+              className={`font-bold ${isUser ? 'text-white underline decoration-white/40' : 'text-gray-950'}`}
+            >
               {part.slice(2, -2)}
             </strong>
           );
@@ -131,8 +134,13 @@ export default function AiChatbot() {
 
       if (line.trim().startsWith('- ') || line.trim().startsWith('* ') || line.trim().startsWith('• ')) {
         return (
-          <div key={idx} className="flex items-start gap-1.5 my-1 ml-1 text-gray-800">
-            <span className="text-blue-600 font-bold leading-5">•</span>
+          <div
+            key={idx}
+            className={`flex items-start gap-1.5 my-1 ml-1 ${isUser ? 'text-white' : 'text-gray-800'}`}
+          >
+            <span className={`${isUser ? 'text-white font-bold' : 'text-blue-600 font-bold'} leading-5`}>
+              •
+            </span>
             <span className="flex-1">{formattedParts}</span>
           </div>
         );
@@ -143,7 +151,10 @@ export default function AiChatbot() {
       }
 
       return (
-        <p key={idx} className="my-0.5 leading-relaxed text-gray-800">
+        <p
+          key={idx}
+          className={`my-0.5 leading-relaxed ${isUser ? 'text-white font-medium' : 'text-gray-800'}`}
+        >
           {formattedParts}
         </p>
       );
@@ -260,11 +271,11 @@ export default function AiChatbot() {
                     <div
                       className={`p-3.5 rounded-2xl shadow-xs ${
                         isUser
-                          ? 'bg-[#181a20] text-white rounded-br-xs'
+                          ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-br-xs shadow-md shadow-blue-500/20'
                           : 'bg-white border border-gray-200/80 text-gray-800 rounded-bl-xs'
                       }`}
                     >
-                      {renderFormattedText(msg.content)}
+                      {renderFormattedText(msg.content, isUser)}
                     </div>
                   </div>
 
@@ -338,13 +349,13 @@ export default function AiChatbot() {
           </div>
 
           {/* Quick Prompts */}
-          <div className="px-3 pt-2 pb-1.5 bg-white border-t border-gray-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          <div className="px-3 py-2 bg-slate-50/90 border-t border-gray-100 flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {QUICK_PROMPTS.map((prompt) => (
               <button
                 key={prompt}
                 onClick={() => handleSendMessage(prompt)}
                 disabled={isLoading}
-                className="text-[11px] whitespace-nowrap bg-gray-100/80 hover:bg-blue-50 hover:text-blue-600 text-gray-600 px-2.5 py-1 rounded-full font-medium transition-colors shrink-0 disabled:opacity-50 cursor-pointer"
+                className="text-[11px] whitespace-nowrap bg-white hover:bg-blue-600 hover:text-white text-gray-700 border border-gray-200 hover:border-blue-600 px-3 py-1.5 rounded-full font-medium transition-all shadow-xs shrink-0 disabled:opacity-50 cursor-pointer active:scale-95"
               >
                 {prompt}
               </button>

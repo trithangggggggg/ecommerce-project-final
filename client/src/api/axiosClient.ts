@@ -2,7 +2,7 @@ import axios from 'axios';
 import type { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export const axiosClient: AxiosInstance = axios.create({
   baseURL: BASE_URL,
