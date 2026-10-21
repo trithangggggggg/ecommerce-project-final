@@ -57,3 +57,27 @@ export function toSlug(str: string): string {
     .replace(/-+/g, '-')
     .trim();
 }
+
+/**
+ * Định dạng ngày giờ hiển thị tiếng Việt (VD: 14:30 - 21/10/2026)
+ */
+export function formatDateTime(dateStr?: string | null): string {
+  if (!dateStr) return '—';
+  try {
+    // Xử lý chuỗi date định dạng "yyyy-MM-dd HH:mm:ss" hoặc ISO
+    const normalized = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
+    const d = new Date(normalized);
+    if (isNaN(d.getTime())) return dateStr;
+
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+
+    return `${hours}:${minutes} - ${day}/${month}/${year}`;
+  } catch {
+    return dateStr;
+  }
+}
+

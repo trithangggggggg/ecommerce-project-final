@@ -12,11 +12,22 @@ import AdminLayout from '../layouts/AdminLayout';
 import HomePage from '../pages/guest/HomePage';
 import ProductsPage from '../pages/guest/ProductsPage';
 import ProductDetailPage from '../pages/guest/ProductDetailPage';
+import CartPage from '../pages/cart/CartPage';
+import CheckoutPage from '../pages/checkout/CheckoutPage';
+import MyOrdersPage from '../pages/order/MyOrdersPage';
 import LoginPage from '../pages/auth/LoginPage';
 import RegisterPage from '../pages/auth/RegisterPage';
 import ProfilePage from '../pages/auth/ProfilePage';
 import DashboardPage from '../pages/admin/DashboardPage';
 import AdminProductsPage from '../pages/admin/AdminProductsPage';
+import AdminOrdersPage from '../pages/admin/AdminOrdersPage';
+import AdminCustomersPage from '../pages/admin/AdminCustomersPage';
+import AdminPromotionsPage from '../pages/admin/AdminPromotionsPage';
+import AdminShippingPage from '../pages/admin/AdminShippingPage';
+import AdminInventoryPage from '../pages/admin/AdminInventoryPage';
+import AdminSuppliersPage from '../pages/admin/AdminSuppliersPage';
+import AdminReportsPage from '../pages/admin/AdminReportsPage';
+import AdminSettingsPage from '../pages/admin/AdminSettingsPage';
 import UnauthorizedPage from '../pages/common/UnauthorizedPage';
 import NotFoundPage from '../pages/common/NotFoundPage';
 
@@ -42,13 +53,21 @@ export const AppRoutes: React.FC = () => {
     <>
       <ScrollToTop />
       <Routes>
-        {/* Phân hệ Khách hàng: Vào thẳng trang chủ khi truy cập root hoặc /home */}
+        {/* Phân hệ Khách hàng: Dùng GuestLayout có Header, Footer & AI Assistant */}
         <Route path="/" element={<GuestLayout />}>
           <Route index element={<HomePage />} />
           <Route path="home" element={<HomePage />} />
           <Route path="trang-chu" element={<HomePage />} />
           <Route path="products" element={<ProductsPage />} />
           <Route path="products/:id" element={<ProductDetailPage />} />
+          <Route path="cart" element={<CartPage />} />
+
+          {/* Các route yêu cầu khách hàng đăng nhập */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="checkout" element={<CheckoutPage />} />
+            <Route path="my-orders" element={<MyOrdersPage />} />
+            <Route path="profile" element={<ProfilePage />} />
+          </Route>
         </Route>
 
         {/* Phân hệ Xác thực: Login & Register (Chỉ truy cập khi chưa đăng nhập) */}
@@ -59,11 +78,6 @@ export const AppRoutes: React.FC = () => {
           </Route>
         </Route>
 
-        {/* Hồ sơ cá nhân (Yêu cầu đăng nhập) */}
-        <Route element={<ProtectedRoute />}>
-          <Route path={ROUTES.PROFILE} element={<ProfilePage />} />
-        </Route>
-
         {/* Phân vùng Quản trị: Admin Portal (Yêu cầu quyền ADMIN) */}
         <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]} />}>
           <Route path={ROUTES.ADMIN} element={<AdminLayout />}>
@@ -71,7 +85,14 @@ export const AppRoutes: React.FC = () => {
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="products" element={<AdminProductsPage />} />
             <Route path="categories" element={<AdminProductsPage />} />
-            <Route path="orders" element={<DashboardPage />} />
+            <Route path="orders" element={<AdminOrdersPage />} />
+            <Route path="customers" element={<AdminCustomersPage />} />
+            <Route path="promotions" element={<AdminPromotionsPage />} />
+            <Route path="shipping" element={<AdminShippingPage />} />
+            <Route path="inventory" element={<AdminInventoryPage />} />
+            <Route path="suppliers" element={<AdminSuppliersPage />} />
+            <Route path="reports" element={<AdminReportsPage />} />
+            <Route path="settings" element={<AdminSettingsPage />} />
           </Route>
         </Route>
 
