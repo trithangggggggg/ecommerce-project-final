@@ -4,9 +4,9 @@ import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 
 export const AdminSettingsPage: React.FC = () => {
-  const [storeName, setStoreName] = useState('E-ShopTECH Official Store');
+  const [storeName, setStoreName] = useState('NEXOR Official Store');
   const [hotline, setHotline] = useState('1900 6868');
-  const [email, setEmail] = useState('support@eshoptech.vn');
+  const [email, setEmail] = useState('support@nexor.vn');
   const [address, setAddress] = useState('Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội');
   const [saved, setSaved] = useState(false);
 

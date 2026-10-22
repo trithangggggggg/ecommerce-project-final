@@ -305,7 +305,7 @@ export default function ProductDetailPage() {
             {/* Special Promo Box */}
             <div className="border border-blue-200 rounded-xl overflow-hidden mb-6 bg-blue-50/50">
               <div className="bg-blue-600 text-white px-3.5 py-2 text-xs font-bold flex items-center gap-2">
-                <Gift size={16} /> ƯU ĐÃI ĐẶC QUYỀN E-SHOPTECH
+                <Gift size={16} /> ƯU ĐÃI ĐẶC QUYỀN NEXOR
               </div>
               <div className="p-3.5 space-y-2 text-xs text-gray-700">
                 <div className="flex items-start gap-2">
@@ -349,7 +349,7 @@ export default function ProductDetailPage() {
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center justify-between text-xs text-gray-600">
               <div className="flex items-center gap-2">
                 <MapPin size={16} className="text-blue-600 shrink-0" />
-                <span>Có sẵn tại <strong>48 showroom</strong> E-ShopTECH trên toàn quốc</span>
+                <span>Có sẵn tại <strong>48 showroom</strong> NEXOR trên toàn quốc</span>
               </div>
               <span className="text-blue-600 font-semibold cursor-pointer hover:underline">
                 Tìm chi nhánh gần nhất

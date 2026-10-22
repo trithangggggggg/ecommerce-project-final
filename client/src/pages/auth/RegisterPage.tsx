@@ -82,7 +82,7 @@ export const RegisterPage: React.FC = () => {
       <div className="text-center mb-6">
         <div className="w-14 h-14 mx-auto mb-3 flex items-center justify-center">
           <img
-            src="/images/logo.png"
+            src="/images/nexor_logo.png"
             alt="NEXOR Logo"
             className="w-14 h-14 object-contain drop-shadow-md"
           />
@@ -201,7 +201,7 @@ export const RegisterPage: React.FC = () => {
             <span className="text-xs text-gray-600 leading-relaxed">
               Tôi đồng ý với{' '}
               <span className="text-blue-600 font-semibold hover:underline">Điều khoản dịch vụ</span>{' '}
-              và <span className="text-blue-600 font-semibold hover:underline">Chính sách bảo mật</span> của E-ShopTECH.
+              và <span className="text-blue-600 font-semibold hover:underline">Chính sách bảo mật</span> của NEXOR.
             </span>
           </label>
         </div>

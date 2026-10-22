@@ -68,7 +68,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
         <div className="h-16 px-5 border-b border-slate-100 flex items-center justify-between shrink-0">
           <Link to={ROUTES.ADMIN} className="flex items-center gap-3">
             <img
-              src="/images/logo.png"
+              src="/images/nexor_logo.png"
               alt="NEXOR Admin"
               className="w-9 h-9 object-contain drop-shadow-sm"
             />

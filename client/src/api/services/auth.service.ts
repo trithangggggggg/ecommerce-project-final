@@ -149,7 +149,7 @@ export const authService = {
         return {
           id: 1,
           email: 'user@ecommerce.com',
-          fullName: payload.fullName || 'Người dùng E-Shop',
+          fullName: payload.fullName || 'Người dùng NEXOR',
           role: ROLES.CUSTOMER,
           phone: payload.phone || payload.phoneNumber,
           phoneNumber: payload.phone || payload.phoneNumber,

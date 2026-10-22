@@ -42,7 +42,7 @@ export const CartPage: React.FC = () => {
           </div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">Giỏ hàng của bạn đang trống</h2>
           <p className="text-xs text-gray-500 mb-6 leading-relaxed">
-            Bạn chưa chọn sản phẩm công nghệ nào. Hãy khám phá hàng ngàn siêu phẩm điện thoại, laptop, phụ kiện chính hãng tại E-ShopTECH nhé!
+            Bạn chưa chọn sản phẩm công nghệ nào. Hãy khám phá hàng ngàn siêu phẩm điện thoại, laptop, phụ kiện chính hãng tại NEXOR nhé!
           </p>
           <div className="space-y-3">
             <Button

@@ -25,6 +25,6 @@ public class AiController {
     ) {
         log.info("Khách hàng gửi câu hỏi tư vấn AI: {}", request.getMessage());
         AiChatResponse response = aiService.chatWithCustomer(request);
-        return ResponseEntity.ok(ApiResponse.success("Phản hồi từ E-ShopTECH AI Assistant", response));
+        return ResponseEntity.ok(ApiResponse.success("Phản hồi từ NEXOR AI Assistant", response));
     }
 }

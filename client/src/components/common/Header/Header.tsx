@@ -55,7 +55,7 @@ export const Header: React.FC = () => {
         <Link to="/" className="flex items-center gap-3 shrink-0 group">
           <div className="w-10 h-10 flex items-center justify-center shrink-0">
             <img
-              src="/images/logo.png"
+              src="/images/nexor_logo.png"
               alt="NEXOR Logo"
               className="w-10 h-10 object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-200"
             />

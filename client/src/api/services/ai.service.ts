@@ -40,6 +40,7 @@ function generateSmartClientFallback(userQuery: string): {
     q.includes('xin chào') ||
     q.includes('chào bạn') ||
     q.includes('chào shop') ||
+    q.includes('chào nexor') ||
     q.includes('chào e-shop') ||
     q.includes('hello') ||
     q.includes('hi ') ||
@@ -51,14 +52,14 @@ function generateSmartClientFallback(userQuery: string): {
     const featured = MOCK_PRODUCTS.slice(0, 3);
     return {
       reply:
-        'Dạ em chào anh/chị ạ! 👋 Em là **E-ShopTECH AI** — trợ lý tư vấn công nghệ 24/7 của shop.\n\n' +
+        'Dạ em chào anh/chị ạ! 👋 Em là **NEXOR AI** — trợ lý tư vấn công nghệ 24/7 của shop.\n\n' +
         'Anh/chị đang quan tâm đến dòng sản phẩm nào để em tư vấn thông số và ưu đãi tốt nhất ạ?\n' +
         '- 💻 **Laptop**: MacBook, Dell XPS, ASUS Gaming, ThinkPad\n' +
         '- 📱 **Điện thoại**: iPhone 16/15 Pro Max, Galaxy S24 Ultra, Gaming Phone\n' +
         '- 🎧 **Âm thanh & Phụ kiện**: Tai nghe chống ồn, loa di động, củ sạc nhanh\n' +
         '- 🛡️ **Chính sách**: Bảo hành 12-24 tháng chính hãng, miễn phí vận chuyển toàn quốc.',
       recommendedProducts: featured,
-      provider: 'E-ShopTECH AI (Local Assistant)',
+      provider: 'NEXOR AI Assistant',
     };
   }
 
@@ -87,14 +88,14 @@ function generateSmartClientFallback(userQuery: string): {
 
     return {
       reply:
-        'Dạ về dòng **Laptop**, E-ShopTECH xin giới thiệu các mẫu máy đang được khách hàng ưa chuộng và đánh giá cao nhất:\n\n' +
+        'Dạ về dòng **Laptop**, NEXOR xin giới thiệu các mẫu máy đang được khách hàng ưa chuộng và đánh giá cao nhất:\n\n' +
         '- 🔹 **MacBook Air M3**: Mỏng nhẹ đỉnh cao chỉ 1.24kg, pin trâu 18h, vận hành êm ái hoàn toàn không quạt tản nhiệt.\n' +
         '- 🔹 **MacBook Pro 14 M3 Pro**: Sức mạnh chuyên nghiệp cho coder, đồ họa kiến trúc, render 4K với màn Liquid Retina XDR 120Hz chuẩn màu.\n' +
         '- 🔹 **Dell XPS 13 Plus**: Thiết kế tối giản tương lai với trackpad kính tàng hình, màn hình cảm ứng OLED 3.5K siêu sắc nét.\n' +
         '- 🔹 **ASUS ROG / Lenovo Legion**: Cấu hình card đồ họa rời RTX mạnh mẽ dành cho game thủ và dựng phim chuyên nghiệp.\n\n' +
         '🎁 **Ưu đãi kèm theo**: Tặng balo công nghệ chống nước, chuột quang không dây và hỗ trợ trả góp 0% lãi suất!',
       recommendedProducts: laptops.length > 0 ? laptops : MOCK_PRODUCTS.slice(0, 3),
-      provider: 'E-ShopTECH AI (Local Assistant)',
+      provider: 'NEXOR AI Assistant',
     };
   }
 
@@ -117,13 +118,13 @@ function generateSmartClientFallback(userQuery: string): {
 
     return {
       reply:
-        'Dạ về dòng **Điện thoại thông minh Flagship**, dưới đây là các siêu phẩm dẫn đầu thị trường tại E-ShopTECH:\n\n' +
+        'Dạ về dòng **Điện thoại thông minh Flagship**, dưới đây là các siêu phẩm dẫn đầu thị trường tại NEXOR:\n\n' +
         '- 📱 **iPhone 15 / 16 Pro Max**: Khung viền Titan cao cấp siêu nhẹ, chip Apple A17/A18 Pro tối thượng, camera tele 5x bắt trọn mọi khoảnh khắc.\n' +
         '- 📱 **Samsung Galaxy S24 Ultra**: Tích hợp bút S Pen thông minh, camera 200MP đột phá cùng công nghệ Galaxy AI hỗ trợ dịch thuật trực tiếp.\n' +
         '- 🎮 **Asus ROG Phone 8 Pro**: Cỗ máy gaming đỉnh cao với màn hình AMOLED 165Hz mượt mà và phím siêu âm AirTrigger thao tác thần tốc.\n\n' +
         '✨ Cam kết 100% hàng New Seal chính hãng, 1 đổi 1 trong 30 ngày và giao hàng nhanh trong 2 giờ!',
       recommendedProducts: phones.length > 0 ? phones : MOCK_PRODUCTS.slice(0, 3),
-      provider: 'E-ShopTECH AI (Local Assistant)',
+      provider: 'NEXOR AI Assistant',
     };
   }
 
@@ -148,12 +149,12 @@ function generateSmartClientFallback(userQuery: string): {
 
     return {
       reply:
-        'Dạ về thiết bị **Âm thanh & Tai nghe chống ồn**, E-ShopTECH tự hào mang đến các dòng sản phẩm chất lượng hàng đầu:\n\n' +
+        'Dạ về thiết bị **Âm thanh & Tai nghe chống ồn**, NEXOR tự hào mang đến các dòng sản phẩm chất lượng hàng đầu:\n\n' +
         '- 🎧 **Sony WH-1000XM5**: Đỉnh cao công nghệ chống ồn chủ động (ANC) số 1 thế giới, chất âm Hi-Res sắc sảo và thời lượng pin ấn tượng lên tới 30 giờ.\n' +
         '- 🎧 **Apple AirPods Pro 2**: Khả năng khử tiếng ồn gấp 2 lần, tính năng Adaptive Audio thông minh và chip H2 tối ưu trải nghiệm âm thanh 3D sống động.\n\n' +
         'Toàn bộ sản phẩm được bảo hành chính hãng 12 tháng tại các trung tâm bảo hành ủy quyền!',
       recommendedProducts: audio.length > 0 ? audio : MOCK_PRODUCTS.slice(0, 3),
-      provider: 'E-ShopTECH AI (Local Assistant)',
+      provider: 'NEXOR AI Assistant',
     };
   }
 
@@ -168,14 +169,14 @@ function generateSmartClientFallback(userQuery: string): {
   ) {
     return {
       reply:
-        '🛡️ **Chính sách bảo hành vàng tại E-ShopTECH:**\n\n' +
+        '🛡️ **Chính sách bảo hành vàng tại NEXOR:**\n\n' +
         '- **100% Hàng chính hãng**: Toàn bộ sản phẩm mới nguyên seal, có đầy đủ hóa đơn VAT và tem bảo hành chính ngạch.\n' +
         '- **1 Đổi 1 trong 30 ngày**: Nếu sản phẩm gặp lỗi phần cứng do nhà sản xuất, khách hàng được đổi ngay máy mới 100% không mất thêm phí.\n' +
         '- **Thời hạn bảo hành**: Từ 12 đến 24 tháng theo đúng tiêu chuẩn của Apple, Samsung, Asus, Dell, Sony.\n' +
         '- **Tiếp nhận bảo hành toàn quốc**: Hỗ trợ gửi máy tại showroom của shop hoặc các trung tâm bảo hành ủy quyền chính hãng trên toàn quốc.\n' +
         '- **Hỗ trợ trọn đời**: Miễn phí cài đặt phần mềm bản quyền, vệ sinh máy và kiểm tra định kỳ.',
       recommendedProducts: MOCK_PRODUCTS.slice(0, 2),
-      provider: 'E-ShopTECH AI (Local Assistant)',
+      provider: 'NEXOR AI Assistant',
     };
   }
 
@@ -189,13 +190,13 @@ function generateSmartClientFallback(userQuery: string): {
   ) {
     return {
       reply:
-        '🚚 **Chính sách giao hàng siêu tốc tại E-ShopTECH:**\n\n' +
+        '🚚 **Chính sách giao hàng siêu tốc tại NEXOR:**\n\n' +
         '- **Miễn phí vận chuyển**: Cho tất cả đơn hàng có giá trị từ **500.000đ** trở lên trên toàn quốc.\n' +
         '- **Giao hỏa tốc 2 giờ**: Áp dụng tại khu vực nội thành Hà Nội & TP. Hồ Chí Minh.\n' +
         '- **Đồng kiểm khi nhận (COD)**: Quý khách được quyền mở hộp kiểm tra đúng model, ngoại quan nguyên vẹn trước khi thanh toán.\n' +
         '- **Bảo hiểm hàng hóa 100%**: Cam kết hoàn tiền hoặc đổi mới ngay nếu kiện hàng phát sinh cấn móp, hư hại do vận chuyển.',
       recommendedProducts: MOCK_PRODUCTS.slice(0, 2),
-      provider: 'E-ShopTECH AI (Local Assistant)',
+      provider: 'NEXOR AI Assistant',
     };
   }
 
@@ -213,13 +214,13 @@ function generateSmartClientFallback(userQuery: string): {
   ) {
     return {
       reply:
-        '🎁 **Chương trình ưu đãi & Hỗ trợ trả góp tại E-ShopTECH:**\n\n' +
+        '🎁 **Chương trình ưu đãi & Hỗ trợ trả góp tại NEXOR:**\n\n' +
         '- **Trả góp 0% lãi suất**: Hỗ trợ qua thẻ tín dụng hơn 25 ngân hàng hoặc duyệt hồ sơ online qua CCCD chỉ mất 10-15 phút.\n' +
         '- **Flash Sale mỗi ngày**: Giảm sâu đến 30% cho các sản phẩm công nghệ hot nhất.\n' +
         '- **Ưu đãi Học sinh - Sinh viên**: Tặng thêm voucher giảm giá 500.000đ khi mua laptop hoặc máy tính bảng.\n' +
         '- **Thu cũ đổi mới (Trade-in)**: Trợ giá thu mua máy cũ lên đến 2.000.000đ để quý khách lên đời máy mới tiết kiệm nhất!',
       recommendedProducts: MOCK_PRODUCTS.filter((p) => p.discountPercent && p.discountPercent > 10).slice(0, 3),
-      provider: 'E-ShopTECH AI (Local Assistant)',
+      provider: 'NEXOR AI Assistant',
     };
   }
 
@@ -237,18 +238,18 @@ function generateSmartClientFallback(userQuery: string): {
         matchedProducts.map((p) => `🔹 **${p.name}** - Giá ưu đãi: **${new Intl.NumberFormat('vi-VN').format(p.price)}đ**\n   _${p.description.slice(0, 100)}..._`).join('\n\n') +
         '\n\nAnh/chị hãy bấm vào thẻ sản phẩm bên dưới để xem chi tiết thông số hoặc nhắn thêm nếu cần em tư vấn thêm nhé! 😊',
       recommendedProducts: matchedProducts,
-      provider: 'E-ShopTECH AI (Local Assistant)',
+      provider: 'NEXOR AI Assistant',
     };
   }
 
   // 9. Phản hồi chung lịch sự và giới thiệu sản phẩm tiêu biểu
   return {
     reply:
-      `Dạ cảm ơn anh/chị đã quan tâm đến E-ShopTECH! ✨\n\n` +
+      `Dạ cảm ơn anh/chị đã quan tâm đến NEXOR! ✨\n\n` +
       `Để em có thể tư vấn mẫu máy phù hợp nhất, anh/chị có thể cho em biết thêm về **khoảng ngân sách** hoặc **nhu cầu sử dụng** (học tập, làm việc văn phòng, gaming, đồ họa...) không ạ?\n\n` +
       `Dưới đây là một số dòng máy bán chạy nhất tuần này mà anh/chị có thể tham khảo:`,
     recommendedProducts: MOCK_PRODUCTS.slice(0, 3),
-    provider: 'E-ShopTECH AI (Local Assistant)',
+    provider: 'NEXOR AI Assistant',
   };
 }
 
@@ -265,7 +266,7 @@ export const aiService = {
       return {
         reply: 'Dạ bạn cần em hỗ trợ tư vấn sản phẩm hay thông tin bảo hành nào ạ?',
         recommendedProducts: [],
-        provider: 'E-ShopTECH AI',
+        provider: 'NEXOR AI Assistant',
       };
     }
 

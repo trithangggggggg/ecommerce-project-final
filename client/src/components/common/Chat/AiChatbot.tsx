@@ -26,7 +26,7 @@ export default function AiChatbot() {
       id: 'welcome',
       role: 'assistant',
       content:
-        'Dạ xin chào bạn! 👋 Mình là **Trợ lý AI của E-ShopTECH**.\n\nMình có thể giúp bạn tìm kiếm thiết bị công nghệ phù hợp với ngân sách, so sánh cấu hình hoặc giải đáp chính sách bảo hành. Bạn đang quan tâm đến sản phẩm nào ạ?',
+        'Dạ xin chào bạn! 👋 Mình là **Trợ lý AI của NEXOR**.\n\nMình có thể giúp bạn tìm kiếm thiết bị công nghệ phù hợp với ngân sách, so sánh cấu hình hoặc giải đáp chính sách bảo hành. Bạn đang quan tâm đến sản phẩm nào ạ?',
       timestamp: new Date(),
     },
   ]);
@@ -167,7 +167,7 @@ export default function AiChatbot() {
       {!isOpen && showTooltip && (
         <div className="absolute bottom-16 right-0 mb-2 w-64 bg-white/95 backdrop-blur-md p-3 rounded-2xl shadow-xl border border-gray-100 flex items-start gap-2.5 animate-bounce-subtle">
           <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center shrink-0 shadow-sm p-1">
-            <img src="/images/logo.png" alt="NEXOR AI" className="w-6 h-6 object-contain" />
+            <img src="/images/nexor_logo.png" alt="NEXOR AI" className="w-6 h-6 object-contain" />
           </div>
           <div className="flex-1 text-xs">
             <div className="font-bold text-gray-900">NEXOR AI</div>
@@ -193,8 +193,8 @@ export default function AiChatbot() {
         <button
           onClick={() => setIsOpen(true)}
           className="relative group p-4 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 flex items-center justify-center cursor-pointer border border-white/20"
-          title="Mở E-ShopTECH AI Chatbot"
-          aria-label="Mở E-ShopTECH AI Chatbot"
+          title="Mở NEXOR AI Chatbot"
+          aria-label="Mở NEXOR AI Chatbot"
         >
           {/* Vòng sáng radar ping */}
           <span className="absolute -top-1 -right-1 flex h-4 w-4">
@@ -215,7 +215,7 @@ export default function AiChatbot() {
             <div className="flex items-center gap-3">
               <div className="relative">
                 <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#1e2230] to-[#2d3345] flex items-center justify-center shadow-md p-1.5 border border-white/10">
-                  <img src="/images/logo.png" alt="NEXOR AI" className="w-7 h-7 object-contain" />
+                  <img src="/images/nexor_logo.png" alt="NEXOR AI" className="w-7 h-7 object-contain" />
                 </div>
                 <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-[#161820] rounded-full"></span>
               </div>
@@ -265,7 +265,7 @@ export default function AiChatbot() {
                   <div className="flex items-end gap-2 max-w-[92%]">
                     {!isUser && (
                       <div className="w-7 h-7 rounded-xl bg-slate-900 flex items-center justify-center shrink-0 shadow-xs mb-1 p-0.5">
-                        <img src="/images/logo.png" alt="NEXOR AI" className="w-5 h-5 object-contain" />
+                        <img src="/images/nexor_logo.png" alt="NEXOR AI" className="w-5 h-5 object-contain" />
                       </div>
                     )}
                     <div
@@ -313,7 +313,7 @@ export default function AiChatbot() {
                                 {formatPrice(p.price)}
                               </div>
                               <span className="text-[10px] text-gray-400 inline-block truncate">
-                                {p.category?.name || 'Chính hãng E-ShopTECH'}
+                                {p.category?.name || 'Chính hãng NEXOR'}
                               </span>
                             </div>
                             <div className="p-1.5 rounded-lg bg-gray-50 group-hover:bg-blue-600 group-hover:text-white text-gray-400 transition-colors shrink-0">

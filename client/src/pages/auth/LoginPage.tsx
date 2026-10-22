@@ -116,7 +116,7 @@ export const LoginPage: React.FC = () => {
         <div className="text-center mb-6">
           <div className="w-14 h-14 mx-auto mb-3 flex items-center justify-center">
             <img
-              src="/images/logo.png"
+              src="/images/nexor_logo.png"
               alt="NEXOR Logo"
               className="w-14 h-14 object-contain drop-shadow-md"
             />
@@ -165,7 +165,7 @@ export const LoginPage: React.FC = () => {
                 onClick={(e) => {
                   e.preventDefault();
                   alert(
-                    'Vui lòng liên hệ quản trị viên qua email cskh@eshoptech.vn để được hỗ trợ cấp lại mật khẩu!'
+                    'Vui lòng liên hệ quản trị viên qua email cskh@nexor.vn để được hỗ trợ cấp lại mật khẩu!'
                   );
                 }}
                 className="text-xs text-blue-600 hover:text-blue-700 font-semibold hover:underline"
@@ -225,7 +225,7 @@ export const LoginPage: React.FC = () => {
         {/* Switch to Register */}
         <div className="mt-6 pt-5 border-t border-gray-100 text-center">
           <p className="text-xs text-gray-600">
-            Chưa có tài khoản E-ShopTECH?{' '}
+            Chưa có tài khoản NEXOR?{' '}
             <Link
               to={ROUTES.REGISTER}
               className="font-bold text-blue-600 hover:text-blue-700 hover:underline"

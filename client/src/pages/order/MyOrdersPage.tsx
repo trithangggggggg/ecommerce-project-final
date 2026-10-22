@@ -153,7 +153,7 @@ export const MyOrdersPage: React.FC = () => {
                 Đơn hàng #{newOrderId} đã được tiếp nhận thành công!
               </span>
               <span>
-                Nhân viên CSKH của E-ShopTECH sẽ sớm liên hệ qua số điện thoại để xác nhận lịch giao hàng.
+                Nhân viên CSKH của NEXOR sẽ sớm liên hệ qua số điện thoại để xác nhận lịch giao hàng.
               </span>
             </div>
           </div>

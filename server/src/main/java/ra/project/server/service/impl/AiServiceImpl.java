@@ -182,9 +182,9 @@ public class AiServiceImpl implements AiService {
 
     private String buildChatPrompt(String userMessage, List<ChatMessageDto> history, List<Product> products) {
         StringBuilder sb = new StringBuilder();
-        sb.append("Bạn là 'E-ShopTECH AI Assistant' - Chuyên viên tư vấn bán hàng công nghệ thông minh, nhiệt tình và am hiểu sản phẩm của website thương mại điện tử E-ShopTECH.\n\n");
+        sb.append("Bạn là 'NEXOR AI Assistant' - Chuyên viên tư vấn bán hàng công nghệ thông minh, nhiệt tình và am hiểu sản phẩm của website thương mại điện tử NEXOR.\n\n");
 
-        sb.append("=== CHÍNH SÁCH BÁN HÀNG CỦA E-SHOPTECH ===\n");
+        sb.append("=== CHÍNH SÁCH BÁN HÀNG CỦA NEXOR ===\n");
         sb.append("- Miễn phí vận chuyển toàn quốc cho đơn hàng từ 500.000đ.\n");
         sb.append("- Bảo hành chính hãng 12 đến 24 tháng theo từng sản phẩm, 1 đổi 1 trong 30 ngày nếu phát sinh lỗi.\n");
         sb.append("- Hỗ trợ trả góp 0% lãi suất, giao hàng hỏa tốc trong 2 giờ tại nội thành.\n\n");
@@ -217,7 +217,7 @@ public class AiServiceImpl implements AiService {
             int startIdx = Math.max(0, history.size() - 6);
             for (int i = startIdx; i < history.size(); i++) {
                 ChatMessageDto msg = history.get(i);
-                String roleName = "user".equalsIgnoreCase(msg.getRole()) ? "Khách hàng" : "Trợ lý E-ShopTECH";
+                String roleName = "user".equalsIgnoreCase(msg.getRole()) ? "Khách hàng" : "Trợ lý NEXOR";
                 sb.append(roleName).append(": ").append(msg.getContent()).append("\n");
             }
             sb.append("\n");
@@ -297,7 +297,7 @@ public class AiServiceImpl implements AiService {
                 normQuery.startsWith("hi ") || normQuery.contains("alo") || normQuery.contains("oi shop") ||
                 normQuery.equals("oi")) {
             List<Product> topFeatured = products.stream().limit(3).collect(Collectors.toList());
-            String greetingReply = "Dạ em chào anh/chị ạ! 👋 Em là **E-ShopTECH AI** — chuyên viên tư vấn công nghệ 24/7 của shop.\n\n" +
+            String greetingReply = "Dạ em chào anh/chị ạ! 👋 Em là **NEXOR AI** — chuyên viên tư vấn công nghệ 24/7 của shop.\n\n" +
                     "Anh/chị đang quan tâm đến dòng sản phẩm nào để em tư vấn thông số và ưu đãi tốt nhất ạ?\n" +
                     "- 💻 **Laptop**: MacBook Air/Pro, Dell XPS, ASUS Gaming, Lenovo Legion\n" +
                     "- 📱 **Điện thoại**: iPhone 16/15 Pro Max, Samsung Galaxy S24 Ultra, ROG Phone\n" +
@@ -307,13 +307,13 @@ public class AiServiceImpl implements AiService {
             return AiChatResponse.builder()
                     .reply(greetingReply)
                     .recommendedProducts(topFeatured.stream().map(productMapper::toResponse).collect(Collectors.toList()))
-                    .provider("E-ShopTECH AI Assistant")
+                    .provider("NEXOR AI Assistant")
                     .build();
         }
 
         // 2. Ý định hỏi về chính sách bảo hành / đổi trả
         if (normQuery.contains("bao hanh") || normQuery.contains("doi tra") || normQuery.contains("hong") || normQuery.contains("loi")) {
-            String warrantyReply = "🛡️ **Chính sách bảo hành vàng tại E-ShopTECH:**\n\n" +
+            String warrantyReply = "🛡️ **Chính sách bảo hành vàng tại NEXOR:**\n\n" +
                     "- **100% Hàng chính hãng**: Toàn bộ sản phẩm phân phối đều là hàng chính ngạch nguyên seal, đầy đủ hóa đơn VAT.\n" +
                     "- **1 Đổi 1 trong 30 ngày**: Nếu sản phẩm phát sinh lỗi phần cứng do nhà sản xuất, shop đổi ngay máy mới 100% không phát sinh chi phí.\n" +
                     "- **Thời hạn bảo hành**: Từ 12 đến 24 tháng theo đúng tiêu chuẩn khắt khe của hãng (Apple, Samsung, Asus, Dell, Sony).\n" +
@@ -322,13 +322,13 @@ public class AiServiceImpl implements AiService {
             return AiChatResponse.builder()
                     .reply(warrantyReply)
                     .recommendedProducts(products.stream().limit(2).map(productMapper::toResponse).collect(Collectors.toList()))
-                    .provider("E-ShopTECH AI Assistant")
+                    .provider("NEXOR AI Assistant")
                     .build();
         }
 
         // 3. Ý định hỏi về vận chuyển / giao hàng
         if (normQuery.contains("van chuyen") || normQuery.contains("giao hang") || normQuery.contains("ship") || normQuery.contains("freeship") || normQuery.contains("hoa toc")) {
-            String shipReply = "🚚 **Chính sách vận chuyển & Giao hàng tại E-ShopTECH:**\n\n" +
+            String shipReply = "🚚 **Chính sách vận chuyển & Giao hàng tại NEXOR:**\n\n" +
                     "- **Miễn phí giao hàng toàn quốc**: Áp dụng cho mọi đơn hàng có giá trị từ **500.000đ** trở lên.\n" +
                     "- **Giao hỏa tốc 2 giờ**: Khu vực nội thành Hà Nội & TP. Hồ Chí Minh nhận hàng ngay trong ngày.\n" +
                     "- **Đồng kiểm khi nhận (COD)**: Quý khách được quyền mở hộp kiểm tra đúng model, ngoại quan nguyên vẹn trước khi thanh toán.\n" +
@@ -336,13 +336,13 @@ public class AiServiceImpl implements AiService {
             return AiChatResponse.builder()
                     .reply(shipReply)
                     .recommendedProducts(products.stream().limit(2).map(productMapper::toResponse).collect(Collectors.toList()))
-                    .provider("E-ShopTECH AI Assistant")
+                    .provider("NEXOR AI Assistant")
                     .build();
         }
 
         // 4. Ý định hỏi về trả góp / khuyến mãi
         if (normQuery.contains("tra gop") || normQuery.contains("khuyen mai") || normQuery.contains("uu dai") || normQuery.contains("giam gia") || normQuery.contains("sale")) {
-            String promoReply = "🎁 **Chương trình khuyến mãi & Hỗ trợ trả góp tại E-ShopTECH:**\n\n" +
+            String promoReply = "🎁 **Chương trình khuyến mãi & Hỗ trợ trả góp tại NEXOR:**\n\n" +
                     "- **Trả góp 0% lãi suất**: Hỗ trợ qua thẻ tín dụng hơn 25 ngân hàng hoặc duyệt hồ sơ online qua CCCD chỉ mất 10-15 phút.\n" +
                     "- **Flash Sale mỗi ngày**: Giảm sâu đến 30% cho các sản phẩm công nghệ hot nhất.\n" +
                     "- **Ưu đãi Học sinh - Sinh viên**: Tặng thêm voucher giảm giá 500.000đ khi mua laptop hoặc máy tính bảng.\n" +
@@ -350,7 +350,7 @@ public class AiServiceImpl implements AiService {
             return AiChatResponse.builder()
                     .reply(promoReply)
                     .recommendedProducts(products.stream().limit(3).map(productMapper::toResponse).collect(Collectors.toList()))
-                    .provider("E-ShopTECH AI Assistant")
+                    .provider("NEXOR AI Assistant")
                     .build();
         }
 
@@ -438,7 +438,7 @@ public class AiServiceImpl implements AiService {
         }
 
         StringBuilder reply = new StringBuilder();
-        reply.append("Dạ chào anh/chị! 👋 E-ShopTECH rất vui được hỗ trợ.\n\n");
+        reply.append("Dạ chào anh/chị! 👋 NEXOR rất vui được hỗ trợ.\n\n");
 
         if (hasExactMatch) {
             String topic = "Sản phẩm công nghệ";
@@ -459,12 +459,12 @@ public class AiServiceImpl implements AiService {
                 }
                 reply.append("\n");
             }
-            reply.append("🌟 **Đặc quyền tại E-ShopTECH:**\n");
+            reply.append("🌟 **Đặc quyền tại NEXOR:**\n");
             reply.append("- Miễn phí vận chuyển toàn quốc cho đơn từ 500.000đ 🚚\n");
             reply.append("- Bảo hành chính hãng 12 - 24 tháng, 1 đổi 1 trong 30 ngày 🛡️\n\n");
             reply.append("Anh/chị hãy bấm vào thẻ sản phẩm bên dưới để xem chi tiết thông số hoặc nhắn thêm nếu cần em tư vấn thêm nhé! 😊");
         } else {
-            reply.append("Hiện tại E-ShopTECH chưa tìm thấy sản phẩm khớp hoàn toàn với từ khóa của anh/chị. Dưới đây là các dòng sản phẩm tiêu biểu đang bán chạy nhất tại cửa hàng:\n\n");
+            reply.append("Hiện tại NEXOR chưa tìm thấy sản phẩm khớp hoàn toàn với từ khóa của anh/chị. Dưới đây là các dòng sản phẩm tiêu biểu đang bán chạy nhất tại cửa hàng:\n\n");
             for (Product p : matched) {
                 String priceStr = p.getPrice() != null ? nf.format(p.getPrice()) + "đ" : "Liên hệ";
                 reply.append(String.format("🔹 **%s [ID: %d]** (Giá: %s)\n", p.getName(), p.getId(), priceStr));
@@ -480,7 +480,7 @@ public class AiServiceImpl implements AiService {
         return AiChatResponse.builder()
                 .reply(reply.toString())
                 .recommendedProducts(recommended)
-                .provider("E-ShopTECH AI Assistant")
+                .provider("NEXOR AI Assistant")
                 .build();
     }
 
@@ -565,7 +565,7 @@ public class AiServiceImpl implements AiService {
     }
 
     private String generateSeoTitle(String productName, String categoryName) {
-        return String.format("%s - Chính Hãng, Giá Tốt Nhất Phân Khúc %s | E-ShopTECH", productName, categoryName);
+        return String.format("%s - Chính Hãng, Giá Tốt Nhất Phân Khúc %s | NEXOR", productName, categoryName);
     }
 
     private String generateKeywords(String productName, String categoryName, List<String> keywords) {

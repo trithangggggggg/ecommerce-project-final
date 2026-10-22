@@ -82,7 +82,7 @@ export default function Footer() {
           <div>
             <div className="flex items-center gap-2.5 mb-4">
               <img
-                src="/images/logo.png"
+                src="/images/nexor_logo.png"
                 alt="NEXOR Logo"
                 className="w-8 h-8 object-contain drop-shadow-sm"
               />
@@ -105,7 +105,7 @@ export default function Footer() {
               </div>
               <div className="flex items-center gap-2 text-gray-700">
                 <Mail size={14} className="text-blue-600" />
-                <span>Email hỗ trợ: <strong>cskh@eshoptech.vn</strong></span>
+                <span>Email hỗ trợ: <strong>cskh@nexor.vn</strong></span>
               </div>
               <div className="flex items-start gap-2 text-gray-700">
                 <MapPin size={14} className="text-blue-600 shrink-0 mt-0.5" />
@@ -166,7 +166,7 @@ export default function Footer() {
                 { title: 'Ưu đãi thanh toán ngân hàng & Ví điện tử', to: '/products' },
                 { title: 'Tích điểm & Quyền lợi thành viên', to: '/profile' },
                 { title: 'Thu cũ đổi mới trợ giá lên tới 2 triệu', to: '/products' },
-                { title: 'Tuyển dụng nhân sự E-ShopTECH', to: '/products' },
+                { title: 'Tuyển dụng nhân sự NEXOR', to: '/products' },
                 { title: 'Hệ thống showroom công nghệ', to: '/products' },
               ].map((link) => (
                 <li key={link.title}>
@@ -184,7 +184,7 @@ export default function Footer() {
           {/* Column 4: Connect */}
           <div>
             <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider mb-3.5">
-              Kết nối với E-ShopTECH
+              Kết nối với NEXOR
             </h3>
 
             <div className="flex gap-2.5 mb-4">
@@ -223,9 +223,9 @@ export default function Footer() {
       {/* Copyright */}
       <div className="border-t border-gray-200 bg-gray-50 py-4 px-4 text-center text-xs text-gray-500">
         <p className="font-semibold text-gray-700 mb-1">
-          Công ty Cổ phần Công nghệ E-ShopTECH Việt Nam
+          Công ty Cổ phần Công nghệ NEXOR Việt Nam
         </p>
-        <p>© {currentYear} E-ShopTECH. Tất cả quyền được bảo lưu.</p>
+        <p>© {currentYear} NEXOR. Tất cả quyền được bảo lưu.</p>
       </div>
     </footer>
   );

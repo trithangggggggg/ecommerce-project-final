@@ -11,16 +11,15 @@ export const AuthLayout: React.FC = () => {
         <div className="max-w-[1360px] mx-auto flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3 shrink-0 group">
             <div className="w-8 h-8 flex items-center justify-center shrink-0">
-              <svg viewBox="0 0 40 40" className="w-8 h-8 drop-shadow-md">
-                <polygon points="20,4 34,12 20,20 6,12" fill="#e2e8f0" />
-                <polygon points="6,12 20,20 20,36 6,28" fill="#94a3b8" />
-                <polygon points="20,20 34,12 34,28 20,36" fill="#64748b" />
-                <polygon points="20,10 27,14 20,18 13,14" fill="#0f172a" opacity="0.15" />
-              </svg>
+              <img
+                src="/images/nexor_logo.png"
+                alt="NEXOR Logo"
+                className="w-8 h-8 object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-200"
+              />
             </div>
             <div className="flex flex-col">
               <span className="text-lg font-black tracking-tight text-white leading-none">
-                E-Shop<span className="text-gray-200">TECH</span>
+                NEXOR<span className="text-indigo-400">.</span>
               </span>
               <span className="text-[10px] text-gray-400 tracking-wider font-normal mt-0.5">
                 Tech for a better life
@@ -46,7 +45,7 @@ export const AuthLayout: React.FC = () => {
 
       {/* Bottom Footer Note */}
       <footer className="border-t border-gray-200 bg-white py-4 px-4 text-center text-xs text-gray-500">
-        <p>© {currentYear} E-ShopTECH. Tất cả quyền được bảo lưu.</p>
+        <p>© {currentYear} NEXOR. Tất cả quyền được bảo lưu.</p>
       </footer>
     </div>
   );
