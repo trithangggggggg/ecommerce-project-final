@@ -221,19 +221,19 @@ export const LoginPage: React.FC = () => {
             </Button>
           </div>
 
-          {/* Quick Demo Login Button - 1 Tài khoản Quản trị viên duy nhất */}
+          {/* Quick Demo Login Button - Tài khoản Quản trị viên từ GitHub Secrets */}
           <div className="pt-3 border-t border-gray-100">
             <button
               type="button"
               onClick={() => {
-                setEmail('admin');
-                setPassword('123456');
+                setEmail(import.meta.env.VITE_ADMIN_USERNAME || 'admin');
+                setPassword(import.meta.env.VITE_ADMIN_PASSWORD || '12345678');
               }}
               className="w-full py-2.5 px-3 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-900 transition flex items-center justify-center gap-2 text-xs font-semibold cursor-pointer shadow-sm hover:shadow"
-              title="Điền nhanh thông tin tài khoản Quản trị viên duy nhất: admin / 123456"
+              title="Điền nhanh thông tin tài khoản Quản trị viên (admin / 12345678)"
             >
               <span className="text-sm">🔑</span>
-              <span>Đăng nhập nhanh Admin (admin / 123456)</span>
+              <span>Đăng nhập nhanh Admin (admin / 12345678)</span>
             </button>
           </div>
         </form>

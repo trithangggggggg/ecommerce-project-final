@@ -1,6 +1,6 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Bell, ChevronDown, LogOut, Menu, Search } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Bell, ChevronDown, Menu } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { ROUTES } from '../../constants/routes';
 
@@ -9,20 +9,12 @@ interface AdminHeaderProps {
 }
 
 export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => {
-  const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
-
-  const handleLogout = () => {
-    if (window.confirm('Bạn có muốn đăng xuất khỏi trang Quản trị?')) {
-      logout();
-      navigate(ROUTES.LOGIN);
-    }
-  };
+  const { user } = useAuthStore();
 
   return (
     <header className="h-16 bg-white border-b border-slate-200/80 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 shrink-0 font-sans">
-      {/* Left: Mobile Toggle & Quick Search */}
-      <div className="flex items-center gap-3 flex-1 max-w-md">
+      {/* Left: Mobile Toggle */}
+      <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={onToggleSidebar}
@@ -31,17 +23,6 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
         >
           <Menu className="w-5 h-5" />
         </button>
-
-        <div className="relative w-full max-w-md hidden sm:block">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-            <Search className="w-4 h-4" />
-          </div>
-          <input
-            type="text"
-            placeholder="Tìm kiếm sản phẩm, đơn hàng, khách hàng..."
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition"
-          />
-        </div>
       </div>
 
       {/* Right: Notifications & Profile Pill */}
@@ -80,16 +61,6 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block group-hover:text-slate-600 transition" />
           </Link>
-
-          {/* Quick Logout Button */}
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-            title="Đăng xuất"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
         </div>
       </div>
     </header>
@@ -97,3 +68,4 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
 };
 
 export default AdminHeader;
+

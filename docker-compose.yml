@@ -51,6 +51,8 @@ services:
       DB_PASSWORD: ${MYSQL_PASSWORD:-Ecommerce@2026}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-12345678}
       TZ: Asia/Ho_Chi_Minh
     depends_on:
       mysql:

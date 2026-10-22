@@ -1,5 +1,30 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mascot } from 'page-mascot';
+
+interface InternalMascotProps {
+  directions: string;
+  reactions?: string;
+  size?: number;
+  label?: string;
+}
+
+const Mascot: React.FC<InternalMascotProps> = ({ directions, reactions, size = 42, label }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const src = isHovered && reactions ? reactions : directions;
+  return (
+    <img
+      src={src}
+      alt={label || 'Mascot'}
+      width={size}
+      height={size}
+      className="object-contain select-none transition-transform duration-200"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onError={(e) => {
+        (e.target as HTMLElement).style.display = 'none';
+      }}
+    />
+  );
+};
 
 export type MascotCharacter = 'fox' | 'cat' | 'otter' | 'owl';
 
