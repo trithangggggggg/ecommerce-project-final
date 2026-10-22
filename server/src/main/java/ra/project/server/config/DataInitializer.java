@@ -34,6 +34,9 @@ public class DataInitializer implements CommandLineRunner {
         private final OrderRepository orderRepository;
         private final PasswordEncoder passwordEncoder;
 
+        @org.springframework.beans.factory.annotation.Value("${app.admin.username:}")
+        private String adminUsername;
+
         @Override
         @Transactional
         public void run(String... args) {
@@ -198,26 +201,33 @@ public class DataInitializer implements CommandLineRunner {
         }
 
         private void cleanupLegacyAdminFromDatabase() {
-                // Tài khoản Admin hiện được quản lý trực tiếp qua GitHub Secrets (không lưu trong Database).
-                // Nếu Database còn sót tài khoản admin cũ, dọn dẹp để đảm bảo không lưu tài khoản admin trong DB.
-                userRepository.findByUsernameIgnoreCase("admin").ifPresent(user -> {
-                        log.info(">>> [DataInitializer] Phát hiện tài khoản admin cũ trong Database. Dọn dẹp để bảo mật theo GitHub Secrets...");
-                        List<Order> orders = orderRepository.findByUserId(user.getId());
-                        User fallbackUser = userRepository.findAll().stream()
-                                        .filter(u -> !u.getId().equals(user.getId()))
-                                        .findFirst()
-                                        .orElse(null);
+                // Tài khoản Admin được quản lý trực tiếp qua GitHub Secrets (không lưu trong Database).
+                String effectiveAdminUser = (adminUsername != null) ? adminUsername.trim() : "";
+                java.util.Set<String> targets = new java.util.HashSet<>();
+                targets.add("admin");
+                if (!effectiveAdminUser.isEmpty()) {
+                        targets.add(effectiveAdminUser);
+                }
 
-                        if (orders != null && !orders.isEmpty()) {
-                                if (fallbackUser != null) {
-                                        orders.forEach(o -> o.setUser(fallbackUser));
-                                        orderRepository.saveAll(orders);
-                                } else {
-                                        orderRepository.deleteAll(orders);
+                for (String username : targets) {
+                        userRepository.findByUsernameIgnoreCase(username).ifPresent(user -> {
+                                log.info(">>> [DataInitializer] Xóa tài khoản '{}' khỏi Database để bảo mật theo GitHub Secrets...", user.getUsername());
+                                List<Order> orders = orderRepository.findByUserId(user.getId());
+                                User fallbackUser = userRepository.findAll().stream()
+                                                .filter(u -> !u.getId().equals(user.getId()))
+                                                .findFirst()
+                                                .orElse(null);
+
+                                if (orders != null && !orders.isEmpty()) {
+                                        if (fallbackUser != null) {
+                                                orders.forEach(o -> o.setUser(fallbackUser));
+                                                orderRepository.saveAll(orders);
+                                        } else {
+                                                orderRepository.deleteAll(orders);
+                                        }
                                 }
-                        }
-                        userRepository.delete(user);
-                        log.info(">>> [DataInitializer] Đã xóa hoàn toàn tài khoản admin cũ khỏi Database thành công.");
-                });
+                                userRepository.delete(user);
+                        });
+                }
         }
 }

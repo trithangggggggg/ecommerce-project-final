@@ -20,44 +20,37 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
 
-    @Value("${app.admin.username:admin}")
+    @Value("${app.admin.username:}")
     private String adminUsername;
 
-    @Value("${app.admin.password:123456}")
+    @Value("${app.admin.password:}")
     private String adminPassword;
 
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String usernameOrEmail) throws UsernameNotFoundException {
         String clean = usernameOrEmail != null ? usernameOrEmail.trim() : "";
-        String effectiveAdminUser = (adminUsername != null && !adminUsername.trim().isEmpty()) ? adminUsername.trim() : "admin";
-        String effectiveAdminPass = (adminPassword != null && !adminPassword.trim().isEmpty()) ? adminPassword.trim() : "123456";
+        String effectiveAdminUser = (adminUsername != null) ? adminUsername.trim() : "";
+        String effectiveAdminPass = (adminPassword != null) ? adminPassword.trim() : "";
 
-        // Nhận diện tài khoản Quản trị viên (xác thực trực tiếp từ GitHub Secrets / Environment, không qua Database)
-        if (effectiveAdminUser.equalsIgnoreCase(clean) ||
-            "admin".equalsIgnoreCase(clean) ||
-            clean.toLowerCase().contains("admin") ||
-            "administrator".equalsIgnoreCase(clean) ||
-            "root".equalsIgnoreCase(clean) ||
-            "admin@nexor.vn".equalsIgnoreCase(clean) ||
-            "admin@eshop.com".equalsIgnoreCase(clean) ||
-            "admin@eshoptech.vn".equalsIgnoreCase(clean) ||
-            "admin@ecommerce.com".equalsIgnoreCase(clean)) {
-
+        // Nhận diện tài khoản Quản trị viên từ GitHub Secrets / Environment (KHÔNG lưu Database)
+        if (!effectiveAdminUser.isEmpty() && effectiveAdminUser.equalsIgnoreCase(clean)) {
             List<GrantedAuthority> authorities = List.of(
                     new SimpleGrantedAuthority("ROLE_ADMIN"),
                     new SimpleGrantedAuthority("ADMIN")
             );
 
-            // Đảm bảo mật khẩu là BCrypt hash hợp lệ để tương thích với BCryptPasswordEncoder
+            // Tự động mã hóa BCrypt nếu cần để tương thích với BCryptPasswordEncoder
             String encodedAdminPass = effectiveAdminPass.startsWith("$2a$")
                     ? effectiveAdminPass
-                    : "$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi"; // BCrypt hash chuẩn của 123456
+                    : new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode(effectiveAdminPass);
+
+            String adminEmail = effectiveAdminUser.contains("@") ? effectiveAdminUser : effectiveAdminUser + "@nexor.vn";
 
             return CustomUserDetails.builder()
                     .id(0L)
                     .username(effectiveAdminUser)
-                    .email("admin@nexor.vn")
+                    .email(adminEmail)
                     .password(encodedAdminPass)
                     .active(true)
                     .authorities(authorities)

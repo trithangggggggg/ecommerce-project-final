@@ -32,10 +32,10 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
-    @Value("${app.admin.username:admin}")
+    @Value("${app.admin.username:}")
     private String adminUsername;
 
-    @Value("${app.admin.password:123456}")
+    @Value("${app.admin.password:}")
     private String adminPassword;
 
     private final UserRepository userRepository;
@@ -79,38 +79,32 @@ public class AuthServiceImpl implements AuthService {
     @Transactional(readOnly = true)
     public ApiResponse<AuthResponse> login(LoginRequest request) {
         String identifier = request.getUsernameOrEmail() != null ? request.getUsernameOrEmail().trim() : "";
-        String effectiveAdminUser = (adminUsername != null && !adminUsername.trim().isEmpty()) ? adminUsername.trim() : "admin";
-        String effectiveAdminPass = (adminPassword != null && !adminPassword.trim().isEmpty()) ? adminPassword.trim() : "123456";
+        String effectiveAdminUser = (adminUsername != null) ? adminUsername.trim() : "";
+        String effectiveAdminPass = (adminPassword != null) ? adminPassword.trim() : "";
 
-        boolean isAdminIdentifier = effectiveAdminUser.equalsIgnoreCase(identifier) ||
-                "admin".equalsIgnoreCase(identifier) ||
-                identifier.toLowerCase().contains("admin") ||
-                "administrator".equalsIgnoreCase(identifier) ||
-                "root".equalsIgnoreCase(identifier) ||
-                "admin@nexor.vn".equalsIgnoreCase(identifier) ||
-                "admin@eshop.com".equalsIgnoreCase(identifier) ||
-                "admin@eshoptech.vn".equalsIgnoreCase(identifier) ||
-                "admin@ecommerce.com".equalsIgnoreCase(identifier);
+        boolean isAdminIdentifier = !effectiveAdminUser.isEmpty() && effectiveAdminUser.equalsIgnoreCase(identifier);
 
         // 1. Nếu là tài khoản Admin -> xác thực trực tiếp qua GitHub Secrets / biến môi trường (KHÔNG lưu hoặc truy vấn Database)
         if (isAdminIdentifier) {
             String inputPassword = request.getPassword() != null ? request.getPassword().trim() : "";
-            boolean passwordMatches = inputPassword.equals(effectiveAdminPass)
-                    || inputPassword.equals("123456")
-                    || inputPassword.equals("12345678")
-                    || (effectiveAdminPass.startsWith("$2a$") && passwordEncoder.matches(inputPassword, effectiveAdminPass));
+            boolean passwordMatches = !effectiveAdminPass.isEmpty() && (
+                    inputPassword.equals(effectiveAdminPass)
+                    || (effectiveAdminPass.startsWith("$2a$") && passwordEncoder.matches(inputPassword, effectiveAdminPass))
+            );
 
             if (!passwordMatches) {
-                throw new UnauthorizedException("Tên đăng nhập hoặc mật khẩu không chính xác. Mật khẩu quản trị viên là 123456!");
+                throw new UnauthorizedException("Tên đăng nhập hoặc mật khẩu không chính xác");
             }
 
             String token = jwtTokenProvider.generateTokenFromUsername(effectiveAdminUser);
-            log.info("Quản trị viên '{}' đã đăng nhập thành công (xác thực trực tiếp từ GitHub Secrets/Môi trường)", effectiveAdminUser);
+            log.info("Quản trị viên '{}' đã đăng nhập thành công (xác thực trực tiếp từ biến môi trường/GitHub Secrets)", effectiveAdminUser);
+
+            String adminEmail = effectiveAdminUser.contains("@") ? effectiveAdminUser : effectiveAdminUser + "@nexor.vn";
 
             UserProfileResponse adminProfile = UserProfileResponse.builder()
                     .id(0L)
                     .username(effectiveAdminUser)
-                    .email("admin@nexor.vn")
+                    .email(adminEmail)
                     .fullName("Quản trị viên Hệ thống")
                     .phoneNumber("0988888888")
                     .address("Tòa nhà NEXOR Flagship, Hà Nội")

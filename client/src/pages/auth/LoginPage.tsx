@@ -12,8 +12,11 @@ export const LoginPage: React.FC = () => {
   const location = useLocation();
   const { login, isLoading, error, clearError } = useAuthStore();
 
-  const [email, setEmail] = useState('admin');
-  const [password, setPassword] = useState('123456');
+  const envAdminUser = import.meta.env.VITE_ADMIN_USERNAME || '';
+  const envAdminPass = import.meta.env.VITE_ADMIN_PASSWORD || '';
+
+  const [email, setEmail] = useState(envAdminUser);
+  const [password, setPassword] = useState(envAdminPass);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
@@ -89,8 +92,14 @@ export const LoginPage: React.FC = () => {
   };
 
   const handleQuickAdminLogin = async () => {
-    const adminUser = 'admin';
-    const adminPass = '123456';
+    const adminUser = envAdminUser || email.trim();
+    const adminPass = envAdminPass || password;
+
+    if (!adminUser || !adminPass) {
+      setFormError('Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu');
+      return;
+    }
+
     setEmail(adminUser);
     setPassword(adminPass);
     setFormError(null);
@@ -244,19 +253,21 @@ export const LoginPage: React.FC = () => {
             </Button>
           </div>
 
-          {/* Quick Demo Login Button - 1-Click Đăng nhập trực tiếp Admin */}
-          <div className="pt-3 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={handleQuickAdminLogin}
-              disabled={isLoading}
-              className="w-full py-2.5 px-3 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-900 transition flex items-center justify-center gap-2 text-xs font-semibold cursor-pointer shadow-sm hover:shadow disabled:opacity-50"
-              title="1-Click Đăng nhập trực tiếp tài khoản Quản trị viên (admin / 123456)"
-            >
-              <span className="text-sm">🔑</span>
-              <span>1-Click Đăng nhập Quản trị viên (admin / 123456)</span>
-            </button>
-          </div>
+          {/* Quick Demo Login Button - chỉ hiển thị nếu cấu hình biến môi trường VITE_ADMIN_USERNAME & VITE_ADMIN_PASSWORD */}
+          {envAdminUser && envAdminPass && (
+            <div className="pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={handleQuickAdminLogin}
+                disabled={isLoading}
+                className="w-full py-2.5 px-3 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-900 transition flex items-center justify-center gap-2 text-xs font-semibold cursor-pointer shadow-sm hover:shadow disabled:opacity-50"
+                title="1-Click Đăng nhập trực tiếp Quản trị viên từ biến môi trường"
+              >
+                <span className="text-sm">🔑</span>
+                <span>1-Click Đăng nhập Quản trị viên ({envAdminUser})</span>
+              </button>
+            </div>
+          )}
         </form>
 
         {/* Switch to Register */}

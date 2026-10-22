@@ -38,20 +38,21 @@ public class UserServiceImpl implements UserService {
     private final OrderRepository orderRepository;
     private final PasswordEncoder passwordEncoder;
 
-    @Value("${app.admin.username:admin}")
+    @Value("${app.admin.username:}")
     private String adminUsername;
 
     private boolean isAdmin(String username) {
-        String effectiveAdminUser = (adminUsername != null && !adminUsername.trim().isEmpty()) ? adminUsername.trim() : "admin";
-        return effectiveAdminUser.equalsIgnoreCase(username) || "admin".equalsIgnoreCase(username);
+        String effectiveAdminUser = (adminUsername != null) ? adminUsername.trim() : "";
+        return !effectiveAdminUser.isEmpty() && effectiveAdminUser.equalsIgnoreCase(username);
     }
 
     private User getVirtualAdminUser() {
-        String effectiveAdminUser = (adminUsername != null && !adminUsername.trim().isEmpty()) ? adminUsername.trim() : "admin";
+        String effectiveAdminUser = (adminUsername != null && !adminUsername.trim().isEmpty()) ? adminUsername.trim() : "Administrator";
+        String adminEmail = effectiveAdminUser.contains("@") ? effectiveAdminUser : effectiveAdminUser + "@nexor.vn";
         User admin = User.builder()
                 .id(0L)
                 .username(effectiveAdminUser)
-                .email("admin@nexor.vn")
+                .email(adminEmail)
                 .password("")
                 .fullName("Quản trị viên Hệ thống")
                 .phoneNumber("0988888888")
