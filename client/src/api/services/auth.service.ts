@@ -50,13 +50,7 @@ export const authService = {
         user,
       };
     } catch (error) {
-      if (
-        payload.email === 'admin@ecommerce.com' ||
-        payload.email === 'admin@eshop.com' ||
-        payload.email === 'customer@ecommerce.com' ||
-        payload.email === 'customer@eshop.com' ||
-        import.meta.env.VITE_ENABLE_MOCK_API === 'true'
-      ) {
+      if (import.meta.env.VITE_ENABLE_MOCK_API === 'true') {
         return authService.mockLogin(payload);
       }
       throw error;

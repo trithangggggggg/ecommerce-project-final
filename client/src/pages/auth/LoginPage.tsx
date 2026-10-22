@@ -18,8 +18,19 @@ export const LoginPage: React.FC = () => {
   const [rememberMe, setRememberMe] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
 
+  const searchParams = new URLSearchParams(location.search);
+  const isExpired = searchParams.get('expired') === 'true';
+  const redirectParam = searchParams.get('redirect');
+
   const fromState = (location.state as { from?: string | { pathname: string } })?.from;
-  const fromLocation = typeof fromState === 'string' ? fromState : fromState?.pathname;
+  const fromLocation = redirectParam || (typeof fromState === 'string' ? fromState : fromState?.pathname);
+
+  // Hiển thị thông báo khi phiên làm việc hết hạn
+  useEffect(() => {
+    if (isExpired) {
+      setFormError('Phiên làm việc của bạn đã hết hạn hoặc không đủ quyền truy cập. Vui lòng đăng nhập lại!');
+    }
+  }, [isExpired]);
 
   const handleClose = () => {
     if (fromLocation) {
@@ -65,7 +76,7 @@ export const LoginPage: React.FC = () => {
 
       // Chuyển hướng theo đúng phân quyền
       if (user.role === ROLES.ADMIN) {
-        navigate(ROUTES.ADMIN, { replace: true });
+        navigate(fromLocation && fromLocation.includes('/admin') ? fromLocation : ROUTES.ADMIN, { replace: true });
       } else if (fromLocation) {
         navigate(fromLocation, { replace: true });
       } else {
