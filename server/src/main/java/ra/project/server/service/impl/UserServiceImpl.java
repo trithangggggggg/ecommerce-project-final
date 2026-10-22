@@ -25,6 +25,10 @@ import ra.project.server.service.UserService;
 import java.math.BigDecimal;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
+import ra.project.server.model.enums.Role;
+import java.time.LocalDateTime;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -34,6 +38,32 @@ public class UserServiceImpl implements UserService {
     private final OrderRepository orderRepository;
     private final PasswordEncoder passwordEncoder;
 
+    @Value("${app.admin.username:admin}")
+    private String adminUsername;
+
+    private boolean isAdmin(String username) {
+        String effectiveAdminUser = (adminUsername != null && !adminUsername.trim().isEmpty()) ? adminUsername.trim() : "admin";
+        return effectiveAdminUser.equalsIgnoreCase(username) || "admin".equalsIgnoreCase(username);
+    }
+
+    private User getVirtualAdminUser() {
+        String effectiveAdminUser = (adminUsername != null && !adminUsername.trim().isEmpty()) ? adminUsername.trim() : "admin";
+        User admin = User.builder()
+                .id(0L)
+                .username(effectiveAdminUser)
+                .email("admin@nexor.vn")
+                .password("")
+                .fullName("Quản trị viên Hệ thống")
+                .phoneNumber("0988888888")
+                .address("Tòa nhà NEXOR Flagship, Hà Nội")
+                .avatarUrl("https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150")
+                .role(Role.ADMIN)
+                .status(true)
+                .build();
+        admin.setCreatedAt(LocalDateTime.now());
+        return admin;
+    }
+
     private User getCurrentAuthenticatedUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
@@ -41,6 +71,10 @@ public class UserServiceImpl implements UserService {
         }
 
         String username = authentication.getName();
+        if (isAdmin(username)) {
+            return getVirtualAdminUser();
+        }
+
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng", "tên tài khoản", username));
     }

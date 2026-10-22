@@ -11,18 +11,52 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  Plus,
+  Edit,
+  Trash2,
+  User,
 } from 'lucide-react';
 import { formatPrice } from '../../utils/format';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import { userService, type AdminUser } from '../../api/services/user.service';
+import AdminPagination from '../../components/admin/AdminPagination';
+
+const ITEMS_PER_PAGE = 10;
 
 export const AdminCustomersPage: React.FC = () => {
   const [customers, setCustomers] = useState<AdminUser[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'BLOCKED'>('ALL');
+  
+  // Modals state
   const [selectedCustomer, setSelectedCustomer] = useState<AdminUser | null>(null);
+  const [isAddOpen, setIsAddOpen] = useState<boolean>(false);
+  const [editingCustomer, setEditingCustomer] = useState<AdminUser | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  // Form states
+  const [addForm, setAddForm] = useState({
+    fullName: '',
+    username: '',
+    email: '',
+    phoneNumber: '',
+    address: '',
+    password: 'password123',
+  });
+
+  const [editForm, setEditForm] = useState({
+    fullName: '',
+    email: '',
+    phoneNumber: '',
+    address: '',
+    status: true,
+  });
+
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -70,6 +104,103 @@ export const AdminCustomersPage: React.FC = () => {
     }
   };
 
+  // Add customer
+  const handleAddCustomerSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addForm.fullName.trim() || !addForm.username.trim() || !addForm.email.trim()) {
+      showToast('Vui lòng điền đầy đủ họ tên, tên đăng nhập và email', 'error');
+      return;
+    }
+
+    const newId = customers.length > 0 ? Math.max(...customers.map((c) => c.id)) + 1 : 100;
+    const newCust: AdminUser = {
+      id: newId,
+      username: addForm.username.trim(),
+      email: addForm.email.trim(),
+      fullName: addForm.fullName.trim(),
+      phoneNumber: addForm.phoneNumber.trim() || '0901 234 567',
+      address: addForm.address.trim() || 'TP. Hà Nội',
+      avatarUrl: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100`,
+      role: 'CUSTOMER',
+      status: true,
+      createdAt: new Date().toISOString(),
+      ordersCount: 0,
+      totalSpent: 0,
+    };
+
+    setCustomers([newCust, ...customers]);
+    setIsAddOpen(false);
+    setAddForm({
+      fullName: '',
+      username: '',
+      email: '',
+      phoneNumber: '',
+      address: '',
+      password: 'password123',
+    });
+    showToast(`Đã thêm khách hàng mới "${newCust.fullName}" thành công!`);
+  };
+
+  // Open edit
+  const handleOpenEdit = (c: AdminUser) => {
+    setEditingCustomer(c);
+    setEditForm({
+      fullName: c.fullName || '',
+      email: c.email || '',
+      phoneNumber: c.phoneNumber || '',
+      address: c.address || '',
+      status: c.status,
+    });
+  };
+
+  // Edit submit
+  const handleEditCustomerSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCustomer) return;
+
+    setCustomers((prev) =>
+      prev.map((c) =>
+        c.id === editingCustomer.id
+          ? {
+              ...c,
+              fullName: editForm.fullName,
+              email: editForm.email,
+              phoneNumber: editForm.phoneNumber,
+              address: editForm.address,
+              status: editForm.status,
+            }
+          : c
+      )
+    );
+
+    if (selectedCustomer?.id === editingCustomer.id) {
+      setSelectedCustomer((prev) =>
+        prev
+          ? {
+              ...prev,
+              fullName: editForm.fullName,
+              email: editForm.email,
+              phoneNumber: editForm.phoneNumber,
+              address: editForm.address,
+              status: editForm.status,
+            }
+          : null
+      );
+    }
+
+    showToast(`Đã cập nhật thông tin khách hàng "${editForm.fullName}"`);
+    setEditingCustomer(null);
+  };
+
+  // Delete submit
+  const handleDeleteCustomer = () => {
+    if (!deleteTarget) return;
+    setCustomers((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+    if (selectedCustomer?.id === deleteTarget.id) setSelectedCustomer(null);
+    showToast(`Đã xóa khách hàng "${deleteTarget.fullName}" khỏi danh sách`);
+    setDeleteTarget(null);
+  };
+
   const filteredCustomers = customers.filter((c) => {
     if (statusFilter === 'ACTIVE' && !c.status) return false;
     if (statusFilter === 'BLOCKED' && c.status) return false;
@@ -88,8 +219,15 @@ export const AdminCustomersPage: React.FC = () => {
   const blockedCount = customers.filter((c) => !c.status).length;
   const totalSpentAll = customers.reduce((s, c) => s + (c.totalSpent || 0), 0);
 
+  // Pagination calculation
+  const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE) || 1;
+  const paginatedCustomers = filteredCustomers.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
   return (
-    <div className="space-y-6 font-sans">
+    <div className="h-full flex flex-col min-h-0 space-y-2.5 font-sans select-none overflow-hidden">
       {/* Toast Notification */}
       {toastMessage && (
         <div
@@ -115,78 +253,126 @@ export const AdminCustomersPage: React.FC = () => {
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      {/* Header & Actions */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
         <div>
-          <span className="text-xs font-semibold text-slate-400 block mb-0.5">Quản trị người dùng</span>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <span>Danh sách khách hàng</span>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
+            <span>Quản lý khách hàng</span>
             <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-              {customers.length} tài khoản MySQL
+              {customers.length} người dùng
             </span>
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Quản trị tài khoản khách hàng thực tế từ cơ sở dữ liệu, lịch sử mua sắm và trạng thái tài khoản
+          <p className="text-xs text-slate-500 mt-0.5">
+            Tra cứu thông tin cá nhân, lịch sử tiêu dùng và phân quyền tài khoản người mua
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={fetchCustomers}
-          disabled={isLoading}
-          className="p-2.5 bg-white border border-slate-200/90 rounded-xl text-slate-600 hover:text-blue-600 hover:bg-slate-50 transition cursor-pointer shadow-2xs flex items-center gap-2 text-xs font-semibold disabled:opacity-50"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
-          <span>Làm mới dữ liệu</span>
-        </button>
+        <div className="flex items-center gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={fetchCustomers}
+            disabled={isLoading}
+            className="p-2 sm:p-2.5 bg-white border border-slate-200/90 rounded-xl text-slate-600 hover:text-blue-600 hover:bg-slate-50 transition cursor-pointer shadow-2xs flex items-center gap-2 text-xs font-semibold"
+            title="Làm mới dữ liệu từ MySQL"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
+            <span>Làm mới</span>
+          </button>
+
+          <Button
+            variant="primary"
+            size="md"
+            leftIcon={<Plus className="w-4 h-4" />}
+            onClick={() => setIsAddOpen(true)}
+          >
+            Thêm khách hàng
+          </Button>
+        </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-1">Tổng khách hàng</span>
-          <span className="text-xl font-bold text-slate-900">{customers.length}</span>
+      {/* Stats Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 shrink-0">
+        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
+          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Tổng khách hàng</span>
+          <span className="text-lg font-bold text-slate-900">{customers.length}</span>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-1">Đang hoạt động</span>
-          <span className="text-xl font-bold text-emerald-600">{activeCount}</span>
+        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
+          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Đang hoạt động</span>
+          <span className="text-lg font-bold text-emerald-600">{activeCount}</span>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-1">Đang bị khóa</span>
-          <span className="text-xl font-bold text-rose-600">{blockedCount}</span>
+        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
+          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Bị tạm khóa</span>
+          <span className="text-lg font-bold text-rose-600">{blockedCount}</span>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-1">Doanh thu tích lũy</span>
-          <span className="text-xl font-bold text-blue-600">
-            {formatPrice(totalSpentAll)}
-          </span>
+        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
+          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Tổng doanh số mua</span>
+          <span className="text-lg font-bold text-blue-600">{formatPrice(totalSpentAll)}</span>
         </div>
       </div>
 
       {/* Main Table Card */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
-        {/* Search Toolbar */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden flex-1 min-h-0 flex flex-col">
+        {/* Search & Filter Toolbar */}
+        <div className="p-3 sm:p-3.5 border-b border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
           <div className="flex flex-col sm:flex-row items-center gap-3 flex-1 max-w-xl">
-            <div className="w-full sm:w-80">
+            <div className="w-full sm:w-72">
               <Input
                 type="text"
-                placeholder="Tìm họ tên, email, SĐT, username..."
+                placeholder="Tìm tên, email, sđt, username..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
                 leftIcon={<Search className="w-4 h-4 text-slate-400" />}
               />
             </div>
 
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as 'ALL' | 'ACTIVE' | 'BLOCKED')}
-              className="w-full sm:w-auto bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-semibold text-slate-700 py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500/15 cursor-pointer"
-            >
-              <option value="ALL">Tất cả trạng thái</option>
-              <option value="ACTIVE">Đang hoạt động</option>
-              <option value="BLOCKED">Đang bị khóa</option>
-            </select>
+            {/* Status Filter Tabs */}
+            <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl self-start sm:self-auto text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter('ALL');
+                  setCurrentPage(1);
+                }}
+                className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                  statusFilter === 'ALL'
+                    ? 'bg-white text-slate-900 shadow-2xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Tất cả ({customers.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter('ACTIVE');
+                  setCurrentPage(1);
+                }}
+                className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                  statusFilter === 'ACTIVE'
+                    ? 'bg-white text-emerald-600 shadow-2xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Hoạt động ({activeCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter('BLOCKED');
+                  setCurrentPage(1);
+                }}
+                className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                  statusFilter === 'BLOCKED'
+                    ? 'bg-white text-rose-600 shadow-2xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Tạm khóa ({blockedCount})
+              </button>
+            </div>
           </div>
 
           <div className="text-xs text-slate-500 font-medium self-end sm:self-center">
@@ -194,9 +380,9 @@ export const AdminCustomersPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Loading / Table */}
+        {/* Loading Spinner */}
         {isLoading ? (
-          <div className="py-20 flex flex-col items-center justify-center gap-3 text-slate-400">
+          <div className="p-16 flex flex-col items-center justify-center gap-3 text-slate-500">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
             <span className="text-xs font-medium">Đang tải dữ liệu khách hàng từ MySQL Database...</span>
           </div>
@@ -205,76 +391,76 @@ export const AdminCustomersPage: React.FC = () => {
             Không tìm thấy khách hàng nào phù hợp với bộ lọc.
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto no-scrollbar">
             <table className="w-full text-left text-xs text-slate-600 border-collapse">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3 px-4">Khách hàng</th>
-                  <th className="py-3 px-4">Liên hệ</th>
-                  <th className="py-3 px-4">Địa chỉ</th>
-                  <th className="py-3 px-4 text-center">Đơn hàng</th>
-                  <th className="py-3 px-4">Tổng chi tiêu</th>
-                  <th className="py-3 px-4">Trạng thái</th>
-                  <th className="py-3 px-4 text-right">Thao tác</th>
+                <tr className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 backdrop-blur-xs text-[11px] font-bold text-slate-500 uppercase tracking-wider shadow-2xs">
+                  <th className="py-2.5 px-3 bg-slate-50/95">Khách hàng</th>
+                  <th className="py-2.5 px-3 bg-slate-50/95">Liên hệ</th>
+                  <th className="py-2.5 px-3 bg-slate-50/95">Địa chỉ</th>
+                  <th className="py-2.5 px-3 bg-slate-50/95 text-center">Đơn hàng</th>
+                  <th className="py-2.5 px-3 bg-slate-50/95">Tổng chi tiêu</th>
+                  <th className="py-2.5 px-3 bg-slate-50/95">Trạng thái</th>
+                  <th className="py-2.5 px-3 bg-slate-50/95 text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredCustomers.map((c) => (
+                {paginatedCustomers.map((c) => (
                   <tr key={c.id} className="hover:bg-slate-50/60 transition group">
                     {/* Customer Info */}
-                    <td className="py-3.5 px-4 min-w-56">
-                      <div className="flex items-center gap-3">
+                    <td className="py-2 px-3 max-w-[200px]">
+                      <div className="flex items-center gap-2">
                         <img
                           src={c.avatarUrl}
                           alt={c.fullName}
-                          className="w-10 h-10 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                          className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
                           onError={(e) => {
                             (e.target as HTMLImageElement).src =
                               'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100';
                           }}
                         />
                         <div className="min-w-0 flex-1">
-                          <span className="font-bold text-slate-900 group-hover:text-blue-600 transition block truncate">
+                          <span className="font-bold text-slate-900 group-hover:text-blue-600 transition block truncate text-xs">
                             {c.fullName}
                           </span>
-                          <span className="text-[11px] text-slate-400 block truncate">
-                            @{c.username} • {c.createdAt ? c.createdAt.substring(0, 10) : '2025-01-01'}
+                          <span className="text-[10px] text-slate-400 block truncate">
+                            @{c.username}
                           </span>
                         </div>
                       </div>
                     </td>
 
                     {/* Contact */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5 text-slate-700">
-                        <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span className="truncate max-w-44">{c.email}</span>
+                    <td className="py-2 px-3 whitespace-nowrap">
+                      <div className="flex items-center gap-1 text-slate-700 text-xs">
+                        <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span className="truncate max-w-[140px]">{c.email}</span>
                       </div>
-                      <div className="flex items-center gap-1.5 text-slate-500 text-[11px] mt-0.5">
-                        <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span>{c.phoneNumber || 'Chưa cập nhật SĐT'}</span>
+                      <div className="flex items-center gap-1 text-slate-500 text-[10px]">
+                        <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>{c.phoneNumber || 'Chưa có SĐT'}</span>
                       </div>
                     </td>
 
                     {/* Address */}
-                    <td className="py-3.5 px-4 max-w-xs truncate" title={c.address}>
-                      <span className="text-slate-600 truncate block">{c.address || 'Chưa cập nhật địa chỉ'}</span>
+                    <td className="py-2 px-3 max-w-[180px] truncate" title={c.address}>
+                      <span className="text-slate-600 truncate block text-xs">{c.address || 'Chưa cập nhật'}</span>
                     </td>
 
                     {/* Orders Count */}
-                    <td className="py-3.5 px-4 text-center whitespace-nowrap font-bold text-slate-900">
+                    <td className="py-2 px-3 text-center whitespace-nowrap font-bold text-slate-900 text-xs">
                       {c.ordersCount} đơn
                     </td>
 
                     {/* Total Spent */}
-                    <td className="py-3.5 px-4 whitespace-nowrap font-bold text-blue-600">
+                    <td className="py-2 px-3 whitespace-nowrap font-bold text-blue-600 text-xs">
                       {formatPrice(c.totalSpent)}
                     </td>
 
                     {/* Status */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
+                    <td className="py-2 px-3 whitespace-nowrap">
                       <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                           c.status
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             : 'bg-rose-50 text-rose-700 border-rose-200'
@@ -286,34 +472,50 @@ export const AdminCustomersPage: React.FC = () => {
                     </td>
 
                     {/* Actions */}
-                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1.5">
+                    <td className="py-2 px-3 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
                           onClick={() => setSelectedCustomer(c)}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                          className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer"
                           title="Xem chi tiết"
                         >
-                          <ExternalLink className="w-4 h-4" />
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(c)}
+                          className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition cursor-pointer"
+                          title="Chỉnh sửa thông tin"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
                         </button>
                         <button
                           type="button"
                           disabled={updatingId === c.id}
                           onClick={() => toggleStatus(c.id, c.status)}
-                          className={`p-1.5 rounded-lg transition cursor-pointer disabled:opacity-50 ${
+                          className={`p-1 rounded transition cursor-pointer disabled:opacity-50 ${
                             c.status
-                              ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
+                              ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
                               : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
                           }`}
                           title={c.status ? 'Khóa tài khoản này' : 'Kích hoạt lại tài khoản'}
                         >
                           {updatingId === c.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" />
                           ) : c.status ? (
-                            <UserX className="w-4 h-4" />
+                            <UserX className="w-3.5 h-3.5" />
                           ) : (
-                            <UserCheck className="w-4 h-4" />
+                            <UserCheck className="w-3.5 h-3.5" />
                           )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(c)}
+                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                          title="Xóa tài khoản"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>
@@ -323,9 +525,249 @@ export const AdminCustomersPage: React.FC = () => {
             </table>
           </div>
         )}
+
+        {/* Pagination Controls - 10 rows per page - Pinned to bottom */}
+        {!isLoading && filteredCustomers.length > 0 && (
+          <div className="shrink-0 border-t border-slate-100 bg-white">
+            <AdminPagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredCustomers.length}
+              itemsPerPage={ITEMS_PER_PAGE}
+              onPageChange={setCurrentPage}
+            />
+          </div>
+        )}
       </div>
 
-      {/* Customer Detail Modal */}
+      {/* ======================================================== */}
+      {/* MODAL 1: THÊM KHÁCH HÀNG MỚI                             */}
+      {/* ======================================================== */}
+      {isAddOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4 font-sans">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <User className="w-5 h-5 text-blue-600" />
+                <span>Thêm khách hàng mới</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsAddOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddCustomerSubmit} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Họ và tên *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Nguyễn Văn A"
+                    value={addForm.fullName}
+                    onChange={(e) => setAddForm({ ...addForm, fullName: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Tên đăng nhập (Username) *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="nguyenvana"
+                    value={addForm.username}
+                    onChange={(e) => setAddForm({ ...addForm, username: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Email *</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="example@gmail.com"
+                    value={addForm.email}
+                    onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Số điện thoại</label>
+                  <input
+                    type="tel"
+                    placeholder="0912 345 678"
+                    value={addForm.phoneNumber}
+                    onChange={(e) => setAddForm({ ...addForm, phoneNumber: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Địa chỉ thường trú</label>
+                <input
+                  type="text"
+                  placeholder="Quận Cầu Giấy, Hà Nội..."
+                  value={addForm.address}
+                  onChange={(e) => setAddForm({ ...addForm, address: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Mật khẩu mặc định</label>
+                <input
+                  type="password"
+                  value={addForm.password}
+                  onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <Button type="button" variant="outline" size="sm" onClick={() => setIsAddOpen(false)}>
+                  Hủy
+                </Button>
+                <Button type="submit" variant="primary" size="sm">
+                  Lưu khách hàng
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 2: CHỈNH SỬA THÔNG TIN KHÁCH HÀNG (SỬA)            */}
+      {/* ======================================================== */}
+      {editingCustomer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4 font-sans">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Edit className="w-5 h-5 text-amber-600" />
+                <span>Chỉnh sửa thông tin khách hàng</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingCustomer(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditCustomerSubmit} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Họ và tên *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.fullName}
+                    onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Số điện thoại</label>
+                  <input
+                    type="tel"
+                    value={editForm.phoneNumber}
+                    onChange={(e) => setEditForm({ ...editForm, phoneNumber: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Email *</label>
+                <input
+                  type="email"
+                  required
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Địa chỉ</label>
+                <input
+                  type="text"
+                  value={editForm.address}
+                  onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Trạng thái tài khoản</label>
+                <select
+                  value={editForm.status ? 'ACTIVE' : 'BLOCKED'}
+                  onChange={(e) => setEditForm({ ...editForm, status: e.target.value === 'ACTIVE' })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-bold"
+                >
+                  <option value="ACTIVE">Hoạt động bình thường</option>
+                  <option value="BLOCKED">Tạm khóa tài khoản</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <Button type="button" variant="outline" size="sm" onClick={() => setEditingCustomer(null)}>
+                  Hủy
+                </Button>
+                <Button type="submit" variant="primary" size="sm">
+                  Lưu thay đổi
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 3: XÁC NHẬN XÓA KHÁCH HÀNG (XÓA)                   */}
+      {/* ======================================================== */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-sm w-full p-5 shadow-2xl space-y-4 font-sans text-center">
+            <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Xóa khách hàng này?</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Bạn có chắc chắn muốn xóa tài khoản của <strong>{deleteTarget.fullName}</strong> (@{deleteTarget.username})?
+              </p>
+            </div>
+            <div className="flex justify-center gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)}>
+                Hủy bỏ
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="bg-rose-600 hover:bg-rose-700 text-white border-transparent"
+                onClick={handleDeleteCustomer}
+              >
+                Xác nhận xóa
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 4: XEM HỒ SƠ CHI TIẾT KHÁCH HÀNG                   */}
+      {/* ======================================================== */}
       {selectedCustomer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 shadow-2xl space-y-4 font-sans">
@@ -361,30 +803,30 @@ export const AdminCustomersPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs space-y-2 text-slate-600">
-              <div className="flex justify-between">
-                <span>Số điện thoại:</span>
-                <span className="font-semibold text-slate-900">{selectedCustomer.phoneNumber || 'Chưa cập nhật'}</span>
+            <div className="space-y-2 text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Mã khách hàng:</span>
+                <span className="font-bold text-slate-800">#CUST-{selectedCustomer.id}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Địa chỉ giao hàng:</span>
-                <span className="font-semibold text-slate-900 text-right max-w-xs">{selectedCustomer.address || 'Chưa cập nhật'}</span>
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Số điện thoại:</span>
+                <span className="font-semibold text-slate-800">{selectedCustomer.phoneNumber || 'Chưa cung cấp'}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Tổng đơn đặt:</span>
-                <span className="font-semibold text-slate-900">{selectedCustomer.ordersCount} đơn hàng</span>
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Địa chỉ giao hàng:</span>
+                <span className="font-semibold text-slate-800 truncate max-w-56">{selectedCustomer.address || 'Chưa cung cấp'}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Tổng chi tiêu:</span>
-                <span className="font-bold text-blue-600">{formatPrice(selectedCustomer.totalSpent)}</span>
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Tổng số đơn hàng:</span>
+                <span className="font-bold text-blue-600">{selectedCustomer.ordersCount} đơn</span>
               </div>
-              <div className="flex justify-between">
-                <span>Ngày tham gia:</span>
-                <span className="text-slate-500">{selectedCustomer.createdAt || 'N/A'}</span>
+              <div className="flex justify-between py-1">
+                <span className="text-slate-500">Tổng chi tiêu:</span>
+                <span className="font-bold text-emerald-600">{formatPrice(selectedCustomer.totalSpent)}</span>
               </div>
             </div>
 
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end gap-2 pt-2">
               <Button variant="dark" size="sm" onClick={() => setSelectedCustomer(null)}>
                 Đóng
               </Button>

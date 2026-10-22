@@ -22,6 +22,7 @@ import { formatPrice } from '../../utils/format';
 import type { Product, Category, ProductPayload } from '../../models/product.model';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
+import AdminPagination from '../../components/admin/AdminPagination';
 
 interface FormState {
   name: string;
@@ -49,6 +50,8 @@ export const AdminProductsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<number | 'ALL'>('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   // Detail Modal
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -260,11 +263,17 @@ export const AdminProductsPage: React.FC = () => {
     return true;
   });
 
+  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE) || 1;
+  const paginatedProducts = filteredProducts.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
   const totalInStock = products.filter((p) => (p.stock || 0) > 0).length;
   const totalOutOfStock = products.filter((p) => (p.stock || 0) === 0).length;
 
   return (
-    <div className="space-y-6 font-sans">
+    <div className="h-full flex flex-col min-h-0 space-y-2.5 font-sans select-none overflow-hidden">
       {/* Toast Notification - High z-index to always stay above modals */}
       {toastMessage && (
         <div
@@ -292,26 +301,25 @@ export const AdminProductsPage: React.FC = () => {
       )}
 
       {/* Header & Actions */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
         <div>
-          <span className="text-xs font-semibold text-slate-400 block mb-0.5">Quản lý bán hàng</span>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
             <span>Quản lý sản phẩm</span>
             <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
               {products.length} sản phẩm
             </span>
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 mt-0.5">
             Danh sách toàn bộ sản phẩm công nghệ đang được bày bán trong hệ thống NEXOR
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 shrink-0">
           <button
             type="button"
             onClick={fetchProductsAndCategories}
             disabled={isLoading}
-            className="p-2.5 bg-white border border-slate-200/90 rounded-xl text-slate-600 hover:text-blue-600 hover:bg-slate-50 transition cursor-pointer shadow-2xs flex items-center gap-2 text-xs font-semibold"
+            className="p-2 sm:p-2.5 bg-white border border-slate-200/90 rounded-xl text-slate-600 hover:text-blue-600 hover:bg-slate-50 transition cursor-pointer shadow-2xs flex items-center gap-2 text-xs font-semibold"
             title="Làm mới danh sách"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
@@ -330,36 +338,39 @@ export const AdminProductsPage: React.FC = () => {
       </div>
 
       {/* Stats Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-1">Tổng sản phẩm</span>
-          <span className="text-xl font-bold text-slate-900">{products.length}</span>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 shrink-0">
+        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
+          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Tổng sản phẩm</span>
+          <span className="text-lg font-bold text-slate-900">{products.length}</span>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-1">Còn hàng</span>
-          <span className="text-xl font-bold text-emerald-600">{totalInStock}</span>
+        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
+          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Còn hàng</span>
+          <span className="text-lg font-bold text-emerald-600">{totalInStock}</span>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-1">Hết hàng</span>
-          <span className="text-xl font-bold text-rose-600">{totalOutOfStock}</span>
+        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
+          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Hết hàng</span>
+          <span className="text-lg font-bold text-rose-600">{totalOutOfStock}</span>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-1">Danh mục</span>
-          <span className="text-xl font-bold text-blue-600">{categories.length || 6}</span>
+        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
+          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Danh mục</span>
+          <span className="text-lg font-bold text-blue-600">{categories.length || 6}</span>
         </div>
       </div>
 
       {/* Main Content Box */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden flex-1 min-h-0 flex flex-col">
         {/* Search & Filter Toolbar */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="p-3 sm:p-3.5 border-b border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
           <div className="flex flex-col sm:flex-row items-center gap-3 flex-1 max-w-xl">
             <div className="w-full sm:w-72">
               <Input
                 type="text"
                 placeholder="Tìm tên, thương hiệu, mã..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
                 leftIcon={<Search className="w-4 h-4 text-slate-400" />}
               />
             </div>
@@ -370,6 +381,7 @@ export const AdminProductsPage: React.FC = () => {
               onChange={(e) => {
                 const val = e.target.value;
                 setSelectedCategory(val === 'ALL' ? 'ALL' : Number(val));
+                setCurrentPage(1);
               }}
               className="w-full sm:w-auto bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-semibold text-slate-700 py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500/15 cursor-pointer"
             >
@@ -412,30 +424,30 @@ export const AdminProductsPage: React.FC = () => {
 
         {/* Products Table */}
         {!isLoading && filteredProducts.length > 0 && (
-          <div className="overflow-x-auto">
+          <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto no-scrollbar">
             <table className="w-full text-left text-xs text-slate-600 border-collapse">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3 px-4">Sản phẩm</th>
-                  <th className="py-3 px-4">Danh mục</th>
-                  <th className="py-3 px-4">Giá bán</th>
-                  <th className="py-3 px-4">Tồn kho</th>
-                  <th className="py-3 px-4">Đánh giá</th>
-                  <th className="py-3 px-4">Trạng thái</th>
-                  <th className="py-3 px-4 text-right">Thao tác</th>
+                <tr className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 backdrop-blur-xs text-[11px] font-bold text-slate-500 uppercase tracking-wider shadow-2xs">
+                  <th className="py-2.5 px-3 bg-slate-50/95">Sản phẩm</th>
+                  <th className="py-2.5 px-3 bg-slate-50/95">Danh mục</th>
+                  <th className="py-2.5 px-3 bg-slate-50/95">Giá bán</th>
+                  <th className="py-2.5 px-3 bg-slate-50/95">Tồn kho</th>
+                  <th className="py-2.5 px-3 bg-slate-50/95">Đánh giá</th>
+                  <th className="py-2.5 px-3 bg-slate-50/95">Trạng thái</th>
+                  <th className="py-2.5 px-3 bg-slate-50/95 text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredProducts.map((p) => {
+                {paginatedProducts.map((p) => {
                   const stock = p.stock ?? 15;
                   const isInStock = stock > 0;
 
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/60 transition group">
                       {/* Product Thumbnail & Name */}
-                      <td className="py-3.5 px-4 min-w-64">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200/70 p-1 shrink-0 flex items-center justify-center overflow-hidden">
+                      <td className="py-2 px-3 max-w-[240px]">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-200/70 p-0.5 shrink-0 flex items-center justify-center overflow-hidden">
                             <img
                               src={
                                 p.imageUrl ||
@@ -450,37 +462,37 @@ export const AdminProductsPage: React.FC = () => {
                             />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <div className="font-bold text-slate-900 group-hover:text-blue-600 transition truncate max-w-xs">
+                            <div className="font-bold text-slate-900 group-hover:text-blue-600 transition truncate text-xs" title={p.name}>
                               {p.name}
                             </div>
-                            <span className="text-[11px] text-slate-400 block mt-0.5">
-                              Mã: #{p.id} {p.brand ? `• ${p.brand}` : ''}
+                            <span className="text-[10px] text-slate-400 block">
+                              #{p.id} {p.brand ? `• ${p.brand}` : ''}
                             </span>
                           </div>
                         </div>
                       </td>
 
                       {/* Category */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                           {p.category?.name || 'Công nghệ'}
                         </span>
                       </td>
 
                       {/* Price */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span className="font-bold text-slate-900 block text-sm">
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        <span className="font-bold text-slate-900 block text-xs">
                           {formatPrice(p.price)}
                         </span>
                         {p.originalPrice && p.originalPrice > p.price && (
-                          <span className="text-[10px] text-slate-400 line-through">
+                          <span className="text-[9px] text-slate-400 line-through">
                             {formatPrice(p.originalPrice)}
                           </span>
                         )}
                       </td>
 
                       {/* Stock */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
+                      <td className="py-2 px-3 whitespace-nowrap text-xs">
                         <span
                           className={`font-bold ${
                             stock > 10
@@ -495,9 +507,9 @@ export const AdminProductsPage: React.FC = () => {
                       </td>
 
                       {/* Rating */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="flex items-center gap-1 text-amber-500 font-semibold">
-                          <Star className="w-3.5 h-3.5 fill-current" />
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        <div className="flex items-center gap-1 text-amber-500 font-semibold text-xs">
+                          <Star className="w-3 h-3 fill-current" />
                           <span>{p.rating || 5.0}</span>
                           <span className="text-[10px] text-slate-400 font-normal">
                             ({p.reviewCount || 48})
@@ -506,45 +518,45 @@ export const AdminProductsPage: React.FC = () => {
                       </td>
 
                       {/* Status */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
+                      <td className="py-2 px-3 whitespace-nowrap">
                         <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                             isInStock
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                               : 'bg-rose-50 text-rose-700 border-rose-200'
                           }`}
                         >
                           <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                          <span>{isInStock ? 'Đang kinh doanh' : 'Hết hàng'}</span>
+                          <span>{isInStock ? 'Đang bán' : 'Hết hàng'}</span>
                         </span>
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
+                      <td className="py-2 px-3 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1">
                           <button
                             type="button"
                             onClick={() => setSelectedProduct(p)}
-                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                            className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer"
                             title="Xem chi tiết"
                           >
-                            <ExternalLink className="w-4 h-4" />
+                            <ExternalLink className="w-3.5 h-3.5" />
                           </button>
                           <button
                             type="button"
                             onClick={() => handleOpenEditModal(p)}
-                            className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition cursor-pointer"
+                            className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition cursor-pointer"
                             title="Chỉnh sửa sản phẩm"
                           >
-                            <Edit className="w-4 h-4" />
+                            <Edit className="w-3.5 h-3.5" />
                           </button>
                           <button
                             type="button"
                             onClick={() => setDeleteTarget({ id: p.id, name: p.name })}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
                             title="Xóa sản phẩm"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
@@ -553,6 +565,19 @@ export const AdminProductsPage: React.FC = () => {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination Controls - 10 rows per page - Pinned to bottom */}
+        {!isLoading && filteredProducts.length > 0 && (
+          <div className="shrink-0 border-t border-slate-100 bg-white">
+            <AdminPagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredProducts.length}
+              itemsPerPage={ITEMS_PER_PAGE}
+              onPageChange={setCurrentPage}
+            />
           </div>
         )}
       </div>

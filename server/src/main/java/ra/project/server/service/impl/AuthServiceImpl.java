@@ -22,12 +22,21 @@ import ra.project.server.model.entity.User;
 import ra.project.server.model.enums.Role;
 import ra.project.server.repository.UserRepository;
 import ra.project.server.security.JwtTokenProvider;
+import org.springframework.beans.factory.annotation.Value;
 import ra.project.server.service.AuthService;
+
+import java.time.LocalDateTime;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
+
+    @Value("${app.admin.username:admin}")
+    private String adminUsername;
+
+    @Value("${app.admin.password:123456}")
+    private String adminPassword;
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -70,20 +79,54 @@ public class AuthServiceImpl implements AuthService {
     @Transactional(readOnly = true)
     public ApiResponse<AuthResponse> login(LoginRequest request) {
         String identifier = request.getUsernameOrEmail() != null ? request.getUsernameOrEmail().trim() : "";
+        String effectiveAdminUser = (adminUsername != null && !adminUsername.trim().isEmpty()) ? adminUsername.trim() : "admin";
+        String effectiveAdminPass = (adminPassword != null && !adminPassword.trim().isEmpty()) ? adminPassword.trim() : "123456";
 
-        // Hỗ trợ linh hoạt các alias email và username của tài khoản Admin duy nhất
-        if ("admin".equalsIgnoreCase(identifier) ||
-            "admin@nexor.vn".equalsIgnoreCase(identifier) ||
-            "admin@eshop.com".equalsIgnoreCase(identifier) ||
-            "admin@eshoptech.vn".equalsIgnoreCase(identifier) ||
-            "admin@ecommerce.com".equalsIgnoreCase(identifier)) {
-            identifier = "admin";
+        boolean isAdminIdentifier = effectiveAdminUser.equalsIgnoreCase(identifier) ||
+                "admin".equalsIgnoreCase(identifier) ||
+                "admin@nexor.vn".equalsIgnoreCase(identifier) ||
+                "admin@eshop.com".equalsIgnoreCase(identifier) ||
+                "admin@eshoptech.vn".equalsIgnoreCase(identifier) ||
+                "admin@ecommerce.com".equalsIgnoreCase(identifier);
+
+        // 1. Nếu là tài khoản Admin -> xác thực trực tiếp qua GitHub Secrets / biến môi trường (KHÔNG lưu hoặc truy vấn Database)
+        if (isAdminIdentifier) {
+            String inputPassword = request.getPassword() != null ? request.getPassword() : "";
+            boolean passwordMatches = inputPassword.equals(effectiveAdminPass)
+                    || (effectiveAdminPass.startsWith("$2a$") && passwordEncoder.matches(inputPassword, effectiveAdminPass));
+
+            if (!passwordMatches) {
+                throw new UnauthorizedException("Tên đăng nhập hoặc mật khẩu không chính xác");
+            }
+
+            String token = jwtTokenProvider.generateTokenFromUsername(effectiveAdminUser);
+            log.info("Quản trị viên '{}' đã đăng nhập thành công (xác thực trực tiếp từ GitHub Secrets, không lưu DB)", effectiveAdminUser);
+
+            UserProfileResponse adminProfile = UserProfileResponse.builder()
+                    .id(0L)
+                    .username(effectiveAdminUser)
+                    .email("admin@nexor.vn")
+                    .fullName("Quản trị viên Hệ thống")
+                    .phoneNumber("0988888888")
+                    .address("Tòa nhà NEXOR Flagship, Hà Nội")
+                    .avatarUrl("https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150")
+                    .role(Role.ADMIN)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+
+            AuthResponse authResponse = AuthResponse.builder()
+                    .accessToken(token)
+                    .tokenType("Bearer")
+                    .user(adminProfile)
+                    .build();
+
+            return ApiResponse.success("Đăng nhập thành công", authResponse);
         }
 
+        // 2. Nếu là tài khoản Khách hàng (Customer) -> xác thực qua MySQL Database
         final String lookupKey = identifier;
         User user = userRepository.findByUsernameIgnoreCase(lookupKey)
                 .or(() -> userRepository.findByEmailIgnoreCase(lookupKey))
-                .or(() -> "admin".equalsIgnoreCase(lookupKey) ? userRepository.findByUsername("admin") : java.util.Optional.empty())
                 .orElseThrow(() -> new UnauthorizedException("Tên đăng nhập hoặc mật khẩu không chính xác"));
 
         if (Boolean.FALSE.equals(user.getStatus())) {

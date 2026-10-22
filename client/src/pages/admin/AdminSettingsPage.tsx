@@ -17,18 +17,17 @@ export const AdminSettingsPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 font-sans">
+    <div className="h-full flex flex-col min-h-0 space-y-3 font-sans select-none overflow-hidden">
       {saved && (
-        <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs flex items-center gap-2">
+        <div className="p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs flex items-center gap-2 shrink-0">
           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           <span>Cấu hình hệ thống đã được lưu thành công!</span>
         </div>
       )}
 
-      <div>
-        <span className="text-xs font-semibold text-slate-400 block mb-0.5">Hệ thống</span>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Cài đặt hệ thống</h1>
-        <p className="text-xs text-slate-500 mt-1">Thiết lập thông tin thương hiệu, liên hệ và chính sách cửa hàng</p>
+      <div className="shrink-0">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Cài đặt hệ thống</h1>
+        <p className="text-xs text-slate-500 mt-0.5">Thiết lập thông tin thương hiệu, liên hệ và chính sách cửa hàng</p>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs max-w-2xl">
