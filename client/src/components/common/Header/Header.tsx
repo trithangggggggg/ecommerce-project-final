@@ -51,7 +51,7 @@ export const Header: React.FC = () => {
   return (
     <header className="bg-[#181a20] text-white sticky top-0 z-50 shadow-sm font-sans">
       {/* 1. Main Top Header */}
-      <div className="max-w-[1360px] mx-auto px-4 py-3 flex items-center justify-between gap-4">
+      <div className="max-w-[1360px] mx-auto px-4 py-3 flex items-center justify-between gap-4 relative z-20">
         {/* Left: Brand Logo (NEXOR Emblem) */}
         <Link to="/" className="flex items-center gap-3 shrink-0 group">
           <div className="w-10 h-10 flex items-center justify-center shrink-0">
@@ -228,7 +228,7 @@ export const Header: React.FC = () => {
       </div>
 
       {/* 2. Sub-Navbar Bar */}
-      <div className="bg-[#1f222b] border-t border-gray-800/80">
+      <div className="bg-[#1f222b] border-t border-gray-800/80 relative z-10">
         <div className="max-w-[1360px] mx-auto px-4 flex items-center gap-6 text-xs font-medium">
           {/* Left: Category Dropdown button */}
           <div className="relative shrink-0">
