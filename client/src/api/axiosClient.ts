@@ -67,10 +67,14 @@ axiosClient.interceptors.response.use(
       // Thông điệp lỗi từ backend
       let message = error.response?.data?.message;
 
-      // Đối với login / register: ưu tiên tuyệt đối hiển thị message từ server
+      // Đối với login / register: ưu tiên hiển thị message từ server
       if (isAuthEndpoint) {
-        if (!message || message.includes('status code')) {
-          message = 'Tên đăng nhập hoặc mật khẩu không chính xác. Vui lòng thử lại!';
+        if (status === 401) {
+          message = message || 'Tên đăng nhập hoặc mật khẩu không chính xác. Vui lòng thử lại!';
+        } else if (status >= 500) {
+          message = 'Máy chủ Backend (Port 8080) đang gặp sự cố hoặc chưa khởi động. Vui lòng kiểm tra lại server!';
+        } else if (!message || message.includes('status code')) {
+          message = 'Đăng nhập không thành công. Vui lòng kiểm tra lại thông tin!';
         }
         return Promise.reject(new Error(message));
       }
@@ -90,7 +94,12 @@ axiosClient.interceptors.response.use(
       return Promise.reject(new Error(message));
     }
 
-    return Promise.reject(new Error(error.message || 'Không thể kết nối đến máy chủ. Vui lòng thử lại!'));
+    const networkMsg =
+      error.message?.includes('Network Error') || error.code === 'ERR_NETWORK' || !error.response
+        ? 'Không thể kết nối đến máy chủ Backend (Port 8080). Vui lòng khởi động backend server!'
+        : (error.message || 'Không thể kết nối đến máy chủ. Vui lòng thử lại!');
+
+    return Promise.reject(new Error(networkMsg));
   }
 );
 
