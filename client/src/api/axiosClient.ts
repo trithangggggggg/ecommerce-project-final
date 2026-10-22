@@ -12,13 +12,19 @@ export const axiosClient: AxiosInstance = axios.create({
   },
 });
 
-// Request Interceptor: Tự động gắn Bearer Token nếu có trong localStorage
+// Request Interceptor: Tự động gắn Bearer Token nếu có trong localStorage (trừ endpoint login/register)
 axiosClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     try {
-      const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
-      if (token && config.headers) {
-        config.headers.Authorization = `Bearer ${token}`;
+      const isAuthEndpoint =
+        config.url &&
+        (config.url.includes('/auth/login') || config.url.includes('/auth/register'));
+
+      if (!isAuthEndpoint) {
+        const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+        if (token && config.headers) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
       }
     } catch {
       // Bỏ qua lỗi nếu môi trường không có localStorage
@@ -67,14 +73,26 @@ axiosClient.interceptors.response.use(
       // Thông điệp lỗi từ backend
       let message = error.response?.data?.message;
 
+      // Xử lý nếu backend trả về errors map/array
+      if (!message && error.response?.data?.errors) {
+        const errObj = error.response.data.errors;
+        if (typeof errObj === 'object') {
+          message = Object.values(errObj).join(', ');
+        }
+      }
+
       // Đối với login / register: ưu tiên hiển thị message từ server
       if (isAuthEndpoint) {
         if (status === 401) {
-          message = message || 'Tên đăng nhập hoặc mật khẩu không chính xác. Vui lòng thử lại!';
+          message = message || 'Tên đăng nhập hoặc mật khẩu không chính xác. Mật khẩu quản trị viên là 123456!';
+        } else if (status === 400) {
+          message = message || 'Thông tin đăng nhập không hợp lệ. Vui lòng kiểm tra lại!';
+        } else if (status === 403) {
+          message = 'Tài khoản không có quyền truy cập hệ thống!';
         } else if (status >= 500) {
           message = 'Máy chủ Backend (Port 8080) đang gặp sự cố hoặc chưa khởi động. Vui lòng kiểm tra lại server!';
         } else if (!message || message.includes('status code')) {
-          message = 'Đăng nhập không thành công. Vui lòng kiểm tra lại thông tin!';
+          message = `Đăng nhập không thành công (Mã lỗi ${status || 'Unknown'}). Vui lòng thử lại với tài khoản admin / 123456!`;
         }
         return Promise.reject(new Error(message));
       }

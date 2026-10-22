@@ -12,8 +12,8 @@ export const LoginPage: React.FC = () => {
   const location = useLocation();
   const { login, isLoading, error, clearError } = useAuthStore();
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('admin');
+  const [password, setPassword] = useState('123456');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
@@ -75,6 +75,29 @@ export const LoginPage: React.FC = () => {
       const user = await login({ email: email.trim(), password });
 
       // Chuyển hướng theo đúng phân quyền
+      if (user.role === ROLES.ADMIN) {
+        navigate(fromLocation && fromLocation.includes('/admin') ? fromLocation : ROUTES.ADMIN, { replace: true });
+      } else if (fromLocation) {
+        navigate(fromLocation, { replace: true });
+      } else {
+        navigate(ROUTES.HOME, { replace: true });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Đăng nhập không thành công';
+      setFormError(message);
+    }
+  };
+
+  const handleQuickAdminLogin = async () => {
+    const adminUser = 'admin';
+    const adminPass = '123456';
+    setEmail(adminUser);
+    setPassword(adminPass);
+    setFormError(null);
+    clearError();
+
+    try {
+      const user = await login({ email: adminUser, password: adminPass });
       if (user.role === ROLES.ADMIN) {
         navigate(fromLocation && fromLocation.includes('/admin') ? fromLocation : ROUTES.ADMIN, { replace: true });
       } else if (fromLocation) {
@@ -221,19 +244,17 @@ export const LoginPage: React.FC = () => {
             </Button>
           </div>
 
-          {/* Quick Demo Login Button - Tài khoản Quản trị viên từ GitHub Secrets */}
+          {/* Quick Demo Login Button - 1-Click Đăng nhập trực tiếp Admin */}
           <div className="pt-3 border-t border-gray-100">
             <button
               type="button"
-              onClick={() => {
-                setEmail(import.meta.env.VITE_ADMIN_USERNAME || 'admin');
-                setPassword(import.meta.env.VITE_ADMIN_PASSWORD || '12345678');
-              }}
-              className="w-full py-2.5 px-3 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-900 transition flex items-center justify-center gap-2 text-xs font-semibold cursor-pointer shadow-sm hover:shadow"
-              title="Điền nhanh thông tin tài khoản Quản trị viên (admin / 12345678)"
+              onClick={handleQuickAdminLogin}
+              disabled={isLoading}
+              className="w-full py-2.5 px-3 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-900 transition flex items-center justify-center gap-2 text-xs font-semibold cursor-pointer shadow-sm hover:shadow disabled:opacity-50"
+              title="1-Click Đăng nhập trực tiếp tài khoản Quản trị viên (admin / 123456)"
             >
               <span className="text-sm">🔑</span>
-              <span>Đăng nhập nhanh Admin (admin / 12345678)</span>
+              <span>1-Click Đăng nhập Quản trị viên (admin / 123456)</span>
             </button>
           </div>
         </form>

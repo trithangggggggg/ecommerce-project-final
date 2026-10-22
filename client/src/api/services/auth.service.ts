@@ -17,10 +17,14 @@ export const authService = {
    */
   async login(payload: LoginPayload): Promise<AuthResponse> {
     try {
-      // Backend LoginRequest yêu cầu: usernameOrEmail và password
+      // Backend LoginRequest chấp nhận: usernameOrEmail, username, hoặc email
+      const cleanIdentifier = (payload.email || '').trim();
+      const cleanPassword = (payload.password || '').trim();
       const backendPayload = {
-        usernameOrEmail: payload.email.trim(),
-        password: payload.password,
+        usernameOrEmail: cleanIdentifier,
+        username: cleanIdentifier,
+        email: cleanIdentifier,
+        password: cleanPassword,
       };
 
       const response = await axiosClient.post<ApiResponse<AuthResponse> | AuthResponse>(
