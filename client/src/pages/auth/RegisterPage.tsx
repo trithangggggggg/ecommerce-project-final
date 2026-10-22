@@ -32,6 +32,12 @@ export const RegisterPage: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Xóa sạch lỗi cũ khi vào trang đăng ký
+  React.useEffect(() => {
+    clearError();
+    setFormError(null);
+  }, [clearError]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);

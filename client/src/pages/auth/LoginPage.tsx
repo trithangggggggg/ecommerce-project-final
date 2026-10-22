@@ -25,6 +25,12 @@ export const LoginPage: React.FC = () => {
   const fromState = (location.state as { from?: string | { pathname: string } })?.from;
   const fromLocation = redirectParam || (typeof fromState === 'string' ? fromState : fromState?.pathname);
 
+  // Xóa sạch lỗi cũ khi mở modal
+  useEffect(() => {
+    clearError();
+    setFormError(null);
+  }, [clearError]);
+
   // Hiển thị thông báo khi phiên làm việc hết hạn
   useEffect(() => {
     if (isExpired) {
@@ -88,11 +94,25 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const fillCredentials = (userEmail: string, userPass: string) => {
+  const handleQuickLogin = async (userEmail: string, userPass: string) => {
     setEmail(userEmail);
     setPassword(userPass);
     setFormError(null);
     clearError();
+
+    try {
+      const user = await login({ email: userEmail, password: userPass });
+      if (user.role === ROLES.ADMIN) {
+        navigate(fromLocation && fromLocation.includes('/admin') ? fromLocation : ROUTES.ADMIN, { replace: true });
+      } else if (fromLocation && !fromLocation.includes('/admin')) {
+        navigate(fromLocation, { replace: true });
+      } else {
+        navigate(ROUTES.HOME, { replace: true });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Đăng nhập không thành công';
+      setFormError(message);
+    }
   };
 
   return (
@@ -228,23 +248,25 @@ export const LoginPage: React.FC = () => {
             </Button>
           </div>
 
-          {/* Quick Demo Fill Buttons */}
+          {/* Quick 1-Click Login Buttons */}
           <div className="pt-3 border-t border-gray-100 flex gap-2">
             <button
               type="button"
-              onClick={() => fillCredentials('admin@nexor.vn', '123123123')}
-              className="flex-1 py-2 px-2 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-900 transition flex items-center justify-center gap-1.5 text-xs font-semibold cursor-pointer"
-              title="Điền thông tin tài khoản Quản trị viên"
+              disabled={isLoading}
+              onClick={() => handleQuickLogin('admin@nexor.vn', '123123123')}
+              className="flex-1 py-2 px-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 transition flex items-center justify-center gap-1.5 text-xs font-bold cursor-pointer shadow-xs disabled:opacity-50"
+              title="1-Click Đăng nhập trực tiếp tài khoản Quản trị viên"
             >
-              <span>🔑 Điền Admin</span>
+              <span>🔑 1-Click Admin</span>
             </button>
             <button
               type="button"
-              onClick={() => fillCredentials('customer@nexor.vn', '123123123')}
-              className="flex-1 py-2 px-2 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-900 transition flex items-center justify-center gap-1.5 text-xs font-semibold cursor-pointer"
-              title="Điền thông tin tài khoản Khách hàng"
+              disabled={isLoading}
+              onClick={() => handleQuickLogin('customer@nexor.vn', '123123123')}
+              className="flex-1 py-2 px-2 rounded-xl border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-900 transition flex items-center justify-center gap-1.5 text-xs font-bold cursor-pointer shadow-xs disabled:opacity-50"
+              title="1-Click Đăng nhập trực tiếp tài khoản Khách hàng"
             >
-              <span>👤 Điền Khách hàng</span>
+              <span>👤 1-Click Khách hàng</span>
             </button>
           </div>
         </form>

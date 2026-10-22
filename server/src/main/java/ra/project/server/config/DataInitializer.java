@@ -38,7 +38,43 @@ public class DataInitializer implements CommandLineRunner {
         @Transactional
         public void run(String... args) {
                 initAdminUser();
+                initCustomerUser();
                 initCategoriesAndProducts();
+        }
+
+        private void initCustomerUser() {
+                String custEmail = "customer@nexor.vn";
+                String custUsername = "customer";
+                String custPassword = "123123123";
+
+                log.info(">>> [DataInitializer] Kiểm tra và khởi tạo tài khoản Khách hàng mẫu: email='{}', username='{}'",
+                                custEmail, custUsername);
+
+                User customer = userRepository.findByEmailIgnoreCase(custEmail)
+                                .or(() -> userRepository.findByUsernameIgnoreCase(custUsername))
+                                .orElseGet(() -> {
+                                        log.info(">>> [DataInitializer] Không tìm thấy tài khoản Khách hàng mẫu, tiến hành tạo mới...");
+                                        return User.builder()
+                                                        .fullName("Khách hàng Mẫu")
+                                                        .phoneNumber("0912345678")
+                                                        .address("Tòa nhà NEXOR Flagship, Hà Nội")
+                                                        .avatarUrl("https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150")
+                                                        .build();
+                                });
+
+                customer.setUsername(custUsername);
+                customer.setEmail(custEmail);
+                customer.setRole(Role.CUSTOMER);
+                customer.setStatus(true);
+
+                if (customer.getPassword() == null || !passwordEncoder.matches(custPassword, customer.getPassword())) {
+                        customer.setPassword(passwordEncoder.encode(custPassword));
+                        log.info(">>> [DataInitializer] Đã mã hóa và cập nhật mật khẩu cho Khách hàng mẫu (123123123)");
+                }
+
+                User saved = userRepository.save(customer);
+                log.info(">>> [DataInitializer] Hoàn tất Seeder Khách hàng: ID={}, username='{}', email='{}', role={}, status={}",
+                                saved.getId(), saved.getUsername(), saved.getEmail(), saved.getRole(), saved.getStatus());
         }
 
         private void initAdminUser() {

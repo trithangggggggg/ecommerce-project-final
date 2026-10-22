@@ -20,7 +20,11 @@ axiosClient.interceptors.request.use(
         config.url &&
         (config.url.includes('/auth/login') || config.url.includes('/auth/register'));
 
-      if (!isAuthEndpoint) {
+      if (isAuthEndpoint) {
+        if (config.headers) {
+          delete config.headers.Authorization;
+        }
+      } else {
         const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
         if (token && config.headers) {
           config.headers.Authorization = `Bearer ${token}`;
@@ -86,13 +90,15 @@ axiosClient.interceptors.response.use(
         if (status === 401) {
           message = message || 'Tên đăng nhập hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại thông tin!';
         } else if (status === 400) {
-          message = message || 'Thông tin đăng nhập không hợp lệ. Vui lòng kiểm tra lại!';
+          message = message || 'Thông tin không hợp lệ. Vui lòng kiểm tra lại!';
+        } else if (status === 409) {
+          message = message || 'Tên đăng nhập hoặc địa chỉ email đã được sử dụng. Vui lòng chọn thông tin khác!';
         } else if (status === 403) {
-          message = 'Tài khoản không có quyền truy cập hệ thống!';
+          message = message || 'Bạn không có quyền thực hiện thao tác này!';
         } else if (status >= 500) {
           message = 'Máy chủ Backend (Port 8080) đang gặp sự cố hoặc chưa khởi động. Vui lòng kiểm tra lại server!';
         } else if (!message || message.includes('status code')) {
-          message = `Đăng nhập không thành công (Mã lỗi ${status || 'Unknown'}). Vui lòng kiểm tra lại thông tin!`;
+          message = `Thao tác không thành công (Mã lỗi ${status || 'Unknown'}). Vui lòng kiểm tra lại!`;
         }
         return Promise.reject(new Error(message));
       }
