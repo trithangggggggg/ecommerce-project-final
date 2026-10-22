@@ -18,10 +18,21 @@ public class CustomUserDetailsService implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String usernameOrEmail) throws UsernameNotFoundException {
-        User user = userRepository.findByUsername(usernameOrEmail)
-                .or(() -> userRepository.findByEmail(usernameOrEmail))
+        String clean = usernameOrEmail != null ? usernameOrEmail.trim() : "";
+
+        // Hỗ trợ linh hoạt các biến thể email và username của Admin
+        if ("admin@nexor.vn".equalsIgnoreCase(clean) ||
+            "admin@eshop.com".equalsIgnoreCase(clean) ||
+            "admin@eshoptech.vn".equalsIgnoreCase(clean) ||
+            "admin@ecommerce.com".equalsIgnoreCase(clean)) {
+            clean = "admin";
+        }
+
+        final String lookupKey = clean;
+        User user = userRepository.findByUsername(lookupKey)
+                .or(() -> userRepository.findByEmail(lookupKey))
                 .orElseThrow(() -> new UsernameNotFoundException(
-                        "Không tìm thấy người dùng với tên đăng nhập hoặc email: " + usernameOrEmail
+                        "Không tìm thấy người dùng với tên đăng nhập hoặc email: " + lookupKey
                 ));
 
         return CustomUserDetails.build(user);

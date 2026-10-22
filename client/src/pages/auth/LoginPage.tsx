@@ -220,6 +220,39 @@ export const LoginPage: React.FC = () => {
               Đăng nhập ngay
             </Button>
           </div>
+
+          {/* Quick Demo Login Buttons */}
+          <div className="pt-3 border-t border-gray-100">
+            <span className="text-[11px] font-semibold text-gray-400 block mb-2 text-center uppercase tracking-wider">
+              Tài khoản mẫu nhanh
+            </span>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('admin');
+                  setPassword('123456');
+                }}
+                className="py-2 px-2.5 rounded-xl border border-amber-200 bg-amber-50/70 hover:bg-amber-100/80 text-amber-900 transition flex items-center justify-center gap-1.5 font-semibold cursor-pointer"
+                title="Tài khoản Admin: admin / 123456"
+              >
+                <span>🔑</span>
+                <span>Admin</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('customer');
+                  setPassword('123456');
+                }}
+                className="py-2 px-2.5 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100/80 text-blue-900 transition flex items-center justify-center gap-1.5 font-semibold cursor-pointer"
+                title="Tài khoản Khách: customer / 123456"
+              >
+                <span>👤</span>
+                <span>Khách hàng</span>
+              </button>
+            </div>
+          </div>
         </form>
 
         {/* Switch to Register */}

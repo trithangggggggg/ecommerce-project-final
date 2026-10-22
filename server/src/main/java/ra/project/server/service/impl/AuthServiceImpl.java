@@ -71,8 +71,20 @@ public class AuthServiceImpl implements AuthService {
     public ApiResponse<AuthResponse> login(LoginRequest request) {
         String identifier = request.getUsernameOrEmail().trim();
 
-        User user = userRepository.findByUsername(identifier)
-                .or(() -> userRepository.findByEmail(identifier))
+        // Hỗ trợ linh hoạt các alias email phổ biến của Admin & Khách mẫu
+        if ("admin@nexor.vn".equalsIgnoreCase(identifier) ||
+            "admin@eshop.com".equalsIgnoreCase(identifier) ||
+            "admin@eshoptech.vn".equalsIgnoreCase(identifier) ||
+            "admin@ecommerce.com".equalsIgnoreCase(identifier)) {
+            identifier = "admin";
+        } else if ("customer@nexor.vn".equalsIgnoreCase(identifier) ||
+                   "customer@eshop.com".equalsIgnoreCase(identifier)) {
+            identifier = "customer";
+        }
+
+        final String lookupKey = identifier;
+        User user = userRepository.findByUsername(lookupKey)
+                .or(() -> userRepository.findByEmail(lookupKey))
                 .orElseThrow(() -> new UnauthorizedException("Tên đăng nhập hoặc mật khẩu không chính xác"));
 
         if (Boolean.FALSE.equals(user.getStatus())) {
