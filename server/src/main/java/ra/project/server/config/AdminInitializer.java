@@ -30,21 +30,24 @@ public class AdminInitializer implements ApplicationRunner {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
-    @Value("${app.admin.username:${ADMIN_USERNAME:admin}}")
+    @Value("${app.admin.username:${ADMIN_USERNAME:${ADMIN_EMAIL:admin}}}")
     private String adminUsername;
 
-    @Value("${app.admin.email:${ADMIN_EMAIL:admin@nexor.vn}}")
+    @Value("${app.admin.email:${ADMIN_EMAIL:${ADMIN_USERNAME:admin@nexor.vn}}}")
     private String adminEmail;
 
-    @Value("${app.admin.password:${ADMIN_PASSWORD:123456}}")
+    @Value("${app.admin.password:${ADMIN_PASSWORD:123123123}}")
     private String adminPassword;
 
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        String username = StringUtils.hasText(adminUsername) ? adminUsername.trim() : "admin";
-        String email = StringUtils.hasText(adminEmail) ? adminEmail.trim() : "admin@nexor.vn";
-        String password = StringUtils.hasText(adminPassword) ? adminPassword.trim() : "123456";
+        String rawUser = StringUtils.hasText(adminUsername) ? adminUsername.trim() : "admin";
+        String rawEmail = StringUtils.hasText(adminEmail) ? adminEmail.trim() : "admin@nexor.vn";
+        String password = StringUtils.hasText(adminPassword) ? adminPassword.trim() : "123123123";
+
+        String username = rawUser.contains("@") ? rawUser.substring(0, rawUser.indexOf("@")) : rawUser;
+        String email = rawEmail.contains("@") ? rawEmail : (rawUser.contains("@") ? rawUser : "admin@nexor.vn");
 
         log.info(">>> [AdminInitializer] Khởi chạy Admin Seeder (Idempotent): username='{}', email='{}'", username, email);
 
