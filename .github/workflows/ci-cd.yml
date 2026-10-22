@@ -83,9 +83,9 @@ jobs:
           APP_IMAGE: ${{ steps.meta.outputs.image }}
           FRONTEND_IMAGE: ${{ steps.meta.outputs.frontend_image }}
           APP_TAG: ${{ github.sha }}
-          APP_VERSION: ${{ github.sha }}
-          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME || secrets.ADMIN_EMAIL || 'admin' }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || secrets.ADMIN_USERNAME || 'admin@nexor.vn' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || '123456' }}
         run: docker compose --env-file student.env up -d --build --wait --wait-timeout 300
 
       - name: Smoke test kiểm tra dịch vụ
@@ -172,14 +172,15 @@ jobs:
           BRANCH_NAME: ${{ github.ref_name }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.5-flash-lite' }}
-          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME || secrets.ADMIN_EMAIL || 'admin' }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || secrets.ADMIN_USERNAME || 'admin@nexor.vn' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || '123456' }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           password: ${{ secrets.SERVER_PASSWORD }}
-          envs: APP_IMAGE,FRONTEND_IMAGE,APP_TAG,GHCR_USER,GHCR_TOKEN,REPO_URL,DEPLOY_DIR,BRANCH_NAME,GEMINI_API_KEY,GEMINI_MODEL,ADMIN_USERNAME,ADMIN_PASSWORD
+          envs: APP_IMAGE,FRONTEND_IMAGE,APP_TAG,GHCR_USER,GHCR_TOKEN,REPO_URL,DEPLOY_DIR,BRANCH_NAME,GEMINI_API_KEY,GEMINI_MODEL,ADMIN_USERNAME,ADMIN_EMAIL,ADMIN_PASSWORD
           script: |
             set -e
             if [ ! -d "$HOME/$DEPLOY_DIR/.git" ]; then
@@ -196,13 +197,17 @@ jobs:
               sed -i "s|^ADMIN_USERNAME=.*|ADMIN_USERNAME=\"$ADMIN_USERNAME\"|g" student.env 2>/dev/null || echo "ADMIN_USERNAME=\"$ADMIN_USERNAME\"" >> student.env
               sed -i "s|^ADMIN_USERNAME=.*|ADMIN_USERNAME=$ADMIN_USERNAME|g" .env 2>/dev/null || echo "ADMIN_USERNAME=$ADMIN_USERNAME" >> .env
             fi
+            if [ -n "$ADMIN_EMAIL" ]; then
+              sed -i "s|^ADMIN_EMAIL=.*|ADMIN_EMAIL=\"$ADMIN_EMAIL\"|g" student.env 2>/dev/null || echo "ADMIN_EMAIL=\"$ADMIN_EMAIL\"" >> student.env
+              sed -i "s|^ADMIN_EMAIL=.*|ADMIN_EMAIL=$ADMIN_EMAIL|g" .env 2>/dev/null || echo "ADMIN_EMAIL=$ADMIN_EMAIL" >> .env
+            fi
             if [ -n "$ADMIN_PASSWORD" ]; then
               ESC_PASS=$(printf '%s\n' "$ADMIN_PASSWORD" | sed -e 's/[\/&|]/\\&/g')
               sed -i "s|^ADMIN_PASSWORD=.*|ADMIN_PASSWORD=\"$ESC_PASS\"|g" student.env 2>/dev/null || echo "ADMIN_PASSWORD=\"$ADMIN_PASSWORD\"" >> student.env
               sed -i "s|^ADMIN_PASSWORD=.*|ADMIN_PASSWORD=$ESC_PASS|g" .env 2>/dev/null || echo "ADMIN_PASSWORD=$ADMIN_PASSWORD" >> .env
             fi
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            export APP_IMAGE FRONTEND_IMAGE APP_TAG GEMINI_API_KEY GEMINI_MODEL ADMIN_USERNAME ADMIN_PASSWORD
+            export APP_IMAGE FRONTEND_IMAGE APP_TAG GEMINI_API_KEY GEMINI_MODEL ADMIN_USERNAME ADMIN_EMAIL ADMIN_PASSWORD
             docker compose --env-file student.env pull app nginx
             docker compose --env-file student.env up -d --no-build --wait --wait-timeout 300
             docker logout ghcr.io

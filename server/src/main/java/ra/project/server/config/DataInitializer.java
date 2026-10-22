@@ -25,22 +25,16 @@ import java.util.List;
 
 @Slf4j
 @Component
+@org.springframework.core.annotation.Order(2)
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
 
         private final CategoryRepository categoryRepository;
         private final ProductRepository productRepository;
-        private final UserRepository userRepository;
-        private final OrderRepository orderRepository;
-        private final PasswordEncoder passwordEncoder;
-
-        @org.springframework.beans.factory.annotation.Value("${app.admin.username:}")
-        private String adminUsername;
 
         @Override
         @Transactional
         public void run(String... args) {
-                cleanupLegacyAdminFromDatabase();
                 initCategoriesAndProducts();
         }
 
@@ -199,35 +193,5 @@ public class DataInitializer implements CommandLineRunner {
                                         .build());
                 }
         }
-
-        private void cleanupLegacyAdminFromDatabase() {
-                // Tài khoản Admin được quản lý trực tiếp qua GitHub Secrets (không lưu trong Database).
-                String effectiveAdminUser = (adminUsername != null) ? adminUsername.trim() : "";
-                java.util.Set<String> targets = new java.util.HashSet<>();
-                targets.add("admin");
-                if (!effectiveAdminUser.isEmpty()) {
-                        targets.add(effectiveAdminUser);
-                }
-
-                for (String username : targets) {
-                        userRepository.findByUsernameIgnoreCase(username).ifPresent(user -> {
-                                log.info(">>> [DataInitializer] Xóa tài khoản '{}' khỏi Database để bảo mật theo GitHub Secrets...", user.getUsername());
-                                List<Order> orders = orderRepository.findByUserId(user.getId());
-                                User fallbackUser = userRepository.findAll().stream()
-                                                .filter(u -> !u.getId().equals(user.getId()))
-                                                .findFirst()
-                                                .orElse(null);
-
-                                if (orders != null && !orders.isEmpty()) {
-                                        if (fallbackUser != null) {
-                                                orders.forEach(o -> o.setUser(fallbackUser));
-                                                orderRepository.saveAll(orders);
-                                        } else {
-                                                orderRepository.deleteAll(orders);
-                                        }
-                                }
-                                userRepository.delete(user);
-                        });
-                }
-        }
 }
+

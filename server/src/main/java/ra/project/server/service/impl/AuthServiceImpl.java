@@ -32,10 +32,13 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
-    @Value("${app.admin.username:}")
+    @Value("${app.admin.username:${ADMIN_USERNAME:${ADMIN_EMAIL:admin}}}")
     private String adminUsername;
 
-    @Value("${app.admin.password:}")
+    @Value("${app.admin.email:${ADMIN_EMAIL:${ADMIN_USERNAME:admin@nexor.vn}}}")
+    private String adminEmail;
+
+    @Value("${app.admin.password:${ADMIN_PASSWORD:123456}}")
     private String adminPassword;
 
     private final UserRepository userRepository;
@@ -79,70 +82,27 @@ public class AuthServiceImpl implements AuthService {
     @Transactional(readOnly = true)
     public ApiResponse<AuthResponse> login(LoginRequest request) {
         String identifier = request.getUsernameOrEmail() != null ? request.getUsernameOrEmail().trim() : "";
-        String effectiveAdminUser = (adminUsername != null) ? adminUsername.trim() : "";
-        String effectiveAdminPass = (adminPassword != null) ? adminPassword.trim() : "";
+        String inputPassword = request.getPassword() != null ? request.getPassword().trim() : "";
 
-        boolean isAdminIdentifier = !effectiveAdminUser.isEmpty() && effectiveAdminUser.equalsIgnoreCase(identifier);
-
-        // 1. Nếu là tài khoản Admin -> xác thực trực tiếp qua GitHub Secrets / biến môi trường (KHÔNG lưu hoặc truy vấn Database)
-        if (isAdminIdentifier) {
-            String inputPassword = request.getPassword() != null ? request.getPassword().trim() : "";
-            boolean passwordMatches = !effectiveAdminPass.isEmpty() && (
-                    inputPassword.equals(effectiveAdminPass)
-                    || (effectiveAdminPass.startsWith("$2a$") && passwordEncoder.matches(inputPassword, effectiveAdminPass))
-            );
-
-            if (!passwordMatches) {
-                throw new UnauthorizedException("Tên đăng nhập hoặc mật khẩu không chính xác");
-            }
-
-            String token = jwtTokenProvider.generateTokenFromUsername(effectiveAdminUser);
-            log.info("Quản trị viên '{}' đã đăng nhập thành công (xác thực trực tiếp từ biến môi trường/GitHub Secrets)", effectiveAdminUser);
-
-            String adminEmail = effectiveAdminUser.contains("@") ? effectiveAdminUser : effectiveAdminUser + "@nexor.vn";
-
-            UserProfileResponse adminProfile = UserProfileResponse.builder()
-                    .id(0L)
-                    .username(effectiveAdminUser)
-                    .email(adminEmail)
-                    .fullName("Quản trị viên Hệ thống")
-                    .phoneNumber("0988888888")
-                    .address("Tòa nhà NEXOR Flagship, Hà Nội")
-                    .avatarUrl("https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150")
-                    .role(Role.ADMIN)
-                    .createdAt(LocalDateTime.now())
-                    .build();
-
-            AuthResponse authResponse = AuthResponse.builder()
-                    .accessToken(token)
-                    .tokenType("Bearer")
-                    .user(adminProfile)
-                    .build();
-
-            return ApiResponse.success("Đăng nhập thành công", authResponse);
+        if (!org.springframework.util.StringUtils.hasText(identifier) || !org.springframework.util.StringUtils.hasText(inputPassword)) {
+            throw new BadRequestException("Tên đăng nhập và mật khẩu không được để trống");
         }
 
-        // 2. Nếu là tài khoản Khách hàng (Customer) -> xác thực qua MySQL Database
-        final String lookupKey = identifier;
-        User user = userRepository.findByUsernameIgnoreCase(lookupKey)
-                .or(() -> userRepository.findByEmailIgnoreCase(lookupKey))
+        // Tìm kiếm người dùng trong MySQL theo email hoặc username (IgnoreCase)
+        User user = userRepository.findByEmailIgnoreCase(identifier)
+                .or(() -> userRepository.findByUsernameIgnoreCase(identifier))
                 .orElseThrow(() -> new UnauthorizedException("Tên đăng nhập hoặc mật khẩu không chính xác"));
 
         if (Boolean.FALSE.equals(user.getStatus())) {
             throw new BadRequestException("Tài khoản của bạn đã bị khóa, vui lòng liên hệ quản trị viên");
         }
 
-        Authentication authentication;
-        try {
-            authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(user.getUsername(), request.getPassword())
-            );
-        } catch (BadCredentialsException ex) {
+        if (!passwordEncoder.matches(inputPassword, user.getPassword())) {
             throw new UnauthorizedException("Tên đăng nhập hoặc mật khẩu không chính xác");
         }
 
-        String token = jwtTokenProvider.generateToken(authentication);
-        log.info("Người dùng '{}' đã đăng nhập thành công với vai trò: {}", user.getUsername(), user.getRole());
+        String token = jwtTokenProvider.generateTokenFromUsername(user.getUsername());
+        log.info("Người dùng '{}' [Role: {}] đã đăng nhập thành công", user.getUsername(), user.getRole());
 
         AuthResponse authResponse = AuthResponse.builder()
                 .accessToken(token)

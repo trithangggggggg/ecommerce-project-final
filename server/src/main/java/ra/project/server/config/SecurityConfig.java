@@ -79,9 +79,24 @@ public class SecurityConfig {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
-                .exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setContentType(org.springframework.http.MediaType.APPLICATION_JSON_VALUE);
+                            response.setCharacterEncoding("UTF-8");
+                            response.setStatus(jakarta.servlet.http.HttpServletResponse.SC_FORBIDDEN);
+                            String json = String.format(
+                                    "{\"success\":false,\"status\":403,\"message\":\"%s\",\"data\":null,\"errors\":null,\"timestamp\":\"%s\"}",
+                                    "Tài khoản không có quyền truy cập hệ thống!",
+                                    java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+                            );
+                            response.getWriter().write(json);
+                        })
+                )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // Cho phép Preflight OPTIONS cho mọi endpoint để không bị lỗi CORS/Preflight 403
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // Cho phép gọi các endpoint Auth và Chatbot AI không cần đăng nhập
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/ai/**").permitAll()
@@ -89,8 +104,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**").permitAll()
                         // Phân quyền ADMIN cho các chức năng quản trị
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        // Các API cá nhân yêu cầu đã đăng nhập
+                        // Các API cá nhân và đơn hàng yêu cầu đã đăng nhập
                         .requestMatchers("/api/users/**").authenticated()
+                        .requestMatchers("/api/orders/**").authenticated()
                         // Tất cả các yêu cầu còn lại
                         .anyRequest().authenticated()
                 );

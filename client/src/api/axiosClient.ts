@@ -51,8 +51,8 @@ axiosClient.interceptors.response.use(
         (originalRequest.url.includes('/auth/login') ||
           originalRequest.url.includes('/auth/register'));
 
-      // Khi phiên đăng nhập hết hạn (401) hoặc bị từ chối quyền (403) trên các protected API
-      if ((status === 401 || status === 403) && !isAuthEndpoint) {
+      // Khi phiên đăng nhập hết hạn (401 Unauthorized) trên các protected API
+      if (status === 401 && !isAuthEndpoint) {
         try {
           localStorage.removeItem(STORAGE_KEYS.TOKEN);
           localStorage.removeItem(STORAGE_KEYS.USER);

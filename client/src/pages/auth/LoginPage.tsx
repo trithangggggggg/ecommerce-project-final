@@ -80,7 +80,7 @@ export const LoginPage: React.FC = () => {
       // Chuyển hướng theo đúng phân quyền
       if (user.role === ROLES.ADMIN) {
         navigate(fromLocation && fromLocation.includes('/admin') ? fromLocation : ROUTES.ADMIN, { replace: true });
-      } else if (fromLocation) {
+      } else if (fromLocation && !fromLocation.includes('/admin')) {
         navigate(fromLocation, { replace: true });
       } else {
         navigate(ROUTES.HOME, { replace: true });
@@ -109,7 +109,7 @@ export const LoginPage: React.FC = () => {
       const user = await login({ email: adminUser, password: adminPass });
       if (user.role === ROLES.ADMIN) {
         navigate(fromLocation && fromLocation.includes('/admin') ? fromLocation : ROUTES.ADMIN, { replace: true });
-      } else if (fromLocation) {
+      } else if (fromLocation && !fromLocation.includes('/admin')) {
         navigate(fromLocation, { replace: true });
       } else {
         navigate(ROUTES.HOME, { replace: true });

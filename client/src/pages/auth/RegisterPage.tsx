@@ -21,6 +21,7 @@ export const RegisterPage: React.FC = () => {
   const { register, isLoading, error, clearError } = useAuthStore();
 
   const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -42,6 +43,11 @@ export const RegisterPage: React.FC = () => {
       setFormError('Vui lòng nhập họ và tên của bạn');
       return;
     }
+    const cleanUsername = username.trim() || email.split('@')[0];
+    if (cleanUsername.length < 3) {
+      setFormError('Tên đăng nhập phải có tối thiểu 3 ký tự');
+      return;
+    }
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setFormError('Địa chỉ email không đúng định dạng');
       return;
@@ -61,6 +67,7 @@ export const RegisterPage: React.FC = () => {
 
     try {
       await register({
+        username: cleanUsername,
         fullName: fullName.trim(),
         email: email.trim(),
         phone: phone.trim() || undefined,
@@ -123,6 +130,17 @@ export const RegisterPage: React.FC = () => {
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
           placeholder="Nguyễn Văn A"
+          leftIcon={<User className="w-4 h-4" />}
+          required
+        />
+
+        {/* Username */}
+        <Input
+          label="Tên đăng nhập"
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="VD: nguyenvana (ít nhất 3 ký tự)"
           leftIcon={<User className="w-4 h-4" />}
           required
         />
