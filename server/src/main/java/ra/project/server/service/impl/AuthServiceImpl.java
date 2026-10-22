@@ -32,15 +32,6 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
-    @Value("${app.admin.username:${ADMIN_USERNAME:${ADMIN_EMAIL:admin}}}")
-    private String adminUsername;
-
-    @Value("${app.admin.email:${ADMIN_EMAIL:${ADMIN_USERNAME:admin@nexor.vn}}}")
-    private String adminEmail;
-
-    @Value("${app.admin.password:${ADMIN_PASSWORD:123456}}")
-    private String adminPassword;
-
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;

@@ -12,11 +12,8 @@ export const LoginPage: React.FC = () => {
   const location = useLocation();
   const { login, isLoading, error, clearError } = useAuthStore();
 
-  const envAdminUser = import.meta.env.VITE_ADMIN_USERNAME || '';
-  const envAdminPass = import.meta.env.VITE_ADMIN_PASSWORD || '';
-
-  const [email, setEmail] = useState(envAdminUser);
-  const [password, setPassword] = useState(envAdminPass);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
@@ -91,33 +88,11 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleQuickAdminLogin = async () => {
-    const adminUser = envAdminUser || email.trim();
-    const adminPass = envAdminPass || password;
-
-    if (!adminUser || !adminPass) {
-      setFormError('Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu');
-      return;
-    }
-
-    setEmail(adminUser);
-    setPassword(adminPass);
+  const fillCredentials = (userEmail: string, userPass: string) => {
+    setEmail(userEmail);
+    setPassword(userPass);
     setFormError(null);
     clearError();
-
-    try {
-      const user = await login({ email: adminUser, password: adminPass });
-      if (user.role === ROLES.ADMIN) {
-        navigate(fromLocation && fromLocation.includes('/admin') ? fromLocation : ROUTES.ADMIN, { replace: true });
-      } else if (fromLocation && !fromLocation.includes('/admin')) {
-        navigate(fromLocation, { replace: true });
-      } else {
-        navigate(ROUTES.HOME, { replace: true });
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Đăng nhập không thành công';
-      setFormError(message);
-    }
   };
 
   return (
@@ -253,21 +228,25 @@ export const LoginPage: React.FC = () => {
             </Button>
           </div>
 
-          {/* Quick Demo Login Button - chỉ hiển thị nếu cấu hình biến môi trường VITE_ADMIN_USERNAME & VITE_ADMIN_PASSWORD */}
-          {envAdminUser && envAdminPass && (
-            <div className="pt-3 border-t border-gray-100">
-              <button
-                type="button"
-                onClick={handleQuickAdminLogin}
-                disabled={isLoading}
-                className="w-full py-2.5 px-3 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-900 transition flex items-center justify-center gap-2 text-xs font-semibold cursor-pointer shadow-sm hover:shadow disabled:opacity-50"
-                title="1-Click Đăng nhập trực tiếp Quản trị viên từ biến môi trường"
-              >
-                <span className="text-sm">🔑</span>
-                <span>1-Click Đăng nhập Quản trị viên ({envAdminUser})</span>
-              </button>
-            </div>
-          )}
+          {/* Quick Demo Fill Buttons */}
+          <div className="pt-3 border-t border-gray-100 flex gap-2">
+            <button
+              type="button"
+              onClick={() => fillCredentials('admin@nexor.vn', '123123123')}
+              className="flex-1 py-2 px-2 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-900 transition flex items-center justify-center gap-1.5 text-xs font-semibold cursor-pointer"
+              title="Điền thông tin tài khoản Quản trị viên"
+            >
+              <span>🔑 Điền Admin</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => fillCredentials('customer@nexor.vn', '123123123')}
+              className="flex-1 py-2 px-2 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-900 transition flex items-center justify-center gap-1.5 text-xs font-semibold cursor-pointer"
+              title="Điền thông tin tài khoản Khách hàng"
+            >
+              <span>👤 Điền Khách hàng</span>
+            </button>
+          </div>
         </form>
 
         {/* Switch to Register */}

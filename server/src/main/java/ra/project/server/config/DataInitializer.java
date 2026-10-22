@@ -25,17 +25,63 @@ import java.util.List;
 
 @Slf4j
 @Component
-@org.springframework.core.annotation.Order(2)
+@org.springframework.core.annotation.Order(1)
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
 
+        private final UserRepository userRepository;
         private final CategoryRepository categoryRepository;
         private final ProductRepository productRepository;
+        private final PasswordEncoder passwordEncoder;
 
         @Override
         @Transactional
         public void run(String... args) {
+                initAdminUser();
                 initCategoriesAndProducts();
+        }
+
+        private void initAdminUser() {
+                String adminEmail = "admin@nexor.vn";
+                String adminUsername = "admin";
+                String adminPassword = "123123123";
+
+                log.info(">>> [DataInitializer] Kiểm tra và khởi tạo tài khoản Quản trị viên (ADMIN): email='{}', username='{}'",
+                                adminEmail, adminUsername);
+
+                User admin = userRepository.findByEmailIgnoreCase(adminEmail)
+                                .or(() -> userRepository.findByUsernameIgnoreCase(adminUsername))
+                                .or(() -> userRepository.findByUsernameIgnoreCase("admin"))
+                                .or(() -> userRepository.findByEmailIgnoreCase("admin@nexor.vn"))
+                                .orElseGet(() -> {
+                                        log.info(">>> [DataInitializer] Không tìm thấy tài khoản Admin, tiến hành tạo mới...");
+                                        return User.builder()
+                                                        .fullName("Quản trị viên Hệ thống")
+                                                        .phoneNumber("0988888888")
+                                                        .address("Tòa nhà NEXOR Flagship, Hà Nội")
+                                                        .avatarUrl("https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150")
+                                                        .build();
+                                });
+
+                // 1. Luôn đồng bộ username và email chính xác
+                admin.setUsername(adminUsername);
+                admin.setEmail(adminEmail);
+
+                // 2. Luôn gán lại role Role.ADMIN (đáp ứng hasRole("ADMIN") và hasAuthority("ADMIN"))
+                admin.setRole(Role.ADMIN);
+
+                // 3. Luôn gán lại status = true (hoạt động, không bị khóa)
+                admin.setStatus(true);
+
+                // 4. Luôn đảm bảo mật khẩu được mã hóa BCrypt chính xác cho '123123123'
+                if (admin.getPassword() == null || !passwordEncoder.matches(adminPassword, admin.getPassword())) {
+                        admin.setPassword(passwordEncoder.encode(adminPassword));
+                        log.info(">>> [DataInitializer] Đã mã hóa và cập nhật mật khẩu mới cho Quản trị viên (123123123)");
+                }
+
+                User saved = userRepository.save(admin);
+                log.info(">>> [DataInitializer] Hoàn tất Seeder Quản trị viên: ID={}, username='{}', email='{}', role={}, status={}",
+                                saved.getId(), saved.getUsername(), saved.getEmail(), saved.getRole(), saved.getStatus());
         }
 
         private void initCategoriesAndProducts() {

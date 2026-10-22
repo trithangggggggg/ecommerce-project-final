@@ -77,15 +77,18 @@ CREATE TABLE IF NOT EXISTS order_items (
 --  DỮ LIỆU KHỞI TẠO BAN ĐẦU (SEED DATA - 30 SẢN PHẨM MẪU CHUẨN E-SHOPTECH)
 -- =============================================================================
 
--- Dữ liệu mẫu khách hàng (CUSTOMER) phục vụ liên kết đơn hàng mẫu ban đầu
--- Tài khoản Admin KHÔNG lưu trong Database, xác thực trực tiếp qua GitHub Secrets
+-- Dữ liệu tài khoản khởi tạo ban đầu:
+-- 1. Tài khoản Quản trị viên (ADMIN): admin@nexor.vn / 123123123 (mật khẩu mã hóa BCrypt)
+-- 2. Tài khoản Khách hàng (CUSTOMER): customer@nexor.vn / 123123123 (mật khẩu mã hóa BCrypt)
 INSERT INTO users (id, username, email, password, full_name, phone_number, address, avatar_url, role, status, created_at) VALUES
-    (1, 'customer', 'customer@nexor.vn', '$2a$10$ZOC2.LE7Ps9x.7g6FIQIS.FPOjAmkFwjUxnFeZrVZxE9Gjeaq/YTi', 'Khách hàng Mẫu', '0912345678', 'Tòa nhà NEXOR Flagship, Hà Nội', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150', 'CUSTOMER', TRUE, '2025-01-01 00:00:00')
+    (1, 'admin', 'admin@nexor.vn', '$2a$10$cTcGCWb2IxeKrcP8xIFUBuEYSHQTBqqQs36ewXVkSyOC9jf9nWwR2', 'Quản trị viên Hệ thống', '0988888888', 'Tòa nhà NEXOR Flagship, Hà Nội', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150', 'ADMIN', TRUE, '2025-01-01 00:00:00'),
+    (2, 'customer', 'customer@nexor.vn', '$2a$10$cTcGCWb2IxeKrcP8xIFUBuEYSHQTBqqQs36ewXVkSyOC9jf9nWwR2', 'Khách hàng Mẫu', '0912345678', 'Tòa nhà NEXOR Flagship, Hà Nội', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150', 'CUSTOMER', TRUE, '2025-01-01 00:00:00')
 ON DUPLICATE KEY UPDATE 
-    username = 'customer',
-    email = 'customer@nexor.vn',
-    role = 'CUSTOMER',
-    status = TRUE;
+    username = VALUES(username),
+    email = VALUES(email),
+    password = VALUES(password),
+    role = VALUES(role),
+    status = VALUES(status);
 
 INSERT INTO categories (id, name, description, status) VALUES
     (1, 'Điện thoại', 'Các dòng điện thoại thông minh chính hãng mới nhất', TRUE),
