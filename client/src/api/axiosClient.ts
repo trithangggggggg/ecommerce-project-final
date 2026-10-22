@@ -94,7 +94,9 @@ axiosClient.interceptors.response.use(
         } else if (status === 409) {
           message = message || 'Tên đăng nhập hoặc địa chỉ email đã được sử dụng. Vui lòng chọn thông tin khác!';
         } else if (status === 403) {
-          message = message || 'Bạn không có quyền thực hiện thao tác này!';
+          message = message || 'Tài khoản chưa được kích hoạt hoặc bị từ chối truy cập. Vui lòng kiểm tra lại thông tin!';
+        } else if (status === 405) {
+          message = message || 'Phương thức yêu cầu không hợp lệ. Vui lòng thử lại!';
         } else if (status >= 500) {
           message = 'Máy chủ Backend (Port 8080) đang gặp sự cố hoặc chưa khởi động. Vui lòng kiểm tra lại server!';
         } else if (!message || message.includes('status code')) {
