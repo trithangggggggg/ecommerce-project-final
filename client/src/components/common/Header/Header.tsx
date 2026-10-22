@@ -16,6 +16,7 @@ import {
 import { useCartStore } from '../../../store/useCartStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { ROUTES } from '../../../constants/routes';
+import { PetMascot } from '../Mascot/PetMascot';
 
 export const Header: React.FC = () => {
   const navigate = useNavigate();
@@ -114,8 +115,13 @@ export const Header: React.FC = () => {
           </div>
         </div>
 
-        {/* Right 2: User Action Icons */}
+        {/* Right 2: User Action Icons & Interactive Mascot */}
         <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+          {/* Pet Fox Mascot Companion */}
+          <div className="flex items-center justify-center">
+            <PetMascot size={40} className="hidden sm:inline-flex" />
+          </div>
+
           {/* Account Menu */}
           <div className="relative">
             {isAuthenticated ? (
