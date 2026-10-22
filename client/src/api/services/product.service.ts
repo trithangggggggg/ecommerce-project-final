@@ -1,6 +1,5 @@
 import axiosClient from '../axiosClient';
 import { ENDPOINTS } from '../endpoints';
-import { MOCK_CATEGORIES, MOCK_PRODUCTS } from '../mockData';
 import type {
   Category,
   FilterParams,
@@ -89,55 +88,37 @@ export const productService = {
         };
       }
     } catch (err) {
-      console.warn('Backend products API call failed, falling back to mock data:', err);
+      console.error('Lỗi khi gọi API sản phẩm:', err);
     }
 
-    // Fallback Mock
-    let filtered = [...MOCK_PRODUCTS];
-    if (params.keyword) {
-      const kw = params.keyword.toLowerCase();
-      filtered = filtered.filter((p) => p.name.toLowerCase().includes(kw));
-    }
-    if (params.categoryId) {
-      filtered = filtered.filter((p) => p.categoryId === params.categoryId);
-    }
-    const limit = params.limit || 12;
-    const page = params.page || 1;
     return {
-      data: filtered.slice((page - 1) * limit, page * limit),
-      total: filtered.length,
-      page,
-      limit,
-      totalPages: Math.ceil(filtered.length / limit) || 1,
+      data: [],
+      total: 0,
+      page: 1,
+      limit: params.limit || 12,
+      totalPages: 0,
     };
   },
 
   /**
-   * Lấy chi tiết sản phẩm theo ID
+   * Lấy chi tiết sản phẩm theo ID từ MySQL
    */
   async getProductById(id: number | string): Promise<Product> {
-    try {
-      const res = await axiosClient.get(`${ENDPOINTS.PRODUCTS}/${id}`);
-      const raw = res.data?.data;
-      if (raw) {
-        return mapBackendProduct(raw);
-      }
-    } catch (err) {
-      console.warn(`Get product ${id} failed, using mock:`, err);
+    const res = await axiosClient.get(`${ENDPOINTS.PRODUCTS}/${id}`);
+    const raw = res.data?.data || res.data;
+    if (raw) {
+      return mapBackendProduct(raw);
     }
-
-    const mockItem = MOCK_PRODUCTS.find((p) => p.id === Number(id));
-    if (mockItem) return mockItem;
-    return MOCK_PRODUCTS[0];
+    throw new Error(`Không tìm thấy sản phẩm #${id}`);
   },
 
   /**
-   * Lấy danh sách danh mục
+   * Lấy danh sách danh mục từ MySQL
    */
   async getCategories(): Promise<Category[]> {
     try {
       const res = await axiosClient.get(ENDPOINTS.CATEGORIES);
-      const raw = res.data?.data;
+      const raw = res.data?.data || res.data;
       if (Array.isArray(raw) && raw.length > 0) {
         return raw.map((c: any) => ({
           id: c.id,
@@ -148,9 +129,9 @@ export const productService = {
         }));
       }
     } catch (err) {
-      console.warn('Get categories failed, using mock:', err);
+      console.error('Lỗi khi tải danh mục từ MySQL:', err);
     }
-    return MOCK_CATEGORIES;
+    return [];
   },
 
   /**

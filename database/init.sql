@@ -78,9 +78,15 @@ CREATE TABLE IF NOT EXISTS order_items (
 -- =============================================================================
 
 -- Mật khẩu mặc định: 123456 (BCrypt encoded)
-INSERT INTO users (username, email, password, full_name, phone_number, role, status) VALUES
-    ('admin', 'admin@ecommerce.com', '$2a$10$ZOC2.LE7Ps9x.7g6FIQIS.FPOjAmkFwjUxnFeZrVZxE9Gjeaq/YTi', 'Quản trị viên Hệ thống', '0988888888', 'ADMIN', TRUE),
-    ('customer', 'customer@ecommerce.com', '$2a$10$ZOC2.LE7Ps9x.7g6FIQIS.FPOjAmkFwjUxnFeZrVZxE9Gjeaq/YTi', 'Nguyễn Văn Khách Hàng', '0912345678', 'CUSTOMER', TRUE)
+INSERT INTO users (username, email, password, full_name, phone_number, address, avatar_url, role, status, created_at) VALUES
+    ('admin', 'admin@ecommerce.com', '$2a$10$ZOC2.LE7Ps9x.7g6FIQIS.FPOjAmkFwjUxnFeZrVZxE9Gjeaq/YTi', 'Quản trị viên Hệ thống', '0988888888', 'Hà Nội, Việt Nam', NULL, 'ADMIN', TRUE, '2025-01-01 00:00:00'),
+    ('customer', 'customer@ecommerce.com', '$2a$10$ZOC2.LE7Ps9x.7g6FIQIS.FPOjAmkFwjUxnFeZrVZxE9Gjeaq/YTi', 'Nguyễn Văn Khách Hàng', '0912345678', 'Hà Nội, Việt Nam', NULL, 'CUSTOMER', TRUE, '2025-01-02 00:00:00'),
+    ('minh.nguyen', 'minh.nguyen@gmail.com', '$2a$10$ZOC2.LE7Ps9x.7g6FIQIS.FPOjAmkFwjUxnFeZrVZxE9Gjeaq/YTi', 'Nguyễn Văn Minh', '0912 345 678', 'Tòa Landmark 81, 720A Điện Biên Phủ, Bình Thạnh, TP.HCM', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100', 'CUSTOMER', TRUE, '2025-01-15 10:00:00'),
+    ('mai.tran', 'mai.tran@outlook.com', '$2a$10$ZOC2.LE7Ps9x.7g6FIQIS.FPOjAmkFwjUxnFeZrVZxE9Gjeaq/YTi', 'Trần Thị Mai', '0987 654 321', '45 Lê Duẩn, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100', 'CUSTOMER', TRUE, '2025-02-02 11:30:00'),
+    ('nam.lehoang', 'nam.lehoang@company.vn', '$2a$10$ZOC2.LE7Ps9x.7g6FIQIS.FPOjAmkFwjUxnFeZrVZxE9Gjeaq/YTi', 'Lê Hoàng Nam', '0905 123 456', '88 Nguyễn Văn Linh, Nam Dương, Hải Châu, Đà Nẵng', 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100', 'CUSTOMER', TRUE, '2025-02-20 14:15:00'),
+    ('huong.do', 'huong.do@fpt.edu.vn', '$2a$10$ZOC2.LE7Ps9x.7g6FIQIS.FPOjAmkFwjUxnFeZrVZxE9Gjeaq/YTi', 'Đỗ Thu Hương', '0933 221 100', '12 Chùa Bộc, Quang Trung, Đống Đa, Hà Nội', 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=100', 'CUSTOMER', TRUE, '2025-03-01 09:20:00'),
+    ('tuan.pham', 'tuan.pham@techcorp.vn', '$2a$10$ZOC2.LE7Ps9x.7g6FIQIS.FPOjAmkFwjUxnFeZrVZxE9Gjeaq/YTi', 'Phạm Quốc Tuấn', '0944 556 677', '250 Hoàng Diệu 2, Linh Chiểu, TP. Thủ Đức, TP.HCM', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100', 'CUSTOMER', TRUE, '2025-03-10 16:45:00'),
+    ('khanh.vu', 'khanh.vu@gmail.com', '$2a$10$ZOC2.LE7Ps9x.7g6FIQIS.FPOjAmkFwjUxnFeZrVZxE9Gjeaq/YTi', 'Vũ Duy Khánh', '0977 889 900', '15 Lê Lợi, Phường Phú Nhuận, TP. Huế', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100', 'CUSTOMER', FALSE, '2025-03-15 13:10:00')
 ON DUPLICATE KEY UPDATE id=id;
 
 INSERT INTO categories (id, name, description, status) VALUES
@@ -134,3 +140,26 @@ ON DUPLICATE KEY UPDATE
     image_url = VALUES(image_url),
     status = VALUES(status),
     category_id = VALUES(category_id);
+
+-- 4. Thêm đơn hàng mẫu vào bảng orders
+INSERT INTO orders (id, user_id, receiver_name, phone_number, shipping_address, total_amount, status, payment_method, note, created_at)
+VALUES 
+    (1001, 3, 'Nguyễn Văn Minh', '0912 345 678', 'Tòa Landmark 81, 720A Điện Biên Phủ, Bình Thạnh, TP.HCM', 30990000.00, 'PENDING', 'COD', 'Giao trong giờ hành chính, gọi trước 15 phút', '2026-10-21 16:30:00'),
+    (1002, 4, 'Trần Thị Mai', '0987 654 321', '45 Lê Duẩn, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh', 23990000.00, 'PROCESSING', 'BANK_TRANSFER', 'Kiểm tra kỹ seal hộp giúp mình nhé', '2026-10-21 17:15:00'),
+    (1003, 5, 'Lê Hoàng Nam', '0905 123 456', '88 Nguyễn Văn Linh, Nam Dương, Hải Châu, Đà Nẵng', 27490000.00, 'SHIPPING', 'VNPAY', 'Giao hỏa tốc, gọi trước khi đến', '2026-10-21 18:00:00'),
+    (1004, 6, 'Đỗ Thu Hương', '0933 221 100', '12 Chùa Bộc, Quang Trung, Đống Đa, Hà Nội', 36680000.00, 'COMPLETED', 'COD', 'Đã nhận đủ quà tặng kèm theo', '2026-10-20 14:00:00'),
+    (1005, 7, 'Phạm Quốc Tuấn', '0944 556 677', '250 Hoàng Diệu 2, Linh Chiểu, TP. Thủ Đức, TP.HCM', 14990000.00, 'COMPLETED', 'BANK_TRANSFER', 'Đơn hàng mua cho nhân viên công ty', '2026-10-19 10:30:00'),
+    (1006, 8, 'Vũ Duy Khánh', '0977 889 900', '15 Lê Lợi, Phường Phú Nhuận, TP. Huế', 18990000.00, 'CANCELLED', 'COD', 'Khách hàng đổi ý muốn đổi sang dòng sản phẩm khác', '2026-10-18 09:00:00')
+ON DUPLICATE KEY UPDATE id=id;
+
+-- 5. Thêm chi tiết đơn hàng vào bảng order_items
+INSERT INTO order_items (id, order_id, product_id, quantity, price, total_price)
+VALUES 
+    (1, 1001, 1, 1, 30990000.00, 30990000.00),
+    (2, 1002, 9, 1, 23990000.00, 23990000.00),
+    (3, 1003, 2, 1, 27490000.00, 27490000.00),
+    (4, 1004, 3, 1, 18990000.00, 18990000.00),
+    (5, 1004, 5, 1, 17690000.00, 17690000.00),
+    (6, 1005, 6, 1, 14990000.00, 14990000.00),
+    (7, 1006, 4, 1, 18990000.00, 18990000.00)
+ON DUPLICATE KEY UPDATE id=id;

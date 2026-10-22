@@ -19,6 +19,10 @@ export const ENDPOINTS = {
     LIST: '/admin/orders',
     UPDATE_STATUS: (id: number | string) => `/admin/orders/${id}/status`,
   },
+  ADMIN_USERS: {
+    LIST: '/admin/users',
+    UPDATE_STATUS: (id: number | string) => `/admin/users/${id}/status`,
+  },
   AI: {
     CHAT: '/ai/chat',
     GENERATE_DESCRIPTION: '/admin/ai/generate-description',
