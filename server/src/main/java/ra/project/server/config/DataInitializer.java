@@ -37,9 +37,8 @@ public class DataInitializer implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
-        initDefaultUsers();
+        initDefaultAdminOnly();
         initCategoriesAndProducts();
-        initSampleOrders();
     }
 
     private void initCategoriesAndProducts() {
@@ -173,12 +172,15 @@ public class DataInitializer implements CommandLineRunner {
         }
     }
 
-    private void initDefaultUsers() {
-        // 1. Khởi tạo tài khoản ADMIN mặc định (hỗ trợ cả username 'admin' và các alias email)
-        if (!userRepository.existsByUsername("admin")
-                && !userRepository.existsByEmail("admin@nexor.vn")
-                && !userRepository.existsByEmail("admin@ecommerce.com")) {
-            User admin = User.builder()
+    private void initDefaultAdminOnly() {
+        // Tìm tài khoản Admin hiện có qua username 'admin' hoặc các alias email
+        User admin = userRepository.findByUsernameIgnoreCase("admin")
+                .or(() -> userRepository.findByEmailIgnoreCase("admin@nexor.vn"))
+                .or(() -> userRepository.findByEmailIgnoreCase("admin@ecommerce.com"))
+                .orElse(null);
+
+        if (admin == null) {
+            admin = User.builder()
                     .username("admin")
                     .email("admin@nexor.vn")
                     .password(passwordEncoder.encode("123456"))
@@ -190,125 +192,40 @@ public class DataInitializer implements CommandLineRunner {
                     .status(true)
                     .build();
             userRepository.save(admin);
-            log.info(">>> [DataInitializer] Đã khởi tạo tài khoản ADMIN mặc định: admin / 123456 (email: admin@nexor.vn)");
+            log.info(">>> [DataInitializer] Đã tạo mới tài khoản ADMIN duy nhất: admin / 123456 (email: admin@nexor.vn)");
+        } else {
+            // Đảm bảo thông tin và mật khẩu tài khoản Admin luôn chuẩn xác 100% để có thể đăng nhập ngay
+            admin.setUsername("admin");
+            admin.setEmail("admin@nexor.vn");
+            admin.setPassword(passwordEncoder.encode("123456"));
+            admin.setRole(Role.ADMIN);
+            admin.setStatus(true);
+            userRepository.save(admin);
+            log.info(">>> [DataInitializer] Đã đồng bộ & đảm bảo mật khẩu tài khoản ADMIN duy nhất: admin / 123456");
         }
 
-        // 2. Khởi tạo tài khoản CUSTOMER mặc định (hỗ trợ username 'customer' và email)
-        if (!userRepository.existsByUsername("customer")
-                && !userRepository.existsByEmail("customer@nexor.vn")
-                && !userRepository.existsByEmail("customer@ecommerce.com")) {
-            User customer = User.builder()
-                    .username("customer")
-                    .email("customer@nexor.vn")
-                    .password(passwordEncoder.encode("123456"))
-                    .fullName("Nguyễn Văn Khách Hàng")
-                    .phoneNumber("0912345678")
-                    .address("123 Đường Cầu Giấy, Hà Nội")
-                    .avatarUrl("https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150")
-                    .role(Role.CUSTOMER)
-                    .status(true)
-                    .build();
-            userRepository.save(customer);
-            log.info(">>> [DataInitializer] Đã khởi tạo tài khoản CUSTOMER mặc định: customer / 123456 (email: customer@nexor.vn)");
-        }
-
-        // 3. Khởi tạo danh sách khách hàng mẫu cho trang Quản lý khách hàng Admin
-        createSampleUserIfNotExists("minh.nguyen", "minh.nguyen@gmail.com", "Nguyễn Văn Minh", "0912 345 678",
-                "Tòa Landmark 81, 720A Điện Biên Phủ, Bình Thạnh, TP.HCM", "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100", true);
-        createSampleUserIfNotExists("mai.tran", "mai.tran@outlook.com", "Trần Thị Mai", "0987 654 321",
-                "45 Lê Duẩn, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh", "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100", true);
-        createSampleUserIfNotExists("nam.lehoang", "nam.lehoang@company.vn", "Lê Hoàng Nam", "0905 123 456",
-                "88 Nguyễn Văn Linh, Nam Dương, Hải Châu, Đà Nẵng", "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100", true);
-        createSampleUserIfNotExists("huong.do", "huong.do@fpt.edu.vn", "Đỗ Thu Hương", "0933 221 100",
-                "12 Chùa Bộc, Quang Trung, Đống Đa, Hà Nội", "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=100", true);
-        createSampleUserIfNotExists("tuan.pham", "tuan.pham@techcorp.vn", "Phạm Quốc Tuấn", "0944 556 677",
-                "250 Hoàng Diệu 2, Linh Chiểu, TP. Thủ Đức, TP.HCM", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100", true);
-        createSampleUserIfNotExists("khanh.vu", "khanh.vu@gmail.com", "Vũ Duy Khánh", "0977 889 900",
-                "15 Lê Lợi, Phường Phú Nhuận, TP. Huế", "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100", false);
+        // Dọn dẹp tất cả tài khoản mẫu cũ nếu còn tồn tại, đảm bảo hệ thống chỉ duy trì 1 tài khoản Admin
+        cleanupSampleUsersExceptAdmin(admin.getId());
     }
 
-    private void createSampleUserIfNotExists(String username, String email, String fullName, String phone,
-                                            String address, String avatar, boolean status) {
-        if (!userRepository.existsByUsername(username) && !userRepository.existsByEmail(email)) {
-            User user = User.builder()
-                    .username(username)
-                    .email(email)
-                    .password(passwordEncoder.encode("123456"))
-                    .fullName(fullName)
-                    .phoneNumber(phone)
-                    .address(address)
-                    .avatarUrl(avatar)
-                    .role(Role.CUSTOMER)
-                    .status(status)
-                    .build();
-            userRepository.save(user);
+    private void cleanupSampleUsersExceptAdmin(Long adminId) {
+        List<String> sampleUsernames = List.of(
+                "customer", "minh.nguyen", "mai.tran", "nam.lehoang", "huong.do", "tuan.pham", "khanh.vu"
+        );
+
+        for (String uname : sampleUsernames) {
+            userRepository.findByUsernameIgnoreCase(uname).ifPresent(user -> {
+                if (!user.getId().equals(adminId)) {
+                    // Xóa các đơn hàng mẫu gắn với user này trước để không bị lỗi Foreign Key
+                    List<Order> userOrders = orderRepository.findByUserId(user.getId());
+                    if (userOrders != null && !userOrders.isEmpty()) {
+                        orderRepository.deleteAll(userOrders);
+                    }
+                    userRepository.delete(user);
+                    log.info(">>> [DataInitializer] Đã dọn dẹp tài khoản mẫu '{}' (chỉ duy trì 1 tài khoản Admin).", uname);
+                }
+            });
         }
-    }
-
-    private void initSampleOrders() {
-        if (orderRepository.count() > 0) {
-            return;
-        }
-
-        List<Product> products = productRepository.findAll();
-        if (products.isEmpty()) {
-            return;
-        }
-
-        User customer = userRepository.findByUsername("customer")
-                .or(() -> userRepository.findByUsername("minh.nguyen"))
-                .orElse(null);
-
-        if (customer == null) {
-            return;
-        }
-
-        Product p1 = products.get(0);
-        Product p2 = products.size() > 1 ? products.get(1) : p1;
-
-        // Tạo đơn hàng 1: PENDING - COD
-        Order order1 = Order.builder()
-                .user(customer)
-                .receiverName(customer.getFullName() != null ? customer.getFullName() : "Nguyễn Văn Minh")
-                .phoneNumber(customer.getPhoneNumber() != null ? customer.getPhoneNumber() : "0912 345 678")
-                .shippingAddress(customer.getAddress() != null ? customer.getAddress() : "Tòa Landmark 81, TP.HCM")
-                .totalAmount(p1.getPrice())
-                .status(OrderStatus.PENDING)
-                .paymentMethod(PaymentMethod.COD)
-                .note("Giao trong giờ hành chính, gọi trước 15 phút")
-                .build();
-
-        OrderItem item1 = OrderItem.builder()
-                .product(p1)
-                .quantity(1)
-                .price(p1.getPrice())
-                .totalPrice(p1.getPrice())
-                .build();
-        order1.addOrderItem(item1);
-        orderRepository.save(order1);
-
-        // Tạo đơn hàng 2: COMPLETED - BANK_TRANSFER
-        Order order2 = Order.builder()
-                .user(customer)
-                .receiverName(customer.getFullName() != null ? customer.getFullName() : "Nguyễn Văn Minh")
-                .phoneNumber(customer.getPhoneNumber() != null ? customer.getPhoneNumber() : "0912 345 678")
-                .shippingAddress(customer.getAddress() != null ? customer.getAddress() : "Tòa Landmark 81, TP.HCM")
-                .totalAmount(p2.getPrice())
-                .status(OrderStatus.COMPLETED)
-                .paymentMethod(PaymentMethod.BANK_TRANSFER)
-                .note("Đơn hàng công ty mua thiết bị công nghệ mới")
-                .build();
-
-        OrderItem item2 = OrderItem.builder()
-                .product(p2)
-                .quantity(1)
-                .price(p2.getPrice())
-                .totalPrice(p2.getPrice())
-                .build();
-        order2.addOrderItem(item2);
-        orderRepository.save(order2);
-
-        log.info(">>> [DataInitializer] Đã khởi tạo đơn hàng mẫu ban đầu vào Database!");
     }
 }
 

@@ -69,22 +69,21 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(readOnly = true)
     public ApiResponse<AuthResponse> login(LoginRequest request) {
-        String identifier = request.getUsernameOrEmail().trim();
+        String identifier = request.getUsernameOrEmail() != null ? request.getUsernameOrEmail().trim() : "";
 
-        // Hỗ trợ linh hoạt các alias email phổ biến của Admin & Khách mẫu
-        if ("admin@nexor.vn".equalsIgnoreCase(identifier) ||
+        // Hỗ trợ linh hoạt các alias email và username của tài khoản Admin duy nhất
+        if ("admin".equalsIgnoreCase(identifier) ||
+            "admin@nexor.vn".equalsIgnoreCase(identifier) ||
             "admin@eshop.com".equalsIgnoreCase(identifier) ||
             "admin@eshoptech.vn".equalsIgnoreCase(identifier) ||
             "admin@ecommerce.com".equalsIgnoreCase(identifier)) {
             identifier = "admin";
-        } else if ("customer@nexor.vn".equalsIgnoreCase(identifier) ||
-                   "customer@eshop.com".equalsIgnoreCase(identifier)) {
-            identifier = "customer";
         }
 
         final String lookupKey = identifier;
-        User user = userRepository.findByUsername(lookupKey)
-                .or(() -> userRepository.findByEmail(lookupKey))
+        User user = userRepository.findByUsernameIgnoreCase(lookupKey)
+                .or(() -> userRepository.findByEmailIgnoreCase(lookupKey))
+                .or(() -> "admin".equalsIgnoreCase(lookupKey) ? userRepository.findByUsername("admin") : java.util.Optional.empty())
                 .orElseThrow(() -> new UnauthorizedException("Tên đăng nhập hoặc mật khẩu không chính xác"));
 
         if (Boolean.FALSE.equals(user.getStatus())) {

@@ -73,7 +73,7 @@ export const dashboardService = {
     try {
       // 1. Thử gọi API chuyên biệt phía Backend nếu có
       try {
-        const adminStatsRes = await axiosClient.get('/api/admin/dashboard/stats');
+        const adminStatsRes = await axiosClient.get('/admin/dashboard/stats');
         if (adminStatsRes.data?.data) {
           return adminStatsRes.data.data;
         }

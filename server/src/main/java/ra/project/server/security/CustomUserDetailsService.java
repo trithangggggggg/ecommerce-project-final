@@ -20,8 +20,9 @@ public class CustomUserDetailsService implements UserDetailsService {
     public UserDetails loadUserByUsername(String usernameOrEmail) throws UsernameNotFoundException {
         String clean = usernameOrEmail != null ? usernameOrEmail.trim() : "";
 
-        // Hỗ trợ linh hoạt các biến thể email và username của Admin
-        if ("admin@nexor.vn".equalsIgnoreCase(clean) ||
+        // Hỗ trợ linh hoạt các biến thể email và username của Admin duy nhất
+        if ("admin".equalsIgnoreCase(clean) ||
+            "admin@nexor.vn".equalsIgnoreCase(clean) ||
             "admin@eshop.com".equalsIgnoreCase(clean) ||
             "admin@eshoptech.vn".equalsIgnoreCase(clean) ||
             "admin@ecommerce.com".equalsIgnoreCase(clean)) {
@@ -29,8 +30,9 @@ public class CustomUserDetailsService implements UserDetailsService {
         }
 
         final String lookupKey = clean;
-        User user = userRepository.findByUsername(lookupKey)
-                .or(() -> userRepository.findByEmail(lookupKey))
+        User user = userRepository.findByUsernameIgnoreCase(lookupKey)
+                .or(() -> userRepository.findByEmailIgnoreCase(lookupKey))
+                .or(() -> "admin".equalsIgnoreCase(lookupKey) ? userRepository.findByUsername("admin") : java.util.Optional.empty())
                 .orElseThrow(() -> new UsernameNotFoundException(
                         "Không tìm thấy người dùng với tên đăng nhập hoặc email: " + lookupKey
                 ));

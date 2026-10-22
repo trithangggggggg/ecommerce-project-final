@@ -63,22 +63,34 @@ axiosClient.interceptors.response.use(
           }, 1000);
         }
       }
-    }
 
-    // Dịch thông điệp lỗi chuẩn xác và thân thiện
-    let message = error.response?.data?.message;
-    if (!message || message.includes('status code 403') || error.response?.status === 403) {
-      if (error.response?.status === 403) {
-        message =
-          'Phiên làm việc đã hết hạn hoặc bạn không có quyền Quản trị viên (Mã lỗi 403). Đang chuyển hướng về trang đăng nhập...';
-      } else if (error.response?.status === 401) {
-        message = 'Phiên đăng nhập đã hết hạn (Mã lỗi 401). Đang chuyển hướng về trang đăng nhập...';
-      } else {
-        message = error.message || 'Không thể kết nối đến máy chủ. Vui lòng thử lại!';
+      // Thông điệp lỗi từ backend
+      let message = error.response?.data?.message;
+
+      // Đối với login / register: ưu tiên tuyệt đối hiển thị message từ server
+      if (isAuthEndpoint) {
+        if (!message || message.includes('status code')) {
+          message = 'Tên đăng nhập hoặc mật khẩu không chính xác. Vui lòng thử lại!';
+        }
+        return Promise.reject(new Error(message));
       }
+
+      // Đối với các endpoint protected thông thường khác
+      if (!message || message.includes('status code 403') || status === 403) {
+        if (status === 403) {
+          message =
+            'Phiên làm việc đã hết hạn hoặc bạn không có quyền Quản trị viên (Mã lỗi 403). Đang chuyển hướng về trang đăng nhập...';
+        } else if (status === 401) {
+          message = 'Phiên đăng nhập đã hết hạn (Mã lỗi 401). Đang chuyển hướng về trang đăng nhập...';
+        } else {
+          message = error.message || 'Không thể kết nối đến máy chủ. Vui lòng thử lại!';
+        }
+      }
+
+      return Promise.reject(new Error(message));
     }
 
-    return Promise.reject(new Error(message));
+    return Promise.reject(new Error(error.message || 'Không thể kết nối đến máy chủ. Vui lòng thử lại!'));
   }
 );
 
