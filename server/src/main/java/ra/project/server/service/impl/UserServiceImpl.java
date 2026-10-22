@@ -6,9 +6,12 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import ra.project.server.common.response.ApiResponse;
+import ra.project.server.exception.BadRequestException;
 import ra.project.server.exception.ResourceNotFoundException;
 import ra.project.server.exception.UnauthorizedException;
+import ra.project.server.model.dto.request.ChangePasswordRequest;
 import ra.project.server.model.dto.request.UpdateProfileRequest;
 import ra.project.server.model.dto.response.AdminUserResponse;
 import ra.project.server.model.dto.response.UserProfileResponse;
@@ -29,6 +32,7 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final OrderRepository orderRepository;
+    private final PasswordEncoder passwordEncoder;
 
     private User getCurrentAuthenticatedUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -70,6 +74,30 @@ public class UserServiceImpl implements UserService {
         log.info("Người dùng '{}' đã cập nhật thông tin cá nhân thành công", user.getUsername());
 
         return ApiResponse.success("Cập nhật thông tin cá nhân thành công", UserProfileResponse.from(updatedUser));
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<Void> changePassword(ChangePasswordRequest request) {
+        User user = getCurrentAuthenticatedUser();
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new BadRequestException("Mật khẩu hiện tại không chính xác");
+        }
+
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new BadRequestException("Mật khẩu xác nhận không khớp với mật khẩu mới");
+        }
+
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
+            throw new BadRequestException("Mật khẩu mới không được trùng với mật khẩu hiện tại");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+        log.info("Người dùng '{}' đã đổi mật khẩu thành công", user.getUsername());
+
+        return ApiResponse.success("Đổi mật khẩu thành công!", null);
     }
 
     @Override

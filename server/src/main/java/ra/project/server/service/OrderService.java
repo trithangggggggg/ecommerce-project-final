@@ -20,4 +20,6 @@ public interface OrderService {
     ApiResponse<OrderResponse> getOrderById(Long orderId);
 
     ApiResponse<OrderResponse> updateOrderStatus(Long orderId, OrderStatus status);
+
+    ApiResponse<OrderResponse> cancelMyOrder(Long orderId);
 }

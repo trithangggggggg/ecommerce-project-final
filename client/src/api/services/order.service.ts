@@ -61,6 +61,21 @@ export const orderService = {
   },
 
   /**
+   * Khách hàng hủy đơn hàng (khi đơn đang ở trạng thái PENDING)
+   */
+  async cancelMyOrder(orderId: number | string): Promise<OrderResponse> {
+    const response = await axiosClient.put<ApiResponse<OrderResponse>>(
+      ENDPOINTS.ORDERS.CANCEL(orderId)
+    );
+
+    const data = response.data?.data || response.data;
+    if (data) {
+      return data;
+    }
+    throw new Error(`Hủy đơn hàng #${orderId} thất bại`);
+  },
+
+  /**
    * [Admin] Lấy danh sách toàn bộ đơn hàng trực tiếp từ MySQL
    */
   async getAllOrders(status?: OrderStatus): Promise<OrderResponse[]> {

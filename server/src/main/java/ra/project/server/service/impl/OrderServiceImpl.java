@@ -231,4 +231,39 @@ public class OrderServiceImpl implements OrderService {
 
         return ApiResponse.success("Cập nhật trạng thái đơn hàng thành công", orderMapper.toResponse(updatedOrder));
     }
+
+    @Override
+    @Transactional
+    public ApiResponse<OrderResponse> cancelMyOrder(Long orderId) {
+        User user = getCurrentAuthenticatedUser();
+
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Đơn hàng", "id", orderId));
+
+        if (!order.getUser().getId().equals(user.getId()) && user.getRole() != Role.ADMIN) {
+            throw new ForbiddenException("Bạn không có quyền thao tác trên đơn hàng này");
+        }
+
+        if (order.getStatus() != OrderStatus.PENDING) {
+            throw new BadRequestException("Chỉ có thể hủy đơn hàng khi đơn còn ở trạng thái 'Chờ xử lý' (PENDING). Trạng thái hiện tại: " + order.getStatus().name());
+        }
+
+        // Hoàn trả tồn kho cho sản phẩm
+        if (order.getOrderItems() != null) {
+            for (OrderItem item : order.getOrderItems()) {
+                Product product = item.getProduct();
+                if (product != null) {
+                    int currentStock = product.getStock() != null ? product.getStock() : 0;
+                    product.setStock(currentStock + item.getQuantity());
+                    productRepository.save(product);
+                }
+            }
+        }
+
+        order.setStatus(OrderStatus.CANCELLED);
+        Order cancelledOrder = orderRepository.save(order);
+        log.info("Khách hàng '{}' đã hủy thành công đơn hàng #{}", user.getUsername(), orderId);
+
+        return ApiResponse.success("Đã hủy đơn hàng #" + orderId + " thành công", orderMapper.toResponse(cancelledOrder));
+    }
 }

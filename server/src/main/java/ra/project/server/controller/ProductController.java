@@ -60,7 +60,8 @@ public class ProductController {
 
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> searchProducts(
-            @RequestParam(name = "q", required = false) String keyword,
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "categoryId", required = false) Long categoryId,
             @RequestParam(name = "minPrice", required = false) BigDecimal minPrice,
             @RequestParam(name = "maxPrice", required = false) BigDecimal maxPrice,
@@ -69,8 +70,9 @@ public class ProductController {
             @RequestParam(name = "size", defaultValue = "10") Integer size,
             @RequestParam(name = "sort", defaultValue = "createdAt,desc") String sort
     ) {
+        String searchKeyword = org.springframework.util.StringUtils.hasText(keyword) ? keyword : q;
         Pageable pageable = PaginationUtil.createPageable(page, size, sort);
-        PageResponse<ProductResponse> products = productService.searchProducts(keyword, categoryId, minPrice, maxPrice, status, pageable);
+        PageResponse<ProductResponse> products = productService.searchProducts(searchKeyword, categoryId, minPrice, maxPrice, status, pageable);
         return ResponseEntity.ok(ApiResponse.success("Tìm kiếm sản phẩm thành công", products));
     }
 

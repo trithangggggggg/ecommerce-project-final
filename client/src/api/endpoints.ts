@@ -6,6 +6,7 @@ export const ENDPOINTS = {
   USERS: {
     PROFILE: '/users/profile',
     UPDATE_PROFILE: '/users/profile',
+    CHANGE_PASSWORD: '/users/change-password',
   },
   CATEGORIES: '/categories',
   PRODUCTS: '/products',
@@ -14,6 +15,7 @@ export const ENDPOINTS = {
     CHECKOUT: '/orders/checkout',
     MY_ORDERS: '/orders/my-orders',
     DETAIL: (id: number | string) => `/orders/${id}`,
+    CANCEL: (id: number | string) => `/orders/${id}/cancel`,
   },
   ADMIN_ORDERS: {
     LIST: '/admin/orders',

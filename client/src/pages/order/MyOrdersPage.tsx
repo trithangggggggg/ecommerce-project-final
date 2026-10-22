@@ -49,6 +49,7 @@ export const MyOrdersPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<FilterTab>('ALL');
   const [selectedOrder, setSelectedOrder] = useState<OrderResponse | null>(null);
+  const [cancellingId, setCancellingId] = useState<number | null>(null);
 
   // Nhận newOrderId từ state nếu vừa checkout thành công
   const newOrderId = (location.state as { newOrderId?: number })?.newOrderId;
@@ -72,6 +73,26 @@ export const MyOrdersPage: React.FC = () => {
       setLoading(false);
     }
   }, [newOrderId]);
+
+  const handleCancelOrder = async (orderId: number) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn hủy đơn hàng #${orderId}? Thao tác này không thể hoàn tác.`)) {
+      return;
+    }
+
+    setCancellingId(orderId);
+    try {
+      await orderService.cancelMyOrder(orderId);
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder(null);
+      }
+      fetchOrders();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Hủy đơn hàng thất bại';
+      alert(`Lỗi: ${msg}`);
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -344,6 +365,17 @@ export const MyOrdersPage: React.FC = () => {
                         </span>
                       </div>
 
+                      {order.status === 'PENDING' && (
+                        <button
+                          type="button"
+                          onClick={() => handleCancelOrder(order.id)}
+                          disabled={cancellingId === order.id}
+                          className="px-3 py-1.5 text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition cursor-pointer disabled:opacity-50"
+                        >
+                          {cancellingId === order.id ? 'Đang hủy...' : 'Hủy đơn'}
+                        </button>
+                      )}
+
                       <Button
                         variant="outline"
                         size="sm"
@@ -490,7 +522,19 @@ export const MyOrdersPage: React.FC = () => {
               </div>
 
               {/* Modal Footer */}
-              <div className="flex justify-end pt-2">
+              <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                {selectedOrder.status === 'PENDING' ? (
+                  <button
+                    type="button"
+                    onClick={() => handleCancelOrder(selectedOrder.id)}
+                    disabled={cancellingId === selectedOrder.id}
+                    className="px-4 py-2 text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-xl border border-red-200 transition cursor-pointer disabled:opacity-50"
+                  >
+                    {cancellingId === selectedOrder.id ? 'Đang hủy...' : 'Hủy đơn hàng này'}
+                  </button>
+                ) : (
+                  <div />
+                )}
                 <Button variant="dark" size="sm" onClick={() => setSelectedOrder(null)}>
                   Đóng
                 </Button>

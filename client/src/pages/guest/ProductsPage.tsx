@@ -79,10 +79,18 @@ export default function ProductsPage() {
     setLoading(true);
     setError(null);
     try {
+      const matchedCategory = categories.find(
+        (c) =>
+          c.slug === selectedCategory ||
+          String(c.id) === selectedCategory ||
+          (selectedCategory && c.slug && c.slug.includes(selectedCategory)) ||
+          (selectedCategory && c.name && c.name.toLowerCase().includes(selectedCategory.toLowerCase()))
+      );
+
       const params: FilterParams = {
         limit: 100,
         ...(debouncedKeyword ? { keyword: debouncedKeyword } : {}),
-        ...(selectedCategory ? { categorySlug: selectedCategory } : {}),
+        ...(matchedCategory ? { categoryId: matchedCategory.id } : {}),
         ...(sortBy ? { sortBy: sortBy as FilterParams['sortBy'] } : {}),
       };
       const result = await productService.getProducts(params);
@@ -92,7 +100,7 @@ export default function ProductsPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedKeyword, selectedCategory, sortBy]);
+  }, [debouncedKeyword, selectedCategory, sortBy, categories]);
 
   useEffect(() => {
     fetchProducts();
@@ -100,19 +108,39 @@ export default function ProductsPage() {
 
   const filteredProducts = useMemo(() => {
     return rawProducts.filter((product) => {
+      // 1. Lọc theo danh mục đã chọn
+      if (selectedCategory) {
+        const matchedCategory = categories.find(
+          (c) =>
+            c.slug === selectedCategory ||
+            String(c.id) === selectedCategory ||
+            (selectedCategory && c.slug && c.slug.includes(selectedCategory)) ||
+            (selectedCategory && c.name && c.name.toLowerCase().includes(selectedCategory.toLowerCase()))
+        );
+        if (matchedCategory) {
+          const prodCatId = product.categoryId || product.category?.id;
+          if (prodCatId && prodCatId !== matchedCategory.id) {
+            return false;
+          }
+        }
+      }
+
+      // 2. Lọc theo thương hiệu
       if (selectedBrand !== 'Tất cả') {
         const brandMatch =
           product.brand?.toLowerCase() === selectedBrand.toLowerCase() ||
           product.name.toLowerCase().includes(selectedBrand.toLowerCase());
         if (!brandMatch) return false;
       }
+
+      // 3. Lọc theo khoảng giá
       const range = PRICE_RANGES[selectedPriceIndex];
       if (product.price < range.min || product.price > range.max) {
         return false;
       }
       return true;
     });
-  }, [rawProducts, selectedBrand, selectedPriceIndex]);
+  }, [rawProducts, selectedCategory, categories, selectedBrand, selectedPriceIndex]);
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
   const paginatedProducts = useMemo(() => {

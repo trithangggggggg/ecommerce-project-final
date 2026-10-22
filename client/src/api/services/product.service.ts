@@ -1,5 +1,6 @@
 import axiosClient from '../axiosClient';
 import { ENDPOINTS } from '../endpoints';
+import { toSlug } from '../../utils/format';
 import type {
   Category,
   FilterParams,
@@ -21,7 +22,7 @@ function mapBackendProduct(item: any): Product {
   return {
     id: item.id,
     name: item.name,
-    slug: item.slug || item.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+    slug: item.slug || toSlug(item.name || ''),
     description: item.description || '',
     price: price,
     originalPrice: originalPrice,
@@ -32,7 +33,7 @@ function mapBackendProduct(item: any): Product {
     category: {
       id: item.categoryId || 1,
       name: item.categoryName || 'Thiết bị công nghệ',
-      slug: (item.categoryName || 'tech').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      slug: toSlug(item.categoryName || 'tech'),
     },
     brand: item.brand || 'Chính hãng',
     stock: item.stock ?? 20,
@@ -59,10 +60,12 @@ export const productService = {
       if (params.keyword) {
         url = `${ENDPOINTS.PRODUCTS}/search`;
         queryParams.keyword = params.keyword;
+        queryParams.q = params.keyword;
       }
 
       if (params.categoryId) {
         url = `${ENDPOINTS.PRODUCTS}/category/${params.categoryId}`;
+        queryParams.categoryId = params.categoryId;
       }
 
       const res = await axiosClient.get(url, { params: queryParams });
@@ -123,7 +126,7 @@ export const productService = {
         return raw.map((c: any) => ({
           id: c.id,
           name: c.name,
-          slug: c.slug || c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          slug: c.slug || toSlug(c.name),
           description: c.description,
           imageUrl: c.imageUrl,
         }));

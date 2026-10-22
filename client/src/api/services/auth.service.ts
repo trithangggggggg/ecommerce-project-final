@@ -162,18 +162,14 @@ export const authService = {
   },
 
   /**
-   * Đổi mật khẩu
+   * Đổi mật khẩu tài khoản trực tiếp qua MySQL
    */
   async changePassword(payload: ChangePasswordPayload): Promise<void> {
-    // Nếu backend chưa có endpoint change-password riêng, hỗ trợ mock
-    try {
-      await axiosClient.post('/auth/change-password', payload);
-    } catch (err) {
-      if (import.meta.env.VITE_ENABLE_MOCK_API === 'true') {
-        return;
-      }
-      throw err;
-    }
+    await axiosClient.put(ENDPOINTS.USERS.CHANGE_PASSWORD, {
+      currentPassword: payload.currentPassword,
+      newPassword: payload.newPassword,
+      confirmPassword: payload.confirmPassword || payload.newPassword,
+    });
   },
 
   /**

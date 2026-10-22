@@ -27,4 +27,10 @@ public class UserController {
         ApiResponse<UserProfileResponse> response = userService.updateCurrentUserProfile(request);
         return ResponseEntity.ok(response);
     }
+
+    @RequestMapping(value = "/change-password", method = {RequestMethod.POST, RequestMethod.PUT})
+    public ResponseEntity<ApiResponse<Void>> changePassword(@Valid @RequestBody ra.project.server.model.dto.request.ChangePasswordRequest request) {
+        ApiResponse<Void> response = userService.changePassword(request);
+        return ResponseEntity.ok(response);
+    }
 }
