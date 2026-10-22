@@ -9,6 +9,7 @@ interface PetMascotProps {
   label?: string;
   className?: string;
   enableSpeechBubble?: boolean;
+  placement?: 'bottom' | 'top';
 }
 
 const CUTE_QUOTES = [
@@ -26,6 +27,7 @@ export const PetMascot: React.FC<PetMascotProps> = ({
   label = 'NEXOR Pet Fox',
   className = '',
   enableSpeechBubble = true,
+  placement = 'bottom',
 }) => {
   const [bubbleText, setBubbleText] = useState<string | null>(null);
   const [clickCount, setClickCount] = useState(0);
@@ -68,6 +70,8 @@ export const PetMascot: React.FC<PetMascotProps> = ({
     };
   }, []);
 
+  const isBottom = placement === 'bottom';
+
   return (
     <div
       className={`relative inline-flex items-center justify-center select-none ${className}`}
@@ -75,10 +79,18 @@ export const PetMascot: React.FC<PetMascotProps> = ({
     >
       {/* Speech Bubble popup */}
       {bubbleText && (
-        <div className="absolute bottom-full mb-2.5 left-1/2 -translate-x-1/2 z-50 whitespace-nowrap bg-white text-gray-800 text-[11px] font-semibold px-3 py-1.5 rounded-xl shadow-xl border border-gray-100 flex items-center gap-1.5 animate-in fade-in zoom-in-95 duration-200 pointer-events-none">
+        <div
+          className={`absolute ${
+            isBottom ? 'top-full mt-2.5 slide-in-from-top-1' : 'bottom-full mb-2.5 slide-in-from-bottom-1'
+          } left-1/2 -translate-x-1/2 z-50 bg-white text-gray-800 text-xs font-semibold px-3.5 py-2 rounded-2xl shadow-2xl border border-gray-200/90 whitespace-normal sm:whitespace-nowrap max-w-[240px] sm:max-w-none text-center animate-in fade-in zoom-in-95 duration-200 pointer-events-none drop-shadow-md`}
+        >
           <span>{bubbleText}</span>
-          {/* Arrow pointing down */}
-          <span className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px] border-solid border-t-white border-t-6 border-x-transparent border-x-6 border-b-0 filter drop-shadow-sm" />
+          {/* Arrow tail */}
+          {isBottom ? (
+            <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-t border-l border-gray-200/90 rotate-45" />
+          ) : (
+            <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-b border-r border-gray-200/90 rotate-45" />
+          )}
         </div>
       )}
 
