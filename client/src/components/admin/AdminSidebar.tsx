@@ -10,8 +10,6 @@ import {
   Archive,
   Building2,
   TrendingUp,
-  PieChart,
-  UserCheck,
   Settings,
   LogOut,
   X,
@@ -24,12 +22,19 @@ interface AdminSidebarProps {
   onClose: () => void;
 }
 
+interface MenuItem {
+  title: string;
+  path: string;
+  icon: React.ElementType;
+  badge?: string | number;
+}
+
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
 
-  const salesMenu = [
-    { title: 'Đơn hàng', path: ROUTES.ADMIN_ORDERS, icon: ShoppingCart, badge: '12' },
+  const salesMenu: MenuItem[] = [
+    { title: 'Đơn hàng', path: ROUTES.ADMIN_ORDERS, icon: ShoppingCart },
     { title: 'Sản phẩm', path: ROUTES.ADMIN_PRODUCTS, icon: Package },
     { title: 'Danh mục', path: ROUTES.ADMIN_CATEGORIES, icon: Layers },
     { title: 'Khách hàng', path: ROUTES.ADMIN_CUSTOMERS, icon: Users },
@@ -37,15 +42,13 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
     { title: 'Vận chuyển', path: ROUTES.ADMIN_SHIPPING, icon: Truck },
   ];
 
-  const inventoryMenu = [
+  const inventoryMenu: MenuItem[] = [
     { title: 'Tồn kho', path: ROUTES.ADMIN_INVENTORY, icon: Archive },
     { title: 'Nhà cung cấp', path: ROUTES.ADMIN_SUPPLIERS, icon: Building2 },
   ];
 
-  const reportMenu = [
+  const reportMenu: MenuItem[] = [
     { title: 'Doanh thu & Báo cáo', path: ROUTES.ADMIN_REPORTS, icon: TrendingUp },
-    { title: 'Thống kê sản phẩm', path: ROUTES.ADMIN_REPORTS, icon: PieChart },
-    { title: 'Hành vi khách hàng', path: ROUTES.ADMIN_CUSTOMERS, icon: UserCheck },
   ];
 
   return (
@@ -90,9 +93,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
           </button>
         </div>
 
-        {/* Navigation Menu Links - Cố định hoàn toàn, KHÔNG ĐƯỢC CUỘN LÊN XUỐNG */}
-        <div className="flex-1 px-3 py-2 flex flex-col justify-between overflow-hidden touch-none select-none">
-          <div className="space-y-2">
+        {/* Navigation Menu Links */}
+        <div className="flex-1 px-3 py-3 flex flex-col justify-between overflow-y-auto no-scrollbar select-none">
+          <div className="space-y-3">
             {/* Main: Tổng quan */}
             <div>
               <NavLink
@@ -100,24 +103,24 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                 end
                 onClick={onClose}
                 className={({ isActive }) =>
-                  `flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  `flex items-center gap-3 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all ${
                     isActive
                       ? 'bg-blue-50 text-blue-600 shadow-2xs font-bold'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                   }`
                 }
               >
-                <LayoutDashboard className="w-4 h-4 shrink-0" />
+                <LayoutDashboard className="w-[18px] h-[18px] shrink-0" />
                 <span>Tổng quan</span>
               </NavLink>
             </div>
 
             {/* Group 1: QUẢN LÝ BÁN HÀNG */}
             <div>
-              <div className="px-3 mb-1 text-[10px] font-bold text-slate-400 tracking-wider uppercase">
+              <div className="px-3.5 mb-1.5 text-[11px] font-bold text-slate-400 tracking-wider uppercase">
                 Quản lý bán hàng
               </div>
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 {salesMenu.map((item) => {
                   const Icon = item.icon;
                   return (
@@ -126,19 +129,19 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                       to={item.path}
                       onClick={onClose}
                       className={({ isActive }) =>
-                        `flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        `flex items-center justify-between px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all ${
                           isActive
-                            ? 'bg-blue-50 text-blue-600 font-bold'
+                            ? 'bg-blue-50 text-blue-600 font-bold shadow-2xs'
                             : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                         }`
                       }
                     >
-                      <div className="flex items-center gap-2.5">
-                        <Icon className="w-4 h-4 shrink-0" />
+                      <div className="flex items-center gap-3">
+                        <Icon className="w-[18px] h-[18px] shrink-0" />
                         <span>{item.title}</span>
                       </div>
                       {item.badge && (
-                        <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-slate-100 text-slate-600">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
                           {item.badge}
                         </span>
                       )}
@@ -150,10 +153,10 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
 
             {/* Group 2: QUẢN LÝ KHO */}
             <div>
-              <div className="px-3 mb-1 text-[10px] font-bold text-slate-400 tracking-wider uppercase">
+              <div className="px-3.5 mb-1.5 text-[11px] font-bold text-slate-400 tracking-wider uppercase">
                 Quản lý kho
               </div>
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 {inventoryMenu.map((item) => {
                   const Icon = item.icon;
                   return (
@@ -162,14 +165,14 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                       to={item.path}
                       onClick={onClose}
                       className={({ isActive }) =>
-                        `flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        `flex items-center gap-3 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all ${
                           isActive
-                            ? 'bg-blue-50 text-blue-600 font-bold'
+                            ? 'bg-blue-50 text-blue-600 font-bold shadow-2xs'
                             : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                         }`
                       }
                     >
-                      <Icon className="w-4 h-4 shrink-0" />
+                      <Icon className="w-[18px] h-[18px] shrink-0" />
                       <span>{item.title}</span>
                     </NavLink>
                   );
@@ -179,10 +182,10 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
 
             {/* Group 3: BÁO CÁO & THỐNG KÊ */}
             <div>
-              <div className="px-3 mb-1 text-[10px] font-bold text-slate-400 tracking-wider uppercase">
+              <div className="px-3.5 mb-1.5 text-[11px] font-bold text-slate-400 tracking-wider uppercase">
                 Báo cáo
               </div>
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 {reportMenu.map((item) => {
                   const Icon = item.icon;
                   return (
@@ -191,14 +194,14 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                       to={item.path}
                       onClick={onClose}
                       className={({ isActive }) =>
-                        `flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        `flex items-center gap-3 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all ${
                           isActive
-                            ? 'bg-blue-50 text-blue-600 font-bold'
+                            ? 'bg-blue-50 text-blue-600 font-bold shadow-2xs'
                             : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                         }`
                       }
                     >
-                      <Icon className="w-4 h-4 shrink-0" />
+                      <Icon className="w-[18px] h-[18px] shrink-0" />
                       <span>{item.title}</span>
                     </NavLink>
                   );
@@ -208,22 +211,22 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
 
             {/* Group 4: HỆ THỐNG */}
             <div>
-              <div className="px-3 mb-1 text-[10px] font-bold text-slate-400 tracking-wider uppercase">
+              <div className="px-3.5 mb-1.5 text-[11px] font-bold text-slate-400 tracking-wider uppercase">
                 Hệ thống
               </div>
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 <NavLink
                   to={ROUTES.ADMIN_SETTINGS}
                   onClick={onClose}
                   className={({ isActive }) =>
-                    `flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    `flex items-center gap-3 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all ${
                       isActive
-                        ? 'bg-blue-50 text-blue-600 font-bold'
+                        ? 'bg-blue-50 text-blue-600 font-bold shadow-2xs'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                     }`
                   }
                 >
-                  <Settings className="w-4 h-4 shrink-0" />
+                  <Settings className="w-[18px] h-[18px] shrink-0" />
                   <span>Cài đặt</span>
                 </NavLink>
               </div>
@@ -232,22 +235,22 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
         </div>
 
         {/* User Card at Sidebar Bottom */}
-        <div className="p-2.5 px-3 border-t border-slate-100 bg-slate-50/70 shrink-0">
+        <div className="p-3 px-3.5 border-t border-slate-100 bg-slate-50/70 shrink-0">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-center gap-3 min-w-0">
               <img
                 src={
                   user?.avatarUrl ||
                   'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150'
                 }
                 alt={user?.fullName || 'Admin'}
-                className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                className="w-9 h-9 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
               />
               <div className="min-w-0 flex-1">
-                <span className="text-xs font-bold text-slate-800 block truncate leading-tight">
+                <span className="text-[13px] font-bold text-slate-800 block truncate leading-tight">
                   {user?.fullName || 'Quản trị viên'}
                 </span>
-                <span className="text-[10px] text-slate-400 block font-medium truncate">
+                <span className="text-[11px] text-slate-400 block font-medium truncate mt-0.5">
                   Administrator
                 </span>
               </div>
@@ -258,10 +261,10 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                 logout();
                 navigate(ROUTES.LOGIN);
               }}
-              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
               title="Đăng xuất"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-[18px] h-[18px]" />
             </button>
           </div>
         </div>

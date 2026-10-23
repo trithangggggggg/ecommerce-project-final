@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   BarChart3,
   ArrowUpRight,
@@ -8,10 +8,12 @@ import {
   DollarSign,
   TrendingUp,
   RotateCcw,
+  RefreshCw,
 } from 'lucide-react';
-import { formatPrice } from '../../utils/format';
+import { formatPrice, formatDateTime } from '../../utils/format';
 import AdminPagination from '../../components/admin/AdminPagination';
 import Input from '../../components/common/Input/Input';
+import { orderService } from '../../api/services/order.service';
 
 interface ReportTransaction {
   id: string;
@@ -19,170 +21,70 @@ interface ReportTransaction {
   customerName: string;
   productName: string;
   category: string;
-  channel: 'VNPAY' | 'COD' | 'BANK_TRANSFER';
+  channel: string;
   revenue: number;
   profit: number;
   status: 'SUCCESS' | 'SETTLING' | 'REFUNDED';
   date: string;
 }
 
-const REPORT_DATA: ReportTransaction[] = [
-  {
-    id: 'TXN-8092',
-    orderCode: '#ORD-9832',
-    customerName: 'Nguyễn Văn Minh',
-    productName: 'iPhone 15 128GB',
-    category: 'Điện thoại',
-    channel: 'VNPAY',
-    revenue: 18990000,
-    profit: 3600000,
-    status: 'SUCCESS',
-    date: '10/06/2025 14:35',
-  },
-  {
-    id: 'TXN-8091',
-    orderCode: '#ORD-9831',
-    customerName: 'Trần Thị Hoa',
-    productName: 'MacBook Air M2',
-    category: 'Laptop',
-    channel: 'COD',
-    revenue: 26500000,
-    profit: 5200000,
-    status: 'SETTLING',
-    date: '10/06/2025 12:20',
-  },
-  {
-    id: 'TXN-8090',
-    orderCode: '#ORD-9830',
-    customerName: 'Lê Quang Huy',
-    productName: 'Tai nghe AirPods Pro',
-    category: 'Phụ kiện',
-    channel: 'COD',
-    revenue: 4990000,
-    profit: 1100000,
-    status: 'SETTLING',
-    date: '10/06/2025 11:05',
-  },
-  {
-    id: 'TXN-8089',
-    orderCode: '#ORD-9829',
-    customerName: 'Phạm Thị Mai',
-    productName: 'Samsung Galaxy S23',
-    category: 'Điện thoại',
-    channel: 'VNPAY',
-    revenue: 16490000,
-    profit: 3100000,
-    status: 'SUCCESS',
-    date: '10/06/2025 10:42',
-  },
-  {
-    id: 'TXN-8088',
-    orderCode: '#ORD-9827',
-    customerName: 'Vũ Thị Lan',
-    productName: 'iPad Air 5 64GB',
-    category: 'Tablet',
-    channel: 'VNPAY',
-    revenue: 14290000,
-    profit: 2800000,
-    status: 'SUCCESS',
-    date: '09/06/2025 18:30',
-  },
-  {
-    id: 'TXN-8087',
-    orderCode: '#ORD-9826',
-    customerName: 'Đặng Quốc Bảo',
-    productName: 'Apple Watch Series 9',
-    category: 'Phụ kiện',
-    channel: 'COD',
-    revenue: 10490000,
-    profit: 2100000,
-    status: 'SETTLING',
-    date: '09/06/2025 16:15',
-  },
-  {
-    id: 'TXN-8086',
-    orderCode: '#ORD-9825',
-    customerName: 'Bùi Phương Thảo',
-    productName: 'Bàn phím cơ Logitech MX',
-    category: 'Phụ kiện',
-    channel: 'BANK_TRANSFER',
-    revenue: 3290000,
-    profit: 850000,
-    status: 'SUCCESS',
-    date: '09/06/2025 14:00',
-  },
-  {
-    id: 'TXN-8085',
-    orderCode: '#ORD-9824',
-    customerName: 'Ngô Đức Toàn',
-    productName: 'Chuột Logitech MX Master 3S',
-    category: 'Phụ kiện',
-    channel: 'COD',
-    revenue: 2490000,
-    profit: 600000,
-    status: 'SUCCESS',
-    date: '09/06/2025 11:20',
-  },
-  {
-    id: 'TXN-8084',
-    orderCode: '#ORD-9823',
-    customerName: 'Đỗ Thanh Hằng',
-    productName: 'Loa Marshall Stanmore III',
-    category: 'Phụ kiện',
-    channel: 'VNPAY',
-    revenue: 8990000,
-    profit: 1950000,
-    status: 'SUCCESS',
-    date: '08/06/2025 19:45',
-  },
-  {
-    id: 'TXN-8083',
-    orderCode: '#ORD-9822',
-    customerName: 'Trịnh Minh Đức',
-    productName: 'Màn hình Dell UltraSharp 27"',
-    category: 'Màn hình',
-    channel: 'COD',
-    revenue: 12800000,
-    profit: 2300000,
-    status: 'SETTLING',
-    date: '08/06/2025 15:10',
-  },
-  {
-    id: 'TXN-8082',
-    orderCode: '#ORD-9821',
-    customerName: 'Lý Thu Trang',
-    productName: 'Củ sạc Baseus 65W GaN',
-    category: 'Phụ kiện',
-    channel: 'COD',
-    revenue: 480000,
-    profit: 150000,
-    status: 'SUCCESS',
-    date: '08/06/2025 10:30',
-  },
-  {
-    id: 'TXN-8081',
-    orderCode: '#ORD-9820',
-    customerName: 'Nguyễn Hải Long',
-    productName: 'Tai nghe Sony WH-1000XM5',
-    category: 'Phụ kiện',
-    channel: 'VNPAY',
-    revenue: 7990000,
-    profit: 1700000,
-    status: 'SUCCESS',
-    date: '07/06/2025 17:20',
-  },
-];
-
 const ITEMS_PER_PAGE = 10;
 
 export const AdminReportsPage: React.FC = () => {
+  const [transactions, setTransactions] = useState<ReportTransaction[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [channelFilter, setChannelFilter] = useState<'ALL' | 'VNPAY' | 'COD' | 'BANK_TRANSFER'>('ALL');
+  const [channelFilter, setChannelFilter] = useState<'ALL' | string>('ALL');
   const [dateRange, setDateRange] = useState<'today' | '7days' | 'month' | 'quarter'>('month');
   const [currentPage, setCurrentPage] = useState(1);
 
+  const fetchRealTransactions = async () => {
+    setIsLoading(true);
+    try {
+      const orders = await orderService.getAllOrders();
+      if (Array.isArray(orders)) {
+        const mapped: ReportTransaction[] = orders.map((o) => {
+          const firstItem = o.orderItems?.[0];
+          const prodName = firstItem
+            ? firstItem.productName + (o.orderItems && o.orderItems.length > 1 ? ` (+${o.orderItems.length - 1} món)` : '')
+            : 'Thiết bị công nghệ';
+
+          let status: 'SUCCESS' | 'SETTLING' | 'REFUNDED' = 'SETTLING';
+          if (o.status === 'COMPLETED') status = 'SUCCESS';
+          else if (o.status === 'CANCELLED') status = 'REFUNDED';
+
+          const revenue = Number(o.totalAmount) || 0;
+          const profit = Math.round(revenue * 0.18);
+
+          return {
+            id: `TXN-${8000 + o.id}`,
+            orderCode: `#ORD-${o.id}`,
+            customerName: o.receiverName || o.customerName || 'Khách hàng',
+            productName: prodName,
+            category: 'Thiết bị điện tử',
+            channel: o.paymentMethod || 'COD',
+            revenue,
+            profit,
+            status,
+            date: o.createdAt ? formatDateTime(o.createdAt) : 'Vừa xong',
+          };
+        });
+        setTransactions(mapped);
+      }
+    } catch (e) {
+      console.error('Lỗi khi tải dữ liệu báo cáo:', e);
+      setTransactions([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRealTransactions();
+  }, []);
+
   const filteredTransactions = useMemo(() => {
-    return REPORT_DATA.filter((item) => {
+    return transactions.filter((item) => {
       if (channelFilter !== 'ALL' && item.channel !== channelFilter) return false;
 
       if (searchQuery.trim()) {
@@ -246,10 +148,19 @@ export const AdminReportsPage: React.FC = () => {
             >
               <option value="today">Hôm nay</option>
               <option value="7days">7 ngày qua</option>
-              <option value="month">Tháng này (06/2025)</option>
-              <option value="quarter">Quý này (Q2/2025)</option>
+              <option value="month">Tháng này</option>
+              <option value="quarter">Quý này</option>
             </select>
           </div>
+
+          <button
+            onClick={fetchRealTransactions}
+            className="flex items-center gap-1.5 bg-white border border-slate-200/90 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
+            title="Tải lại từ Database"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>Làm mới</span>
+          </button>
         </div>
       </div>
 

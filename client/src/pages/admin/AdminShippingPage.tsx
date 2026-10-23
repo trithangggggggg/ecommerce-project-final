@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Truck,
   Plus,
@@ -9,10 +9,12 @@ import {
   Trash2,
   X,
   CheckCircle2,
+  RefreshCw,
 } from 'lucide-react';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import AdminPagination from '../../components/admin/AdminPagination';
+import { shippingService } from '../../api/services/shipping.service';
 
 export interface ShippingCarrier {
   id: number;
@@ -25,29 +27,31 @@ export interface ShippingCarrier {
   status: 'ACTIVE' | 'INACTIVE';
 }
 
-const INITIAL_CARRIERS: ShippingCarrier[] = [
-  { id: 1, code: 'GHN-EXPRESS', name: 'Giao Hàng Nhanh (GHN)', serviceType: 'Chuyển phát nhanh liên tỉnh', hotline: '1900 636677', activeOrders: 18, rating: 4.9, status: 'ACTIVE' },
-  { id: 2, code: 'GHTK-FAST', name: 'Giao Hàng Tiết Kiệm (GHTK)', serviceType: 'Tiết kiệm & Tiêu chuẩn', hotline: '1900 6092', activeOrders: 24, rating: 4.8, status: 'ACTIVE' },
-  { id: 3, code: 'VT-POST', name: 'Viettel Post Logistics', serviceType: 'Mạng lưới bưu cục toàn quốc', hotline: '1900 8095', activeOrders: 12, rating: 4.7, status: 'ACTIVE' },
-  { id: 4, code: 'AHA-NOW', name: 'Ahamove Instant Delivery', serviceType: 'Hỏa tốc nội thành 2h', hotline: '1900 545411', activeOrders: 6, rating: 5.0, status: 'ACTIVE' },
-  { id: 5, code: 'JNT-EXPRESS', name: 'J&T Express Vietnam', serviceType: 'Chuyển phát tiêu chuẩn', hotline: '1900 1088', activeOrders: 15, rating: 4.6, status: 'ACTIVE' },
-  { id: 6, code: 'VNPOST-EMS', name: 'Bưu điện Việt Nam (VNPost)', serviceType: 'EMS chuyển phát nhanh', hotline: '1900 545481', activeOrders: 9, rating: 4.5, status: 'ACTIVE' },
-  { id: 7, code: 'GRAB-EXPRESS', name: 'GrabExpress Siêu Tốc', serviceType: 'Giao hàng tức thời xe máy', hotline: '028 7108 7108', activeOrders: 4, rating: 4.9, status: 'ACTIVE' },
-  { id: 8, code: 'BE-DELIVERY', name: 'BeDelivery Công Nghệ', serviceType: 'Giao tức thì nội đô', hotline: '1900 232345', activeOrders: 3, rating: 4.7, status: 'INACTIVE' },
-  { id: 9, code: 'NINJAVAN', name: 'Ninja Van Logistics', serviceType: 'Giao nhận thương mại điện tử', hotline: '1900 886877', activeOrders: 11, rating: 4.6, status: 'ACTIVE' },
-  { id: 10, code: 'BEST-EXPRESS', name: 'BEST Express Toàn Quốc', serviceType: 'Dịch vụ chuyển phát thông minh', hotline: '1900 1031', activeOrders: 8, rating: 4.4, status: 'ACTIVE' },
-  { id: 11, code: 'DHL-ECOMMERCE', name: 'DHL eCommerce Vietnam', serviceType: 'Vận chuyển quốc tế & cao cấp', hotline: '1900 638388', activeOrders: 5, rating: 4.9, status: 'ACTIVE' },
-  { id: 12, code: 'LALAMOVE-PRO', name: 'Lalamove Van & Xe Tải', serviceType: 'Vận chuyển hàng cồng kềnh', hotline: '028 7304 6686', activeOrders: 2, rating: 4.8, status: 'ACTIVE' },
-  { id: 13, code: 'KERRY-EXPRESS', name: 'Kerry Express Logistics', serviceType: 'Chuyển phát bưu phẩm nhanh', hotline: '1900 6668', activeOrders: 0, rating: 4.3, status: 'INACTIVE' },
-];
-
 const ITEMS_PER_PAGE = 10;
 
 export const AdminShippingPage: React.FC = () => {
-  const [carriers, setCarriers] = useState<ShippingCarrier[]>(INITIAL_CARRIERS);
+  const [carriers, setCarriers] = useState<ShippingCarrier[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const fetchCarriers = async () => {
+    setIsLoading(true);
+    try {
+      const data = await shippingService.getCarriers();
+      setCarriers(data);
+    } catch (err) {
+      console.error('Lỗi khi tải đơn vị vận chuyển:', err);
+      setCarriers([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCarriers();
+  }, []);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -82,35 +86,39 @@ export const AdminShippingPage: React.FC = () => {
   };
 
   // Add submit
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!addForm.name.trim() || !addForm.code.trim()) {
       showToast('Vui lòng nhập tên đối tác và mã dịch vụ!');
       return;
     }
 
-    const newCarrier: ShippingCarrier = {
-      id: Date.now(),
-      code: addForm.code.trim().toUpperCase(),
-      name: addForm.name.trim(),
-      serviceType: addForm.serviceType.trim() || 'Chuyển phát nhanh',
-      hotline: addForm.hotline.trim() || '1900 0000',
-      activeOrders: 0,
-      rating: Number(addForm.rating) || 5.0,
-      status: addForm.status,
-    };
+    try {
+      const newCarrier = await shippingService.createCarrier({
+        code: addForm.code.trim().toUpperCase(),
+        name: addForm.name.trim(),
+        serviceType: addForm.serviceType.trim() || 'Chuyển phát nhanh',
+        hotline: addForm.hotline.trim() || '1900 0000',
+        activeOrders: 0,
+        rating: Number(addForm.rating) || 5.0,
+        status: addForm.status,
+      });
 
-    setCarriers([newCarrier, ...carriers]);
-    setIsAddOpen(false);
-    setAddForm({
-      code: '',
-      name: '',
-      serviceType: '',
-      hotline: '',
-      rating: 5.0,
-      status: 'ACTIVE',
-    });
-    showToast(`Đã thêm đối tác vận chuyển "${newCarrier.name}"`);
+      setCarriers((prev) => [newCarrier, ...prev]);
+      setIsAddOpen(false);
+      setAddForm({
+        code: '',
+        name: '',
+        serviceType: '',
+        hotline: '',
+        rating: 5.0,
+        status: 'ACTIVE',
+      });
+      showToast(`Đã thêm đối tác vận chuyển "${newCarrier.name}" vào Database!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lỗi khi tạo đối tác vận chuyển';
+      showToast(msg);
+    }
   };
 
   // Open edit
@@ -127,36 +135,45 @@ export const AdminShippingPage: React.FC = () => {
   };
 
   // Edit submit
-  const handleEditSubmit = (e: React.FormEvent) => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCarrier) return;
 
-    setCarriers((prev) =>
-      prev.map((item) =>
-        item.id === editingCarrier.id
-          ? {
-              ...item,
-              code: editForm.code.trim().toUpperCase(),
-              name: editForm.name.trim(),
-              serviceType: editForm.serviceType.trim(),
-              hotline: editForm.hotline.trim(),
-              rating: Number(editForm.rating) || 5.0,
-              status: editForm.status,
-            }
-          : item
-      )
-    );
+    try {
+      const updated = await shippingService.updateCarrier(editingCarrier.id, {
+        code: editForm.code.trim().toUpperCase(),
+        name: editForm.name.trim(),
+        serviceType: editForm.serviceType.trim(),
+        hotline: editForm.hotline.trim(),
+        rating: Number(editForm.rating) || 5.0,
+        status: editForm.status,
+      });
 
-    showToast(`Đã cập nhật đối tác "${editForm.name}"!`);
-    setEditingCarrier(null);
+      setCarriers((prev) =>
+        prev.map((item) => (item.id === editingCarrier.id ? updated : item))
+      );
+
+      showToast(`Đã cập nhật đối tác "${updated.name}" thành công!`);
+      setEditingCarrier(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lỗi khi cập nhật đối tác vận chuyển';
+      showToast(msg);
+    }
   };
 
   // Delete
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
-    setCarriers((prev) => prev.filter((c) => c.id !== deleteTarget.id));
-    showToast(`Đã xóa đối tác vận chuyển "${deleteTarget.name}"`);
-    setDeleteTarget(null);
+    try {
+      await shippingService.deleteCarrier(deleteTarget.id);
+      setCarriers((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+      showToast(`Đã xóa đối tác vận chuyển "${deleteTarget.name}" khỏi Database!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lỗi khi xóa đối tác vận chuyển';
+      showToast(msg);
+    } finally {
+      setDeleteTarget(null);
+    }
   };
 
   // Filter
@@ -208,14 +225,24 @@ export const AdminShippingPage: React.FC = () => {
             Quản trị các đơn vị giao hàng, cấu hình API liên kết và theo dõi hiệu suất giao vận
           </p>
         </div>
-        <Button
-          variant="primary"
-          size="md"
-          leftIcon={<Plus className="w-4 h-4" />}
-          onClick={() => setIsAddOpen(true)}
-        >
-          Thêm đối tác
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="md"
+            leftIcon={<RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
+            onClick={fetchCarriers}
+          >
+            Làm mới
+          </Button>
+          <Button
+            variant="primary"
+            size="md"
+            leftIcon={<Plus className="w-4 h-4" />}
+            onClick={() => setIsAddOpen(true)}
+          >
+            Thêm đối tác
+          </Button>
+        </div>
       </div>
 
       {/* Stats Summary Cards */}

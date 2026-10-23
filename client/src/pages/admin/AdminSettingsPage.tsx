@@ -4,14 +4,18 @@ import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 
 export const AdminSettingsPage: React.FC = () => {
-  const [storeName, setStoreName] = useState('NEXOR Official Store');
-  const [hotline, setHotline] = useState('1900 6868');
-  const [email, setEmail] = useState('support@nexor.vn');
-  const [address, setAddress] = useState('Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội');
+  const [storeName, setStoreName] = useState(() => localStorage.getItem('nexor_store_name') || 'NEXOR Official Store');
+  const [hotline, setHotline] = useState(() => localStorage.getItem('nexor_store_hotline') || '1900 6868');
+  const [email, setEmail] = useState(() => localStorage.getItem('nexor_store_email') || 'support@nexor.vn');
+  const [address, setAddress] = useState(() => localStorage.getItem('nexor_store_address') || 'Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội');
   const [saved, setSaved] = useState(false);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    localStorage.setItem('nexor_store_name', storeName);
+    localStorage.setItem('nexor_store_hotline', hotline);
+    localStorage.setItem('nexor_store_email', email);
+    localStorage.setItem('nexor_store_address', address);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };

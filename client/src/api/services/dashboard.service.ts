@@ -72,10 +72,11 @@ export const dashboardService = {
   async getDashboardData(): Promise<DashboardData> {
     try {
       // 1. Thử gọi API chuyên biệt phía Backend nếu có
+      let serverStats: any = null;
       try {
         const adminStatsRes = await axiosClient.get('/admin/dashboard/stats');
         if (adminStatsRes.data?.data) {
-          return adminStatsRes.data.data;
+          serverStats = adminStatsRes.data.data;
         }
       } catch {
         // Backend chưa có endpoint riêng này, tiến hành tổng hợp từ các API có sẵn bên dưới
@@ -100,7 +101,7 @@ export const dashboardService = {
         .filter((o) => o.status !== 'CANCELLED')
         .reduce((sum, o) => sum + (o.totalAmount || 0), 0);
 
-      const calculatedRevenue = realRevenue > 0 ? realRevenue : 142140000;
+      const calculatedRevenue = realRevenue;
 
       // 4. Phân bổ tỷ trọng theo danh mục thực tế từ Database
       const CIRCUMFERENCE = 251.327; // 2 * PI * 40
@@ -115,11 +116,9 @@ export const dashboardService = {
         categoryMap.set(catId, current);
       });
 
-      const totalCatValue = Array.from(categoryMap.values()).reduce((sum, item) => sum + item.value, 0) || 1;
-
       const categoryBreakdown: CategoryBreakdownItem[] = categories.map((cat, index) => {
         const catData = categoryMap.get(cat.id) || { count: 0, value: 0 };
-        const percentage = Math.max(5, Math.round((catData.value / totalCatValue) * 100)) || 10;
+        const percentage = totalProductsCount > 0 ? Math.round((catData.count / totalProductsCount) * 100) : 0;
         const strokeDashLength = (percentage / 100) * CIRCUMFERENCE;
         const offset = accumulatedOffset;
         accumulatedOffset -= strokeDashLength;
@@ -128,7 +127,7 @@ export const dashboardService = {
           id: cat.id,
           name: cat.name,
           percentage,
-          value: formatShortVND(catData.value || calculatedRevenue * (percentage / 100)),
+          value: calculatedRevenue > 0 ? formatShortVND(catData.value) : '0 ₫',
           color: CATEGORY_COLORS[index % CATEGORY_COLORS.length],
           strokeDash: `${strokeDashLength.toFixed(1)} ${CIRCUMFERENCE.toFixed(1)}`,
           offset,
@@ -136,15 +135,31 @@ export const dashboardService = {
         };
       });
 
-      // 5. Lấy Top sản phẩm từ danh sách sản phẩm thật của Backend
-      const topProducts: TopProductItem[] = products.slice(0, 5).map((p, index) => {
-        const soldCounts = [245, 180, 156, 132, 128];
+      // 5. Lấy Top 10 sản phẩm từ danh sách sản phẩm thật của Backend (sắp xếp theo lượt bán thực tế)
+      const productSoldCountMap = new Map<number, number>();
+      orders.forEach((o) => {
+        if (o.status !== 'CANCELLED' && o.orderItems) {
+          o.orderItems.forEach((item) => {
+            const cur = productSoldCountMap.get(item.productId) || 0;
+            productSoldCountMap.set(item.productId, cur + (item.quantity || 1));
+          });
+        }
+      });
+
+      const sortedProducts = [...products].sort((a, b) => {
+        const soldA = productSoldCountMap.get(a.id) || 0;
+        const soldB = productSoldCountMap.get(b.id) || 0;
+        return soldB - soldA;
+      });
+
+      const topProducts: TopProductItem[] = sortedProducts.slice(0, 8).map((p, index) => {
+        const sold = productSoldCountMap.get(p.id) || 0;
         return {
           id: p.id,
           rank: index + 1,
           name: p.name,
           category: p.category?.name || 'Thiết bị công nghệ',
-          sold: `${soldCounts[index] || (100 - index * 10)} đã bán`,
+          sold: `${sold} đã bán`,
           image: p.imageUrl,
           price: formatVND(p.price),
         };
@@ -179,11 +194,11 @@ export const dashboardService = {
       });
 
       return {
-        totalRevenueFormatted: formatVND(calculatedRevenue),
-        totalRevenueRaw: calculatedRevenue,
-        totalOrders: orders.length > 0 ? orders.length : 6,
-        totalCustomers: customers.length > 0 ? customers.length : 6,
-        totalProducts: totalProductsCount,
+        totalRevenueFormatted: serverStats?.totalRevenueFormatted !== undefined ? serverStats.totalRevenueFormatted : formatVND(calculatedRevenue),
+        totalRevenueRaw: serverStats?.totalRevenueRaw !== undefined ? serverStats.totalRevenueRaw : calculatedRevenue,
+        totalOrders: serverStats?.totalOrders !== undefined ? serverStats.totalOrders : (orders.length > 0 ? orders.length : 0),
+        totalCustomers: serverStats?.totalCustomers !== undefined ? serverStats.totalCustomers : (customers.length > 0 ? customers.length : 0),
+        totalProducts: serverStats?.totalProducts !== undefined ? serverStats.totalProducts : totalProductsCount,
         categoryBreakdown,
         topProducts,
         recentOrders,

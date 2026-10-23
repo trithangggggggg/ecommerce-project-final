@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Building2,
   Plus,
@@ -11,10 +11,12 @@ import {
   X,
   CheckCircle2,
   Tag,
+  RefreshCw,
 } from 'lucide-react';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import AdminPagination from '../../components/admin/AdminPagination';
+import { supplierService } from '../../api/services/supplier.service';
 
 export interface SupplierItem {
   id: number;
@@ -27,30 +29,31 @@ export interface SupplierItem {
   status: 'ACTIVE' | 'INACTIVE';
 }
 
-const INITIAL_SUPPLIERS: SupplierItem[] = [
-  { id: 1, code: 'NCC-APPLE-VN', name: 'Apple Vietnam Authorized Distributor', brand: 'Apple', contact: '028 3822 1234', email: 'distribution@apple.vn', address: 'Tòa nhà Deutsches Haus, Lê Duẩn, Quận 1, TP.HCM', status: 'ACTIVE' },
-  { id: 2, code: 'NCC-SAMSUNG', name: 'Samsung Electronics Vina Corporation', brand: 'Samsung', contact: '024 3755 8888', email: 'b2b.partner@samsung.com', address: 'Tòa nhà Bitexco Financial Tower, Quận 1, TP.HCM', status: 'ACTIVE' },
-  { id: 3, code: 'NCC-FPT-SYNNEX', name: 'FPT Synnex Distribution Co., Ltd', brand: 'Dell, HP, Asus, Lenovo', contact: '024 7300 6666', email: 'synnex.tech@fpt.com', address: 'Tòa nhà FPT Cầu Giấy, Duy Tân, Cầu Giấy, Hà Nội', status: 'ACTIVE' },
-  { id: 4, code: 'NCC-DIGIWORLD', name: 'DGW - Digiworld Corporation', brand: 'Xiaomi, Sony, Acer', contact: '028 3929 0059', email: 'partner@digiworld.com.vn', address: 'Số 195 Cô Bắc, Phường Cô Giang, Quận 1, TP.HCM', status: 'ACTIVE' },
-  { id: 5, code: 'NCC-PETROSETCO', name: 'PSD - Petrosetco Distribution', brand: 'Apple, Microsoft, Corsair', contact: '028 3911 8888', email: 'contact@psd.com.vn', address: 'Số 1-5 Lê Duẩn, Phường Bến Nghé, Quận 1, TP.HCM', status: 'ACTIVE' },
-  { id: 6, code: 'NCC-VINH-XUAN', name: 'Vĩnh Xuân Computer (SPC)', brand: 'ASUS, Gigabyte, MSI', contact: '024 3943 9121', email: 'sales@spc.com.vn', address: 'Số 39 Trần Quốc Toản, Hàng Bài, Hoàn Kiếm, Hà Nội', status: 'ACTIVE' },
-  { id: 7, code: 'NCC-VIEN-SON', name: 'Viễn Sơn Distribution (Micro-Star)', brand: 'MSI, Kingston, ViewSonic', contact: '028 3832 6085', email: 'info@microstar.vn', address: 'Số 175 Bùi Thị Xuân, Phường Phạm Ngũ Lão, Quận 1, TP.HCM', status: 'ACTIVE' },
-  { id: 8, code: 'NCC-ELITE-VN', name: 'Elite Technology JSC', brand: 'Cisco, Fortinet, HP Enterprise', contact: '028 3512 3959', email: 'sales@elite-jsc.com', address: 'Tòa nhà Rosana, 60 Nguyễn Đình Chiểu, Quận 1, TP.HCM', status: 'INACTIVE' },
-  { id: 9, code: 'NCC-KTC-TECH', name: 'KTC Co., Ltd (Khải Thiên)', brand: 'Logitech, SanDisk, WD', contact: '028 3835 1515', email: 'distribution@ktc.com.vn', address: '384 Nguyễn Thị Minh Khai, Phường 5, Quận 3, TP.HCM', status: 'ACTIVE' },
-  { id: 10, code: 'NCC-MEGATECH', name: 'Mega Technology Group', brand: 'Anker, Baseus, Ugreen', contact: '024 3783 4567', email: 'partner@megatech.vn', address: 'Số 12 Duy Tân, Phường Dịch Vọng Hậu, Cầu Giấy, Hà Nội', status: 'ACTIVE' },
-  { id: 11, code: 'NCC-LOGITECH-VN', name: 'Logitech Vietnam Representative Office', brand: 'Logitech, Astro Gaming', contact: '028 3910 7799', email: 'vietnam.b2b@logitech.com', address: 'Tòa nhà Saigon Tower, Lê Duẩn, Quận 1, TP.HCM', status: 'ACTIVE' },
-  { id: 12, code: 'NCC-LG-VN', name: 'LG Electronics Vietnam Hải Phòng', brand: 'LG Monitors, Gram Laptops', contact: '0225 883 1000', email: 'b2b.lg@lge.com', address: 'KCN Tràng Duệ, An Dương, TP. Hải Phòng', status: 'ACTIVE' },
-  { id: 13, code: 'NCC-AUDIO-TECH', name: 'Audio Technica & Marshall VN Distro', brand: 'Marshall, JBL, Harman Kardon', contact: '028 3930 9999', email: 'sound.partner@audio.vn', address: '180 Nam Kỳ Khởi Nghĩa, Phường 6, Quận 3, TP.HCM', status: 'ACTIVE' },
-  { id: 14, code: 'NCC-INTEL-VN', name: 'Intel Products Vietnam Co., Ltd', brand: 'Intel Core, Arc GPU', contact: '028 3736 3000', email: 'partner.relations@intel.com', address: 'Khu Công Nghệ Cao, TP. Thủ Đức, TP.HCM', status: 'INACTIVE' },
-];
-
 const ITEMS_PER_PAGE = 10;
 
 export const AdminSuppliersPage: React.FC = () => {
-  const [suppliers, setSuppliers] = useState<SupplierItem[]>(INITIAL_SUPPLIERS);
+  const [suppliers, setSuppliers] = useState<SupplierItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const fetchSuppliers = async () => {
+    setIsLoading(true);
+    try {
+      const data = await supplierService.getSuppliers();
+      setSuppliers(data);
+    } catch (err) {
+      console.error('Lỗi khi tải nhà cung cấp:', err);
+      setSuppliers([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSuppliers();
+  }, []);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -87,36 +90,40 @@ export const AdminSuppliersPage: React.FC = () => {
   };
 
   // Add submit
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!addForm.code.trim() || !addForm.name.trim()) {
       showToast('Vui lòng điền mã và tên nhà cung cấp!');
       return;
     }
 
-    const newSupplier: SupplierItem = {
-      id: Date.now(),
-      code: addForm.code.trim().toUpperCase(),
-      name: addForm.name.trim(),
-      brand: addForm.brand.trim() || 'Đa thương hiệu',
-      contact: addForm.contact.trim() || '024 0000 0000',
-      email: addForm.email.trim() || 'partner@techsupplier.vn',
-      address: addForm.address.trim() || 'Hà Nội, Việt Nam',
-      status: addForm.status,
-    };
+    try {
+      const newSupplier = await supplierService.createSupplier({
+        code: addForm.code.trim().toUpperCase(),
+        name: addForm.name.trim(),
+        brand: addForm.brand.trim() || 'Đa thương hiệu',
+        contact: addForm.contact.trim() || '024 0000 0000',
+        email: addForm.email.trim() || 'partner@techsupplier.vn',
+        address: addForm.address.trim() || 'Hà Nội, Việt Nam',
+        status: addForm.status,
+      });
 
-    setSuppliers([newSupplier, ...suppliers]);
-    setIsAddOpen(false);
-    setAddForm({
-      code: '',
-      name: '',
-      brand: '',
-      contact: '',
-      email: '',
-      address: '',
-      status: 'ACTIVE',
-    });
-    showToast(`Đã thêm nhà cung cấp "${newSupplier.name}"`);
+      setSuppliers((prev) => [newSupplier, ...prev]);
+      setIsAddOpen(false);
+      setAddForm({
+        code: '',
+        name: '',
+        brand: '',
+        contact: '',
+        email: '',
+        address: '',
+        status: 'ACTIVE',
+      });
+      showToast(`Đã thêm nhà cung cấp "${newSupplier.name}" vào Database!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lỗi khi tạo nhà cung cấp';
+      showToast(msg);
+    }
   };
 
   // Open edit
@@ -134,37 +141,46 @@ export const AdminSuppliersPage: React.FC = () => {
   };
 
   // Edit submit
-  const handleEditSubmit = (e: React.FormEvent) => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingSupplier) return;
 
-    setSuppliers((prev) =>
-      prev.map((item) =>
-        item.id === editingSupplier.id
-          ? {
-              ...item,
-              code: editForm.code.trim().toUpperCase(),
-              name: editForm.name.trim(),
-              brand: editForm.brand.trim(),
-              contact: editForm.contact.trim(),
-              email: editForm.email.trim(),
-              address: editForm.address.trim(),
-              status: editForm.status,
-            }
-          : item
-      )
-    );
+    try {
+      const updated = await supplierService.updateSupplier(editingSupplier.id, {
+        code: editForm.code.trim().toUpperCase(),
+        name: editForm.name.trim(),
+        brand: editForm.brand.trim(),
+        contact: editForm.contact.trim(),
+        email: editForm.email.trim(),
+        address: editForm.address.trim(),
+        status: editForm.status,
+      });
 
-    showToast(`Đã cập nhật nhà cung cấp "${editForm.name}"!`);
-    setEditingSupplier(null);
+      setSuppliers((prev) =>
+        prev.map((item) => (item.id === editingSupplier.id ? updated : item))
+      );
+
+      showToast(`Đã cập nhật nhà cung cấp "${updated.name}" thành công!`);
+      setEditingSupplier(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lỗi khi cập nhật nhà cung cấp';
+      showToast(msg);
+    }
   };
 
   // Delete
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
-    setSuppliers((prev) => prev.filter((s) => s.id !== deleteTarget.id));
-    showToast(`Đã xóa nhà cung cấp "${deleteTarget.name}"`);
-    setDeleteTarget(null);
+    try {
+      await supplierService.deleteSupplier(deleteTarget.id);
+      setSuppliers((prev) => prev.filter((s) => s.id !== deleteTarget.id));
+      showToast(`Đã xóa nhà cung cấp "${deleteTarget.name}" khỏi Database!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lỗi khi xóa nhà cung cấp';
+      showToast(msg);
+    } finally {
+      setDeleteTarget(null);
+    }
   };
 
   // Filter
@@ -216,14 +232,24 @@ export const AdminSuppliersPage: React.FC = () => {
             Danh sách các nhà phân phối ủy quyền, hãng công nghệ chính hãng cung cấp linh kiện và sản phẩm
           </p>
         </div>
-        <Button
-          variant="primary"
-          size="md"
-          leftIcon={<Plus className="w-4 h-4" />}
-          onClick={() => setIsAddOpen(true)}
-        >
-          Thêm nhà cung cấp
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="md"
+            leftIcon={<RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
+            onClick={fetchSuppliers}
+          >
+            Làm mới
+          </Button>
+          <Button
+            variant="primary"
+            size="md"
+            leftIcon={<Plus className="w-4 h-4" />}
+            onClick={() => setIsAddOpen(true)}
+          >
+            Thêm nhà cung cấp
+          </Button>
+        </div>
       </div>
 
       {/* Stats Summary Cards */}
