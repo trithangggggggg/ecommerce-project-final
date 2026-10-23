@@ -39,12 +39,14 @@ type FormTab = 'general' | 'specs' | 'options' | 'variants';
 
 interface FormState {
   name: string;
+  brand: string;
   categoryId: number;
   price: string;
   stock: string;
   imageUrl: string;
   description: string;
   status: boolean;
+  galleryImages: string[];
 }
 
 interface FormOptionState {
@@ -75,12 +77,14 @@ interface FormSpecState {
 
 const INITIAL_FORM_STATE: FormState = {
   name: '',
+  brand: '',
   categoryId: 1,
   price: '',
   stock: '20',
   imageUrl: '',
   description: '',
   status: true,
+  galleryImages: [],
 };
 
 // Helper to normalize string for SKU tokens
@@ -152,6 +156,9 @@ export const AdminProductsPage: React.FC = () => {
   const [bulkOriginalPrice, setBulkOriginalPrice] = useState('');
   const [bulkStock, setBulkStock] = useState('');
 
+  // Gallery Image input
+  const [newGalleryUrl, setNewGalleryUrl] = useState('');
+
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
   const [modalError, setModalError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -168,6 +175,28 @@ export const AdminProductsPage: React.FC = () => {
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMessage({ text, type });
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleAddGalleryImage = () => {
+    if (!newGalleryUrl.trim()) return;
+    const cleanUrl = newGalleryUrl.trim();
+    if (formData.galleryImages.includes(cleanUrl)) {
+      showToast('Đường dẫn ảnh này đã có trong bộ sưu tập', 'error');
+      return;
+    }
+    setFormData((prev) => ({
+      ...prev,
+      galleryImages: [...prev.galleryImages, cleanUrl],
+    }));
+    setNewGalleryUrl('');
+    showToast('Đã thêm ảnh vào bộ sưu tập');
+  };
+
+  const handleRemoveGalleryImage = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      galleryImages: prev.galleryImages.filter((_, idx) => idx !== index),
+    }));
   };
 
   const fetchProductsAndCategories = useCallback(async () => {
@@ -204,6 +233,7 @@ export const AdminProductsPage: React.FC = () => {
     setBulkPrice('');
     setBulkOriginalPrice('');
     setBulkStock('');
+    setNewGalleryUrl('');
     setFormErrors({});
     setModalError(null);
     setAiMessage(null);
@@ -227,28 +257,42 @@ export const AdminProductsPage: React.FC = () => {
     // Initial placeholder data from row
     setFormData({
       name: p.name,
+      brand: p.brand || '',
       categoryId: p.categoryId || 1,
       price: (p.minPrice ?? p.price ?? '').toString(),
       stock: (p.stock ?? 0).toString(),
       imageUrl: p.imageUrl || '',
       description: p.description || '',
       status: p.status !== false,
+      galleryImages: [],
     });
     setBulkPrice('');
     setBulkOriginalPrice('');
     setBulkStock('');
+    setNewGalleryUrl('');
 
     try {
-      // Fetch full product detail with options, variants, specs
+      // Fetch full product detail with options, variants, specs, images
       const detail = await productService.getProductById(p.id);
+      const galleryUrls: string[] = [];
+      if (detail.galleryImages && detail.galleryImages.length > 0) {
+        galleryUrls.push(...detail.galleryImages.map((i) => i.url));
+      } else if (detail.images && detail.images.length > 0) {
+        galleryUrls.push(
+          ...detail.images.map((i: any) => (typeof i === 'string' ? i : i.url)).filter(Boolean)
+        );
+      }
+
       setFormData({
         name: detail.name,
+        brand: detail.brand || '',
         categoryId: detail.categoryId || 1,
         price: (detail.minPrice ?? detail.price ?? '').toString(),
         stock: (detail.stock ?? 0).toString(),
         imageUrl: detail.imageUrl || '',
         description: detail.description || '',
         status: detail.status !== false,
+        galleryImages: galleryUrls,
       });
 
       if (detail.options && detail.options.length > 0) {
@@ -631,12 +675,16 @@ export const AdminProductsPage: React.FC = () => {
 
     const payload: ProductPayload = {
       name: formData.name.trim(),
+      brand: formData.brand.trim() || undefined,
       description: formData.description.trim(),
       categoryId: formData.categoryId,
       status: formData.status,
       imageUrl:
         formData.imageUrl.trim() ||
         'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600',
+      images: formData.galleryImages
+        .filter((u) => u && u.trim().length > 0)
+        .map((url, idx) => ({ url: url.trim(), position: idx })),
       price: payloadVariants[0]?.price || numPrice,
       stock: payloadVariants.reduce((sum, v) => sum + (v.stock || 0), 0),
       options: payloadOptions,
@@ -889,7 +937,14 @@ export const AdminProductsPage: React.FC = () => {
                             <span className="font-bold text-slate-900 block truncate group-hover:text-blue-600 transition">
                               {p.name}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-mono">#{p.id}</span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[10px] text-slate-400 font-mono">#{p.id}</span>
+                              {p.brand && (
+                                <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200/60 leading-none">
+                                  {p.brand}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -1159,6 +1214,65 @@ export const AdminProductsPage: React.FC = () => {
                       />
                     </div>
 
+                    {/* Brand Input & Preset Chips */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                          Thương hiệu (Brand)
+                        </label>
+                        {formData.brand && (
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, brand: '' })}
+                            className="text-[11px] text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                          >
+                            Xóa chọn
+                          </button>
+                        )}
+                      </div>
+                      <Input
+                        type="text"
+                        placeholder="Nhập tên hãng (Apple, Samsung, Sony, Logitech...)"
+                        value={formData.brand}
+                        onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                      />
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                        <span className="text-[10px] text-slate-400 font-medium mr-1">Gợi ý nhanh:</span>
+                        {[
+                          'Apple',
+                          'Samsung',
+                          'Xiaomi',
+                          'Sony',
+                          'ASUS',
+                          'Lenovo',
+                          'Dell',
+                          'Logitech',
+                          'Anker',
+                          'JBL',
+                          'SanDisk',
+                          'Huawei',
+                          'Acer',
+                        ].map((brandName) => {
+                          const isSelected =
+                            formData.brand.toLowerCase() === brandName.toLowerCase();
+                          return (
+                            <button
+                              key={brandName}
+                              type="button"
+                              onClick={() => setFormData({ ...formData, brand: brandName })}
+                              className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border transition cursor-pointer ${
+                                isSelected
+                                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                              }`}
+                            >
+                              {brandName}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
                     {/* Category & Image URL Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
@@ -1216,6 +1330,90 @@ export const AdminProductsPage: React.FC = () => {
                         </div>
                       </div>
                     )}
+
+                    {/* Product Gallery Images (Bộ sưu tập ảnh chi tiết) */}
+                    <div className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200/80 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <ImageIcon className="w-4 h-4 text-blue-600" />
+                            Bộ sưu tập ảnh chi tiết (Gallery)
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            Thêm các góc chụp khác, phụ kiện hoặc ảnh thực tế của sản phẩm
+                          </span>
+                        </div>
+                        <span className="px-2 py-0.5 bg-slate-200/70 text-slate-700 text-[10px] font-bold rounded-full">
+                          {formData.galleryImages.length} ảnh
+                        </span>
+                      </div>
+
+                      {/* Input URL row */}
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <input
+                            type="url"
+                            placeholder="Dán đường dẫn ảnh chi tiết (URL) rồi nhấn Thêm ảnh..."
+                            value={newGalleryUrl}
+                            onChange={(e) => setNewGalleryUrl(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddGalleryImage();
+                              }
+                            }}
+                            className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/15 focus:border-blue-600 transition"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleAddGalleryImage}
+                          className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg flex items-center gap-1 shadow-2xs transition cursor-pointer shrink-0"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Thêm ảnh
+                        </button>
+                      </div>
+
+                      {/* Thumbnail Grid */}
+                      {formData.galleryImages.length > 0 ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5 pt-1">
+                          {formData.galleryImages.map((imgUrl, idx) => (
+                            <div
+                              key={idx}
+                              className="relative group rounded-lg border border-slate-200 bg-white p-1 overflow-hidden aspect-square flex items-center justify-center shadow-2xs"
+                            >
+                              <img
+                                src={imgUrl}
+                                alt={`Gallery ${idx + 1}`}
+                                className="max-h-full max-w-full object-contain"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src =
+                                    'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100';
+                                }}
+                              />
+                              <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 p-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveGalleryImage(idx)}
+                                  className="p-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-md shadow transition cursor-pointer"
+                                  title="Xóa ảnh này"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                              <span className="absolute bottom-1 left-1 px-1 py-0.2 bg-black/60 text-white text-[9px] font-mono rounded">
+                                #{idx + 1}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-3 text-center border border-dashed border-slate-200 rounded-lg bg-white/50 text-[11px] text-slate-400">
+                          Chưa có ảnh trong bộ sưu tập. Thêm URL ảnh ở trên để hiển thị slider nhiều ảnh trên trang chi tiết.
+                        </div>
+                      )}
+                    </div>
 
                     {/* AI Description Generator Section */}
                     <div className="space-y-2">

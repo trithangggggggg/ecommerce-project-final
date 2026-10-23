@@ -25,6 +25,9 @@ public class ProductRequest {
     @Size(max = 200, message = "Tên sản phẩm tối đa 200 ký tự")
     private String name;
 
+    @Size(max = 100, message = "Thương hiệu tối đa 100 ký tự")
+    private String brand;
+
     private String description;
 
     private BigDecimal price;

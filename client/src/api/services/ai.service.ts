@@ -285,12 +285,12 @@ export const aiService = {
         slug: item.slug || item.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         description: item.description || '',
         price: typeof item.price === 'number' ? item.price : parseFloat(item.price || '0'),
-        originalPrice: item.originalPrice || Math.round(Number(item.price) * 1.15),
-        discountPercent: item.discountPercent || 10,
+        originalPrice: item.originalPrice || undefined,
+        discountPercent: item.discountPercent || undefined,
         imageUrl: item.imageUrl || '/images/macbook-air-m3-card.jpg',
         categoryId: item.categoryId || 1,
-        brand: item.brand || 'Chính hãng',
-        stock: item.stock ?? 10,
+        brand: item.brand || undefined,
+        stock: item.stock ?? 0,
       }));
 
       return {

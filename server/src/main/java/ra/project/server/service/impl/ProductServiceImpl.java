@@ -35,7 +35,13 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<ProductResponse> getAllProducts(String keyword, Long categoryId, Boolean status, Pageable pageable) {
-        Specification<Product> spec = ProductSpecification.filter(keyword, categoryId, null, null, status);
+        return getAllProducts(keyword, categoryId, null, status, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ProductResponse> getAllProducts(String keyword, Long categoryId, String brand, Boolean status, Pageable pageable) {
+        Specification<Product> spec = ProductSpecification.filter(keyword, categoryId, brand, null, null, status);
         Page<Product> productPage = productRepository.findAll(spec, pageable);
         return PageResponse.from(productPage.map(productMapper::toResponse));
     }
@@ -69,11 +75,25 @@ public class ProductServiceImpl implements ProductService {
             Boolean status,
             Pageable pageable
     ) {
+        return searchProducts(keyword, categoryId, null, minPrice, maxPrice, status, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ProductResponse> searchProducts(
+            String keyword,
+            Long categoryId,
+            String brand,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            Boolean status,
+            Pageable pageable
+    ) {
         if (minPrice != null && maxPrice != null && minPrice.compareTo(maxPrice) > 0) {
             throw new BadRequestException("Giá tối thiểu (minPrice) không được lớn hơn giá tối đa (maxPrice)!");
         }
 
-        Specification<Product> spec = ProductSpecification.filter(keyword, categoryId, minPrice, maxPrice, status);
+        Specification<Product> spec = ProductSpecification.filter(keyword, categoryId, brand, minPrice, maxPrice, status);
         Page<Product> productPage = productRepository.findAll(spec, pageable);
         return PageResponse.from(productPage.map(productMapper::toResponse));
     }
@@ -406,7 +426,7 @@ public class ProductServiceImpl implements ProductService {
         }
         product.getSpecs().addAll(finalSpecs);
 
-        if (request.getImages() != null && !request.getImages().isEmpty()) {
+        if (request.getImages() != null) {
             List<ProductImage> finalImages = new ArrayList<>();
             int imgPos = 0;
             for (ImageRequest iReq : request.getImages()) {

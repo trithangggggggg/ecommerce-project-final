@@ -198,7 +198,7 @@ export default function ProductDetailPage() {
       product.imageUrl,
       ...(product.galleryImages?.map((i) => i.url) || []),
       ...(product.variants?.map((v) => v.imageUrl).filter(Boolean) as string[] || []),
-      ...(product.images || []),
+      ...(product.images?.map((img: any) => typeof img === 'string' ? img : img?.url) || []),
     ].filter(Boolean))
   );
 
@@ -311,6 +311,14 @@ export default function ProductDetailPage() {
 
             {/* Product Meta / Stock status - NO mock reviews */}
             <div className="flex items-center gap-3 text-xs text-gray-500 mb-4 pb-4 border-b border-gray-200">
+              {product.brand && (
+                <>
+                  <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                    {product.brand}
+                  </span>
+                  <span>•</span>
+                </>
+              )}
               <span className="font-bold text-slate-800">Chính hãng 100%</span>
               <span>•</span>
               <span className="text-slate-500">Danh mục: {product.category?.name || 'Công nghệ'}</span>

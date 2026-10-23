@@ -65,7 +65,7 @@ function mapBackendProduct(item: any): Product {
       name: item.categoryName || 'Thiết bị công nghệ',
       slug: toSlug(item.categoryName || 'tech'),
     },
-    brand: item.brand || 'Chính hãng',
+    brand: item.brand || undefined,
     stock: item.stock ?? 0,
     rating: item.rating,
     reviewCount: item.reviewCount,
@@ -101,6 +101,10 @@ export const productService = {
       if (params.categoryId) {
         url = `${ENDPOINTS.PRODUCTS}/category/${params.categoryId}`;
         queryParams.categoryId = params.categoryId;
+      }
+
+      if (params.brand && params.brand !== 'Tất cả') {
+        queryParams.brand = params.brand;
       }
 
       const res = await axiosClient.get(url, { params: queryParams });

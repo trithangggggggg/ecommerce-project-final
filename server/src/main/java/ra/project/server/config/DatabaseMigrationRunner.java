@@ -28,8 +28,9 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        log.info(">>> [Migration] Bắt đầu kiểm tra và thực thi migration cấu trúc biến thể (Variants)...");
+        log.info(">>> [Migration] Bắt đầu kiểm tra và thực thi migration cấu trúc biến thể (Variants) & Thương hiệu (Brand)...");
         try {
+            migrateProductBrandIfNotExists();
             createVariantTablesIfNotExists();
             addOrderItemColumnsIfNotExists();
             migrateDefaultVariantsForExistingProducts();
@@ -39,6 +40,40 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
             log.error(">>> [Migration] Gặp lỗi trong quá trình thực thi migration:", e);
             throw new RuntimeException("Migration failed", e);
         }
+    }
+
+    private void migrateProductBrandIfNotExists() throws SQLException {
+        Set<String> productColumns = getTableColumns("products");
+        if (!productColumns.contains("brand")) {
+            log.info(">>> [Migration] Thêm cột 'brand' vào bảng 'products'...");
+            jdbcTemplate.execute("ALTER TABLE products ADD COLUMN brand VARCHAR(100) NULL");
+            try {
+                jdbcTemplate.execute("CREATE INDEX idx_products_brand ON products(brand)");
+            } catch (Exception ignored) {
+                // index might already exist
+            }
+        }
+
+        // Backfill brand for products if null
+        log.info(">>> [Migration] Kiểm tra và backfill thương hiệu (brand) cho các sản phẩm hiện có...");
+        jdbcTemplate.update("UPDATE products SET brand = 'Apple' WHERE (brand IS NULL OR brand = '') AND (LOWER(name) LIKE '%iphone%' OR LOWER(name) LIKE '%ipad%' OR LOWER(name) LIKE '%macbook%' OR LOWER(name) LIKE '%apple%' OR LOWER(name) LIKE '%airpods%')");
+        jdbcTemplate.update("UPDATE products SET brand = 'Samsung' WHERE (brand IS NULL OR brand = '') AND (LOWER(name) LIKE '%samsung%' OR LOWER(name) LIKE '%galaxy%')");
+        jdbcTemplate.update("UPDATE products SET brand = 'Xiaomi' WHERE (brand IS NULL OR brand = '') AND (LOWER(name) LIKE '%xiaomi%' OR LOWER(name) LIKE '%redmi%')");
+        jdbcTemplate.update("UPDATE products SET brand = 'Sony' WHERE (brand IS NULL OR brand = '') AND LOWER(name) LIKE '%sony%'");
+        jdbcTemplate.update("UPDATE products SET brand = 'ASUS' WHERE (brand IS NULL OR brand = '') AND (LOWER(name) LIKE '%asus%' OR LOWER(name) LIKE '%rog%')");
+        jdbcTemplate.update("UPDATE products SET brand = 'Lenovo' WHERE (brand IS NULL OR brand = '') AND (LOWER(name) LIKE '%lenovo%' OR LOWER(name) LIKE '%ideapad%' OR LOWER(name) LIKE '%legion%')");
+        jdbcTemplate.update("UPDATE products SET brand = 'Dell' WHERE (brand IS NULL OR brand = '') AND LOWER(name) LIKE '%dell%'");
+        jdbcTemplate.update("UPDATE products SET brand = 'HP' WHERE (brand IS NULL OR brand = '') AND LOWER(name) LIKE '%hp %'");
+        jdbcTemplate.update("UPDATE products SET brand = 'Acer' WHERE (brand IS NULL OR brand = '') AND LOWER(name) LIKE '%acer%'");
+        jdbcTemplate.update("UPDATE products SET brand = 'Logitech' WHERE (brand IS NULL OR brand = '') AND LOWER(name) LIKE '%logitech%'");
+        jdbcTemplate.update("UPDATE products SET brand = 'Anker' WHERE (brand IS NULL OR brand = '') AND (LOWER(name) LIKE '%anker%' OR LOWER(name) LIKE '%soundcore%')");
+        jdbcTemplate.update("UPDATE products SET brand = 'JBL' WHERE (brand IS NULL OR brand = '') AND LOWER(name) LIKE '%jbl%'");
+        jdbcTemplate.update("UPDATE products SET brand = 'SanDisk' WHERE (brand IS NULL OR brand = '') AND LOWER(name) LIKE '%sandisk%'");
+        jdbcTemplate.update("UPDATE products SET brand = 'Huawei' WHERE (brand IS NULL OR brand = '') AND LOWER(name) LIKE '%huawei%'");
+        jdbcTemplate.update("UPDATE products SET brand = 'Garmin' WHERE (brand IS NULL OR brand = '') AND LOWER(name) LIKE '%garmin%'");
+        jdbcTemplate.update("UPDATE products SET brand = 'Google' WHERE (brand IS NULL OR brand = '') AND LOWER(name) LIKE '%pixel%'");
+        jdbcTemplate.update("UPDATE products SET brand = 'Marshall' WHERE (brand IS NULL OR brand = '') AND LOWER(name) LIKE '%marshall%'");
+        jdbcTemplate.update("UPDATE products SET brand = 'Chính hãng' WHERE brand IS NULL OR brand = ''");
     }
 
     private void createVariantTablesIfNotExists() {

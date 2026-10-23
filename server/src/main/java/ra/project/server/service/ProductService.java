@@ -11,6 +11,8 @@ public interface ProductService {
 
     PageResponse<ProductResponse> getAllProducts(String keyword, Long categoryId, Boolean status, Pageable pageable);
 
+    PageResponse<ProductResponse> getAllProducts(String keyword, Long categoryId, String brand, Boolean status, Pageable pageable);
+
     ProductResponse getProductById(Long id);
 
     PageResponse<ProductResponse> getProductsByCategoryId(Long categoryId, Pageable pageable);
@@ -18,6 +20,16 @@ public interface ProductService {
     PageResponse<ProductResponse> searchProducts(
             String keyword,
             Long categoryId,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            Boolean status,
+            Pageable pageable
+    );
+
+    PageResponse<ProductResponse> searchProducts(
+            String keyword,
+            Long categoryId,
+            String brand,
             BigDecimal minPrice,
             BigDecimal maxPrice,
             Boolean status,

@@ -17,11 +17,14 @@ const BRAND_FILTERS = [
   'Apple',
   'Samsung',
   'Xiaomi',
-  'OPPO',
+  'Sony',
   'ASUS',
   'Dell',
   'Lenovo',
-  'Sony',
+  'Logitech',
+  'Anker',
+  'JBL',
+  'SanDisk',
 ];
 
 const PRICE_RANGES = [
@@ -91,6 +94,7 @@ export default function ProductsPage() {
         limit: 100,
         ...(debouncedKeyword ? { keyword: debouncedKeyword } : {}),
         ...(matchedCategory ? { categoryId: matchedCategory.id } : {}),
+        ...(selectedBrand !== 'Tất cả' ? { brand: selectedBrand } : {}),
         ...(sortBy ? { sortBy: sortBy as FilterParams['sortBy'] } : {}),
       };
       const result = await productService.getProducts(params);
@@ -100,7 +104,7 @@ export default function ProductsPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedKeyword, selectedCategory, sortBy, categories]);
+  }, [debouncedKeyword, selectedCategory, selectedBrand, sortBy, categories]);
 
   useEffect(() => {
     fetchProducts();

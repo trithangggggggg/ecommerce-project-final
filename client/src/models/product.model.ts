@@ -63,7 +63,7 @@ export interface Product {
   originalPrice?: number;
   discountPercent?: number;
   imageUrl: string;
-  images?: string[];
+  images?: (ProductImage | string)[];
   galleryImages?: ProductImage[];
   categoryId: number;
   category?: Category;
@@ -94,6 +94,7 @@ export interface FilterParams {
   keyword?: string;
   categoryId?: number;
   categorySlug?: string;
+  brand?: string;
   sortBy?: 'price_asc' | 'price_desc' | 'name_asc' | 'newest';
   page?: number;
   limit?: number;
@@ -140,6 +141,7 @@ export interface ImagePayload {
 export interface ProductPayload {
   id?: number;
   name: string;
+  brand?: string;
   description?: string;
   price?: number;
   stock?: number;

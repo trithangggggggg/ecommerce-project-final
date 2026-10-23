@@ -18,6 +18,17 @@ public class ProductSpecification {
             BigDecimal maxPrice,
             Boolean status
     ) {
+        return filter(keyword, categoryId, null, minPrice, maxPrice, status);
+    }
+
+    public static Specification<Product> filter(
+            String keyword,
+            Long categoryId,
+            String brand,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            Boolean status
+    ) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -32,6 +43,11 @@ public class ProductSpecification {
             // 2. Lọc theo danh mục
             if (categoryId != null) {
                 predicates.add(cb.equal(root.get("category").get("id"), categoryId));
+            }
+
+            // 3. Lọc theo thương hiệu
+            if (StringUtils.hasText(brand) && !"tất cả".equalsIgnoreCase(brand.trim())) {
+                predicates.add(cb.equal(cb.lower(root.get("brand")), brand.trim().toLowerCase()));
             }
 
             // 3. Lọc theo giá tối thiểu

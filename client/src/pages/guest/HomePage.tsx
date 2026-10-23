@@ -15,7 +15,6 @@ import {
   ArrowRight,
   Zap,
   ShieldCheck,
-  Star,
   Heart,
   ShoppingCart,
 } from 'lucide-react';
@@ -389,14 +388,14 @@ export default function HomePage() {
                       {p.name}
                     </Link>
 
-                    {/* Rating */}
-                    <div className="flex items-center gap-1 text-[11px] text-amber-500 mb-1.5">
-                      <div className="flex">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <Star key={i} size={11} fill="currentColor" />
-                        ))}
-                      </div>
-                      <span className="text-gray-400 font-normal">({p.reviewCount || 120})</span>
+                    {/* Brand / Category Meta */}
+                    <div className="flex items-center gap-1.5 text-[11px] text-gray-500 mb-1.5">
+                      {p.brand && (
+                        <span className="font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded text-[10px]">
+                          {p.brand}
+                        </span>
+                      )}
+                      <span className="text-gray-400 truncate">{p.category?.name || 'Công nghệ'}</span>
                     </div>
 
                     {/* Price Row */}

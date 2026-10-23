@@ -19,6 +19,7 @@ public class ProductMapper {
         }
         return Product.builder()
                 .name(request.getName().trim())
+                .brand(request.getBrand() != null && !request.getBrand().isBlank() ? request.getBrand().trim() : null)
                 .description(request.getDescription())
                 .price(request.getPrice() != null ? request.getPrice() : BigDecimal.ZERO)
                 .stock(request.getStock() != null ? request.getStock() : 0)
@@ -51,6 +52,7 @@ public class ProductMapper {
         return ProductResponse.builder()
                 .id(entity.getId())
                 .name(entity.getName())
+                .brand(entity.getBrand())
                 .description(entity.getDescription())
                 .price(minPrice != null ? minPrice : entity.getPrice())
                 .minPrice(minPrice != null ? minPrice : entity.getPrice())
@@ -189,6 +191,9 @@ public class ProductMapper {
             return;
         }
         entity.setName(request.getName().trim());
+        if (request.getBrand() != null) {
+            entity.setBrand(request.getBrand().isBlank() ? null : request.getBrand().trim());
+        }
         entity.setDescription(request.getDescription());
         entity.setPrice(request.getPrice());
         entity.setStock(request.getStock());
