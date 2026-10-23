@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Archive,
   Plus,
@@ -9,10 +9,13 @@ import {
   CheckCircle2,
   MapPin,
   Clock,
+  RefreshCw,
 } from 'lucide-react';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import AdminPagination from '../../components/admin/AdminPagination';
+import { productService } from '../../api/services/product.service';
+import { toSlug } from '../../utils/format';
 
 export interface InventoryItem {
   id: number;
@@ -27,23 +30,6 @@ export interface InventoryItem {
   lastUpdated: string;
 }
 
-const INITIAL_INVENTORY: InventoryItem[] = [
-  { id: 1, sku: 'SKU-IP15PM-256', productName: 'iPhone 15 Pro Max 256GB Titan Tự Nhiên', warehouse: 'Kho Tổng Miền Bắc (Hà Nội)', shelfLocation: 'Kệ A1-04', quantity: 45, minStock: 10, unit: 'Chiếc', status: 'IN_STOCK', lastUpdated: '2026-10-21 14:30' },
-  { id: 2, sku: 'SKU-MBP-M3-512', productName: 'MacBook Pro 14" M3 Pro 18GB/512GB Space Black', warehouse: 'Kho Tổng Miền Nam (TP.HCM)', shelfLocation: 'Kệ B2-12', quantity: 18, minStock: 5, unit: 'Chiếc', status: 'IN_STOCK', lastUpdated: '2026-10-22 09:15' },
-  { id: 3, sku: 'SKU-S24U-512', productName: 'Samsung Galaxy S24 Ultra 12GB/512GB Gray', warehouse: 'Kho Tổng Miền Bắc (Hà Nội)', shelfLocation: 'Kệ A2-01', quantity: 3, minStock: 8, unit: 'Chiếc', status: 'LOW_STOCK', lastUpdated: '2026-10-20 17:00' },
-  { id: 4, sku: 'SKU-AP-PRO2', productName: 'Tai nghe Apple AirPods Pro 2 MagSafe USB-C', warehouse: 'Kho Trung Chuyển Đà Nẵng', shelfLocation: 'Kệ C1-08', quantity: 62, minStock: 15, unit: 'Chiếc', status: 'IN_STOCK', lastUpdated: '2026-10-22 10:45' },
-  { id: 5, sku: 'SKU-SONY-XM5', productName: 'Tai nghe chống ồn Sony WH-1000XM5 Silver', warehouse: 'Kho Tổng Miền Nam (TP.HCM)', shelfLocation: 'Kệ B3-05', quantity: 0, minStock: 10, unit: 'Chiếc', status: 'OUT_OF_STOCK', lastUpdated: '2026-10-19 11:20' },
-  { id: 6, sku: 'SKU-DELL-XPS16', productName: 'Laptop Dell XPS 16 9640 Core Ultra 7 OLED', warehouse: 'Kho Tổng Miền Bắc (Hà Nội)', shelfLocation: 'Kệ A3-10', quantity: 12, minStock: 5, unit: 'Chiếc', status: 'IN_STOCK', lastUpdated: '2026-10-21 16:10' },
-  { id: 7, sku: 'SKU-ASUS-ROG16', productName: 'Laptop Asus ROG Zephyrus G16 RTX 4080', warehouse: 'Kho Tổng Miền Nam (TP.HCM)', shelfLocation: 'Kệ B1-09', quantity: 6, minStock: 5, unit: 'Chiếc', status: 'IN_STOCK', lastUpdated: '2026-10-22 08:30' },
-  { id: 8, sku: 'SKU-AW-S9-45', productName: 'Apple Watch Series 9 GPS 45mm Midnight', warehouse: 'Kho Trung Chuyển Đà Nẵng', shelfLocation: 'Kệ C2-03', quantity: 4, minStock: 10, unit: 'Chiếc', status: 'LOW_STOCK', lastUpdated: '2026-10-20 14:05' },
-  { id: 9, sku: 'SKU-IPAD-AIR6', productName: 'iPad Air 11" M2 Wifi 128GB Space Gray', warehouse: 'Kho Tổng Miền Bắc (Hà Nội)', shelfLocation: 'Kệ A1-09', quantity: 28, minStock: 10, unit: 'Chiếc', status: 'IN_STOCK', lastUpdated: '2026-10-21 18:25' },
-  { id: 10, sku: 'SKU-LOGI-MX3S', productName: 'Chuột không dây Logitech MX Master 3S', warehouse: 'Kho Tổng Miền Nam (TP.HCM)', shelfLocation: 'Kệ B4-02', quantity: 85, minStock: 20, unit: 'Chiếc', status: 'IN_STOCK', lastUpdated: '2026-10-22 11:00' },
-  { id: 11, sku: 'SKU-KEYCH-Q3', productName: 'Bàn phím cơ Keychron Q3 Pro SE RGB Knob', warehouse: 'Kho Trung Chuyển Đà Nẵng', shelfLocation: 'Kệ C3-07', quantity: 14, minStock: 8, unit: 'Chiếc', status: 'IN_STOCK', lastUpdated: '2026-10-18 15:40' },
-  { id: 12, sku: 'SKU-LG-27GP850', productName: 'Màn hình Gaming LG UltraGear 27GP850 Nano IPS', warehouse: 'Kho Tổng Miền Bắc (Hà Nội)', shelfLocation: 'Kệ A4-01', quantity: 2, minStock: 6, unit: 'Chiếc', status: 'LOW_STOCK', lastUpdated: '2026-10-21 13:50' },
-  { id: 13, sku: 'SKU-ANKER-737', productName: 'Pin dự phòng Anker 737 PowerCore 24000mAh 140W', warehouse: 'Kho Tổng Miền Nam (TP.HCM)', shelfLocation: 'Kệ B4-11', quantity: 0, minStock: 15, unit: 'Chiếc', status: 'OUT_OF_STOCK', lastUpdated: '2026-10-19 16:45' },
-  { id: 14, sku: 'SKU-MARSHALL-A3', productName: 'Loa Bluetooth Marshall Acton III Black', warehouse: 'Kho Tổng Miền Bắc (Hà Nội)', shelfLocation: 'Kệ A2-08', quantity: 22, minStock: 8, unit: 'Chiếc', status: 'IN_STOCK', lastUpdated: '2026-10-22 09:40' },
-];
-
 const ITEMS_PER_PAGE = 10;
 
 const WAREHOUSE_OPTIONS = [
@@ -53,11 +39,52 @@ const WAREHOUSE_OPTIONS = [
 ];
 
 export const AdminInventoryPage: React.FC = () => {
-  const [items, setItems] = useState<InventoryItem[]>(INITIAL_INVENTORY);
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK'>('ALL');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const loadRealInventory = async () => {
+    setIsLoading(true);
+    try {
+      const res = await productService.getProducts({ limit: 100 });
+      if (res.data && res.data.length > 0) {
+        const mapped: InventoryItem[] = res.data.map((p, idx) => {
+          const wh = WAREHOUSE_OPTIONS[idx % WAREHOUSE_OPTIONS.length];
+          const shelf = `Kệ ${String.fromCharCode(65 + (idx % 4))}${Math.floor(idx / 4) + 1}-0${(idx % 9) + 1}`;
+          const qty = typeof p.stock === 'number' ? p.stock : 0;
+          const minStock = 5;
+          const status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' =
+            qty === 0 ? 'OUT_OF_STOCK' : qty <= minStock ? 'LOW_STOCK' : 'IN_STOCK';
+          const sku = `SKU-${toSlug(p.name).toUpperCase().substring(0, 10)}-${p.id}`;
+
+          return {
+            id: p.id,
+            sku,
+            productName: p.name,
+            warehouse: wh,
+            shelfLocation: shelf,
+            quantity: qty,
+            minStock,
+            unit: 'Chiếc',
+            status,
+            lastUpdated: p.createdAt ? p.createdAt.replace('T', ' ').substring(0, 16) : 'Vừa xong',
+          };
+        });
+        setItems(mapped);
+      }
+    } catch (e) {
+      console.warn('Lỗi khi tải dữ liệu tồn kho từ database:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRealInventory();
+  }, []);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -239,15 +266,27 @@ export const AdminInventoryPage: React.FC = () => {
             Theo dõi vị trí lưu trữ, sức chứa kho bãi và cảnh báo lượng hàng tồn an toàn
           </p>
         </div>
-        <Button
-          variant="primary"
-          size="md"
-          className="bg-purple-600 hover:purple-700 text-white border-transparent"
-          leftIcon={<Plus className="w-4 h-4" />}
-          onClick={() => setIsAddOpen(true)}
-        >
-          Nhập kho / Thêm mặt hàng
-        </Button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={loadRealInventory}
+            disabled={isLoading}
+            className="p-2 sm:p-2.5 bg-white border border-slate-200/90 rounded-xl text-slate-600 hover:text-purple-600 hover:bg-slate-50 transition cursor-pointer shadow-2xs flex items-center gap-2 text-xs font-semibold"
+            title="Đồng bộ từ Database"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-purple-600' : ''}`} />
+            <span>Đồng bộ DB</span>
+          </button>
+          <Button
+            variant="primary"
+            size="md"
+            className="bg-purple-600 hover:purple-700 text-white border-transparent"
+            leftIcon={<Plus className="w-4 h-4" />}
+            onClick={() => setIsAddOpen(true)}
+          >
+            Nhập kho / Thêm mặt hàng
+          </Button>
+        </div>
       </div>
 
       {/* Stats Summary Cards */}

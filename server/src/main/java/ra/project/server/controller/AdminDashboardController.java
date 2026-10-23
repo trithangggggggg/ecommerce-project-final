@@ -31,13 +31,20 @@ public class AdminDashboardController {
         Map<String, Object> stats = new HashMap<>();
         long totalProducts = productRepository.count();
         long totalOrders = orderRepository.count();
-        long totalCustomers = userRepository.count();
+        long totalCustomers = userRepository.countByRole(ra.project.server.model.enums.Role.CUSTOMER);
+
+        java.math.BigDecimal revenueRaw = orderRepository.calculateTotalRevenue();
+        if (revenueRaw == null) {
+            revenueRaw = java.math.BigDecimal.ZERO;
+        }
+        long revenueLong = revenueRaw.longValue();
+        String formattedRevenue = String.format("%,d ₫", revenueLong).replace(',', '.');
 
         stats.put("totalProducts", totalProducts);
         stats.put("totalOrders", totalOrders);
         stats.put("totalCustomers", totalCustomers);
-        stats.put("totalRevenueRaw", 142140000L);
-        stats.put("totalRevenueFormatted", "142.140.000 ₫");
+        stats.put("totalRevenueRaw", revenueLong);
+        stats.put("totalRevenueFormatted", formattedRevenue);
 
         return ResponseEntity.ok(ApiResponse.success("Lấy số liệu Dashboard thành công", stats));
     }

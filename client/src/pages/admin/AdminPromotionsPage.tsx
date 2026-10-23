@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Percent,
   Plus,
@@ -11,10 +11,12 @@ import {
   CheckCircle2,
   Calendar,
   Tag,
+  RefreshCw,
 } from 'lucide-react';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import AdminPagination from '../../components/admin/AdminPagination';
+import { promotionService } from '../../api/services/promotion.service';
 
 export interface PromoItem {
   id: number;
@@ -28,30 +30,32 @@ export interface PromoItem {
   status: 'ACTIVE' | 'EXPIRED';
 }
 
-const INITIAL_PROMOS: PromoItem[] = [
-  { id: 1, code: 'TECHWELCOME', title: 'Ưu đãi thành viên mới', discount: 'Giảm 10% (Tối đa 500k)', minOrder: 'Đơn từ 2.000.000₫', expiry: '2026-12-31', usedCount: 142, maxUsage: 500, status: 'ACTIVE' },
-  { id: 2, code: 'APPLEDEAL', title: 'Siêu sale hệ sinh thái Apple', discount: 'Giảm 1.000.000₫', minOrder: 'Đơn Apple từ 15.000.000₫', expiry: '2026-11-30', usedCount: 89, maxUsage: 100, status: 'ACTIVE' },
-  { id: 3, code: 'FREESHIP', title: 'Miễn phí giao hàng toàn quốc', discount: 'Miễn phí 100% cước giao', minOrder: 'Mọi đơn hàng', expiry: '2026-12-31', usedCount: 1200, maxUsage: 2000, status: 'ACTIVE' },
-  { id: 4, code: 'GAMINGPRO', title: 'Ngày hội Laptop Gaming', discount: 'Giảm 500.000₫', minOrder: 'Phụ kiện & Laptop Gaming', expiry: '2026-10-15', usedCount: 50, maxUsage: 50, status: 'EXPIRED' },
-  { id: 5, code: 'SAMSUNGS24', title: 'Ưu đãi Galaxy S24 Series', discount: 'Giảm 1.500.000₫', minOrder: 'Đơn Samsung từ 20.000.000₫', expiry: '2026-12-15', usedCount: 64, maxUsage: 150, status: 'ACTIVE' },
-  { id: 6, code: 'MACBOOKM3', title: 'Back To School - Macbook', discount: 'Giảm 2.000.000₫', minOrder: 'Đơn Macbook từ 25.000.000₫', expiry: '2026-11-20', usedCount: 45, maxUsage: 80, status: 'ACTIVE' },
-  { id: 7, code: 'AUDIOHOT', title: 'Tai nghe & Loa Bluetooth', discount: 'Giảm 15% (Tối đa 300k)', minOrder: 'Đơn âm thanh từ 1.000.000₫', expiry: '2026-10-01', usedCount: 200, maxUsage: 200, status: 'EXPIRED' },
-  { id: 8, code: 'IPHONE15VIP', title: 'Flash Voucher iPhone 15', discount: 'Giảm 800.000₫', minOrder: 'Đơn iPhone từ 18.000.000₫', expiry: '2026-12-30', usedCount: 78, maxUsage: 200, status: 'ACTIVE' },
-  { id: 9, code: 'SMARTWATCH', title: 'Đồng hồ thông minh chính hãng', discount: 'Giảm 20% (Tối đa 600k)', minOrder: 'Đơn từ 3.000.000₫', expiry: '2026-12-25', usedCount: 33, maxUsage: 100, status: 'ACTIVE' },
-  { id: 10, code: 'KEYBOARDTECH', title: 'Bàn phím cơ & Chuột gaming', discount: 'Giảm 150.000₫', minOrder: 'Đơn từ 800.000₫', expiry: '2026-11-15', usedCount: 112, maxUsage: 300, status: 'ACTIVE' },
-  { id: 11, code: 'NEXORVIP', title: 'Đặc quyền thành viên Kim Cương', discount: 'Giảm 5% toàn bộ giỏ hàng', minOrder: 'Đơn từ 5.000.000₫', expiry: '2026-12-31', usedCount: 210, maxUsage: 500, status: 'ACTIVE' },
-  { id: 12, code: 'WEEKEND50K', title: 'Cuối tuần săn deal phụ kiện', discount: 'Giảm 50.000₫', minOrder: 'Đơn từ 300.000₫', expiry: '2026-10-10', usedCount: 500, maxUsage: 500, status: 'EXPIRED' },
-  { id: 13, code: 'MONITOR4K', title: 'Màn hình đồ họa cao cấp', discount: 'Giảm 700.000₫', minOrder: 'Đơn màn hình từ 7.000.000₫', expiry: '2026-12-20', usedCount: 18, maxUsage: 50, status: 'ACTIVE' },
-];
-
 const ITEMS_PER_PAGE = 10;
 
 export const AdminPromotionsPage: React.FC = () => {
-  const [promos, setPromos] = useState<PromoItem[]>(INITIAL_PROMOS);
+  const [promos, setPromos] = useState<PromoItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'EXPIRED'>('ALL');
   const [copied, setCopied] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const fetchPromotions = async () => {
+    setIsLoading(true);
+    try {
+      const data = await promotionService.getPromotions();
+      setPromos(data);
+    } catch (err) {
+      console.error('Lỗi khi tải mã khuyến mãi:', err);
+      setPromos([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPromotions();
+  }, []);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -95,37 +99,41 @@ export const AdminPromotionsPage: React.FC = () => {
   };
 
   // Add Submit
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!addForm.code.trim() || !addForm.discount.trim()) {
       showToast('Vui lòng nhập mã voucher và mức giảm!');
       return;
     }
 
-    const newPromo: PromoItem = {
-      id: Date.now(),
-      code: addForm.code.trim().toUpperCase(),
-      title: addForm.title.trim() || 'Ưu đãi khuyến mãi NEXOR',
-      discount: addForm.discount.trim(),
-      minOrder: addForm.minOrder.trim() || 'Mọi đơn hàng',
-      expiry: addForm.expiry,
-      usedCount: 0,
-      maxUsage: Number(addForm.maxUsage) || 100,
-      status: addForm.status,
-    };
+    try {
+      const newPromo = await promotionService.createPromotion({
+        code: addForm.code.trim().toUpperCase(),
+        title: addForm.title.trim() || 'Ưu đãi khuyến mãi NEXOR',
+        discount: addForm.discount.trim(),
+        minOrder: addForm.minOrder.trim() || 'Mọi đơn hàng',
+        expiry: addForm.expiry,
+        usedCount: 0,
+        maxUsage: Number(addForm.maxUsage) || 100,
+        status: addForm.status,
+      });
 
-    setPromos([newPromo, ...promos]);
-    setIsAddOpen(false);
-    setAddForm({
-      code: '',
-      title: '',
-      discount: '',
-      minOrder: '',
-      expiry: '2026-12-31',
-      maxUsage: 100,
-      status: 'ACTIVE',
-    });
-    showToast(`Đã thêm mã khuyến mãi "${newPromo.code}" thành công!`);
+      setPromos((prev) => [newPromo, ...prev]);
+      setIsAddOpen(false);
+      setAddForm({
+        code: '',
+        title: '',
+        discount: '',
+        minOrder: '',
+        expiry: '2026-12-31',
+        maxUsage: 100,
+        status: 'ACTIVE',
+      });
+      showToast(`Đã thêm mã khuyến mãi "${newPromo.code}" vào Database thành công!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lỗi khi tạo mã khuyến mãi';
+      showToast(msg);
+    }
   };
 
   // Open Edit
@@ -143,37 +151,46 @@ export const AdminPromotionsPage: React.FC = () => {
   };
 
   // Edit Submit
-  const handleEditSubmit = (e: React.FormEvent) => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPromo) return;
 
-    setPromos((prev) =>
-      prev.map((item) =>
-        item.id === editingPromo.id
-          ? {
-              ...item,
-              code: editForm.code.trim().toUpperCase(),
-              title: editForm.title.trim(),
-              discount: editForm.discount.trim(),
-              minOrder: editForm.minOrder.trim(),
-              expiry: editForm.expiry,
-              maxUsage: Number(editForm.maxUsage) || 100,
-              status: editForm.status,
-            }
-          : item
-      )
-    );
+    try {
+      const updated = await promotionService.updatePromotion(editingPromo.id, {
+        code: editForm.code.trim().toUpperCase(),
+        title: editForm.title.trim(),
+        discount: editForm.discount.trim(),
+        minOrder: editForm.minOrder.trim(),
+        expiry: editForm.expiry,
+        maxUsage: Number(editForm.maxUsage) || 100,
+        status: editForm.status,
+      });
 
-    showToast(`Đã cập nhật mã "${editForm.code.toUpperCase()}"!`);
-    setEditingPromo(null);
+      setPromos((prev) =>
+        prev.map((item) => (item.id === editingPromo.id ? updated : item))
+      );
+
+      showToast(`Đã cập nhật mã "${updated.code}" thành công!`);
+      setEditingPromo(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lỗi khi cập nhật mã khuyến mãi';
+      showToast(msg);
+    }
   };
 
   // Delete
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
-    setPromos((prev) => prev.filter((p) => p.id !== deleteTarget.id));
-    showToast(`Đã xóa mã voucher "${deleteTarget.code}"`);
-    setDeleteTarget(null);
+    try {
+      await promotionService.deletePromotion(deleteTarget.id);
+      setPromos((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+      showToast(`Đã xóa mã voucher "${deleteTarget.code}" khỏi Database!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lỗi khi xóa mã khuyến mãi';
+      showToast(msg);
+    } finally {
+      setDeleteTarget(null);
+    }
   };
 
   // Filter
@@ -224,14 +241,24 @@ export const AdminPromotionsPage: React.FC = () => {
             Thiết lập các chương trình ưu đãi, voucher giảm giá và theo dõi hiệu suất chuyển đổi
           </p>
         </div>
-        <Button
-          variant="primary"
-          size="md"
-          leftIcon={<Plus className="w-4 h-4" />}
-          onClick={() => setIsAddOpen(true)}
-        >
-          Tạo mã mới
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="md"
+            leftIcon={<RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
+            onClick={fetchPromotions}
+          >
+            Làm mới
+          </Button>
+          <Button
+            variant="primary"
+            size="md"
+            leftIcon={<Plus className="w-4 h-4" />}
+            onClick={() => setIsAddOpen(true)}
+          >
+            Tạo mã mới
+          </Button>
+        </div>
       </div>
 
       {/* Stats Summary Cards */}

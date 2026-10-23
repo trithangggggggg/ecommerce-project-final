@@ -80,6 +80,7 @@ export interface Product {
   isNew?: boolean;
   isFlashSale?: boolean;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ProductListResponse {

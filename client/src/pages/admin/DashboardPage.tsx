@@ -36,34 +36,34 @@ export const DashboardPage: React.FC = () => {
   }, []);
 
   // 1. Thẻ thống kê 4 cột (Lấy số liệu thật từ Backend)
-  const totalRevenue = dashboardData?.totalRevenueFormatted || '128.450.000 ₫';
-  const totalOrders = dashboardData?.totalOrders ?? 42;
-  const totalCustomers = dashboardData?.totalCustomers ?? 156;
+  const totalRevenue = dashboardData?.totalRevenueFormatted ?? '0 ₫';
+  const totalOrders = dashboardData?.totalOrders ?? 0;
+  const totalCustomers = dashboardData?.totalCustomers ?? 1;
   const totalProducts = dashboardData?.totalProducts ?? 20;
 
   const stats = [
     {
       title: 'Tổng doanh thu',
       value: totalRevenue,
-      change: '+14.5% hôm nay',
+      change: totalOrders > 0 ? '+14.5% hôm nay' : '0 giao dịch hôm nay',
       icon: ShoppingCart,
       color: 'bg-blue-50 text-blue-600 border border-blue-100',
       sparklineColor: '#2563eb',
-      sparklinePath: 'M 0,25 C 15,22 25,28 35,18 C 45,8 55,22 65,14 C 75,6 85,12 100,5',
+      sparklinePath: totalOrders > 0 ? 'M 0,25 C 15,22 25,28 35,18 C 45,8 55,22 65,14 C 75,6 85,12 100,5' : 'M 0,25 L 100,25',
     },
     {
       title: 'Đơn hàng mới',
       value: `${totalOrders} đơn`,
-      change: '+8 đơn hôm nay',
+      change: totalOrders > 0 ? `+${totalOrders} đơn mới` : '0 đơn hôm nay',
       icon: Package,
       color: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
       sparklineColor: '#10b981',
-      sparklinePath: 'M 0,26 C 20,24 35,28 50,15 C 65,5 80,18 100,6',
+      sparklinePath: totalOrders > 0 ? 'M 0,26 C 20,24 35,28 50,15 C 65,5 80,18 100,6' : 'M 0,26 L 100,26',
     },
     {
       title: 'Khách hàng mới',
       value: `${totalCustomers} người`,
-      change: '+32% hôm nay',
+      change: totalCustomers > 0 ? `+${totalCustomers} tài khoản` : '0 khách hàng',
       icon: Users,
       color: 'bg-purple-50 text-purple-600 border border-purple-100',
       sparklineColor: '#8b5cf6',
@@ -72,7 +72,7 @@ export const DashboardPage: React.FC = () => {
     {
       title: 'Sản phẩm đang bán',
       value: `${totalProducts} sp`,
-      change: '+12 mới tuần này',
+      change: `${totalProducts} sản phẩm sẵn có`,
       icon: PackageCheck,
       color: 'bg-amber-50 text-amber-600 border border-amber-100',
       sparklineColor: '#f59e0b',
@@ -80,62 +80,15 @@ export const DashboardPage: React.FC = () => {
     },
   ];
 
-  // 2. Dữ liệu Doanh thu theo danh mục
+  // 2. Dữ liệu Doanh thu theo danh mục (Lấy 100% từ Database thực)
   const categoryStats = dashboardData?.categoryBreakdown && dashboardData.categoryBreakdown.length > 0
     ? dashboardData.categoryBreakdown
-    : [
-        { name: 'Điện thoại', percentage: 38, value: '48.8 tr', color: '#2563eb', strokeDash: '95.5 251.3', offset: 0 },
-        { name: 'Laptop', percentage: 26, value: '33.4 tr', color: '#10b981', strokeDash: '65.3 251.3', offset: -95.5 },
-        { name: 'Phụ kiện', percentage: 18, value: '23.1 tr', color: '#8b5cf6', strokeDash: '45.2 251.3', offset: -160.8 },
-        { name: 'Tablet', percentage: 10, value: '12.8 tr', color: '#f59e0b', strokeDash: '25.1 251.3', offset: -206.0 },
-        { name: 'Khác', percentage: 8, value: '10.3 tr', color: '#94a3b8', strokeDash: '20.1 251.3', offset: -231.1 },
-      ];
+    : [];
 
-  // 3. Sản phẩm bán chạy (Top 5 sản phẩm)
+  // 3. Sản phẩm bán chạy (Top 5 sản phẩm từ Database thực)
   const topProducts = dashboardData?.topProducts && dashboardData.topProducts.length > 0
     ? dashboardData.topProducts
-    : [
-        {
-          id: 1,
-          rank: 1,
-          name: 'iPhone 15 128GB',
-          category: 'Điện thoại',
-          sold: '245 bán',
-          image: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=100',
-        },
-        {
-          id: 2,
-          rank: 2,
-          name: 'MacBook Air M2',
-          category: 'Laptop',
-          sold: '180 bán',
-          image: 'https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?w=100',
-        },
-        {
-          id: 3,
-          rank: 3,
-          name: 'Tai nghe AirPods Pro',
-          category: 'Phụ kiện',
-          sold: '156 bán',
-          image: 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=100',
-        },
-        {
-          id: 4,
-          rank: 4,
-          name: 'Samsung Galaxy S23',
-          category: 'Điện thoại',
-          sold: '132 bán',
-          image: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=100',
-        },
-        {
-          id: 5,
-          rank: 5,
-          name: 'Sạc nhanh Anker 20W',
-          category: 'Phụ kiện',
-          sold: '128 bán',
-          image: 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=100',
-        },
-      ];
+    : [];
 
   return (
     <div className="h-full flex flex-col justify-between font-sans select-none overflow-hidden space-y-3 sm:space-y-3.5">
@@ -283,28 +236,39 @@ export const DashboardPage: React.FC = () => {
               <text x="32" y="144" fill="#94a3b8" fontSize="10" textAnchor="end">50 tr</text>
               <text x="32" y="184" fill="#94a3b8" fontSize="10" textAnchor="end">0</text>
 
-              {/* Area Gradient Fill */}
-              <path
-                d="M 40,150 C 90,140 120,130 160,115 C 200,100 230,125 275,100 C 320,75 350,110 400,105 C 440,100 460,70 480,50 L 480,180 L 40,180 Z"
-                fill="url(#revenueGradient)"
-              />
+              {totalOrders > 0 ? (
+                <>
+                  {/* Area Gradient Fill */}
+                  <path
+                    d="M 40,150 C 90,140 120,130 160,115 C 200,100 230,125 275,100 C 320,75 350,110 400,105 C 440,100 460,70 480,50 L 480,180 L 40,180 Z"
+                    fill="url(#revenueGradient)"
+                  />
 
-              {/* Smooth Blue Bezier Curve */}
-              <path
-                d="M 40,150 C 90,140 120,130 160,115 C 200,100 230,125 275,100 C 320,75 350,110 400,105 C 440,100 460,70 480,50"
-                fill="none"
-                stroke="#2563eb"
-                strokeWidth="2.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+                  {/* Smooth Blue Bezier Curve */}
+                  <path
+                    d="M 40,150 C 90,140 120,130 160,115 C 200,100 230,125 275,100 C 320,75 350,110 400,105 C 440,100 460,70 480,50"
+                    fill="none"
+                    stroke="#2563eb"
+                    strokeWidth="2.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
 
-              {/* Circle Data Nodes */}
-              <circle cx="40" cy="150" r="3.5" fill="#2563eb" stroke="#ffffff" strokeWidth="2" />
-              <circle cx="160" cy="115" r="3.5" fill="#2563eb" stroke="#ffffff" strokeWidth="2" />
-              <circle cx="275" cy="100" r="3.5" fill="#2563eb" stroke="#ffffff" strokeWidth="2" />
-              <circle cx="400" cy="105" r="3.5" fill="#2563eb" stroke="#ffffff" strokeWidth="2" />
-              <circle cx="480" cy="50" r="4" fill="#2563eb" stroke="#ffffff" strokeWidth="2" />
+                  {/* Circle Data Nodes */}
+                  <circle cx="40" cy="150" r="3.5" fill="#2563eb" stroke="#ffffff" strokeWidth="2" />
+                  <circle cx="160" cy="115" r="3.5" fill="#2563eb" stroke="#ffffff" strokeWidth="2" />
+                  <circle cx="275" cy="100" r="3.5" fill="#2563eb" stroke="#ffffff" strokeWidth="2" />
+                  <circle cx="400" cy="105" r="3.5" fill="#2563eb" stroke="#ffffff" strokeWidth="2" />
+                  <circle cx="480" cy="50" r="4" fill="#2563eb" stroke="#ffffff" strokeWidth="2" />
+                </>
+              ) : (
+                <>
+                  <line x1="40" y1="180" x2="480" y2="180" stroke="#94a3b8" strokeWidth="2" strokeDasharray="4 4" />
+                  <text x="260" y="105" fill="#94a3b8" fontSize="12" textAnchor="middle" fontWeight="500">
+                    Chưa có giao dịch phát sinh trong kỳ này
+                  </text>
+                </>
+              )}
 
               {/* X-Axis Labels */}
               <text x="40" y="196" fill="#94a3b8" fontSize="10" textAnchor="middle">04/06</text>
@@ -328,28 +292,35 @@ export const DashboardPage: React.FC = () => {
           <div className="flex flex-col items-center justify-center my-auto py-1">
             <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center shrink-0">
               <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                {categoryStats.map((cat, i) => (
+                {categoryStats.length > 0 ? (
+                  categoryStats.map((cat, i) => (
+                    <circle
+                      key={i}
+                      cx="50"
+                      cy="50"
+                      r="40"
+                      fill="transparent"
+                      stroke={cat.color}
+                      strokeWidth="13"
+                      strokeDasharray={cat.strokeDash}
+                      strokeDashoffset={cat.offset}
+                      className="transition-all duration-300"
+                    />
+                  ))
+                ) : (
                   <circle
-                    key={i}
                     cx="50"
                     cy="50"
                     r="40"
                     fill="transparent"
-                    stroke={cat.color}
+                    stroke="#e2e8f0"
                     strokeWidth="13"
-                    strokeDasharray={cat.strokeDash}
-                    strokeDashoffset={cat.offset}
-                    className="transition-all duration-300"
                   />
-                ))}
+                )}
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
                 <span className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
-                  {dashboardData?.totalRevenueRaw
-                    ? (dashboardData.totalRevenueRaw >= 1_000_000
-                        ? (dashboardData.totalRevenueRaw / 1_000_000).toFixed(1) + ' tr'
-                        : totalRevenue)
-                    : '128.4 tr'}
+                  {totalRevenue}
                 </span>
                 <span className="text-[9px] text-slate-400 font-medium">Doanh thu</span>
               </div>
@@ -357,26 +328,32 @@ export const DashboardPage: React.FC = () => {
 
             {/* Category Legend List */}
             <div className="w-full mt-2.5 space-y-1 text-xs">
-              {categoryStats.map((cat, i) => (
-                <div key={i} className="flex items-center justify-between text-[10px] sm:text-[11px]">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                    <span className="text-slate-600 font-medium">{cat.name}</span>
+              {categoryStats.length > 0 ? (
+                categoryStats.map((cat, i) => (
+                  <div key={i} className="flex items-center justify-between text-[10px] sm:text-[11px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                      <span className="text-slate-600 font-medium">{cat.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 font-semibold text-slate-800">
+                      <span className="text-slate-400 font-normal">{cat.percentage}%</span>
+                      <span>{cat.value}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 font-semibold text-slate-800">
-                    <span className="text-slate-400 font-normal">{cat.percentage}%</span>
-                    <span>{cat.value}</span>
-                  </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-[11px] text-slate-400 text-center py-2">
+                  Chưa có đơn hàng phát sinh theo danh mục
+                </p>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Chart 3: Sản phẩm bán chạy (Span 3) */}
+        {/* Chart 3: Top 8 Sản phẩm bán chạy (Span 3 - Không cuộn, vừa khít khung) */}
         <div className="lg:col-span-3 bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/80 shadow-2xs flex flex-col justify-between min-h-0">
           <div className="flex items-center justify-between mb-2 shrink-0">
-            <h2 className="text-xs sm:text-sm font-bold text-slate-900">Sản phẩm bán chạy</h2>
+            <h2 className="text-xs sm:text-sm font-bold text-slate-900">Top 8 sản phẩm bán chạy</h2>
             <Link
               to={ROUTES.ADMIN_PRODUCTS}
               className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline"
@@ -385,33 +362,42 @@ export const DashboardPage: React.FC = () => {
             </Link>
           </div>
 
-          {/* Top Products List */}
-          <div className="space-y-2 my-auto">
-            {topProducts.map((prod) => (
-              <div key={prod.id} className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-3.5 text-[11px] font-bold text-slate-400 text-center shrink-0">
-                    {prod.rank}
-                  </span>
-                  <img
-                    src={prod.image}
-                    alt={prod.name}
-                    className="w-7 h-7 rounded-md object-cover ring-1 ring-slate-100 bg-slate-50 shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <span className="text-xs font-bold text-slate-800 block truncate leading-tight">
-                      {prod.name}
+          {/* Top Products List - Hiển thị cố định toàn bộ 8 sản phẩm, không cuộn lên xuống */}
+          <div className="flex-1 flex flex-col justify-between py-0.5 overflow-hidden">
+            {topProducts.length > 0 ? (
+              topProducts.map((prod) => (
+                <div key={prod.id} className="flex items-center justify-between gap-2 py-0.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="w-4 text-[11px] font-bold text-slate-400 text-center shrink-0">
+                      {prod.rank}
                     </span>
-                    <span className="text-[10px] text-slate-400 block font-medium truncate">
-                      {prod.category}
-                    </span>
+                    <img
+                      src={prod.image}
+                      alt={prod.name}
+                      className="w-6 h-6 rounded-md object-cover ring-1 ring-slate-100 bg-slate-50 shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <span
+                        title={prod.name}
+                        className="text-xs font-semibold text-slate-800 block truncate leading-tight max-w-[125px] sm:max-w-[145px]"
+                      >
+                        {prod.name}
+                      </span>
+                      <span className="text-[10px] text-slate-400 block font-normal truncate leading-none mt-0.5">
+                        {prod.category}
+                      </span>
+                    </div>
                   </div>
+                  <span className="text-[10px] font-semibold text-slate-500 shrink-0">
+                    {prod.sold}
+                  </span>
                 </div>
-                <span className="text-[10px] font-semibold text-slate-500 shrink-0">
-                  {prod.sold}
-                </span>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-xs text-slate-400 text-center py-6">
+                Chưa có sản phẩm nào phát sinh lượt bán
+              </p>
+            )}
           </div>
         </div>
       </div>
