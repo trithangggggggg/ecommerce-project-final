@@ -43,7 +43,7 @@ public class ProductServiceImpl implements ProductService {
     public ProductResponse getProductById(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + id));
-        return productMapper.toResponse(product);
+        return productMapper.toDetailResponse(product);
     }
 
     @Override

@@ -12,23 +12,53 @@ import type {
 // Helper map backend product response to frontend Product
 function mapBackendProduct(item: any): Product {
   const price = typeof item.price === 'number' ? item.price : parseFloat(item.price || '0');
-  const originalPrice = item.originalPrice
+  const minPrice = typeof item.minPrice === 'number' ? item.minPrice : price;
+  const maxPrice = typeof item.maxPrice === 'number' ? item.maxPrice : price;
+
+  // Lấy giá gốc và % giảm giá từ backend nếu có
+  const originalPrice = item.originalPrice != null
     ? (typeof item.originalPrice === 'number' ? item.originalPrice : parseFloat(item.originalPrice))
-    : Math.round(price * 1.15 / 100000) * 100000; // Realistic original price for discount display
-  const discountPercent = originalPrice > price
-    ? Math.round(((originalPrice - price) / originalPrice) * 100)
-    : 10;
+    : undefined;
+
+  const discountPercent = item.discountPercent != null
+    ? Number(item.discountPercent)
+    : (originalPrice && originalPrice > price ? Math.round(((originalPrice - price) / originalPrice) * 100) : undefined);
+
+  // Gallery images từ backend
+  const images: string[] = [];
+  if (Array.isArray(item.images) && item.images.length > 0) {
+    item.images.forEach((img: any) => {
+      if (typeof img === 'string') images.push(img);
+      else if (img && img.url) images.push(img.url);
+    });
+  }
+  if (images.length === 0 && item.imageUrl) {
+    images.push(item.imageUrl);
+  }
+
+  // Specifications dictionary từ backend specs
+  const specifications: Record<string, string> = {};
+  if (Array.isArray(item.specs)) {
+    item.specs.forEach((s: any) => {
+      if (s.specKey && s.specValue) {
+        specifications[s.specKey] = s.specValue;
+      }
+    });
+  }
 
   return {
     id: item.id,
     name: item.name,
     slug: item.slug || toSlug(item.name || ''),
     description: item.description || '',
-    price: price,
+    price: minPrice,
+    minPrice: minPrice,
+    maxPrice: maxPrice,
     originalPrice: originalPrice,
     discountPercent: discountPercent,
     imageUrl: item.imageUrl || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600',
-    images: item.images || [item.imageUrl],
+    images: images,
+    galleryImages: item.images,
     categoryId: item.categoryId || 1,
     category: {
       id: item.categoryId || 1,
@@ -36,9 +66,13 @@ function mapBackendProduct(item: any): Product {
       slug: toSlug(item.categoryName || 'tech'),
     },
     brand: item.brand || 'Chính hãng',
-    stock: item.stock ?? 20,
-    rating: item.rating || 5.0,
-    reviewCount: item.reviewCount || 48,
+    stock: item.stock ?? 0,
+    rating: item.rating,
+    reviewCount: item.reviewCount,
+    specifications: Object.keys(specifications).length > 0 ? specifications : undefined,
+    specs: item.specs,
+    options: item.options,
+    variants: item.variants,
     isFeatured: item.isFeatured ?? true,
     isNew: item.isNew ?? true,
     createdAt: item.createdAt,

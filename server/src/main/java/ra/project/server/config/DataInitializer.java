@@ -6,18 +6,9 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import ra.project.server.model.entity.Category;
-import ra.project.server.model.entity.Order;
-import ra.project.server.model.entity.OrderItem;
-import ra.project.server.model.entity.Product;
-import ra.project.server.model.entity.User;
-import ra.project.server.model.enums.OrderStatus;
-import ra.project.server.model.enums.PaymentMethod;
+import ra.project.server.model.entity.*;
 import ra.project.server.model.enums.Role;
-import ra.project.server.repository.CategoryRepository;
-import ra.project.server.repository.OrderRepository;
-import ra.project.server.repository.ProductRepository;
-import ra.project.server.repository.UserRepository;
+import ra.project.server.repository.*;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -32,6 +23,11 @@ public class DataInitializer implements CommandLineRunner {
         private final UserRepository userRepository;
         private final CategoryRepository categoryRepository;
         private final ProductRepository productRepository;
+        private final ProductVariantRepository productVariantRepository;
+        private final ProductOptionRepository productOptionRepository;
+        private final ProductOptionValueRepository productOptionValueRepository;
+        private final ProductSpecRepository productSpecRepository;
+        private final ProductImageRepository productImageRepository;
         private final PasswordEncoder passwordEncoder;
 
         @Override
@@ -40,6 +36,7 @@ public class DataInitializer implements CommandLineRunner {
                 initAdminUser();
                 initCustomerUser();
                 initCategoriesAndProducts();
+                initVariantsAndSpecsForFeaturedProducts();
         }
 
         private void initCustomerUser() {
@@ -99,17 +96,11 @@ public class DataInitializer implements CommandLineRunner {
                                                         .build();
                                 });
 
-                // 1. Luôn đồng bộ username và email chính xác
                 admin.setUsername(adminUsername);
                 admin.setEmail(adminEmail);
-
-                // 2. Luôn gán lại role Role.ADMIN (đáp ứng hasRole("ADMIN") và hasAuthority("ADMIN"))
                 admin.setRole(Role.ADMIN);
-
-                // 3. Luôn gán lại status = true (hoạt động, không bị khóa)
                 admin.setStatus(true);
 
-                // 4. Luôn đảm bảo mật khẩu được mã hóa BCrypt chính xác cho '123123123'
                 if (admin.getPassword() == null || !passwordEncoder.matches(adminPassword, admin.getPassword())) {
                         admin.setPassword(passwordEncoder.encode(adminPassword));
                         log.info(">>> [DataInitializer] Đã mã hóa và cập nhật mật khẩu mới cho Quản trị viên (123123123)");
@@ -250,6 +241,138 @@ public class DataInitializer implements CommandLineRunner {
                 }
         }
 
+        private void initVariantsAndSpecsForFeaturedProducts() {
+                productRepository.findByNameContainingIgnoreCase("iPad Pro 11 inch M4").stream().findFirst().ifPresent(product -> {
+                        if (productOptionRepository.findByProductIdOrderByPositionAsc(product.getId()).isEmpty()) {
+                                log.info(">>> [DataInitializer] Bổ sung cấu trúc đa biến thể mẫu cho sản phẩm: {}", product.getName());
+
+                                // Options
+                                ProductOption optStorage = productOptionRepository.save(ProductOption.builder()
+                                                .product(product).name("Dung lượng").position(0).build());
+                                ProductOptionValue v256 = productOptionValueRepository.save(ProductOptionValue.builder()
+                                                .option(optStorage).value("256GB").position(0).build());
+                                ProductOptionValue v512 = productOptionValueRepository.save(ProductOptionValue.builder()
+                                                .option(optStorage).value("512GB").position(1).build());
+                                ProductOptionValue v1tb = productOptionValueRepository.save(ProductOptionValue.builder()
+                                                .option(optStorage).value("1TB").position(2).build());
+
+                                ProductOption optColor = productOptionRepository.save(ProductOption.builder()
+                                                .product(product).name("Màu sắc").position(1).build());
+                                ProductOptionValue vBlack = productOptionValueRepository.save(ProductOptionValue.builder()
+                                                .option(optColor).value("Space Black").position(0).build());
+                                ProductOptionValue vSilver = productOptionValueRepository.save(ProductOptionValue.builder()
+                                                .option(optColor).value("Silver").position(1).build());
+
+                                // Variants
+                                createVariant(product, "IPAD-M4-256-BLK", new BigDecimal("28490000"), new BigDecimal("31990000"), 15,
+                                                "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=600", List.of(v256, vBlack));
+                                createVariant(product, "IPAD-M4-256-SLV", new BigDecimal("28490000"), new BigDecimal("31990000"), 12,
+                                                "https://images.unsplash.com/photo-1561154464-82e9adf32764?w=600", List.of(v256, vSilver));
+                                createVariant(product, "IPAD-M4-512-BLK", new BigDecimal("34490000"), new BigDecimal("37990000"), 8,
+                                                "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=600", List.of(v512, vBlack));
+                                createVariant(product, "IPAD-M4-512-SLV", new BigDecimal("34490000"), new BigDecimal("37990000"), 10,
+                                                "https://images.unsplash.com/photo-1561154464-82e9adf32764?w=600", List.of(v512, vSilver));
+                                createVariant(product, "IPAD-M4-1TB-BLK", new BigDecimal("45990000"), new BigDecimal("49990000"), 5,
+                                                "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=600", List.of(v1tb, vBlack));
+
+                                // Specs
+                                addSpec(product, "Màn hình", "Công nghệ màn hình", "Ultra Retina XDR Tandem OLED hai lớp", 0);
+                                addSpec(product, "Màn hình", "Độ phân giải & Tần số quét", "2420 x 1668 pixels (264 ppi), 120Hz ProMotion", 1);
+                                addSpec(product, "Màn hình", "Độ sáng tối đa", "1000 nits toàn màn hình, 1600 nits đỉnh HDR", 2);
+                                addSpec(product, "Hiệu năng", "Chip xử lý", "Apple M4 9-core CPU / 10-core GPU", 3);
+                                addSpec(product, "Hiệu năng", "AI Engine", "16-core Neural Engine, 38 nghìn tỷ phép tính/giây", 4);
+                                addSpec(product, "Hiệu năng", "RAM", "8GB Unified Memory (256/512GB), 16GB (1TB)", 5);
+                                addSpec(product, "Thiết kế & Kết nối", "Kích thước & Trọng lượng", "Mỏng 5.3 mm, khối lượng 444 g", 6);
+                                addSpec(product, "Thiết kế & Kết nối", "Cổng kết nối", "Thunderbolt / USB 4, Wi-Fi 6E, Bluetooth 5.3", 7);
+
+                                // Images
+                                addImage(product, "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=600", 0);
+                                addImage(product, "https://images.unsplash.com/photo-1561154464-82e9adf32764?w=600", 1);
+                                addImage(product, "https://images.unsplash.com/photo-1589739900243-4b52cd9b104e?w=600", 2);
+                        }
+                });
+
+                productRepository.findByNameContainingIgnoreCase("iPhone 15 Pro Max").stream().findFirst().ifPresent(product -> {
+                        if (productOptionRepository.findByProductIdOrderByPositionAsc(product.getId()).isEmpty()) {
+                                log.info(">>> [DataInitializer] Bổ sung cấu trúc đa biến thể mẫu cho sản phẩm: {}", product.getName());
+
+                                ProductOption optStorage = productOptionRepository.save(ProductOption.builder()
+                                                .product(product).name("Dung lượng").position(0).build());
+                                ProductOptionValue v256 = productOptionValueRepository.save(ProductOptionValue.builder()
+                                                .option(optStorage).value("256GB").position(0).build());
+                                ProductOptionValue v512 = productOptionValueRepository.save(ProductOptionValue.builder()
+                                                .option(optStorage).value("512GB").position(1).build());
+                                ProductOptionValue v1tb = productOptionValueRepository.save(ProductOptionValue.builder()
+                                                .option(optStorage).value("1TB").position(2).build());
+
+                                ProductOption optColor = productOptionRepository.save(ProductOption.builder()
+                                                .product(product).name("Màu sắc").position(1).build());
+                                ProductOptionValue vNatural = productOptionValueRepository.save(ProductOptionValue.builder()
+                                                .option(optColor).value("Titan Tự Nhiên").position(0).build());
+                                ProductOptionValue vDesert = productOptionValueRepository.save(ProductOptionValue.builder()
+                                                .option(optColor).value("Titan Sa Mạc").position(1).build());
+                                ProductOptionValue vBlack = productOptionValueRepository.save(ProductOptionValue.builder()
+                                                .option(optColor).value("Titan Đen").position(2).build());
+                                ProductOptionValue vWhite = productOptionValueRepository.save(ProductOptionValue.builder()
+                                                .option(optColor).value("Titan Trắng").position(3).build());
+
+                                createVariant(product, "IP15PM-256-NAT", new BigDecimal("29990000"), new BigDecimal("34990000"), 20,
+                                                "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=600", List.of(v256, vNatural));
+                                createVariant(product, "IP15PM-256-BLK", new BigDecimal("29990000"), new BigDecimal("34990000"), 18,
+                                                "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=600", List.of(v256, vBlack));
+                                createVariant(product, "IP15PM-512-NAT", new BigDecimal("35990000"), new BigDecimal("40990000"), 12,
+                                                "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=600", List.of(v512, vNatural));
+                                createVariant(product, "IP15PM-512-DES", new BigDecimal("35990000"), new BigDecimal("40990000"), 15,
+                                                "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=600", List.of(v512, vDesert));
+                                createVariant(product, "IP15PM-1TB-WHT", new BigDecimal("43990000"), new BigDecimal("47990000"), 6,
+                                                "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=600", List.of(v1tb, vWhite));
+
+                                addSpec(product, "Màn hình", "Kích thước & Công nghệ", "Super Retina XDR OLED 6.7 inch, 120Hz ProMotion", 0);
+                                addSpec(product, "Hiệu năng", "Chip xử lý", "Apple A17 Pro (3nm), 6-core GPU ray tracing", 1);
+                                addSpec(product, "Camera", "Camera chính", "48MP f/1.78, Telephoto 5x tiềm vọng quang học", 2);
+                                addSpec(product, "Chất liệu", "Khung viền", "Titanium chuẩn hàng không vũ trụ cao cấp", 3);
+
+                                addImage(product, "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=600", 0);
+                                addImage(product, "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600", 1);
+                        }
+                });
+        }
+
+        private void createVariant(Product product, String sku, BigDecimal price, BigDecimal originalPrice,
+                                   int stock, String imageUrl, List<ProductOptionValue> values) {
+                if (!productVariantRepository.existsBySkuIgnoreCase(sku)) {
+                        ProductVariant variant = ProductVariant.builder()
+                                        .product(product)
+                                        .sku(sku)
+                                        .price(price)
+                                        .originalPrice(originalPrice)
+                                        .stock(stock)
+                                        .imageUrl(imageUrl)
+                                        .status(true)
+                                        .optionValues(new ArrayList<>(values))
+                                        .build();
+                        productVariantRepository.save(variant);
+                }
+        }
+
+        private void addSpec(Product product, String group, String key, String value, int position) {
+                productSpecRepository.save(ProductSpec.builder()
+                                .product(product)
+                                .groupName(group)
+                                .specKey(key)
+                                .specValue(value)
+                                .position(position)
+                                .build());
+        }
+
+        private void addImage(Product product, String url, int position) {
+                productImageRepository.save(ProductImage.builder()
+                                .product(product)
+                                .url(url)
+                                .position(position)
+                                .build());
+        }
+
         private Category getOrCreateCategory(String name, String description) {
                 return categoryRepository.findByName(name).orElseGet(() -> {
                         Category category = Category.builder()
@@ -276,4 +399,3 @@ public class DataInitializer implements CommandLineRunner {
                 }
         }
 }
-

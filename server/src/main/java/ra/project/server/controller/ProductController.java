@@ -75,29 +75,5 @@ public class ProductController {
         PageResponse<ProductResponse> products = productService.searchProducts(searchKeyword, categoryId, minPrice, maxPrice, status, pageable);
         return ResponseEntity.ok(ApiResponse.success("Tìm kiếm sản phẩm thành công", products));
     }
-
-    @PostMapping
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('ADMIN')")
-    public ResponseEntity<ApiResponse<ProductResponse>> createProduct(@Valid @RequestBody ProductRequest request) {
-        ProductResponse createdProduct = productService.createProduct(request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.created("Thêm sản phẩm mới thành công", createdProduct));
-    }
-
-    @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('ADMIN')")
-    public ResponseEntity<ApiResponse<ProductResponse>> updateProduct(
-            @PathVariable Long id,
-            @Valid @RequestBody ProductRequest request
-    ) {
-        ProductResponse updatedProduct = productService.updateProduct(id, request);
-        return ResponseEntity.ok(ApiResponse.success("Cập nhật sản phẩm thành công", updatedProduct));
-    }
-
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('ADMIN')")
-    public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable Long id) {
-        productService.deleteProduct(id);
-        return ResponseEntity.ok(ApiResponse.success("Xóa sản phẩm thành công", null));
-    }
 }
+

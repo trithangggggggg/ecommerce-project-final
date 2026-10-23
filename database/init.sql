@@ -45,7 +45,70 @@ CREATE TABLE IF NOT EXISTS products (
     CONSTRAINT fk_products_categories FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 4. Table: orders
+-- 4. Table: product_options
+CREATE TABLE IF NOT EXISTS product_options (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    product_id BIGINT NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    position INT NOT NULL DEFAULT 0,
+    CONSTRAINT fk_product_options_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 5. Table: product_option_values
+CREATE TABLE IF NOT EXISTS product_option_values (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    option_id BIGINT NOT NULL,
+    value VARCHAR(100) NOT NULL,
+    position INT NOT NULL DEFAULT 0,
+    CONSTRAINT fk_option_values_option FOREIGN KEY (option_id) REFERENCES product_options (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 6. Table: product_variants
+CREATE TABLE IF NOT EXISTS product_variants (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    product_id BIGINT NOT NULL,
+    sku VARCHAR(100) NOT NULL UNIQUE,
+    price DECIMAL(12, 2) NOT NULL,
+    original_price DECIMAL(12, 2) NULL,
+    stock INT NOT NULL DEFAULT 0,
+    image_url VARCHAR(500),
+    status BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_variants_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 7. Table: variant_option_values
+CREATE TABLE IF NOT EXISTS variant_option_values (
+    variant_id BIGINT NOT NULL,
+    option_value_id BIGINT NOT NULL,
+    PRIMARY KEY (variant_id, option_value_id),
+    CONSTRAINT fk_vov_variant FOREIGN KEY (variant_id) REFERENCES product_variants (id) ON DELETE CASCADE,
+    CONSTRAINT fk_vov_option_value FOREIGN KEY (option_value_id) REFERENCES product_option_values (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 8. Table: product_specs
+CREATE TABLE IF NOT EXISTS product_specs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    product_id BIGINT NOT NULL,
+    group_name VARCHAR(100),
+    spec_key VARCHAR(150) NOT NULL,
+    spec_value TEXT NOT NULL,
+    position INT NOT NULL DEFAULT 0,
+    CONSTRAINT fk_specs_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 9. Table: product_images
+CREATE TABLE IF NOT EXISTS product_images (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    product_id BIGINT NOT NULL,
+    variant_id BIGINT NULL,
+    url VARCHAR(500) NOT NULL,
+    position INT NOT NULL DEFAULT 0,
+    CONSTRAINT fk_images_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 10. Table: orders
 CREATE TABLE IF NOT EXISTS orders (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL,
@@ -61,16 +124,21 @@ CREATE TABLE IF NOT EXISTS orders (
     CONSTRAINT fk_orders_users FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 5. Table: order_items
+-- 11. Table: order_items
 CREATE TABLE IF NOT EXISTS order_items (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     order_id BIGINT NOT NULL,
     product_id BIGINT NOT NULL,
+    variant_id BIGINT NULL,
+    product_name VARCHAR(255) NULL,
+    variant_name VARCHAR(255) NULL,
+    sku VARCHAR(100) NULL,
     quantity INT NOT NULL,
     price DECIMAL(12, 2) NOT NULL,
     total_price DECIMAL(12, 2) NOT NULL,
     CONSTRAINT fk_order_items_orders FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE,
-    CONSTRAINT fk_order_items_products FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT
+    CONSTRAINT fk_order_items_products FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_order_items_variants FOREIGN KEY (variant_id) REFERENCES product_variants (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================================================
@@ -143,6 +211,96 @@ ON DUPLICATE KEY UPDATE
     category_id = VALUES(category_id);
 
 -- 4. Thêm đơn hàng mẫu vào bảng orders (gắn với tài khoản Admin ID 1)
+-- 4. Thêm biến thể mặc định và biến thể nâng cao cho các sản phẩm
+-- 4.1 Biến thể mặc định cho 30 sản phẩm (SKU-P{id}-STD)
+INSERT INTO product_variants (id, product_id, sku, price, original_price, stock, image_url, status) VALUES
+    (1, 1, 'IP16PM-256-BLK', 30990000.00, 34990000.00, 15, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/329149/iphone-16-pro-max-titan-den-0-639175378232922591.jpg', TRUE),
+    (2, 1, 'IP16PM-512-NAT', 36990000.00, 40990000.00, 10, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/329149/iphone-16-pro-max-titan-den-0-639175378232922591.jpg', TRUE),
+    (3, 1, 'IP16PM-1TB-DES', 44990000.00, 48990000.00, 5, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/329149/iphone-16-pro-max-titan-den-0-639175378232922591.jpg', TRUE),
+    (4, 2, 'SKU-P2-STD', 27490000.00, 31990000.00, 12, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/361947/samsung-galaxy-s26-blue-1-639077197706721504.jpg', TRUE),
+    (5, 3, 'SKU-P3-STD', 18990000.00, 21990000.00, 20, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/360307/xiaomi-redmi-note-15-pro-xanh-1-639032525099082700.jpg', TRUE),
+    (6, 4, 'SKU-P4-STD', 18990000.00, 21990000.00, 18, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/370980/iphone-18-pro-burgundy-1-639246114764541080.jpg', TRUE),
+    (7, 5, 'SKU-P5-STD', 17690000.00, 19990000.00, 16, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/333363/samsung-galaxy-s25-xanh-2-638747827770343042.jpg', TRUE),
+    (8, 6, 'SKU-P6-STD', 14990000.00, 16990000.00, 10, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/44/369758/asus-vivobook-go-15-x1504ma-bq893w-core-3-304-8gb-512gb-full-hd-win11-1-639211905724656906.jpg', TRUE),
+    (9, 7, 'SKU-P7-STD', 15990000.00, 17990000.00, 8, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/44/330167/acer-aspire-5-a515-58p-774r-i7-nxkhjsv005-3-638648695329312043.jpg', TRUE),
+    (10, 8, 'SKU-P8-STD', 15990000.00, 17990000.00, 9, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/44/334444/lenovo-ideapad-slim-3-15irh10-i7-83k1000jvn-1-638756561663160755.jpg', TRUE),
+    (11, 9, 'SKU-P9-STD', 23990000.00, 26990000.00, 7, 'https://cdn.tgdd.vn/Products/Images/44/322612/macbook-air-13-inch-m3-2024-1-1.jpg', TRUE),
+    (12, 10, 'SKU-P10-STD', 14990000.00, 16990000.00, 8, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/44/365608/hp-240r-g9-core-5-120u-c40lgat-1-639116909181716925.jpg', TRUE),
+    (13, 11, 'IPAD-M2-128-GRY', 14990000.00, 16990000.00, 10, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/522/363418/ipad-air-m4-11-inch-wifi-xam-0-639176442561577028.jpg', TRUE),
+    (14, 11, 'IPAD-M2-256-BLU', 17990000.00, 20490000.00, 8, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/522/363418/ipad-air-m4-11-inch-wifi-xam-0-639176442561577028.jpg', TRUE),
+    (15, 12, 'SKU-P12-STD', 8490000.00, 9990000.00, 14, 'https://cdn.tgdd.vn/Products/Images/522/295452/ipad-10-5g-hong-1.jpg', TRUE),
+    (16, 13, 'SKU-P13-STD', 11990000.00, 13990000.00, 10, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/522/322131/samsung-galaxy-tab-s10-plus-sliver-4-638640919802337984.jpg', TRUE),
+    (17, 14, 'SKU-P14-STD', 7990000.00, 8990000.00, 12, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/522/339207/xiaomi-redmi-pad-2-4g-xam-12-638890346892960318.jpg', TRUE),
+    (18, 15, 'SKU-P15-STD', 4990000.00, 5990000.00, 15, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/522/368516/lenovo-idea-tab-4gb-xam-2-639229892356418443.jpg', TRUE),
+    (19, 16, 'SKU-P16-STD', 4990000.00, 5990000.00, 20, 'https://cdn.tgdd.vn/Products/Images/54/315014/tai-nghe-bluetooth-airpods-pro-2nd-gen-usb-c-charge-apple-1.jpg', TRUE),
+    (20, 17, 'SKU-P17-STD', 4490000.00, 5290000.00, 16, 'https://cdn.tgdd.vn/Products/Images/54/327554/tai-nghe-bluetooth-true-wireless-samsung-galaxy-buds-3-pro-r630n-xam-1.jpg', TRUE),
+    (21, 18, 'SKU-P18-STD', 5290000.00, 6490000.00, 9, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/54/313700/tai-nghe-bluetooth-true-wireless-sony-wf1000xm5-hong-1-638633925273870359.jpg', TRUE),
+    (22, 19, 'SKU-P19-STD', 2190000.00, 2690000.00, 18, 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800', TRUE),
+    (23, 20, 'SKU-P20-STD', 1390000.00, 1790000.00, 20, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/54/364925/tai-nghe-bluetooth-true-wireless-havit-life-t1-hong-1-639161663227897086.jpg', TRUE),
+    (24, 21, 'SKU-P21-STD', 9990000.00, 11990000.00, 8, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/7077/371219/apple-watch-series-12-gps-46mm-vien-nhom-day-silicone-den-1-639246692345321374.jpg', TRUE),
+    (25, 22, 'SKU-P22-STD', 5990000.00, 7290000.00, 10, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/7077/340067/samsung-galaxy-watch8-lte-44mm-xam-1-638878306043919194.jpg', TRUE),
+    (26, 23, 'SKU-P23-STD', 4690000.00, 5690000.00, 12, 'https://cdn2.fptshop.com.vn/unsafe/512x0/filters:format(webp):quality(75)/huawei_watch_gt_5_46mm_den_1_1c13288167.jpg', TRUE),
+    (27, 24, 'SKU-P24-STD', 1590000.00, 1990000.00, 20, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/7077/332404/mi-band-9-pro-hong-hc-1-638687655038773782.jpg', TRUE),
+    (28, 25, 'SKU-P25-STD', 5990000.00, 6990000.00, 7, 'https://cdn.tgdd.vn/Products/Images/7077/322848/garmin-forerunner-165-den-1.jpg', TRUE),
+    (29, 26, 'SKU-P26-STD', 490000.00, 590000.00, 30, 'https://cdn.tgdd.vn/Products/Images/9499/230315/adapter-sac-type-c-20w-cho-iphone-ipad-apple-mhje3-1.jpg', TRUE),
+    (30, 27, 'SKU-P27-STD', 490000.00, 590000.00, 25, 'https://cdn.tgdd.vn/Products/Images/9499/324952/adapter-sac-3-cong-usb-type-c-iq3-100w-anker-a2145-1.jpg', TRUE),
+    (31, 28, 'SKU-P28-STD', 350000.00, 450000.00, 30, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/57/369351/pin-sac-du-phong-10000mah-type-c-pd-25w-samsung-eb-p3401-1-639202293308430961.jpg', TRUE),
+    (32, 29, 'SKU-P29-STD', 590000.00, 790000.00, 20, 'https://resource.logitech.com/w_544,h_466,ar_7:6,c_pad,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/pebble-mouse-2-m350s/2026-refresh/gallery/pebble-mouse-2-m350s-tonal-rose-top-angle-gallery-1.png', TRUE),
+    (33, 30, 'SKU-P30-STD', 490000.00, 690000.00, 25, 'https://cdn2.cellphones.com.vn/insecure/rs:fill:0:358/q:90/plain/https://cellphones.com.vn/media/catalog/product/t/h/the-nho-microsdhc-sandisk-ultra-a1-256gb-150mbs_1.png', TRUE)
+ON DUPLICATE KEY UPDATE sku=VALUES(sku), price=VALUES(price), original_price=VALUES(original_price);
+
+-- 4.2 Tùy chọn (Options) cho iPhone 16 Pro Max (ID 1)
+INSERT INTO product_options (id, product_id, name, position) VALUES
+    (1, 1, 'Dung lượng', 0),
+    (2, 1, 'Màu sắc', 1),
+    (3, 11, 'Dung lượng', 0),
+    (4, 11, 'Màu sắc', 1)
+ON DUPLICATE KEY UPDATE name=VALUES(name);
+
+-- 4.3 Giá trị tùy chọn (Option Values)
+INSERT INTO product_option_values (id, option_id, value, position) VALUES
+    (1, 1, '256GB', 0),
+    (2, 1, '512GB', 1),
+    (3, 1, '1TB', 2),
+    (4, 2, 'Titan Đen', 0),
+    (5, 2, 'Titan Tự Nhiên', 1),
+    (6, 2, 'Titan Sa Mạc', 2),
+    (7, 3, '128GB', 0),
+    (8, 3, '256GB', 1),
+    (9, 4, 'Xám Không Gian', 0),
+    (10, 4, 'Xanh Da Trời', 1)
+ON DUPLICATE KEY UPDATE value=VALUES(value);
+
+-- 4.4 Ánh xạ biến thể <-> giá trị tùy chọn (variant_option_values)
+INSERT INTO variant_option_values (variant_id, option_value_id) VALUES
+    (1, 1), (1, 4),
+    (2, 2), (2, 5),
+    (3, 3), (3, 6),
+    (13, 7), (13, 9),
+    (14, 8), (14, 10)
+ON DUPLICATE KEY UPDATE variant_id=variant_id;
+
+-- 4.5 Thông số kỹ thuật (product_specs) cho sản phẩm mẫu
+INSERT INTO product_specs (id, product_id, group_name, spec_key, spec_value, position) VALUES
+    (1, 1, 'Màn hình', 'Công nghệ màn hình', 'Super Retina XDR OLED 6.9 inch, 120Hz ProMotion', 0),
+    (2, 1, 'Hiệu năng', 'Chip vi xử lý', 'Apple A18 Pro 6-core (3nm thế hệ mới)', 1),
+    (3, 1, 'Hiệu năng', 'Bộ xử lý trí tuệ nhân tạo', '16-core Neural Engine cho Apple Intelligence', 2),
+    (4, 1, 'Camera', 'Camera chính', 'Fusion 48MP f/1.78, Ultra Wide 48MP, Telephoto 12MP 5x quang học', 3),
+    (5, 1, 'Thiết kế', 'Khung viền', 'Titanium Cấp 5 siêu nhẹ, viền màn hình mỏng nhất lịch sử Apple', 4),
+    (6, 11, 'Màn hình', 'Công nghệ màn hình', 'Liquid Retina 11 inch LED-backlit IPS, 500 nits', 0),
+    (7, 11, 'Hiệu năng', 'Chip vi xử lý', 'Apple M2 8-core CPU / 10-core GPU', 1),
+    (8, 11, 'Phụ kiện', 'Tương thích phụ kiện', 'Apple Pencil Pro, Apple Pencil USB-C, Magic Keyboard', 2)
+ON DUPLICATE KEY UPDATE spec_value=VALUES(spec_value);
+
+-- 4.6 Hình ảnh thư viện (product_images)
+INSERT INTO product_images (id, product_id, variant_id, url, position) VALUES
+    (1, 1, 1, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/329149/iphone-16-pro-max-titan-den-0-639175378232922591.jpg', 0),
+    (2, 1, 2, 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=600', 1),
+    (3, 11, 13, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/522/363418/ipad-air-m4-11-inch-wifi-xam-0-639176442561577028.jpg', 0),
+    (4, 11, 14, 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=600', 1)
+ON DUPLICATE KEY UPDATE url=VALUES(url);
+
+-- 5. Thêm đơn hàng mẫu vào bảng orders (gắn với tài khoản Admin ID 1)
 INSERT INTO orders (id, user_id, receiver_name, phone_number, shipping_address, total_amount, status, payment_method, note, created_at)
 VALUES 
     (1001, 1, 'Nguyễn Văn Minh', '0912 345 678', 'Tòa Landmark 81, 720A Điện Biên Phủ, Bình Thạnh, TP.HCM', 30990000.00, 'PENDING', 'COD', 'Giao trong giờ hành chính, gọi trước 15 phút', '2026-10-21 16:30:00'),
@@ -153,14 +311,15 @@ VALUES
     (1006, 1, 'Vũ Duy Khánh', '0977 889 900', '15 Lê Lợi, Phường Phú Nhuận, TP. Huế', 18990000.00, 'CANCELLED', 'COD', 'Khách hàng đổi ý muốn đổi sang dòng sản phẩm khác', '2026-10-18 09:00:00')
 ON DUPLICATE KEY UPDATE id=id;
 
--- 5. Thêm chi tiết đơn hàng vào bảng order_items
-INSERT INTO order_items (id, order_id, product_id, quantity, price, total_price)
+-- 6. Thêm chi tiết đơn hàng vào bảng order_items (đã kèm variant_id và snapshot)
+INSERT INTO order_items (id, order_id, product_id, variant_id, product_name, variant_name, sku, quantity, price, total_price)
 VALUES 
-    (1, 1001, 1, 1, 30990000.00, 30990000.00),
-    (2, 1002, 9, 1, 23990000.00, 23990000.00),
-    (3, 1003, 2, 1, 27490000.00, 27490000.00),
-    (4, 1004, 3, 1, 18990000.00, 18990000.00),
-    (5, 1004, 5, 1, 17690000.00, 17690000.00),
-    (6, 1005, 6, 1, 14990000.00, 14990000.00),
-    (7, 1006, 4, 1, 18990000.00, 18990000.00)
+    (1, 1001, 1, 1, 'Apple iPhone 16 Pro Max 256GB', '256GB / Titan Đen', 'IP16PM-256-BLK', 1, 30990000.00, 30990000.00),
+    (2, 1002, 9, 11, 'Apple MacBook Air 13 inch M3 256GB', 'Tiêu chuẩn', 'SKU-P9-STD', 1, 23990000.00, 23990000.00),
+    (3, 1003, 2, 4, 'Samsung Galaxy S25 Ultra 256GB 12GB RAM', 'Tiêu chuẩn', 'SKU-P2-STD', 1, 27490000.00, 27490000.00),
+    (4, 1004, 3, 5, 'Xiaomi 15 256GB', 'Tiêu chuẩn', 'SKU-P3-STD', 1, 18990000.00, 18990000.00),
+    (5, 1004, 5, 7, 'Samsung Galaxy S25 256GB 12GB RAM', 'Tiêu chuẩn', 'SKU-P5-STD', 1, 17690000.00, 17690000.00),
+    (6, 1005, 6, 8, 'ASUS Vivobook 15 X1504VA Core i5', 'Tiêu chuẩn', 'SKU-P6-STD', 1, 14990000.00, 14990000.00),
+    (7, 1006, 4, 6, 'Apple iPhone 18 128GB', 'Tiêu chuẩn', 'SKU-P4-STD', 1, 18990000.00, 18990000.00)
 ON DUPLICATE KEY UPDATE id=id;
+
