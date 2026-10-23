@@ -73,6 +73,7 @@ function mapBackendProduct(item: any): Product {
     specs: item.specs,
     options: item.options,
     variants: item.variants,
+    status: item.status !== false,
     isFeatured: item.isFeatured ?? true,
     isNew: item.isNew ?? true,
     createdAt: item.createdAt,

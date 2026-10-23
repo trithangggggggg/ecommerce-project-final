@@ -75,6 +75,7 @@ export interface Product {
   specs?: ProductSpec[];
   options?: ProductOption[];
   variants?: ProductVariant[];
+  status?: boolean;
   isFeatured?: boolean;
   isNew?: boolean;
   isFlashSale?: boolean;
@@ -105,12 +106,48 @@ export interface CartItem {
   quantity: number;
 }
 
+export interface OptionPayload {
+  id?: number;
+  name: string;
+  values: string[];
+}
+
+export interface VariantPayload {
+  id?: number;
+  sku: string;
+  optionValues?: Record<string, string>;
+  price: number;
+  originalPrice?: number | null;
+  stock: number;
+  imageUrl?: string | null;
+  status?: boolean;
+}
+
+export interface SpecPayload {
+  id?: number;
+  group?: string;
+  key: string;
+  value: string;
+}
+
+export interface ImagePayload {
+  id?: number;
+  variantId?: number | null;
+  url: string;
+  position?: number;
+}
+
 export interface ProductPayload {
+  id?: number;
   name: string;
   description?: string;
-  price: number;
-  stock: number;
+  price?: number;
+  stock?: number;
   imageUrl?: string;
   categoryId: number;
   status?: boolean;
+  options?: OptionPayload[];
+  variants?: VariantPayload[];
+  specs?: SpecPayload[];
+  images?: ImagePayload[];
 }
