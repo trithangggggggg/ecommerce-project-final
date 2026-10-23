@@ -18,7 +18,7 @@ export const DEFAULT_BANNERS: BannerItem[] = [
     id: 'banner-default-2',
     title: 'Khám phá Hệ sinh thái Công nghệ Tương lai',
     subtitle: 'Đồng bộ thông minh, trải nghiệm liền mạch cùng Nexor Smart Ecosystem',
-    imageUrl: '/images/tech-future-banner.jpg',
+    imageUrl: '/images/macbook-banner-clean.jpg',
     linkUrl: '/products',
     order: 2,
     isActive: true,
@@ -28,8 +28,8 @@ export const DEFAULT_BANNERS: BannerItem[] = [
     id: 'banner-default-3',
     title: 'ASUS ROG Strix - Hiệu năng gaming không giới hạn',
     subtitle: 'Trang bị card đồ họa RTX 40 series, màn hình tần số quét 240Hz',
-    imageUrl: '/images/asus-rog-strix.jpg',
-    linkUrl: '/products',
+    imageUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=1300&h=692&fit=crop',
+    linkUrl: '/products?category=laptop',
     order: 3,
     isActive: true,
     createdAt: '2026-01-03T00:00:00.000Z',
@@ -38,7 +38,7 @@ export const DEFAULT_BANNERS: BannerItem[] = [
     id: 'banner-default-4',
     title: 'Hệ sinh thái Thiết bị Thông minh Nexor',
     subtitle: 'Ưu đãi thành viên: Giảm thêm 5% cho đơn hàng đầu tiên',
-    imageUrl: '/images/tech-ecosystem.jpg',
+    imageUrl: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=1300&h=692&fit=crop',
     linkUrl: '/products',
     order: 4,
     isActive: true,
@@ -141,6 +141,13 @@ export const useBannerStore = create<BannerStore>()(
     }),
     {
       name: STORAGE_KEYS.BANNER_STORAGE,
+      version: 2,
+      migrate: (persistedState: any, version: number) => {
+        if (version < 2) {
+          return { banners: DEFAULT_BANNERS };
+        }
+        return persistedState;
+      },
     }
   )
 );

@@ -81,10 +81,10 @@ export const HeroBannerSlider: React.FC<HeroBannerSliderProps> = ({
   // Fallback if no active banners exist
   if (totalSlides === 0) {
     return (
-      <div className="flex flex-col min-w-0 h-full">
+      <div className="flex flex-col min-w-0 w-full h-full">
         <Link
           to="/products"
-          className="block relative rounded-2xl overflow-hidden shadow-sm h-full group bg-[#161820]"
+          className="block relative rounded-2xl overflow-hidden shadow-sm w-full h-full aspect-[1300/692] lg:aspect-auto group bg-[#161820]"
           title="Khám phá ngay"
         >
           <img
@@ -99,17 +99,17 @@ export const HeroBannerSlider: React.FC<HeroBannerSliderProps> = ({
 
   return (
     <div
-      className="flex flex-col min-w-0 h-full relative group select-none"
+      className="flex flex-col min-w-0 w-full h-full relative group select-none"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      <div className="relative rounded-2xl overflow-hidden shadow-sm h-full bg-[#161820] border border-gray-200/50">
-        {/* Slider Track */}
+      <div className="relative rounded-2xl overflow-hidden shadow-sm w-full h-full aspect-[1300/692] lg:aspect-auto bg-[#161820] border border-gray-200/50">
+        {/* Slider Track (Absolute positioned to prevent images from blowing up container height) */}
         <div
-          className="flex h-full w-full transition-transform duration-500 ease-out"
+          className="absolute inset-0 flex h-full w-full transition-transform duration-500 ease-out"
           style={{ transform: `translate3d(-${currentIndex * 100}%, 0, 0)` }}
         >
           {activeBanners.map((banner, index) => {
