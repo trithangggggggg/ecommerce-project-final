@@ -3,22 +3,23 @@ import { persist } from 'zustand/middleware';
 import type { BannerItem } from '../models/banner.model';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
+
 export const DEFAULT_BANNERS: BannerItem[] = [
   {
     id: 'banner-default-1',
-    title: 'MacBook Air M3 - Siêu mỏng nhẹ, hiệu năng đỉnh cao',
-    subtitle: 'Chip Apple M3 thế hệ mới - Trợ giá đổi cũ lên đến 3 triệu',
-    imageUrl: '/images/macbook-hero-banner.jpg',
-    linkUrl: '/products/4',
+    title: 'ASUS TUF F15 - Chiến game mạnh mẽ',
+    subtitle: 'Hiệu năng ấn tượng, thiết kế bền bỉ dành cho game thủ',
+    imageUrl: 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/asus_tuf_f15_fxuvax.jpg',
+    linkUrl: '/products',
     order: 1,
     isActive: true,
     createdAt: '2026-01-01T00:00:00.000Z',
   },
   {
     id: 'banner-default-2',
-    title: 'Khám phá Hệ sinh thái Công nghệ Tương lai',
-    subtitle: 'Đồng bộ thông minh, trải nghiệm liền mạch cùng Nexor Smart Ecosystem',
-    imageUrl: '/images/macbook-banner-clean.jpg',
+    title: 'Tai nghe gaming HyperX Cloud III',
+    subtitle: 'Âm thanh sống động, trải nghiệm gaming đỉnh cao',
+    imageUrl: 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/banner_tai_nghe_hyper_cloud_3_bwvebf.jpg',
     linkUrl: '/products',
     order: 2,
     isActive: true,
@@ -26,25 +27,26 @@ export const DEFAULT_BANNERS: BannerItem[] = [
   },
   {
     id: 'banner-default-3',
-    title: 'ASUS ROG Strix - Hiệu năng gaming không giới hạn',
-    subtitle: 'Trang bị card đồ họa RTX 40 series, màn hình tần số quét 240Hz',
-    imageUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=1300&h=692&fit=crop',
-    linkUrl: '/products?category=laptop',
+    title: 'Bảng vẽ điện tử XP-Pen Artist 24 Pro',
+    subtitle: 'Khơi nguồn sáng tạo, nâng tầm trải nghiệm thiết kế',
+    imageUrl: 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/banner_bang_ve_dien_tru_r1iezy.jpg',
+    linkUrl: '/products',
     order: 3,
     isActive: true,
     createdAt: '2026-01-03T00:00:00.000Z',
   },
   {
     id: 'banner-default-4',
-    title: 'Hệ sinh thái Thiết bị Thông minh Nexor',
-    subtitle: 'Ưu đãi thành viên: Giảm thêm 5% cho đơn hàng đầu tiên',
-    imageUrl: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=1300&h=692&fit=crop',
+    title: 'Chuột gaming Razer DeathAdder Essential',
+    subtitle: 'Thiết kế công thái học, kiểm soát chính xác trong từng trận đấu',
+    imageUrl: 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763665/chu%E1%BB%99t_gaming_razer_deathadder_essential_m5s1he.jpg',
     linkUrl: '/products',
     order: 4,
     isActive: true,
     createdAt: '2026-01-04T00:00:00.000Z',
   },
 ];
+
 
 interface BannerStore {
   banners: BannerItem[];
