@@ -4,6 +4,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import ra.project.server.model.entity.Product;
 
@@ -27,4 +30,8 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
 
     long countByCategoryId(Long categoryId);
+
+    @Modifying
+    @Query("UPDATE Product p SET p.stock = (SELECT COALESCE(SUM(v.stock), 0) FROM ProductVariant v WHERE v.product.id = p.id AND v.status = true) WHERE p.id = :productId")
+    void syncProductTotalStock(@Param("productId") Long productId);
 }

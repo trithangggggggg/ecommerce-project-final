@@ -12,7 +12,8 @@ export type OrderStatus =
 export type PaymentMethod = 'COD' | 'ONLINE';
 
 export interface OrderItemRequest {
-  productId: number;
+  productId?: number;
+  variantId?: number;
   quantity: number;
 }
 
@@ -29,6 +30,9 @@ export interface OrderItemResponse {
   id: number;
   productId: number;
   productName: string;
+  variantId?: number;
+  variantName?: string;
+  sku?: string;
   productImageUrl: string;
   quantity: number;
   price: number;

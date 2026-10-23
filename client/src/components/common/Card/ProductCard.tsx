@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingCart, Star, Heart, Check } from 'lucide-react';
+import { ShoppingCart, Heart, Check } from 'lucide-react';
 import type { Product } from '../../../models/product.model';
 import { useCartStore } from '../../../store/useCartStore';
 import { formatPrice } from '../../../utils/format';
@@ -82,16 +82,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }
           </h3>
         </Link>
 
-        {/* Star rating */}
-        <div className="flex items-center gap-1 mb-2">
-          <div className="flex text-amber-400">
-            {[...Array(5)].map((_, i) => (
-              <Star key={i} className="w-3 h-3 fill-amber-400" />
-            ))}
-          </div>
-          <span className="text-[11px] text-gray-400 font-medium">
-            ({product.reviewCount || 98})
-          </span>
+        {/* Category / Variant indicator */}
+        <div className="flex items-center gap-1.5 mb-2 text-[11px] text-gray-500">
+          <span className="font-semibold text-blue-600">{product.category?.name || 'Chính hãng'}</span>
+          {product.variants && product.variants.length > 1 && (
+            <>
+              <span className="text-gray-300">•</span>
+              <span className="text-gray-400 font-medium">{product.variants.length} phiên bản</span>
+            </>
+          )}
         </div>
 
         {/* Price Area */}

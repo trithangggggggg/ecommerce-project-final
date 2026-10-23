@@ -1531,9 +1531,23 @@ export const AdminOrdersPage: React.FC = () => {
                                 className="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-100 bg-slate-50 shrink-0"
                               />
                             )}
-                            <span className="font-semibold text-slate-800">
-                              {item.productName}
-                            </span>
+                            <div>
+                              <span className="font-semibold text-slate-800 block">
+                                {item.productName}
+                              </span>
+                              <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                {item.variantName && (
+                                  <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                    {item.variantName}
+                                  </span>
+                                )}
+                                {item.sku && (
+                                  <span className="text-[10px] text-slate-400 font-mono">
+                                    SKU: {item.sku}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </td>
                         <td className="py-2.5 px-3 text-center font-bold text-slate-700">

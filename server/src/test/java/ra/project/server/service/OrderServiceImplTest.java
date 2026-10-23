@@ -17,17 +17,14 @@ import ra.project.server.exception.UnauthorizedException;
 import ra.project.server.mapper.OrderMapper;
 import ra.project.server.model.dto.request.CheckoutRequest;
 import ra.project.server.model.dto.request.OrderItemRequest;
-import ra.project.server.model.dto.response.OrderItemResponse;
 import ra.project.server.model.dto.response.OrderResponse;
-import ra.project.server.model.entity.Order;
-import ra.project.server.model.entity.OrderItem;
-import ra.project.server.model.entity.Product;
-import ra.project.server.model.entity.User;
+import ra.project.server.model.entity.*;
 import ra.project.server.model.enums.OrderStatus;
 import ra.project.server.model.enums.PaymentMethod;
 import ra.project.server.model.enums.Role;
 import ra.project.server.repository.OrderRepository;
 import ra.project.server.repository.ProductRepository;
+import ra.project.server.repository.ProductVariantRepository;
 import ra.project.server.repository.UserRepository;
 import ra.project.server.service.impl.OrderServiceImpl;
 
@@ -50,6 +47,9 @@ class OrderServiceImplTest {
     private ProductRepository productRepository;
 
     @Mock
+    private ProductVariantRepository productVariantRepository;
+
+    @Mock
     private UserRepository userRepository;
 
     @Mock
@@ -66,6 +66,7 @@ class OrderServiceImplTest {
 
     private User customer;
     private Product product1;
+    private ProductVariant variant1;
 
     @BeforeEach
     void setUp() {
@@ -80,6 +81,15 @@ class OrderServiceImplTest {
         product1 = Product.builder()
                 .id(10L)
                 .name("Tai nghe Bluetooth")
+                .price(BigDecimal.valueOf(500000))
+                .stock(15)
+                .status(true)
+                .build();
+
+        variant1 = ProductVariant.builder()
+                .id(101L)
+                .product(product1)
+                .sku("HEADPHONE-BLK")
                 .price(BigDecimal.valueOf(500000))
                 .stock(15)
                 .status(true)
@@ -100,11 +110,11 @@ class OrderServiceImplTest {
     }
 
     @Test
-    void whenCheckoutSuccess_thenDeductStockAndSaveOrderWithPendingStatusAndCod() {
+    void whenCheckoutSuccess_withVariantId_thenDeductStockAndSaveOrder() {
         mockAuthentication("customer1");
         when(userRepository.findByUsername("customer1")).thenReturn(Optional.of(customer));
-        when(productRepository.findById(10L)).thenReturn(Optional.of(product1));
-        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(productVariantRepository.findById(101L)).thenReturn(Optional.of(variant1));
+        when(productVariantRepository.deductStock(101L, 2)).thenReturn(1);
 
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
             Order saved = invocation.getArgument(0);
@@ -126,7 +136,7 @@ class OrderServiceImplTest {
                 .phoneNumber("0988776655")
                 .shippingAddress("123 Duong Le Loi, Q1, TP. HCM")
                 .items(List.of(
-                        OrderItemRequest.builder().productId(10L).quantity(2).build()
+                        OrderItemRequest.builder().variantId(101L).quantity(2).build()
                 ))
                 .build();
 
@@ -138,24 +148,61 @@ class OrderServiceImplTest {
         assertEquals(OrderStatus.PENDING, result.getData().getStatus());
         assertEquals(PaymentMethod.COD, result.getData().getPaymentMethod());
 
-        // Stock was 15, subtracted 2 -> must be 13
-        assertEquals(13, product1.getStock());
-        verify(productRepository, times(1)).save(product1);
+        verify(productVariantRepository, times(1)).deductStock(101L, 2);
+        verify(productRepository, times(1)).syncProductTotalStock(10L);
         verify(orderRepository, times(1)).save(any(Order.class));
     }
 
     @Test
-    void whenCheckoutOutOfStock_thenThrowBadRequestException() {
+    void whenCheckoutSuccess_withLegacyProductId_thenDeductStockOnDefaultVariant() {
         mockAuthentication("customer1");
         when(userRepository.findByUsername("customer1")).thenReturn(Optional.of(customer));
         when(productRepository.findById(10L)).thenReturn(Optional.of(product1));
+        when(productVariantRepository.findByProductIdAndStatusTrue(10L)).thenReturn(List.of(variant1));
+        when(productVariantRepository.deductStock(101L, 1)).thenReturn(1);
+
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
+            Order saved = invocation.getArgument(0);
+            saved.setId(105L);
+            return saved;
+        });
+
+        OrderResponse expectedResponse = OrderResponse.builder()
+                .id(105L)
+                .status(OrderStatus.PENDING)
+                .build();
+        when(orderMapper.toResponse(any(Order.class))).thenReturn(expectedResponse);
 
         CheckoutRequest request = CheckoutRequest.builder()
                 .receiverName("Nguyen Van Khach")
                 .phoneNumber("0988776655")
                 .shippingAddress("123 Duong Le Loi, Q1, TP. HCM")
                 .items(List.of(
-                        OrderItemRequest.builder().productId(10L).quantity(20).build()
+                        OrderItemRequest.builder().productId(10L).quantity(1).build()
+                ))
+                .build();
+
+        ApiResponse<OrderResponse> result = orderService.checkout(request);
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        verify(productVariantRepository, times(1)).deductStock(101L, 1);
+        verify(productRepository, times(1)).syncProductTotalStock(10L);
+    }
+
+    @Test
+    void whenCheckoutOutOfStock_thenThrowBadRequestException() {
+        mockAuthentication("customer1");
+        when(userRepository.findByUsername("customer1")).thenReturn(Optional.of(customer));
+        when(productVariantRepository.findById(101L)).thenReturn(Optional.of(variant1));
+        when(productVariantRepository.deductStock(101L, 20)).thenReturn(0); // 0 affected rows = not enough stock!
+
+        CheckoutRequest request = CheckoutRequest.builder()
+                .receiverName("Nguyen Van Khach")
+                .phoneNumber("0988776655")
+                .shippingAddress("123 Duong Le Loi, Q1, TP. HCM")
+                .items(List.of(
+                        OrderItemRequest.builder().variantId(101L).quantity(20).build()
                 ))
                 .build();
 
@@ -174,7 +221,7 @@ class OrderServiceImplTest {
                 .phoneNumber("0988776655")
                 .shippingAddress("123 Duong Le Loi, Q1, TP. HCM")
                 .items(List.of(
-                        OrderItemRequest.builder().productId(10L).quantity(1).build()
+                        OrderItemRequest.builder().variantId(101L).quantity(1).build()
                 ))
                 .build();
 
@@ -237,9 +284,14 @@ class OrderServiceImplTest {
     }
 
     @Test
-    void whenCancelOrder_thenRestoreStock() {
-        Product p = Product.builder().id(10L).name("SP A").stock(5).build();
-        OrderItem item = OrderItem.builder().product(p).quantity(3).price(BigDecimal.valueOf(100)).totalPrice(BigDecimal.valueOf(300)).build();
+    void whenCancelOrder_thenRestoreVariantStock() {
+        OrderItem item = OrderItem.builder()
+                .product(product1)
+                .variant(variant1)
+                .quantity(3)
+                .price(BigDecimal.valueOf(500000))
+                .totalPrice(BigDecimal.valueOf(1500000))
+                .build();
         List<OrderItem> items = new ArrayList<>();
         items.add(item);
 
@@ -257,8 +309,7 @@ class OrderServiceImplTest {
         ApiResponse<OrderResponse> resp = orderService.updateOrderStatus(102L, OrderStatus.CANCELLED);
 
         assertEquals(OrderStatus.CANCELLED, resp.getData().getStatus());
-        // 5 + 3 = 8
-        assertEquals(8, p.getStock());
-        verify(productRepository, times(1)).save(p);
+        verify(productVariantRepository, times(1)).restoreStock(101L, 3);
+        verify(productRepository, times(1)).syncProductTotalStock(10L);
     }
 }

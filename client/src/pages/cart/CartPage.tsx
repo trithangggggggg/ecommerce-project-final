@@ -112,13 +112,18 @@ export const CartPage: React.FC = () => {
               <div className="divide-y divide-gray-100">
                 {items.map((item) => {
                   const product = item.product;
-                  const itemTotal = (product.price || 0) * item.quantity;
-                  const maxStock = product.stock !== undefined && product.stock > 0 ? product.stock : 999;
+                  const variant = item.variant;
+                  const itemKey = item.variantId || variant?.id || product.id;
+                  const unitPrice = variant?.price ?? product.price ?? 0;
+                  const originalPrice = variant?.originalPrice ?? product.originalPrice;
+                  const itemTotal = unitPrice * item.quantity;
+                  const maxStock = variant?.stock ?? (product.stock !== undefined && product.stock > 0 ? product.stock : 999);
                   const isMaxStock = item.quantity >= maxStock;
+                  const itemImage = variant?.imageUrl || product.imageUrl || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200';
 
                   return (
                     <div
-                      key={product.id}
+                      key={itemKey}
                       className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-gray-50/50 transition"
                     >
                       {/* Product Thumbnail & Basic Info */}
@@ -128,10 +133,7 @@ export const CartPage: React.FC = () => {
                           className="w-20 h-20 rounded-xl bg-gray-50 border border-gray-100 p-2 shrink-0 flex items-center justify-center overflow-hidden hover:opacity-90 transition"
                         >
                           <img
-                            src={
-                              product.imageUrl ||
-                              'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200'
-                            }
+                            src={itemImage}
                             alt={product.name}
                             className="max-h-full max-w-full object-contain"
                             onError={(e) => {
@@ -148,6 +150,18 @@ export const CartPage: React.FC = () => {
                           >
                             {product.name}
                           </Link>
+
+                          {/* Variant Badge & SKU */}
+                          {variant && (
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                {variant.title || 'Tiêu chuẩn'}
+                              </span>
+                              <span className="text-[10px] text-gray-400 font-mono">
+                                SKU: {variant.sku}
+                              </span>
+                            </div>
+                          )}
 
                           <div className="flex items-center gap-2 mt-1 text-[11px] text-gray-500">
                             {product.category?.name && (
@@ -166,11 +180,11 @@ export const CartPage: React.FC = () => {
                           {/* Unit Price */}
                           <div className="mt-1 flex items-baseline gap-2">
                             <span className="text-xs font-bold text-gray-900">
-                              {formatPrice(product.price)}
+                              {formatPrice(unitPrice)}
                             </span>
-                            {product.originalPrice && product.originalPrice > product.price && (
+                            {originalPrice && originalPrice > unitPrice && (
                               <span className="text-[11px] text-gray-400 line-through">
-                                {formatPrice(product.originalPrice)}
+                                {formatPrice(originalPrice)}
                               </span>
                             )}
                           </div>
@@ -183,7 +197,7 @@ export const CartPage: React.FC = () => {
                         <div className="flex items-center border border-gray-200 rounded-lg bg-white overflow-hidden shadow-2xs">
                           <button
                             type="button"
-                            onClick={() => updateQuantity(product.id, item.quantity - 1)}
+                            onClick={() => updateQuantity(itemKey, item.quantity - 1)}
                             className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-black transition cursor-pointer disabled:opacity-40"
                             disabled={item.quantity <= 1}
                             title="Giảm số lượng"
@@ -198,14 +212,14 @@ export const CartPage: React.FC = () => {
                             onChange={(e) => {
                               const val = parseInt(e.target.value, 10);
                               if (!isNaN(val)) {
-                                updateQuantity(product.id, Math.max(1, Math.min(val, maxStock)));
+                                updateQuantity(itemKey, Math.max(1, Math.min(val, maxStock)));
                               }
                             }}
                             className="w-12 h-8 text-center text-xs font-bold text-gray-900 border-x border-gray-200 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                           <button
                             type="button"
-                            onClick={() => updateQuantity(product.id, item.quantity + 1)}
+                            onClick={() => updateQuantity(itemKey, item.quantity + 1)}
                             className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-black transition cursor-pointer disabled:opacity-40"
                             disabled={isMaxStock}
                             title={isMaxStock ? 'Đã đạt giới hạn tồn kho' : 'Tăng số lượng'}
@@ -220,14 +234,14 @@ export const CartPage: React.FC = () => {
                             {formatPrice(itemTotal)}
                           </span>
                           <span className="text-[10px] text-gray-400">
-                            {item.quantity} × {formatPrice(product.price)}
+                            {item.quantity} × {formatPrice(unitPrice)}
                           </span>
                         </div>
 
                         {/* Delete single button */}
                         <button
                           type="button"
-                          onClick={() => removeItem(product.id)}
+                          onClick={() => removeItem(itemKey)}
                           className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
                           title="Xóa khỏi giỏ hàng"
                         >

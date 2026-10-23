@@ -6,6 +6,7 @@ import ra.project.server.model.dto.response.OrderResponse;
 import ra.project.server.model.entity.Order;
 import ra.project.server.model.entity.OrderItem;
 import ra.project.server.model.entity.Product;
+import ra.project.server.model.entity.ProductVariant;
 
 import java.util.Collections;
 import java.util.List;
@@ -45,11 +46,24 @@ public class OrderMapper {
             return null;
         }
         Product product = item.getProduct();
+        ProductVariant variant = item.getVariant();
+
+        String pName = item.getProductName() != null ? item.getProductName() : (product != null ? product.getName() : null);
+        String vName = item.getVariantName();
+        String sku = item.getSku() != null ? item.getSku() : (variant != null ? variant.getSku() : null);
+
+        String imgUrl = (variant != null && variant.getImageUrl() != null && !variant.getImageUrl().isBlank())
+                ? variant.getImageUrl()
+                : (product != null ? product.getImageUrl() : null);
+
         return OrderItemResponse.builder()
                 .id(item.getId())
                 .productId(product != null ? product.getId() : null)
-                .productName(product != null ? product.getName() : null)
-                .productImageUrl(product != null ? product.getImageUrl() : null)
+                .productName(pName)
+                .variantId(variant != null ? variant.getId() : null)
+                .variantName(vName)
+                .sku(sku)
+                .productImageUrl(imgUrl)
                 .quantity(item.getQuantity())
                 .price(item.getPrice())
                 .totalPrice(item.getTotalPrice())

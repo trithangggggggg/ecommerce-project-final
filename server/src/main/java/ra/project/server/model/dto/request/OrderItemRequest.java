@@ -13,8 +13,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class OrderItemRequest {
 
-    @NotNull(message = "Mã sản phẩm không được để trống")
     private Long productId;
+
+    private Long variantId;
 
     @NotNull(message = "Số lượng không được để trống")
     @Min(value = 1, message = "Số lượng đặt hàng tối thiểu là 1")

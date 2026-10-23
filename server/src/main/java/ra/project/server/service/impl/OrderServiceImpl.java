@@ -16,21 +16,20 @@ import ra.project.server.mapper.OrderMapper;
 import ra.project.server.model.dto.request.CheckoutRequest;
 import ra.project.server.model.dto.request.OrderItemRequest;
 import ra.project.server.model.dto.response.OrderResponse;
-import ra.project.server.model.entity.Order;
-import ra.project.server.model.entity.OrderItem;
-import ra.project.server.model.entity.Product;
-import ra.project.server.model.entity.User;
+import ra.project.server.model.entity.*;
 import ra.project.server.model.enums.OrderStatus;
 import ra.project.server.model.enums.PaymentMethod;
 import ra.project.server.model.enums.Role;
 import ra.project.server.repository.OrderRepository;
 import ra.project.server.repository.ProductRepository;
+import ra.project.server.repository.ProductVariantRepository;
 import ra.project.server.repository.UserRepository;
 import ra.project.server.service.OrderService;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -39,6 +38,7 @@ public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
+    private final ProductVariantRepository productVariantRepository;
     private final UserRepository userRepository;
     private final OrderMapper orderMapper;
 
@@ -66,37 +66,64 @@ public class OrderServiceImpl implements OrderService {
         List<OrderItem> orderItems = new ArrayList<>();
 
         for (OrderItemRequest itemReq : request.getItems()) {
-            if (itemReq.getProductId() == null) {
-                throw new BadRequestException("Mã sản phẩm không được để trống");
-            }
             if (itemReq.getQuantity() == null || itemReq.getQuantity() <= 0) {
                 throw new BadRequestException("Số lượng đặt hàng cho mỗi sản phẩm phải lớn hơn 0");
             }
 
-            Product product = productRepository.findById(itemReq.getProductId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Sản phẩm", "id", itemReq.getProductId()));
+            ProductVariant variant;
+            Product product;
 
-            if (Boolean.FALSE.equals(product.getStatus())) {
-                throw new BadRequestException("Sản phẩm '" + product.getName() + "' hiện đang ngừng kinh doanh");
+            if (itemReq.getVariantId() != null) {
+                variant = productVariantRepository.findById(itemReq.getVariantId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Biến thể sản phẩm", "id", itemReq.getVariantId()));
+                product = variant.getProduct();
+            } else if (itemReq.getProductId() != null) {
+                product = productRepository.findById(itemReq.getProductId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Sản phẩm", "id", itemReq.getProductId()));
+                List<ProductVariant> variants = productVariantRepository.findByProductIdAndStatusTrue(product.getId());
+                if (variants.isEmpty()) {
+                    throw new BadRequestException("Sản phẩm '" + product.getName() + "' hiện không có biến thể khả dụng!");
+                }
+                variant = variants.get(0);
+            } else {
+                throw new BadRequestException("Vui lòng chọn biến thể sản phẩm (variantId) hoặc sản phẩm (productId)");
             }
 
-            int currentStock = product.getStock() != null ? product.getStock() : 0;
-            if (currentStock < itemReq.getQuantity()) {
+            if (Boolean.FALSE.equals(product.getStatus()) || Boolean.FALSE.equals(variant.getStatus())) {
+                throw new BadRequestException("Sản phẩm '" + product.getName() + "' (" + variant.getSku() + ") hiện đang ngừng kinh doanh");
+            }
+
+            String productName = product.getName();
+            String variantName = "Tiêu chuẩn";
+            if (variant.getOptionValues() != null && !variant.getOptionValues().isEmpty()) {
+                variantName = variant.getOptionValues().stream()
+                        .map(ProductOptionValue::getValue)
+                        .collect(Collectors.joining(" / "));
+            }
+            String sku = variant.getSku();
+
+            // Trừ kho an toàn đồng thời bằng query nguyên tử
+            int affected = productVariantRepository.deductStock(variant.getId(), itemReq.getQuantity());
+            if (affected <= 0) {
+                int currentStock = variant.getStock() != null ? variant.getStock() : 0;
                 throw new BadRequestException(String.format(
-                        "Sản phẩm '%s' không đủ số lượng tồn kho (tồn kho: %d, yêu cầu: %d)",
-                        product.getName(), currentStock, itemReq.getQuantity()));
+                        "Sản phẩm '%s' - %s (SKU: %s) không đủ số lượng tồn kho (tồn kho: %d, yêu cầu: %d)",
+                        productName, variantName, sku, currentStock, itemReq.getQuantity()));
             }
 
-            // Trừ số lượng tồn kho tương ứng trong bảng products
-            product.setStock(currentStock - itemReq.getQuantity());
-            productRepository.save(product);
+            // Đồng bộ cột tồn kho denormalize trong products
+            productRepository.syncProductTotalStock(product.getId());
 
-            BigDecimal itemPrice = product.getPrice();
+            BigDecimal itemPrice = variant.getPrice();
             BigDecimal itemTotalPrice = itemPrice.multiply(BigDecimal.valueOf(itemReq.getQuantity()));
             totalAmount = totalAmount.add(itemTotalPrice);
 
             OrderItem orderItem = OrderItem.builder()
                     .product(product)
+                    .variant(variant)
+                    .productName(productName)
+                    .variantName(variantName)
+                    .sku(sku)
                     .quantity(itemReq.getQuantity())
                     .price(itemPrice)
                     .totalPrice(itemTotalPrice)
@@ -211,18 +238,9 @@ public class OrderServiceImpl implements OrderService {
                     currentStatus, newStatus));
         }
 
-        // Khi hủy đơn hàng, hoàn trả lại số lượng tồn kho (stock) cho sản phẩm
+        // Khi hủy đơn hàng, hoàn trả lại số lượng tồn kho (stock) cho biến thể
         if (newStatus == OrderStatus.CANCELLED) {
-            if (order.getOrderItems() != null) {
-                for (OrderItem item : order.getOrderItems()) {
-                    Product product = item.getProduct();
-                    if (product != null) {
-                        int currentStock = product.getStock() != null ? product.getStock() : 0;
-                        product.setStock(currentStock + item.getQuantity());
-                        productRepository.save(product);
-                    }
-                }
-            }
+            restoreStockForOrder(order);
         }
 
         order.setStatus(newStatus);
@@ -248,22 +266,31 @@ public class OrderServiceImpl implements OrderService {
             throw new BadRequestException("Chỉ có thể hủy đơn hàng khi đơn còn ở trạng thái 'Chờ xử lý' (PENDING). Trạng thái hiện tại: " + order.getStatus().name());
         }
 
-        // Hoàn trả tồn kho cho sản phẩm
-        if (order.getOrderItems() != null) {
-            for (OrderItem item : order.getOrderItems()) {
-                Product product = item.getProduct();
-                if (product != null) {
-                    int currentStock = product.getStock() != null ? product.getStock() : 0;
-                    product.setStock(currentStock + item.getQuantity());
-                    productRepository.save(product);
-                }
-            }
-        }
+        // Hoàn trả tồn kho cho biến thể sản phẩm
+        restoreStockForOrder(order);
 
         order.setStatus(OrderStatus.CANCELLED);
         Order cancelledOrder = orderRepository.save(order);
         log.info("Khách hàng '{}' đã hủy thành công đơn hàng #{}", user.getUsername(), orderId);
 
         return ApiResponse.success("Đã hủy đơn hàng #" + orderId + " thành công", orderMapper.toResponse(cancelledOrder));
+    }
+
+    private void restoreStockForOrder(Order order) {
+        if (order.getOrderItems() != null) {
+            for (OrderItem item : order.getOrderItems()) {
+                if (item.getVariant() != null) {
+                    productVariantRepository.restoreStock(item.getVariant().getId(), item.getQuantity());
+                    if (item.getProduct() != null) {
+                        productRepository.syncProductTotalStock(item.getProduct().getId());
+                    }
+                } else if (item.getProduct() != null) {
+                    Product product = item.getProduct();
+                    int currentStock = product.getStock() != null ? product.getStock() : 0;
+                    product.setStock(currentStock + item.getQuantity());
+                    productRepository.save(product);
+                }
+            }
+        }
     }
 }

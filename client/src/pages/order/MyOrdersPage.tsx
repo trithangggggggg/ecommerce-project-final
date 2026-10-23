@@ -328,6 +328,18 @@ export const MyOrdersPage: React.FC = () => {
                             >
                               {item.productName}
                             </Link>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                              {item.variantName && (
+                                <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                  {item.variantName}
+                                </span>
+                              )}
+                              {item.sku && (
+                                <span className="text-[10px] text-gray-400 font-mono">
+                                  SKU: {item.sku}
+                                </span>
+                              )}
+                            </div>
                             <span className="text-[11px] text-gray-500 block mt-0.5">
                               Số lượng: {item.quantity} × {formatPrice(item.price)}
                             </span>
@@ -494,7 +506,19 @@ export const MyOrdersPage: React.FC = () => {
                         />
                         <div className="min-w-0 flex-1">
                           <p className="font-bold text-gray-900 truncate">{item.productName}</p>
-                          <p className="text-[11px] text-gray-500">
+                          <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                            {item.variantName && (
+                              <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                {item.variantName}
+                              </span>
+                            )}
+                            {item.sku && (
+                              <span className="text-[10px] text-gray-400 font-mono">
+                                SKU: {item.sku}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-gray-500 mt-0.5">
                             {item.quantity} × {formatPrice(item.price)}
                           </p>
                         </div>

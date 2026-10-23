@@ -147,6 +147,7 @@ export const CheckoutPage: React.FC = () => {
       paymentMethod,
       items: items.map((i) => ({
         productId: i.product.id,
+        variantId: i.variantId || i.variant?.id,
         quantity: i.quantity,
       })),
     };
@@ -392,37 +393,50 @@ export const CheckoutPage: React.FC = () => {
 
                 {/* Items scroll list */}
                 <div className="max-h-72 overflow-y-auto divide-y divide-gray-100 pr-1 space-y-2">
-                  {items.map((item) => (
-                    <div
-                      key={item.product.id}
-                      className="py-2.5 flex items-center justify-between gap-3 text-xs"
-                    >
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="w-12 h-12 rounded-lg bg-gray-50 border border-gray-100 p-1 shrink-0 flex items-center justify-center">
-                          <img
-                            src={
-                              item.product.imageUrl ||
-                              'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100'
-                            }
-                            alt={item.product.name}
-                            className="max-h-full max-w-full object-contain"
-                          />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h4 className="font-semibold text-gray-900 truncate">
-                            {item.product.name}
-                          </h4>
-                          <span className="text-[11px] text-gray-500 block">
-                            Số lượng: {item.quantity} × {formatPrice(item.product.price)}
-                          </span>
-                        </div>
-                      </div>
+                  {items.map((item) => {
+                    const variant = item.variant;
+                    const unitPrice = variant?.price ?? item.product.price ?? 0;
+                    const itemImage = variant?.imageUrl || item.product.imageUrl || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100';
 
-                      <span className="font-bold text-gray-900 shrink-0">
-                        {formatPrice((item.product.price || 0) * item.quantity)}
-                      </span>
-                    </div>
-                  ))}
+                    return (
+                      <div
+                        key={item.variantId || variant?.id || item.product.id}
+                        className="py-2.5 flex items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="w-12 h-12 rounded-lg bg-gray-50 border border-gray-100 p-1 shrink-0 flex items-center justify-center">
+                            <img
+                              src={itemImage}
+                              alt={item.product.name}
+                              className="max-h-full max-w-full object-contain"
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-semibold text-gray-900 truncate">
+                              {item.product.name}
+                            </h4>
+                            {variant && (
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                  {variant.title || 'Tiêu chuẩn'}
+                                </span>
+                                <span className="text-[10px] text-gray-400 font-mono">
+                                  SKU: {variant.sku}
+                                </span>
+                              </div>
+                            )}
+                            <span className="text-[11px] text-gray-500 block mt-0.5">
+                              Số lượng: {item.quantity} × {formatPrice(unitPrice)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <span className="font-bold text-gray-900 shrink-0">
+                          {formatPrice(unitPrice * item.quantity)}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Price Breakdown */}
