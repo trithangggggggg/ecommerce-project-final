@@ -24,6 +24,7 @@ import ProductCard from '../../components/common/Card/ProductCard';
 import ProductCardSkeleton from '../../components/common/Card/ProductCardSkeleton';
 import { useCartStore } from '../../store/useCartStore';
 import { formatPrice } from '../../utils/format';
+import HeroBannerSlider from '../../components/home/HeroBannerSlider';
 
 // 1. Category Sidebar Menu (10 items matching the reference image)
 const SIDEBAR_CATEGORIES = [
@@ -204,20 +205,8 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* COLUMN 2: Main Hero Banner (Center: Mở rộng tối đa 1fr) */}
-          <div className="flex flex-col min-w-0">
-            <Link
-              to="/products/4"
-              className="block relative rounded-2xl overflow-hidden shadow-sm h-full group bg-[#161820]"
-              title="MacBook Air M3 - Mua ngay"
-            >
-              <img
-                src="/images/macbook-hero-banner.jpg"
-                alt="MacBook Air M3 - Hiệu năng mạnh mẽ. Thiết kế mỏng nhẹ."
-                className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-300"
-              />
-            </Link>
-          </div>
+          {/* COLUMN 2: Main Hero Banner Slider (Center: Mở rộng tối đa 1fr) */}
+          <HeroBannerSlider />
 
           {/* COLUMN 3: Right 3 Promo Cards (Right: Thu gọn 260px) */}
           <div className="flex flex-col justify-between gap-3 shrink-0">

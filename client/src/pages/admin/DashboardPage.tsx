@@ -65,8 +65,8 @@ export const DashboardPage: React.FC = () => {
       value: `${totalCustomers} người`,
       change: totalCustomers > 0 ? `+${totalCustomers} tài khoản` : '0 khách hàng',
       icon: Users,
-      color: 'bg-purple-50 text-purple-600 border border-purple-100',
-      sparklineColor: '#8b5cf6',
+      color: 'bg-sky-50 text-sky-600 border border-sky-100',
+      sparklineColor: '#0284c7',
       sparklinePath: 'M 0,28 C 25,24 40,20 60,18 C 75,16 85,8 100,4',
     },
     {
