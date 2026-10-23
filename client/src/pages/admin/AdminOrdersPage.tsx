@@ -143,7 +143,7 @@ export const AdminOrdersPage: React.FC = () => {
   const handleStatusChange = async (orderId: number, newStatus: OrderStatus) => {
     setUpdatingId(orderId);
     try {
-      await orderService.updateOrderStatus(orderId, { status: newStatus }).catch(() => {});
+      await orderService.updateOrderStatus(orderId, { status: newStatus }).catch(() => { });
       setOrders((prev) =>
         prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
       );
@@ -249,15 +249,15 @@ export const AdminOrdersPage: React.FC = () => {
       prev.map((o) =>
         o.id === editingOrder.id
           ? {
-              ...o,
-              receiverName: editForm.receiverName,
-              customerName: editForm.receiverName,
-              phoneNumber: editForm.phoneNumber,
-              shippingAddress: editForm.shippingAddress,
-              paymentMethod: editForm.paymentMethod,
-              status: editForm.status,
-              note: editForm.note,
-            }
+            ...o,
+            receiverName: editForm.receiverName,
+            customerName: editForm.receiverName,
+            phoneNumber: editForm.phoneNumber,
+            shippingAddress: editForm.shippingAddress,
+            paymentMethod: editForm.paymentMethod,
+            status: editForm.status,
+            note: editForm.note,
+          }
           : o
       )
     );
@@ -266,15 +266,15 @@ export const AdminOrdersPage: React.FC = () => {
       setSelectedOrder((prev) =>
         prev
           ? {
-              ...prev,
-              receiverName: editForm.receiverName,
-              customerName: editForm.receiverName,
-              phoneNumber: editForm.phoneNumber,
-              shippingAddress: editForm.shippingAddress,
-              paymentMethod: editForm.paymentMethod,
-              status: editForm.status,
-              note: editForm.note,
-            }
+            ...prev,
+            receiverName: editForm.receiverName,
+            customerName: editForm.receiverName,
+            phoneNumber: editForm.phoneNumber,
+            shippingAddress: editForm.shippingAddress,
+            paymentMethod: editForm.paymentMethod,
+            status: editForm.status,
+            note: editForm.note,
+          }
           : null
       );
     }
@@ -419,8 +419,8 @@ export const AdminOrdersPage: React.FC = () => {
     }
     if (order.status === 'PENDING') {
       return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
-          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
           Chờ xử lý
         </span>
       );
@@ -503,20 +503,18 @@ export const AdminOrdersPage: React.FC = () => {
                 key={tab.key}
                 type="button"
                 onClick={() => handleTabChange(tab.key)}
-                className={`py-2 px-3.5 rounded-xl font-bold whitespace-nowrap transition flex items-center gap-1.5 cursor-pointer ${
-                  activeTab === tab.key
+                className={`py-2 px-3.5 rounded-xl font-bold whitespace-nowrap transition flex items-center gap-1.5 cursor-pointer ${activeTab === tab.key
                     ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
-                }`}
+                  }`}
               >
                 <span>{tab.label}</span>
                 {count > 0 && (
                   <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                      activeTab === tab.key
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${activeTab === tab.key
                         ? 'bg-blue-700 text-white'
                         : 'bg-slate-200 text-slate-700'
-                    }`}
+                      }`}
                   >
                     {count}
                   </span>
@@ -664,13 +662,13 @@ export const AdminOrdersPage: React.FC = () => {
                   const orderDate = new Date(order.createdAt);
                   const formattedDate = !isNaN(orderDate.getTime())
                     ? `${orderDate.toLocaleDateString('vi-VN', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                      })} ${orderDate.toLocaleTimeString('vi-VN', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}`
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                    })} ${orderDate.toLocaleTimeString('vi-VN', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}`
                     : order.createdAt;
 
                   return (

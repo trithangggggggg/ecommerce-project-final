@@ -13,6 +13,7 @@ import {
   Settings,
   LogOut,
   X,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { ROUTES } from '../../constants/routes';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -39,6 +40,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
     { title: 'Danh mục', path: ROUTES.ADMIN_CATEGORIES, icon: Layers },
     { title: 'Khách hàng', path: ROUTES.ADMIN_CUSTOMERS, icon: Users },
     { title: 'Khuyến mãi', path: ROUTES.ADMIN_PROMOTIONS, icon: Percent },
+    { title: 'Banner trang chủ', path: ROUTES.ADMIN_BANNERS, icon: ImageIcon },
     { title: 'Vận chuyển', path: ROUTES.ADMIN_SHIPPING, icon: Truck },
   ];
 
@@ -63,9 +65,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
 
       {/* Sidebar Container - FIXED 100% vào màn hình, w-64/72, tĩnh hoàn toàn không cuộn */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 h-screen w-64 bg-white text-slate-700 flex flex-col border-r border-slate-200/80 font-sans select-none overflow-hidden transition-transform duration-300 ease-in-out ${
-          isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
-        }`}
+        className={`fixed top-0 bottom-0 left-0 z-40 h-screen w-64 bg-white text-slate-700 flex flex-col border-r border-slate-200/80 font-sans select-none overflow-hidden transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
+          }`}
       >
         {/* Brand Header */}
         <div className="h-14 px-4 border-b border-slate-100 flex items-center justify-between shrink-0">
@@ -79,7 +80,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
               <span className="text-sm font-extrabold text-slate-900 tracking-tight leading-tight">
                 NEXOR ADMIN
               </span>
-              <span className="text-[10px] text-indigo-600 font-semibold tracking-wide">
+              <span className="text-[10px] text-blue-600 font-semibold tracking-wide">
                 Portal Quản Trị
               </span>
             </div>
@@ -103,10 +104,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                 end
                 onClick={onClose}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all ${
-                    isActive
-                      ? 'bg-blue-50 text-blue-600 shadow-2xs font-bold'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  `flex items-center gap-3 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all ${isActive
+                    ? 'bg-blue-50 text-blue-600 shadow-2xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                   }`
                 }
               >
@@ -129,10 +129,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                       to={item.path}
                       onClick={onClose}
                       className={({ isActive }) =>
-                        `flex items-center justify-between px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all ${
-                          isActive
-                            ? 'bg-blue-50 text-blue-600 font-bold shadow-2xs'
-                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                        `flex items-center justify-between px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all ${isActive
+                          ? 'bg-blue-50 text-blue-600 font-bold shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                         }`
                       }
                     >
@@ -165,10 +164,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                       to={item.path}
                       onClick={onClose}
                       className={({ isActive }) =>
-                        `flex items-center gap-3 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all ${
-                          isActive
-                            ? 'bg-blue-50 text-blue-600 font-bold shadow-2xs'
-                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                        `flex items-center gap-3 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all ${isActive
+                          ? 'bg-blue-50 text-blue-600 font-bold shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                         }`
                       }
                     >
@@ -194,10 +192,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                       to={item.path}
                       onClick={onClose}
                       className={({ isActive }) =>
-                        `flex items-center gap-3 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all ${
-                          isActive
-                            ? 'bg-blue-50 text-blue-600 font-bold shadow-2xs'
-                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                        `flex items-center gap-3 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all ${isActive
+                          ? 'bg-blue-50 text-blue-600 font-bold shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                         }`
                       }
                     >
@@ -219,10 +216,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                   to={ROUTES.ADMIN_SETTINGS}
                   onClick={onClose}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all ${
-                      isActive
-                        ? 'bg-blue-50 text-blue-600 font-bold shadow-2xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    `flex items-center gap-3 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all ${isActive
+                      ? 'bg-blue-50 text-blue-600 font-bold shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                     }`
                   }
                 >
