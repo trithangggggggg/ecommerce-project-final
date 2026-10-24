@@ -167,8 +167,45 @@ INSERT INTO categories (id, name, description, status) VALUES
     (3, 'Máy tính bảng', 'Thiết bị giải trí, học tập và làm việc đồ họa linh hoạt', TRUE),
     (4, 'Tai nghe', 'Tai nghe True Wireless, tai nghe chống ồn và thiết bị âm thanh', TRUE),
     (5, 'Đồng hồ thông minh', 'Smartwatch thể thao, chăm sóc sức khỏe và thời trang', TRUE),
-    (6, 'Phụ kiện công nghệ', 'Củ sạc nhanh, chuột máy tính, thẻ nhớ và phụ kiện chính hãng', TRUE)
+    (6, 'Phụ kiện công nghệ', 'Củ sạc nhanh, chuột máy tính, thẻ nhớ và phụ kiện chính hãng', TRUE),
+    (7, 'Thiết bị âm thanh', 'Tai nghe True Wireless, tai nghe chụp tai và loa Bluetooth', TRUE),
+    (8, 'Đồng hồ & Phụ kiện', 'Đồng hồ thông minh thể thao và phụ kiện chính hãng', TRUE)
 ON DUPLICATE KEY UPDATE 
     name = VALUES(name),
     description = VALUES(description),
     status = VALUES(status);
+
+-- 5 sản phẩm chính thức của hệ thống (theo giao diện thực tế):
+INSERT INTO products (id, name, brand, description, price, stock, image_url, status, category_id) VALUES
+    (1, 'Chuột không dây Razer DeathAdder V3 Pro', 'Razer', 'Chuột gaming không dây Razer DeathAdder V3 Pro siêu nhẹ chỉ 63g, thiết kế công thái học hoàn hảo cho game thủ eSports. Trang bị cảm biến quang học Razer Focus Pro 30K DPI chính xác từng milimet, switch chuột quang học Gen-3 bền bỉ 90 triệu lần nhấn và thời lượng pin vượt trội lên tới 90 giờ hoạt động liên tục.', 2050000.00, 50, 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763665/chu%E1%BB%99t_gaming_razer_deathadder_essential_m5s1he.jpg', TRUE, 8),
+    (2, 'Bảng vẽ màn hình XP-Pen Artist 24 Pro QHD hiển thị 2K', 'XP-Pen', 'Bảng vẽ màn hình đồ họa chuyên nghiệp XP-Pen Artist 24 Pro kích thước 23.8 inch độ phân giải 2K QHD (2560 x 1440), hiển thị màu sắc rực rỡ với độ phủ 90% Adobe RGB. Trang bị bút cảm ứng không pin 8192 mức lực nhấn, hỗ trợ góc nghiêng 60 độ cùng 20 phím tắt và 2 nút xoay điều khiển linh hoạt.', 25290000.00, 20, 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/banner_bang_ve_dien_tru_r1iezy.jpg', TRUE, 3),
+    (3, 'Tai nghe HyperX Cloud III Red', 'HyperX', 'Tai nghe gaming chụp tai HyperX Cloud III Red huyền thoại kế thừa chất âm đỉnh cao với củ loa góc nghiêng 53mm được tinh chỉnh bởi các kỹ sư âm thanh HyperX. Đệm tai bằng mút hoạt tính êm ái bọc da cao cấp, khung kim loại bền bỉ, micro 10mm khử ồn trong trẻo và công nghệ âm thanh không gian DTS Headphone:X Spatial Audio.', 1989000.00, 35, 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/banner_tai_nghe_hyper_cloud_3_bwvebf.jpg', TRUE, 7),
+    (4, 'Laptop ASUS ROG Strix G16', 'ASUS', 'Chiến hạm gaming đỉnh cao ASUS ROG Strix G16 trang bị vi xử lý Intel Core i9 thế hệ 14 siêu mạnh mẽ kết hợp cùng card đồ họa rời NVIDIA GeForce RTX 40 series. Màn hình ROG Nebula Display 16 inch 2.5K tần số quét 240Hz siêu mượt, công nghệ tản nhiệt 3 quạt Tri-Fan và keo tản nhiệt kim loại lỏng Conductonaut Extreme.', 52990000.00, 15, '/images/asus-rog-strix.jpg', TRUE, 2),
+    (5, 'Laptop ASUS TUF Gaming F15', 'ASUS', 'Laptop gaming bền bỉ đạt chuẩn quân sự Mỹ MIL-STD-810H ASUS TUF Gaming F15. Trang bị vi xử lý Intel Core i5-11400H, card đồ họa rời NVIDIA GeForce RTX 2050 4GB, bộ nhớ RAM 16GB DDR4 và ổ cứng SSD 512GB NVMe. Màn hình 15.6 inch Full HD 144Hz cho trải nghiệm gaming mượt mà, sống động.', 16990000.00, 25, 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/asus_tuf_f15_fxuvax.jpg', TRUE, 2)
+ON DUPLICATE KEY UPDATE 
+    name = VALUES(name),
+    brand = VALUES(brand),
+    description = VALUES(description),
+    price = VALUES(price),
+    stock = VALUES(stock),
+    image_url = VALUES(image_url),
+    status = VALUES(status),
+    category_id = VALUES(category_id);
+
+-- Biến thể của các sản phẩm:
+INSERT INTO product_variants (id, product_id, sku, price, original_price, stock, image_url, status) VALUES
+    (1, 1, 'RAZER-DA-V3-PRO-BLK', 2050000.00, NULL, 50, 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763665/chu%E1%BB%99t_gaming_razer_deathadder_essential_m5s1he.jpg', TRUE),
+    (2, 2, 'XPPEN-ARTIST-24-PRO-2K', 25290000.00, NULL, 20, 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/banner_bang_ve_dien_tru_r1iezy.jpg', TRUE),
+    (3, 3, 'HYPERX-CLOUD-3-RED', 1989000.00, 2799000.00, 35, 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/banner_tai_nghe_hyper_cloud_3_bwvebf.jpg', TRUE),
+    (4, 4, 'ASUS-ROG-STRIX-G16-RTX40', 52990000.00, 57990000.00, 15, '/images/asus-rog-strix.jpg', TRUE),
+    (5, 5, 'ASUS-TUF-GAMING-F15-144HZ', 16990000.00, 21990000.00, 25, 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/asus_tuf_f15_fxuvax.jpg', TRUE)
+ON DUPLICATE KEY UPDATE price=VALUES(price), stock=VALUES(stock);
+
+-- Ảnh sản phẩm:
+INSERT INTO product_images (id, product_id, url, position) VALUES
+    (1, 1, 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763665/chu%E1%BB%99t_gaming_razer_deathadder_essential_m5s1he.jpg', 0),
+    (2, 2, 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/banner_bang_ve_dien_tru_r1iezy.jpg', 0),
+    (3, 3, 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/banner_tai_nghe_hyper_cloud_3_bwvebf.jpg', 0),
+    (4, 4, '/images/asus-rog-strix.jpg', 0),
+    (5, 5, 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/asus_tuf_f15_fxuvax.jpg', 0)
+ON DUPLICATE KEY UPDATE url=VALUES(url);
