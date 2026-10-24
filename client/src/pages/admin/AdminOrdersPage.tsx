@@ -143,12 +143,12 @@ export const AdminOrdersPage: React.FC = () => {
   const handleStatusChange = async (orderId: number, newStatus: OrderStatus) => {
     setUpdatingId(orderId);
     try {
-      await orderService.updateOrderStatus(orderId, { status: newStatus }).catch(() => { });
+      const updated = await orderService.updateOrderStatus(orderId, { status: newStatus });
       setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+        prev.map((o) => (o.id === orderId ? (updated?.id ? updated : { ...o, status: newStatus }) : o))
       );
       if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder((prev) => (prev ? { ...prev, status: newStatus } : null));
+        setSelectedOrder((prev) => (prev ? (updated?.id ? updated : { ...prev, status: newStatus }) : null));
       }
       showToast(`Đã chuyển trạng thái đơn #ORD-${orderId} sang "${getStatusLabel(newStatus)}"`);
     } catch (err: unknown) {
@@ -241,46 +241,55 @@ export const AdminOrdersPage: React.FC = () => {
   };
 
   // Submit Edit Order
-  const handleEditOrderSubmit = (e: React.FormEvent) => {
+  const handleEditOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingOrder) return;
 
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === editingOrder.id
-          ? {
-            ...o,
-            receiverName: editForm.receiverName,
-            customerName: editForm.receiverName,
-            phoneNumber: editForm.phoneNumber,
-            shippingAddress: editForm.shippingAddress,
-            paymentMethod: editForm.paymentMethod,
-            status: editForm.status,
-            note: editForm.note,
-          }
-          : o
-      )
-    );
+    try {
+      if (editForm.status !== editingOrder.status) {
+        await orderService.updateOrderStatus(editingOrder.id, { status: editForm.status });
+      }
 
-    if (selectedOrder && selectedOrder.id === editingOrder.id) {
-      setSelectedOrder((prev) =>
-        prev
-          ? {
-            ...prev,
-            receiverName: editForm.receiverName,
-            customerName: editForm.receiverName,
-            phoneNumber: editForm.phoneNumber,
-            shippingAddress: editForm.shippingAddress,
-            paymentMethod: editForm.paymentMethod,
-            status: editForm.status,
-            note: editForm.note,
-          }
-          : null
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === editingOrder.id
+            ? {
+              ...o,
+              receiverName: editForm.receiverName,
+              customerName: editForm.receiverName,
+              phoneNumber: editForm.phoneNumber,
+              shippingAddress: editForm.shippingAddress,
+              paymentMethod: editForm.paymentMethod,
+              status: editForm.status,
+              note: editForm.note,
+            }
+            : o
+        )
       );
-    }
 
-    showToast(`Đã cập nhật thông tin đơn hàng #ORD-${editingOrder.id}`);
-    setEditingOrder(null);
+      if (selectedOrder && selectedOrder.id === editingOrder.id) {
+        setSelectedOrder((prev) =>
+          prev
+            ? {
+              ...prev,
+              receiverName: editForm.receiverName,
+              customerName: editForm.receiverName,
+              phoneNumber: editForm.phoneNumber,
+              shippingAddress: editForm.shippingAddress,
+              paymentMethod: editForm.paymentMethod,
+              status: editForm.status,
+              note: editForm.note,
+            }
+            : null
+        );
+      }
+
+      setEditingOrder(null);
+      showToast(`Đã cập nhật đơn hàng #ORD-${editingOrder.id} thành công!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Không thể cập nhật thông tin đơn hàng.';
+      showToast(`Lỗi: ${msg}`);
+    }
   };
 
   // Confirm Delete Order

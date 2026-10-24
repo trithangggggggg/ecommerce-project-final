@@ -220,21 +220,25 @@ public class OrderServiceImpl implements OrderService {
         }
 
         boolean isValidTransition = switch (currentStatus) {
-            case PENDING -> newStatus == OrderStatus.PROCESSING || newStatus == OrderStatus.CANCELLED;
-            case PROCESSING -> newStatus == OrderStatus.SHIPPING || newStatus == OrderStatus.CANCELLED;
-            case SHIPPING -> newStatus == OrderStatus.COMPLETED || newStatus == OrderStatus.CANCELLED;
-            case COMPLETED, CANCELLED -> false;
+            case PENDING -> newStatus == OrderStatus.PROCESSING 
+                    || newStatus == OrderStatus.SHIPPING 
+                    || newStatus == OrderStatus.COMPLETED 
+                    || newStatus == OrderStatus.CANCELLED;
+            case PROCESSING -> newStatus == OrderStatus.SHIPPING 
+                    || newStatus == OrderStatus.COMPLETED 
+                    || newStatus == OrderStatus.CANCELLED;
+            case SHIPPING -> newStatus == OrderStatus.COMPLETED 
+                    || newStatus == OrderStatus.CANCELLED;
+            case COMPLETED -> newStatus == OrderStatus.CANCELLED;
+            case CANCELLED -> false;
         };
 
         if (!isValidTransition) {
-            if (currentStatus == OrderStatus.COMPLETED) {
-                throw new BadRequestException("Không thể cập nhật trạng thái của đơn hàng đã hoàn thành (COMPLETED)");
-            }
             if (currentStatus == OrderStatus.CANCELLED) {
                 throw new BadRequestException("Không thể cập nhật trạng thái của đơn hàng đã hủy (CANCELLED)");
             }
             throw new BadRequestException(String.format(
-                    "Không thể chuyển trạng thái từ %s sang %s. Quy trình hợp lệ: PENDING -> PROCESSING -> SHIPPING -> COMPLETED (hoặc CANCELLED)",
+                    "Không thể chuyển trạng thái từ %s sang %s.",
                     currentStatus, newStatus));
         }
 

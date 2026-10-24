@@ -76,3 +76,19 @@ VALUES (1006, @user_khanh, 'Vũ Duy Khánh', '0977 889 900', '15 Lê Lợi, Phư
 
 INSERT INTO order_items (order_id, product_id, quantity, price, total_price)
 VALUES (1006, 4, 1, 18990000.00, 18990000.00);
+
+-- Tự động cập nhật thông tin snapshot cho order_items
+UPDATE order_items oi
+JOIN products p ON p.id = oi.product_id
+LEFT JOIN (
+    SELECT product_id, MIN(id) as id, MIN(sku) as sku
+    FROM product_variants
+    GROUP BY product_id
+) pv ON pv.product_id = p.id
+SET 
+    oi.variant_id = pv.id,
+    oi.product_name = p.name,
+    oi.variant_name = 'Tiêu chuẩn',
+    oi.sku = COALESCE(pv.sku, CONCAT('SKU-P', p.id, '-STD'))
+WHERE oi.product_name IS NULL;
+
