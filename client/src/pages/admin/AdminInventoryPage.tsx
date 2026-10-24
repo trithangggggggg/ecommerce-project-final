@@ -175,7 +175,7 @@ export const AdminInventoryPage: React.FC = () => {
   };
 
   // Edit Submit
-  const handleEditSubmit = (e: React.FormEvent) => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem) return;
 
@@ -184,27 +184,35 @@ export const AdminInventoryPage: React.FC = () => {
     const status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' =
       qty === 0 ? 'OUT_OF_STOCK' : qty <= minS ? 'LOW_STOCK' : 'IN_STOCK';
 
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === editingItem.id
-          ? {
-              ...item,
-              sku: editForm.sku.trim().toUpperCase(),
-              productName: editForm.productName.trim(),
-              warehouse: editForm.warehouse,
-              shelfLocation: editForm.shelfLocation.trim(),
-              quantity: qty,
-              minStock: minS,
-              unit: editForm.unit,
-              status,
-              lastUpdated: new Date().toISOString().replace('T', ' ').substring(0, 16),
-            }
-          : item
-      )
-    );
+    try {
+      // Gọi API cập nhật tồn kho trực tiếp vào MySQL Database
+      await productService.updateProductStock(editingItem.id, qty);
 
-    showToast(`Đã cập nhật số lượng tồn kho "${editForm.productName}"!`);
-    setEditingItem(null);
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === editingItem.id
+            ? {
+                ...item,
+                sku: editForm.sku.trim().toUpperCase(),
+                productName: editForm.productName.trim(),
+                warehouse: editForm.warehouse,
+                shelfLocation: editForm.shelfLocation.trim(),
+                quantity: qty,
+                minStock: minS,
+                unit: editForm.unit,
+                status,
+                lastUpdated: new Date().toISOString().replace('T', ' ').substring(0, 16),
+              }
+            : item
+        )
+      );
+
+      showToast(`Đã cập nhật số lượng tồn kho "${editForm.productName}" (${qty} cái) thành công!`);
+      setEditingItem(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Không thể cập nhật số lượng tồn kho';
+      showToast(`Lỗi: ${msg}`);
+    }
   };
 
   // Delete

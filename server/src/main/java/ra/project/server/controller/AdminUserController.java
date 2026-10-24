@@ -55,4 +55,27 @@ public class AdminUserController {
         ApiResponse<AdminUserResponse> response = userService.updateUserStatus(id, targetStatus);
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping
+    public ResponseEntity<ApiResponse<AdminUserResponse>> createAdminUser(
+            @RequestBody ra.project.server.model.dto.request.AdminUserRequest request
+    ) {
+        ApiResponse<AdminUserResponse> response = userService.createAdminUser(request);
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(response);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<AdminUserResponse>> updateAdminUser(
+            @PathVariable Long id,
+            @RequestBody ra.project.server.model.dto.request.AdminUserRequest request
+    ) {
+        ApiResponse<AdminUserResponse> response = userService.updateAdminUser(id, request);
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteAdminUser(@PathVariable Long id) {
+        ApiResponse<Void> response = userService.deleteAdminUser(id);
+        return ResponseEntity.ok(response);
+    }
 }

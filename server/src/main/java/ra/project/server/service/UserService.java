@@ -6,6 +6,8 @@ import ra.project.server.model.dto.request.UpdateProfileRequest;
 import ra.project.server.model.dto.response.AdminUserResponse;
 import ra.project.server.model.dto.response.UserProfileResponse;
 
+import ra.project.server.model.dto.request.AdminUserRequest;
+
 import java.util.List;
 
 public interface UserService {
@@ -15,4 +17,8 @@ public interface UserService {
 
     ApiResponse<List<AdminUserResponse>> getAllUsers(String keyword, Boolean status);
     ApiResponse<AdminUserResponse> updateUserStatus(Long userId, Boolean status);
+    ApiResponse<AdminUserResponse> createAdminUser(AdminUserRequest request);
+    ApiResponse<AdminUserResponse> updateAdminUser(Long userId, AdminUserRequest request);
+    ApiResponse<Void> deleteAdminUser(Long userId);
 }
+

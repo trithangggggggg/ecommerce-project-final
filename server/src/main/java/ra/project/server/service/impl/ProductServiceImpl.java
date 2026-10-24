@@ -447,4 +447,24 @@ public class ProductServiceImpl implements ProductService {
             product.getImages().addAll(finalImages);
         }
     }
+
+    @Override
+    @Transactional
+    public ProductResponse updateProductStock(Long id, Integer stock) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Sản phẩm", "id", id));
+
+        int newStock = (stock != null && stock >= 0) ? stock : 0;
+        product.setStock(newStock);
+
+        List<ra.project.server.model.entity.ProductVariant> variants = productVariantRepository.findByProductId(id);
+        if (!variants.isEmpty()) {
+            ra.project.server.model.entity.ProductVariant first = variants.get(0);
+            first.setStock(newStock);
+            productVariantRepository.save(first);
+        }
+
+        Product saved = productRepository.save(product);
+        return productMapper.toResponse(saved);
+    }
 }

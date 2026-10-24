@@ -11,6 +11,7 @@ export const ENDPOINTS = {
   CATEGORIES: '/categories',
   PRODUCTS: '/products',
   ADMIN_PRODUCTS: '/admin/products',
+  ADMIN_PRODUCT_STOCK: (id: number | string) => `/admin/products/${id}/stock`,
   ORDERS: {
     CHECKOUT: '/orders/checkout',
     MY_ORDERS: '/orders/my-orders',
@@ -23,6 +24,7 @@ export const ENDPOINTS = {
   },
   ADMIN_USERS: {
     LIST: '/admin/users',
+    DETAIL: (id: number | string) => `/admin/users/${id}`,
     UPDATE_STATUS: (id: number | string) => `/admin/users/${id}/status`,
   },
   ADMIN_PROMOTIONS: {

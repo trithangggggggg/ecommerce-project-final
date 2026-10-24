@@ -68,6 +68,7 @@ export const AdminCategoriesPage: React.FC = () => {
       await axiosClient.post(ENDPOINTS.CATEGORIES, {
         name: newCatName.trim(),
         description: newCatDescription.trim() || undefined,
+        status: true,
       });
       setMessage('Thêm danh mục mới thành công!');
       setShowAddModal(false);
@@ -76,19 +77,7 @@ export const AdminCategoriesPage: React.FC = () => {
       fetchCategories();
       setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
-      // Fallback create in local state
-      const newCat: Category = {
-        id: categories.length > 0 ? Math.max(...categories.map((c) => c.id)) + 1 : 1,
-        name: newCatName.trim(),
-        slug: newCatName.trim().toLowerCase().replace(/\s+/g, '-'),
-        description: newCatDescription.trim(),
-      };
-      setCategories([...categories, newCat]);
-      setMessage('Đã thêm danh mục mới vào danh sách!');
-      setShowAddModal(false);
-      setNewCatName('');
-      setNewCatDescription('');
-      setTimeout(() => setMessage(null), 3000);
+      alert(`Lỗi khi thêm danh mục: ${err.response?.data?.message || err.message || 'Thất bại'}`);
     } finally {
       setSubmitting(false);
     }
@@ -102,27 +91,16 @@ export const AdminCategoriesPage: React.FC = () => {
     try {
       await axiosClient.put(`${ENDPOINTS.CATEGORIES}/${editingCategory.id}`, {
         name: editCatName.trim(),
-        slug: editCatSlug.trim() || undefined,
         description: editCatDescription.trim() || undefined,
-      }).catch(() => {});
+        status: true,
+      });
 
-      setCategories((prev) =>
-        prev.map((c) =>
-          c.id === editingCategory.id
-            ? {
-                ...c,
-                name: editCatName.trim(),
-                slug: editCatSlug.trim() || c.slug,
-                description: editCatDescription.trim(),
-              }
-            : c
-        )
-      );
       setMessage('Đã cập nhật danh mục thành công!');
       setEditingCategory(null);
+      fetchCategories();
       setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
-      alert(`Lỗi khi cập nhật danh mục: ${err.message || 'Thất bại'}`);
+      alert(`Lỗi khi cập nhật danh mục: ${err.response?.data?.message || err.message || 'Thất bại'}`);
     } finally {
       setSubmitting(false);
     }
@@ -131,13 +109,13 @@ export const AdminCategoriesPage: React.FC = () => {
   const handleDeleteCategory = async () => {
     if (!deleteTarget) return;
     try {
-      await axiosClient.delete(`${ENDPOINTS.CATEGORIES}/${deleteTarget.id}`).catch(() => {});
-      setCategories((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+      await axiosClient.delete(`${ENDPOINTS.CATEGORIES}/${deleteTarget.id}`);
       setMessage(`Đã xóa danh mục "${deleteTarget.name}" thành công!`);
       setDeleteTarget(null);
+      fetchCategories();
       setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
-      alert(`Lỗi khi xóa danh mục: ${err.message || 'Thất bại'}`);
+      alert(`Lỗi khi xóa danh mục: ${err.response?.data?.message || err.message || 'Thất bại'}`);
     }
   };
 

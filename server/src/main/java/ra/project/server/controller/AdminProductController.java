@@ -60,4 +60,32 @@ public class AdminProductController {
         productService.deleteProduct(id);
         return ResponseEntity.ok(ApiResponse.success("Xóa sản phẩm thành công (Admin)", null));
     }
+
+    @PutMapping("/{id}/stock")
+    public ResponseEntity<ApiResponse<ProductResponse>> updateProductStock(
+            @PathVariable Long id,
+            @RequestBody(required = false) java.util.Map<String, Object> body,
+            @RequestParam(name = "stock", required = false) Integer stockParam
+    ) {
+        Integer targetStock = null;
+        if (body != null && body.containsKey("stock")) {
+            Object val = body.get("stock");
+            if (val instanceof Number) {
+                targetStock = ((Number) val).intValue();
+            } else if (val != null) {
+                try {
+                    targetStock = Integer.parseInt(val.toString().trim());
+                } catch (NumberFormatException ignored) {}
+            }
+        } else if (stockParam != null) {
+            targetStock = stockParam;
+        }
+
+        if (targetStock == null || targetStock < 0) {
+            throw new ra.project.server.exception.BadRequestException("Số lượng tồn kho (stock) không hợp lệ");
+        }
+
+        ProductResponse response = productService.updateProductStock(id, targetStock);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật số lượng tồn kho thành công", response));
+    }
 }

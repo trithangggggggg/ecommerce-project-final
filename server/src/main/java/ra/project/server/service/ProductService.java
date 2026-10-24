@@ -40,5 +40,7 @@ public interface ProductService {
 
     ProductResponse updateProduct(Long id, ProductRequest request);
 
+    ProductResponse updateProductStock(Long id, Integer stock);
+
     void deleteProduct(Long id);
 }

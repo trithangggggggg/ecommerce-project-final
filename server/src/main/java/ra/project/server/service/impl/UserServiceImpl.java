@@ -214,4 +214,122 @@ public class UserServiceImpl implements UserService {
         String msg = Boolean.TRUE.equals(status) ? "Đã kích hoạt tài khoản thành công" : "Đã khóa tài khoản người dùng thành công";
         return ApiResponse.success(msg, response);
     }
+
+    @Override
+    @Transactional
+    public ApiResponse<AdminUserResponse> createAdminUser(ra.project.server.model.dto.request.AdminUserRequest request) {
+        if (request.getUsername() == null || request.getUsername().isBlank()) {
+            throw new BadRequestException("Tên đăng nhập không được để trống");
+        }
+        if (request.getEmail() == null || request.getEmail().isBlank()) {
+            throw new BadRequestException("Email không được để trống");
+        }
+        if (userRepository.existsByUsername(request.getUsername().trim())) {
+            throw new BadRequestException("Tên đăng nhập '" + request.getUsername().trim() + "' đã được sử dụng");
+        }
+        if (userRepository.existsByEmail(request.getEmail().trim())) {
+            throw new BadRequestException("Email '" + request.getEmail().trim() + "' đã được sử dụng");
+        }
+
+        String rawPassword = (request.getPassword() != null && !request.getPassword().isBlank())
+                ? request.getPassword().trim()
+                : "123123123";
+
+        User user = User.builder()
+                .username(request.getUsername().trim())
+                .email(request.getEmail().trim())
+                .password(passwordEncoder.encode(rawPassword))
+                .fullName(request.getFullName() != null && !request.getFullName().isBlank() ? request.getFullName().trim() : request.getUsername().trim())
+                .phoneNumber(request.getPhoneNumber() != null ? request.getPhoneNumber().trim() : null)
+                .address(request.getAddress() != null ? request.getAddress().trim() : null)
+                .avatarUrl(request.getAvatarUrl() != null && !request.getAvatarUrl().isBlank() ? request.getAvatarUrl().trim() : "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100")
+                .role(Role.CUSTOMER)
+                .status(request.getStatus() != null ? request.getStatus() : true)
+                .build();
+
+        User saved = userRepository.save(user);
+
+        AdminUserResponse response = AdminUserResponse.builder()
+                .id(saved.getId())
+                .username(saved.getUsername())
+                .email(saved.getEmail())
+                .fullName(saved.getFullName())
+                .phoneNumber(saved.getPhoneNumber())
+                .address(saved.getAddress())
+                .avatarUrl(saved.getAvatarUrl())
+                .role(saved.getRole())
+                .status(saved.getStatus())
+                .ordersCount(0)
+                .totalSpent(BigDecimal.ZERO)
+                .createdAt(saved.getCreatedAt())
+                .build();
+
+        return ApiResponse.created("Thêm khách hàng mới thành công", response);
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<AdminUserResponse> updateAdminUser(Long userId, ra.project.server.model.dto.request.AdminUserRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng", "id", userId));
+
+        if (request.getFullName() != null && !request.getFullName().isBlank()) {
+            user.setFullName(request.getFullName().trim());
+        }
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            String newEmail = request.getEmail().trim();
+            if (!newEmail.equalsIgnoreCase(user.getEmail()) && userRepository.existsByEmail(newEmail)) {
+                throw new BadRequestException("Email '" + newEmail + "' đã được sử dụng bởi tài khoản khác");
+            }
+            user.setEmail(newEmail);
+        }
+        if (request.getPhoneNumber() != null) user.setPhoneNumber(request.getPhoneNumber().trim());
+        if (request.getAddress() != null) user.setAddress(request.getAddress().trim());
+        if (request.getStatus() != null) user.setStatus(request.getStatus());
+
+        User updated = userRepository.save(user);
+
+        List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(updated.getId());
+        BigDecimal totalSpent = orders.stream()
+                .filter(o -> o.getStatus() != OrderStatus.CANCELLED)
+                .map(Order::getTotalAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        AdminUserResponse response = AdminUserResponse.builder()
+                .id(updated.getId())
+                .username(updated.getUsername())
+                .email(updated.getEmail())
+                .fullName(updated.getFullName())
+                .phoneNumber(updated.getPhoneNumber())
+                .address(updated.getAddress())
+                .avatarUrl(updated.getAvatarUrl())
+                .role(updated.getRole())
+                .status(updated.getStatus())
+                .ordersCount(orders.size())
+                .totalSpent(totalSpent)
+                .createdAt(updated.getCreatedAt())
+                .build();
+
+        return ApiResponse.success("Cập nhật thông tin khách hàng thành công", response);
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<Void> deleteAdminUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng", "id", userId));
+
+        if (user.getRole() == Role.ADMIN) {
+            throw new BadRequestException("Không thể xóa tài khoản Quản trị viên (ADMIN)");
+        }
+
+        try {
+            userRepository.delete(user);
+        } catch (Exception e) {
+            user.setStatus(false);
+            userRepository.save(user);
+        }
+
+        return ApiResponse.success("Đã xóa khách hàng #" + userId + " thành công", null);
+    }
 }

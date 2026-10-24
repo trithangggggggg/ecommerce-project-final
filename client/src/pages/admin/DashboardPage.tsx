@@ -119,7 +119,7 @@ export const DashboardPage: React.FC = () => {
             className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200/90 rounded-lg text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition cursor-pointer"
           >
             <Calendar className="w-3.5 h-3.5 text-slate-500" />
-            <span>Hôm nay (10/06/2025)</span>
+            <span>Hôm nay ({new Date().toLocaleDateString('vi-VN')})</span>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
           </button>
         </div>
@@ -270,14 +270,18 @@ export const DashboardPage: React.FC = () => {
                 </>
               )}
 
-              {/* X-Axis Labels */}
-              <text x="40" y="196" fill="#94a3b8" fontSize="10" textAnchor="middle">04/06</text>
-              <text x="113" y="196" fill="#94a3b8" fontSize="10" textAnchor="middle">05/06</text>
-              <text x="186" y="196" fill="#94a3b8" fontSize="10" textAnchor="middle">06/06</text>
-              <text x="260" y="196" fill="#94a3b8" fontSize="10" textAnchor="middle">07/06</text>
-              <text x="333" y="196" fill="#94a3b8" fontSize="10" textAnchor="middle">08/06</text>
-              <text x="406" y="196" fill="#94a3b8" fontSize="10" textAnchor="middle">09/06</text>
-              <text x="480" y="196" fill="#94a3b8" fontSize="10" textAnchor="middle">10/06</text>
+              {/* Dynamic X-Axis Labels for past 7 days */}
+              {Array.from({ length: 7 }, (_, i) => {
+                const d = new Date();
+                d.setDate(d.getDate() - (6 - i));
+                const label = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+                const xPos = 40 + i * ((480 - 40) / 6);
+                return (
+                  <text key={i} x={xPos} y="196" fill="#94a3b8" fontSize="10" textAnchor="middle">
+                    {label}
+                  </text>
+                );
+              })}
             </svg>
           </div>
         </div>

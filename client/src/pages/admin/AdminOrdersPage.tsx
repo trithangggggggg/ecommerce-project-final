@@ -178,53 +178,45 @@ export const AdminOrdersPage: React.FC = () => {
   };
 
   // Submit Create Order
-  const handleCreateOrderSubmit = (e: React.FormEvent) => {
+  const handleCreateOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newOrderForm.receiverName.trim() || !newOrderForm.phoneNumber.trim() || !newOrderForm.shippingAddress.trim()) {
       showToast('Vui lòng điền đầy đủ họ tên, SĐT và địa chỉ nhận hàng');
       return;
     }
 
-    const newId = orders.length > 0 ? Math.max(...orders.map((o) => o.id)) + 1 : 9833;
-    const createdOrder: OrderResponse = {
-      id: newId,
-      userId: 1,
-      username: 'guest',
-      customerName: newOrderForm.receiverName,
-      receiverName: newOrderForm.receiverName,
-      phoneNumber: newOrderForm.phoneNumber,
-      shippingAddress: newOrderForm.shippingAddress,
-      totalAmount: newOrderForm.price * newOrderForm.quantity,
-      status: 'PENDING',
-      paymentMethod: newOrderForm.paymentMethod,
-      note: newOrderForm.note || undefined,
-      createdAt: new Date().toISOString(),
-      orderItems: [
-        {
-          id: Math.floor(Math.random() * 10000),
-          productId: 1,
-          productName: newOrderForm.productName,
-          productImageUrl: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100',
-          quantity: newOrderForm.quantity,
-          price: newOrderForm.price,
-          totalPrice: newOrderForm.price * newOrderForm.quantity,
-        },
-      ],
-    };
+    try {
+      const created = await orderService.checkout({
+        receiverName: newOrderForm.receiverName.trim(),
+        phoneNumber: newOrderForm.phoneNumber.trim(),
+        shippingAddress: newOrderForm.shippingAddress.trim(),
+        paymentMethod: newOrderForm.paymentMethod,
+        note: newOrderForm.note?.trim() || undefined,
+        items: [
+          {
+            productId: 1,
+            quantity: Number(newOrderForm.quantity) || 1,
+          },
+        ],
+      });
 
-    setOrders([createdOrder, ...orders]);
-    setIsCreateOpen(false);
-    setNewOrderForm({
-      receiverName: '',
-      phoneNumber: '',
-      shippingAddress: '',
-      paymentMethod: 'COD',
-      productName: 'iPhone 15 Pro Max 256GB',
-      quantity: 1,
-      price: 29990000,
-      note: '',
-    });
-    showToast(`Đã tạo đơn hàng mới #ORD-${newId} thành công!`);
+      setOrders([created, ...orders]);
+      setIsCreateOpen(false);
+      setNewOrderForm({
+        receiverName: '',
+        phoneNumber: '',
+        shippingAddress: '',
+        paymentMethod: 'COD',
+        productName: 'iPhone 15 Pro Max 256GB',
+        quantity: 1,
+        price: 29990000,
+        note: '',
+      });
+      showToast(`Đã tạo đơn hàng mới #ORD-${created.id} trên Database thành công!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Không thể tạo đơn hàng mới trên hệ thống';
+      showToast(`Lỗi: ${msg}`);
+    }
   };
 
   // Open Edit Modal

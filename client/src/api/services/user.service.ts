@@ -63,6 +63,57 @@ export const userService = {
       createdAt: u.createdAt,
     };
   },
+
+  /**
+   * [Admin] Thêm khách hàng mới trực tiếp vào MySQL Database
+   */
+  async createAdminUser(payload: Partial<AdminUser> & { password?: string }): Promise<AdminUser> {
+    const res = await axiosClient.post(ENDPOINTS.ADMIN_USERS.LIST, payload);
+    const u = res.data?.data || res.data;
+    return {
+      id: u.id,
+      username: u.username,
+      email: u.email,
+      fullName: u.fullName || u.username,
+      phoneNumber: u.phoneNumber || '',
+      address: u.address || '',
+      avatarUrl: u.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
+      role: u.role || 'CUSTOMER',
+      status: Boolean(u.status),
+      ordersCount: Number(u.ordersCount || 0),
+      totalSpent: typeof u.totalSpent === 'number' ? u.totalSpent : parseFloat(u.totalSpent || '0'),
+      createdAt: u.createdAt || new Date().toISOString(),
+    };
+  },
+
+  /**
+   * [Admin] Cập nhật thông tin khách hàng trên MySQL Database
+   */
+  async updateAdminUser(userId: number, payload: Partial<AdminUser>): Promise<AdminUser> {
+    const res = await axiosClient.put(ENDPOINTS.ADMIN_USERS.DETAIL(userId), payload);
+    const u = res.data?.data || res.data;
+    return {
+      id: u.id,
+      username: u.username,
+      email: u.email,
+      fullName: u.fullName || u.username,
+      phoneNumber: u.phoneNumber || '',
+      address: u.address || '',
+      avatarUrl: u.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
+      role: u.role || 'CUSTOMER',
+      status: Boolean(u.status),
+      ordersCount: Number(u.ordersCount || 0),
+      totalSpent: typeof u.totalSpent === 'number' ? u.totalSpent : parseFloat(u.totalSpent || '0'),
+      createdAt: u.createdAt || new Date().toISOString(),
+    };
+  },
+
+  /**
+   * [Admin] Xóa khách hàng khỏi MySQL Database
+   */
+  async deleteAdminUser(userId: number): Promise<void> {
+    await axiosClient.delete(ENDPOINTS.ADMIN_USERS.DETAIL(userId));
+  },
 };
 
 export default userService;

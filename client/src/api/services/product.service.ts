@@ -221,6 +221,15 @@ export const productService = {
   },
 
   /**
+   * [Admin] Cập nhật số lượng tồn kho sản phẩm (PUT /api/admin/products/{id}/stock)
+   */
+  async updateProductStock(id: number | string, stock: number): Promise<Product> {
+    const res = await axiosClient.put(ENDPOINTS.ADMIN_PRODUCT_STOCK(id), { stock });
+    const raw = res.data?.data || res.data;
+    return mapBackendProduct(raw);
+  },
+
+  /**
    * [Admin] Xóa sản phẩm (DELETE /api/admin/products/{id})
    */
   async deleteProduct(id: number | string): Promise<void> {

@@ -105,40 +105,39 @@ export const AdminCustomersPage: React.FC = () => {
   };
 
   // Add customer
-  const handleAddCustomerSubmit = (e: React.FormEvent) => {
+  const handleAddCustomerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!addForm.fullName.trim() || !addForm.username.trim() || !addForm.email.trim()) {
       showToast('Vui lòng điền đầy đủ họ tên, tên đăng nhập và email', 'error');
       return;
     }
 
-    const newId = customers.length > 0 ? Math.max(...customers.map((c) => c.id)) + 1 : 100;
-    const newCust: AdminUser = {
-      id: newId,
-      username: addForm.username.trim(),
-      email: addForm.email.trim(),
-      fullName: addForm.fullName.trim(),
-      phoneNumber: addForm.phoneNumber.trim() || '0901 234 567',
-      address: addForm.address.trim() || 'TP. Hà Nội',
-      avatarUrl: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100`,
-      role: 'CUSTOMER',
-      status: true,
-      createdAt: new Date().toISOString(),
-      ordersCount: 0,
-      totalSpent: 0,
-    };
+    try {
+      const created = await userService.createAdminUser({
+        fullName: addForm.fullName.trim(),
+        username: addForm.username.trim(),
+        email: addForm.email.trim(),
+        phoneNumber: addForm.phoneNumber.trim() || undefined,
+        address: addForm.address.trim() || undefined,
+        password: addForm.password || '123123123',
+        status: true,
+      });
 
-    setCustomers([newCust, ...customers]);
-    setIsAddOpen(false);
-    setAddForm({
-      fullName: '',
-      username: '',
-      email: '',
-      phoneNumber: '',
-      address: '',
-      password: 'password123',
-    });
-    showToast(`Đã thêm khách hàng mới "${newCust.fullName}" thành công!`);
+      setCustomers([created, ...customers]);
+      setIsAddOpen(false);
+      setAddForm({
+        fullName: '',
+        username: '',
+        email: '',
+        phoneNumber: '',
+        address: '',
+        password: 'password123',
+      });
+      showToast(`Đã thêm khách hàng mới "${created.fullName}" vào Database thành công!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Không thể thêm khách hàng mới';
+      showToast(msg, 'error');
+    }
   };
 
   // Open edit
@@ -154,51 +153,49 @@ export const AdminCustomersPage: React.FC = () => {
   };
 
   // Edit submit
-  const handleEditCustomerSubmit = (e: React.FormEvent) => {
+  const handleEditCustomerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCustomer) return;
 
-    setCustomers((prev) =>
-      prev.map((c) =>
-        c.id === editingCustomer.id
-          ? {
-              ...c,
-              fullName: editForm.fullName,
-              email: editForm.email,
-              phoneNumber: editForm.phoneNumber,
-              address: editForm.address,
-              status: editForm.status,
-            }
-          : c
-      )
-    );
+    try {
+      const updated = await userService.updateAdminUser(editingCustomer.id, {
+        fullName: editForm.fullName.trim(),
+        email: editForm.email.trim(),
+        phoneNumber: editForm.phoneNumber.trim(),
+        address: editForm.address.trim(),
+        status: editForm.status,
+      });
 
-    if (selectedCustomer?.id === editingCustomer.id) {
-      setSelectedCustomer((prev) =>
-        prev
-          ? {
-              ...prev,
-              fullName: editForm.fullName,
-              email: editForm.email,
-              phoneNumber: editForm.phoneNumber,
-              address: editForm.address,
-              status: editForm.status,
-            }
-          : null
+      setCustomers((prev) =>
+        prev.map((c) => (c.id === editingCustomer.id ? { ...c, ...updated } : c))
       );
-    }
 
-    showToast(`Đã cập nhật thông tin khách hàng "${editForm.fullName}"`);
-    setEditingCustomer(null);
+      if (selectedCustomer?.id === editingCustomer.id) {
+        setSelectedCustomer((prev) => (prev ? { ...prev, ...updated } : null));
+      }
+
+      showToast(`Đã cập nhật thông tin khách hàng "${updated.fullName}" thành công!`);
+      setEditingCustomer(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Không thể cập nhật thông tin khách hàng';
+      showToast(msg, 'error');
+    }
   };
 
   // Delete submit
-  const handleDeleteCustomer = () => {
+  const handleDeleteCustomer = async () => {
     if (!deleteTarget) return;
-    setCustomers((prev) => prev.filter((c) => c.id !== deleteTarget.id));
-    if (selectedCustomer?.id === deleteTarget.id) setSelectedCustomer(null);
-    showToast(`Đã xóa khách hàng "${deleteTarget.fullName}" khỏi danh sách`);
-    setDeleteTarget(null);
+
+    try {
+      await userService.deleteAdminUser(deleteTarget.id);
+      setCustomers((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+      if (selectedCustomer?.id === deleteTarget.id) setSelectedCustomer(null);
+      showToast(`Đã xóa khách hàng "${deleteTarget.fullName}" khỏi hệ thống!`);
+      setDeleteTarget(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Không thể xóa khách hàng';
+      showToast(msg, 'error');
+    }
   };
 
   const filteredCustomers = customers.filter((c) => {
