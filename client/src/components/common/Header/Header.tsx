@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   Search,
@@ -38,7 +38,50 @@ export const Header: React.FC = () => {
   const [keyword, setKeyword] = useState('');
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const userAvatar = user?.avatarUrl || (user as any)?.avatar;
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.avatarUrl, (user as any)?.avatar]);
+
+  // Click outside to close user dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setUserDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleMouseEnter = () => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+    setUserDropdownOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+    }
+    closeTimeoutRef.current = setTimeout(() => {
+      setUserDropdownOpen(false);
+    }, 250);
+  };
 
   const currentCategory = (searchParams.get('category') || '').toLowerCase().trim();
 
@@ -145,7 +188,7 @@ export const Header: React.FC = () => {
   return (
     <header className="bg-[#181a20] text-white sticky top-0 z-50 shadow-sm font-sans">
       {/* 1. Main Top Header */}
-      <div className="max-w-[1360px] mx-auto px-4 py-3 flex items-center justify-between gap-4 relative z-20">
+      <div className="max-w-[1360px] mx-auto px-4 py-3 flex items-center justify-between gap-4 relative z-40">
         {/* Left: Brand Logo (NEXOR Emblem) */}
         <Link to="/" className="flex items-center gap-3 shrink-0 group">
           <div className="w-10 h-10 flex items-center justify-center shrink-0">
@@ -217,17 +260,38 @@ export const Header: React.FC = () => {
           </div>
 
           {/* Account Menu */}
-          <div className="relative">
+          <div
+            ref={userMenuRef}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+            className="relative"
+          >
             {isAuthenticated ? (
               <button
                 type="button"
-                onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                className="flex items-center gap-1.5 p-1 text-gray-200 hover:text-white transition cursor-pointer"
+                onClick={() => setUserDropdownOpen((prev) => !prev)}
+                className="flex items-center gap-1.5 p-1 rounded-full hover:bg-gray-800/80 text-gray-200 hover:text-white transition cursor-pointer group"
+                title="Tài khoản cá nhân"
               >
-                <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center text-xs font-bold text-white border border-gray-600">
-                  {user?.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}
+                <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-600/80 bg-gray-700 flex items-center justify-center shrink-0 ring-1 ring-white/10 group-hover:border-blue-400 transition">
+                  {userAvatar && !avatarError ? (
+                    <img
+                      src={userAvatar}
+                      alt={user?.fullName || 'Avatar'}
+                      onError={() => setAvatarError(true)}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-xs font-bold text-white">
+                      {user?.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}
+                    </span>
+                  )}
                 </div>
-                <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-gray-400 group-hover:text-white transition-transform duration-200 ${
+                    userDropdownOpen ? 'rotate-180 text-white' : ''
+                  }`}
+                />
               </button>
             ) : (
               <Link
@@ -242,47 +306,81 @@ export const Header: React.FC = () => {
             {/* Dropdown Menu when logged in */}
             {isAuthenticated && userDropdownOpen && (
               <div
-                className="absolute right-0 mt-2 w-48 bg-[#1e222a] border border-gray-700 rounded-xl shadow-xl py-2 z-50 text-xs"
-                onMouseLeave={() => setUserDropdownOpen(false)}
+                className="absolute right-0 top-full mt-1.5 w-56 bg-[#1a1d24] border border-gray-700/80 rounded-xl shadow-2xl py-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-150 before:absolute before:-top-3 before:left-0 before:right-0 before:h-3 before:content-['']"
               >
-                <div className="px-4 py-2 border-b border-gray-700/60">
-                  <p className="font-semibold text-white truncate">{user?.fullName}</p>
-                  <p className="text-[10px] text-gray-400 truncate">{user?.email}</p>
+                {/* User Info Header */}
+                <div className="px-3.5 py-2.5 border-b border-gray-700/60 flex items-center gap-2.5 bg-gray-800/40">
+                  <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-600 bg-gray-700 flex items-center justify-center shrink-0">
+                    {userAvatar && !avatarError ? (
+                      <img
+                        src={userAvatar}
+                        alt={user?.fullName || 'Avatar'}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-xs font-bold text-white">
+                        {user?.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-white truncate text-xs">{user?.fullName || 'Người dùng'}</p>
+                    <p className="text-[10px] text-gray-400 truncate">{user?.email}</p>
+                  </div>
                 </div>
-                <Link
-                  to={ROUTES.PROFILE}
-                  onClick={() => setUserDropdownOpen(false)}
-                  className="block px-4 py-2 text-gray-200 hover:bg-gray-700/50 hover:text-white"
-                >
-                  Hồ sơ cá nhân
-                </Link>
-                <Link
-                  to={ROUTES.MY_ORDERS}
-                  onClick={() => setUserDropdownOpen(false)}
-                  className="block px-4 py-2 text-gray-200 hover:bg-gray-700/50 hover:text-white"
-                >
-                  Đơn hàng của tôi
-                </Link>
-                {user?.role === 'ADMIN' && (
+
+                <div className="py-1">
                   <Link
-                    to={ROUTES.ADMIN}
-                    onClick={() => setUserDropdownOpen(false)}
-                    className="block px-4 py-2 text-amber-400 hover:bg-gray-700/50 font-semibold"
+                    to={ROUTES.PROFILE}
+                    onClick={() => {
+                      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+                      setUserDropdownOpen(false);
+                    }}
+                    className="flex items-center gap-2.5 px-3.5 py-2 text-gray-200 hover:bg-gray-700/50 hover:text-white transition"
                   >
-                    Quản trị hệ thống (Admin)
+                    <User className="w-3.5 h-3.5 text-gray-400" />
+                    <span>Hồ sơ cá nhân</span>
                   </Link>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUserDropdownOpen(false);
-                    logout();
-                  }}
-                  className="w-full text-left px-4 py-2 text-red-400 hover:bg-gray-700/50 flex items-center gap-1.5 cursor-pointer"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  Đăng xuất
-                </button>
+                  <Link
+                    to={ROUTES.MY_ORDERS}
+                    onClick={() => {
+                      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+                      setUserDropdownOpen(false);
+                    }}
+                    className="flex items-center gap-2.5 px-3.5 py-2 text-gray-200 hover:bg-gray-700/50 hover:text-white transition"
+                  >
+                    <Package className="w-3.5 h-3.5 text-gray-400" />
+                    <span>Đơn hàng của tôi</span>
+                  </Link>
+                  {user?.role === 'ADMIN' && (
+                    <Link
+                      to={ROUTES.ADMIN}
+                      onClick={() => {
+                        if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+                        setUserDropdownOpen(false);
+                      }}
+                      className="flex items-center gap-2.5 px-3.5 py-2 text-amber-400 hover:bg-gray-700/50 font-semibold transition"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Quản trị hệ thống (Admin)</span>
+                    </Link>
+                  )}
+                </div>
+
+                <div className="border-t border-gray-700/60 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+                      setUserDropdownOpen(false);
+                      logout();
+                    }}
+                    className="w-full text-left px-3.5 py-2 text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2.5 cursor-pointer transition font-medium"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Đăng xuất</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -322,7 +420,7 @@ export const Header: React.FC = () => {
       </div>
 
       {/* 2. Sub-Navbar Bar */}
-      <div className="bg-[#1f222b] border-t border-gray-800/80 relative z-30">
+      <div className="bg-[#1f222b] border-t border-gray-800/80 relative z-20">
         <div className="max-w-[1360px] mx-auto px-4 flex items-center gap-6 text-xs font-medium">
           {/* Left: Category Dropdown button */}
           <div className="relative shrink-0">
