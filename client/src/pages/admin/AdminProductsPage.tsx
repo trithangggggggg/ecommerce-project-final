@@ -18,10 +18,26 @@ import {
   Sliders,
   ChevronRight,
   ArrowRight,
+  Smartphone,
+  Laptop,
+  Headphones,
+  FolderPlus,
+  ChevronDown,
+  RotateCcw,
+  Filter,
 } from 'lucide-react';
 import { productService } from '../../api/services/product.service';
 import { aiService } from '../../api/services/ai.service';
 import { formatPrice } from '../../utils/format';
+import {
+  LAPTOP_REQUIRED_SPECS,
+  LAPTOP_FULL_SPECS,
+  PHONE_FULL_SPECS,
+  PHONE_BASIC_SPECS,
+  ACCESSORY_SPECS,
+  SPEC_GROUPS_CATALOG,
+  type SpecPresetItem,
+} from '../../constants';
 import type {
   Product,
   Category,
@@ -151,6 +167,12 @@ export const AdminProductsPage: React.FC = () => {
   const [formVariants, setFormVariants] = useState<FormVariantState[]>([]);
   const [formSpecs, setFormSpecs] = useState<FormSpecState[]>([]);
 
+  // Spec presets & search/filter state
+  const [specGroupFilter, setSpecGroupFilter] = useState<string>('ALL');
+  const [specSearchQuery, setSpecSearchQuery] = useState<string>('');
+  const [isGroupDropdownOpen, setIsGroupDropdownOpen] = useState<boolean>(false);
+  const [presetInsertMode, setPresetInsertMode] = useState<'append' | 'replace'>('append');
+
   // Bulk Variant Apply state
   const [bulkPrice, setBulkPrice] = useState('');
   const [bulkOriginalPrice, setBulkOriginalPrice] = useState('');
@@ -234,6 +256,9 @@ export const AdminProductsPage: React.FC = () => {
     setBulkOriginalPrice('');
     setBulkStock('');
     setNewGalleryUrl('');
+    setSpecGroupFilter('ALL');
+    setSpecSearchQuery('');
+    setIsGroupDropdownOpen(false);
     setFormErrors({});
     setModalError(null);
     setAiMessage(null);
@@ -248,6 +273,9 @@ export const AdminProductsPage: React.FC = () => {
     setFormMode('edit');
     setEditingId(p.id);
     setActiveTab('general');
+    setSpecGroupFilter('ALL');
+    setSpecSearchQuery('');
+    setIsGroupDropdownOpen(false);
     setFormErrors({});
     setModalError(null);
     setAiMessage(null);
@@ -535,36 +563,113 @@ export const AdminProductsPage: React.FC = () => {
   };
 
   // Spec Preset templates
-  const handleAddPresetSpecs = (type: 'phone' | 'laptop' | 'accessory') => {
-    let presets: FormSpecState[] = [];
-    if (type === 'phone') {
-      presets = [
-        { group: 'Màn hình', key: 'Kích thước màn hình', value: '6.7 inch OLED 120Hz' },
-        { group: 'Màn hình', key: 'Độ phân giải', value: '2796 x 1290 pixels' },
-        { group: 'Hiệu năng', key: 'Chip xử lý (CPU)', value: 'Apple A18 Pro / Snapdragon 8 Gen 3' },
-        { group: 'Hiệu năng', key: 'Dung lượng RAM', value: '8 GB' },
-        { group: 'Pin & Sạc', key: 'Dung lượng pin', value: '4422 mAh' },
-        { group: 'Pin & Sạc', key: 'Công nghệ sạc', value: 'Sạc nhanh 25W, MagSafe 15W' },
-      ];
-    } else if (type === 'laptop') {
-      presets = [
-        { group: 'Màn hình', key: 'Kích thước', value: '14.2 inch Liquid Retina XDR' },
-        { group: 'Bộ xử lý', key: 'CPU', value: 'Apple M3 Pro (11-core CPU, 14-core GPU)' },
-        { group: 'Bộ nhớ & Lưu trữ', key: 'RAM', value: '18 GB Unified Memory' },
-        { group: 'Bộ nhớ & Lưu trữ', key: 'Ổ cứng', value: '512 GB SSD siêu tốc' },
-        { group: 'Cổng giao tiếp', key: 'Cổng kết nối', value: '3x Thunderbolt 4, HDMI, SDXC, MagSafe 3' },
-      ];
-    } else {
-      presets = [
-        { group: 'Thông số chung', key: 'Chuẩn kết nối', value: 'Bluetooth 5.3 / USB Type-C' },
-        { group: 'Thông số chung', key: 'Chất liệu', value: 'Hợp kim nhôm tái chế' },
-        { group: 'Bảo hành', key: 'Thời hạn bảo hành', value: '12 tháng chính hãng' },
-      ];
+  type PresetType =
+    | 'phone-full'
+    | 'phone-basic'
+    | 'laptop-full'
+    | 'laptop-required'
+    | 'accessory';
+
+  const handleAddPresetSpecs = (
+    type: PresetType,
+    mode: 'append' | 'replace' = presetInsertMode
+  ) => {
+    let presets: SpecPresetItem[] = [];
+    let label = '';
+    switch (type) {
+      case 'phone-full':
+        presets = PHONE_FULL_SPECS;
+        label = 'Điện thoại (Đầy đủ 9 nhóm)';
+        break;
+      case 'phone-basic':
+        presets = PHONE_BASIC_SPECS;
+        label = 'Điện thoại (Cơ bản)';
+        break;
+      case 'laptop-full':
+        presets = LAPTOP_FULL_SPECS;
+        label = 'Laptop (Đầy đủ Cần có + Bổ sung)';
+        break;
+      case 'laptop-required':
+        presets = LAPTOP_REQUIRED_SPECS;
+        label = 'Laptop (Cơ bản - Cần có)';
+        break;
+      case 'accessory':
+        presets = ACCESSORY_SPECS;
+        label = 'Phụ kiện';
+        break;
     }
 
-    setFormSpecs((prev) => [...prev, ...presets]);
-    showToast(`Đã thêm ${presets.length} thông số mẫu!`);
+    const newRows: FormSpecState[] = presets.map((p) => ({
+      group: p.group,
+      key: p.key,
+      value: p.value,
+    }));
+
+    if (mode === 'replace') {
+      setFormSpecs(newRows);
+      showToast(`Đã thay thế toàn bộ bằng mẫu ${label} (${newRows.length} thông số)`);
+    } else {
+      setFormSpecs((prev) => [...prev, ...newRows]);
+      showToast(`Đã thêm ${newRows.length} thông số mẫu (${label})`);
+    }
+    setSpecGroupFilter('ALL');
   };
+
+  const handleAddSpecificGroupSpecs = (groupId: string) => {
+    const groupDef = SPEC_GROUPS_CATALOG.find((g) => g.id === groupId);
+    if (!groupDef) return;
+
+    const newRows: FormSpecState[] = groupDef.items.map((p) => ({
+      group: p.group,
+      key: p.key,
+      value: p.value,
+    }));
+
+    setFormSpecs((prev) => [...prev, ...newRows]);
+    setIsGroupDropdownOpen(false);
+    showToast(`Đã thêm nhóm "${groupDef.name}" (+${newRows.length} thông số)`);
+  };
+
+  const handleClearAllSpecs = () => {
+    if (formSpecs.length === 0) return;
+    if (window.confirm('Bạn có chắc chắn muốn xóa tất cả thông số kỹ thuật hiện tại không?')) {
+      setFormSpecs([]);
+      setSpecGroupFilter('ALL');
+      setSpecSearchQuery('');
+      showToast('Đã xóa toàn bộ thông số kỹ thuật');
+    }
+  };
+
+  // Group specs analysis for filtering & quick navigation
+  const uniqueSpecGroups = useMemo(() => {
+    const groups: { name: string; count: number }[] = [];
+    const map = new Map<string, number>();
+    formSpecs.forEach((s) => {
+      const g = s.group?.trim() || 'Chung';
+      map.set(g, (map.get(g) || 0) + 1);
+    });
+    map.forEach((count, name) => {
+      groups.push({ name, count });
+    });
+    return groups;
+  }, [formSpecs]);
+
+  const filteredFormSpecs = useMemo(() => {
+    return formSpecs
+      .map((spec, originalIndex) => ({ spec, originalIndex }))
+      .filter(({ spec }) => {
+        const groupName = spec.group?.trim() || 'Chung';
+        const matchesGroup =
+          specGroupFilter === 'ALL' || groupName.toLowerCase() === specGroupFilter.toLowerCase();
+        const q = specSearchQuery.trim().toLowerCase();
+        const matchesSearch =
+          !q ||
+          spec.key.toLowerCase().includes(q) ||
+          spec.value.toLowerCase().includes(q) ||
+          groupName.toLowerCase().includes(q);
+        return matchesGroup && matchesSearch;
+      });
+  }, [formSpecs, specGroupFilter, specSearchQuery]);
 
   // Validate and Submit Form
   const handleFormSubmit = async (e: React.FormEvent) => {
@@ -665,7 +770,7 @@ export const AdminProductsPage: React.FC = () => {
           ];
 
     const payloadSpecs: SpecPayload[] = formSpecs
-      .filter((s) => s.key && s.key.trim())
+      .filter((s) => s.key && s.key.trim() && s.value && s.value.trim())
       .map((s) => ({
         id: s.id,
         group: s.group?.trim() || undefined,
@@ -1480,85 +1585,393 @@ export const AdminProductsPage: React.FC = () => {
                 {/* ======================================================== */}
                 {!isFormLoading && activeTab === 'specs' && (
                   <div className="space-y-4 animate-fade-in">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                      <div>
-                        <span className="text-xs font-bold text-slate-800 block">
-                          Thông số kỹ thuật sản phẩm
-                        </span>
-                        <span className="text-[11px] text-slate-500">
-                          Thêm thông số chi tiết theo nhóm (Màn hình, Chip, RAM, Pin, Kết nối...)
-                        </span>
+                    {/* Datalist for standard spec groups */}
+                    <datalist id="preset-spec-groups-list">
+                      <option value="CPU" />
+                      <option value="GPU" />
+                      <option value="RAM" />
+                      <option value="Ổ cứng" />
+                      <option value="Màn hình" />
+                      <option value="Hiệu năng" />
+                      <option value="Camera" />
+                      <option value="Pin & sạc" />
+                      <option value="Pin" />
+                      <option value="Nguồn điện" />
+                      <option value="Kết nối" />
+                      <option value="Bảo mật & độ bền" />
+                      <option value="Phần mềm" />
+                      <option value="Hệ điều hành" />
+                      <option value="Âm thanh & cảm biến" />
+                      <option value="Ngoại vi" />
+                      <option value="Thiết kế" />
+                      <option value="Thông số chung" />
+                      <option value="Bảo hành" />
+                    </datalist>
+
+                    {/* Preset Controls Card */}
+                    <div className="bg-gradient-to-r from-slate-50 via-blue-50/30 to-indigo-50/20 p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs space-y-3">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                            <Sliders className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold text-slate-800 block">
+                              Mẫu thông số kỹ thuật chuẩn hóa
+                            </span>
+                            <span className="text-[11px] text-slate-500">
+                              Chọn mẫu nhanh cho Điện thoại & Laptop hoặc tùy chỉnh theo từng nhóm
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Mode toggle & Clear all */}
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                          <div className="inline-flex items-center p-0.5 bg-slate-200/70 rounded-lg text-[11px] font-medium text-slate-600">
+                            <button
+                              type="button"
+                              onClick={() => setPresetInsertMode('append')}
+                              className={`px-2 py-0.5 rounded-md transition ${
+                                presetInsertMode === 'append'
+                                  ? 'bg-white text-blue-700 font-bold shadow-2xs'
+                                  : 'hover:text-slate-900'
+                              }`}
+                              title="Thêm tiếp vào sau các thông số đang có"
+                            >
+                              Nối tiếp
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPresetInsertMode('replace')}
+                              className={`px-2 py-0.5 rounded-md transition ${
+                                presetInsertMode === 'replace'
+                                  ? 'bg-white text-blue-700 font-bold shadow-2xs'
+                                  : 'hover:text-slate-900'
+                              }`}
+                              title="Thay thế toàn bộ thông số hiện có bằng mẫu này"
+                            >
+                              Ghi đè
+                            </button>
+                          </div>
+
+                          {formSpecs.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={handleClearAllSpecs}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200/80 rounded-lg transition"
+                              title="Xóa tất cả thông số hiện tại"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>Xóa hết ({formSpecs.length})</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[10px] text-slate-400 font-medium">Mẫu nhanh:</span>
+
+                      {/* Quick preset buttons */}
+                      <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200/60">
+                        <span className="text-[11px] font-semibold text-slate-500 mr-1">
+                          Áp dụng mẫu:
+                        </span>
+
+                        {/* Phone Presets */}
                         <button
                           type="button"
-                          onClick={() => handleAddPresetSpecs('phone')}
-                          className="px-2 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-lg hover:bg-slate-100 text-slate-700 transition"
+                          onClick={() => handleAddPresetSpecs('phone-full')}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-white border border-blue-200 hover:border-blue-400 hover:bg-blue-50/60 text-blue-800 rounded-xl shadow-2xs transition group"
+                          title="9 nhóm đầy đủ: Màn hình, Hiệu năng, Camera, Pin & sạc, Kết nối, Bảo mật & độ bền, Phần mềm, Âm thanh & cảm biến, Thiết kế"
                         >
-                          + Điện thoại/Tablet
+                          <Smartphone className="w-3.5 h-3.5 text-blue-600 group-hover:scale-110 transition-transform" />
+                          <span>📱 Điện thoại (Đầy đủ - 9 nhóm)</span>
+                          <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.2 rounded-full font-bold">
+                            38
+                          </span>
                         </button>
+
                         <button
                           type="button"
-                          onClick={() => handleAddPresetSpecs('laptop')}
-                          className="px-2 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-lg hover:bg-slate-100 text-slate-700 transition"
+                          onClick={() => handleAddPresetSpecs('phone-basic')}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl shadow-2xs transition"
+                          title="6 nhóm cơ bản: Màn hình, Chip, Camera, Pin, Kết nối, Thiết kế"
                         >
-                          + Laptop
+                          <Smartphone className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Điện thoại (Cơ bản)</span>
+                          <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded-full font-bold">
+                            24
+                          </span>
                         </button>
+
+                        {/* Laptop Presets */}
+                        <button
+                          type="button"
+                          onClick={() => handleAddPresetSpecs('laptop-full')}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-white border border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50/60 text-indigo-800 rounded-xl shadow-2xs transition group"
+                          title="11 nhóm đầy đủ (Cần có + Bổ sung): CPU, GPU, RAM, Ổ cứng, Màn hình, Kết nối, Pin, Nguồn điện, Hệ điều hành, Thiết kế, Ngoại vi"
+                        >
+                          <Laptop className="w-3.5 h-3.5 text-indigo-600 group-hover:scale-110 transition-transform" />
+                          <span>💻 Laptop (Đầy đủ - Cần có + Bổ sung)</span>
+                          <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.2 rounded-full font-bold">
+                            33
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleAddPresetSpecs('laptop-required')}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl shadow-2xs transition"
+                          title="Chỉ gồm các trường Cần có: CPU, GPU, RAM, Ổ cứng, Màn hình, Kết nối, Pin, HĐH, Thiết kế"
+                        >
+                          <Laptop className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Laptop (Cần có)</span>
+                          <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded-full font-bold">
+                            22
+                          </span>
+                        </button>
+
+                        {/* Accessory Preset */}
                         <button
                           type="button"
                           onClick={() => handleAddPresetSpecs('accessory')}
-                          className="px-2 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-lg hover:bg-slate-100 text-slate-700 transition"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl shadow-2xs transition"
                         >
-                          + Phụ kiện
+                          <Headphones className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Phụ kiện</span>
                         </button>
+
+                        {/* Dropdown: Add individual group */}
+                        <div className="relative inline-block">
+                          <button
+                            type="button"
+                            onClick={() => setIsGroupDropdownOpen((prev) => !prev)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-white border border-amber-300 hover:bg-amber-50 text-amber-900 rounded-xl shadow-2xs transition"
+                            title="Chèn riêng lẻ từng nhóm thông số như CPU, GPU, Camera, Màn hình..."
+                          >
+                            <FolderPlus className="w-3.5 h-3.5 text-amber-600" />
+                            <span>+ Thêm theo nhóm lẻ</span>
+                            <ChevronDown className="w-3 h-3 text-amber-600" />
+                          </button>
+
+                          {isGroupDropdownOpen && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-20"
+                                onClick={() => setIsGroupDropdownOpen(false)}
+                              />
+                              <div className="absolute right-0 sm:left-0 top-full mt-1.5 z-30 w-80 max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-xl p-2 space-y-1 animate-in fade-in zoom-in-95">
+                                <div className="px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 flex items-center justify-between">
+                                  <span>Chọn nhóm cần thêm:</span>
+                                  <span className="text-[10px] font-normal lowercase text-slate-400">
+                                    {SPEC_GROUPS_CATALOG.length} nhóm
+                                  </span>
+                                </div>
+                                <div className="divide-y divide-slate-100">
+                                  {SPEC_GROUPS_CATALOG.map((group) => (
+                                    <button
+                                      key={group.id}
+                                      type="button"
+                                      onClick={() => handleAddSpecificGroupSpecs(group.id)}
+                                      className="w-full text-left px-2.5 py-2 hover:bg-blue-50/70 rounded-xl transition group flex items-start justify-between gap-2"
+                                    >
+                                      <div>
+                                        <div className="text-xs font-bold text-slate-800 group-hover:text-blue-700 flex items-center gap-1.5">
+                                          <span>{group.name}</span>
+                                          <span className="text-[10px] px-1.5 py-0.2 rounded-md font-semibold bg-slate-100 text-slate-600 group-hover:bg-blue-100 group-hover:text-blue-700">
+                                            +{group.items.length}
+                                          </span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">
+                                          {group.description}
+                                        </p>
+                                      </div>
+                                      <span
+                                        className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                                          group.deviceType === 'phone'
+                                            ? 'bg-blue-50 text-blue-600'
+                                            : group.deviceType === 'laptop'
+                                            ? 'bg-indigo-50 text-indigo-600'
+                                            : 'bg-emerald-50 text-emerald-600'
+                                        }`}
+                                      >
+                                        {group.deviceType === 'phone'
+                                          ? 'ĐT'
+                                          : group.deviceType === 'laptop'
+                                          ? 'Laptop'
+                                          : 'Chung'}
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
 
+                    {/* Filter and search bar when specs exist */}
+                    {formSpecs.length > 0 && (
+                      <div className="space-y-2.5 bg-slate-50/80 p-3 rounded-xl border border-slate-200">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                          {/* Search bar inside specs */}
+                          <div className="relative flex-1">
+                            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                              type="text"
+                              value={specSearchQuery}
+                              onChange={(e) => setSpecSearchQuery(e.target.value)}
+                              placeholder="Tìm nhanh thông số (vd: RAM, Camera, Màn hình...)"
+                              className="w-full pl-8 pr-8 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-800 placeholder-slate-400"
+                            />
+                            {specSearchQuery && (
+                              <button
+                                type="button"
+                                onClick={() => setSpecSearchQuery('')}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="text-[11px] text-slate-500 font-medium whitespace-nowrap self-end sm:self-auto">
+                            Đang hiển thị{' '}
+                            <span className="font-bold text-slate-800">
+                              {filteredFormSpecs.length}
+                            </span>
+                            /{formSpecs.length} thông số
+                          </div>
+                        </div>
+
+                        {/* Group Chips Filter */}
+                        {uniqueSpecGroups.length > 1 && (
+                          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5 text-xs no-scrollbar">
+                            <span className="text-[10px] font-semibold text-slate-400 flex items-center gap-1 shrink-0">
+                              <Filter className="w-3 h-3" /> Lọc nhóm:
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => setSpecGroupFilter('ALL')}
+                              className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition ${
+                                specGroupFilter === 'ALL'
+                                  ? 'bg-blue-600 text-white shadow-xs'
+                                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                              }`}
+                            >
+                              Tất cả ({formSpecs.length})
+                            </button>
+
+                            {uniqueSpecGroups.map((group) => (
+                              <button
+                                key={group.name}
+                                type="button"
+                                onClick={() => setSpecGroupFilter(group.name)}
+                                className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition ${
+                                  specGroupFilter.toLowerCase() === group.name.toLowerCase()
+                                    ? 'bg-blue-600 text-white shadow-xs'
+                                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                                }`}
+                              >
+                                {group.name} ({group.count})
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Spec rows table / empty state */}
                     {formSpecs.length === 0 ? (
+                      <div className="py-12 text-center text-slate-400 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 space-y-3">
+                        <div className="w-12 h-12 mx-auto rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center">
+                          <Sliders className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-700">
+                            Chưa có thông số kỹ thuật nào
+                          </p>
+                          <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                            Nhấn vào mẫu <strong>Điện thoại</strong> hoặc <strong>Laptop</strong> ở trên để tự động điền các trường chuẩn hóa theo danh mục, hoặc thêm thủ công bên dưới.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => handleAddPresetSpecs('phone-full')}
+                            className="px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-xl shadow-xs hover:bg-blue-700 transition"
+                          >
+                            + Áp dụng mẫu Điện thoại
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAddPresetSpecs('laptop-full')}
+                            className="px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-xl shadow-xs hover:bg-indigo-700 transition"
+                          >
+                            + Áp dụng mẫu Laptop
+                          </button>
+                        </div>
+                      </div>
+                    ) : filteredFormSpecs.length === 0 ? (
                       <div className="py-8 text-center text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-                        <Sliders className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                        <p className="text-xs font-medium text-slate-600">Chưa có thông số kỹ thuật nào</p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          Chọn một mẫu nhanh ở trên hoặc nhấn nút "Thêm thông số mới" bên dưới
+                        <p className="text-xs font-medium text-slate-600">
+                          Không tìm thấy thông số nào khớp với bộ lọc "{specSearchQuery}"
                         </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSpecSearchQuery('');
+                            setSpecGroupFilter('ALL');
+                          }}
+                          className="mt-2 text-xs text-blue-600 hover:underline font-semibold"
+                        >
+                          Xóa bộ lọc tìm kiếm
+                        </button>
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        {formSpecs.map((spec, idx) => (
+                        {/* Table Header labels */}
+                        <div className="flex items-center gap-2 px-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                          <div className="w-1/4">Nhóm thông số</div>
+                          <div className="w-1/3">Tên thông số</div>
+                          <div className="flex-1">Giá trị thông số</div>
+                          <div className="w-8"></div>
+                        </div>
+
+                        {filteredFormSpecs.map(({ spec, originalIndex }) => (
                           <div
-                            key={idx}
-                            className="flex items-center gap-2 p-2 bg-white rounded-xl border border-slate-200 shadow-2xs"
+                            key={originalIndex}
+                            className="flex items-center gap-2 p-2 bg-white rounded-xl border border-slate-200 hover:border-slate-300 shadow-2xs transition"
                           >
                             <input
                               type="text"
-                              placeholder="Nhóm (vd: Màn hình)"
+                              list="preset-spec-groups-list"
+                              placeholder="Nhóm (vd: Màn hình, CPU)"
                               value={spec.group}
                               onChange={(e) => {
                                 const copy = [...formSpecs];
-                                copy[idx].group = e.target.value;
+                                copy[originalIndex].group = e.target.value;
                                 setFormSpecs(copy);
                               }}
-                              className="w-1/4 px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              className="w-1/4 px-2.5 py-1.5 text-xs bg-slate-50/80 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium text-blue-900"
                             />
                             <input
                               type="text"
-                              placeholder="Tên thông số (vd: Kích thước)"
+                              placeholder="Tên thông số (vd: Kích thước, Model)"
                               value={spec.key}
                               onChange={(e) => {
                                 const copy = [...formSpecs];
-                                copy[idx].key = e.target.value;
+                                copy[originalIndex].key = e.target.value;
                                 setFormSpecs(copy);
                               }}
                               className="w-1/3 px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-800"
                             />
                             <input
                               type="text"
-                              placeholder="Giá trị (vd: 11 inch OLED)"
+                              placeholder="Giá trị (vd: 15.6 inch, Intel Core i7)"
                               value={spec.value}
                               onChange={(e) => {
                                 const copy = [...formSpecs];
-                                copy[idx].value = e.target.value;
+                                copy[originalIndex].value = e.target.value;
                                 setFormSpecs(copy);
                               }}
                               className="flex-1 px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-700"
@@ -1567,7 +1980,7 @@ export const AdminProductsPage: React.FC = () => {
                               type="button"
                               onClick={() => {
                                 const copy = [...formSpecs];
-                                copy.splice(idx, 1);
+                                copy.splice(originalIndex, 1);
                                 setFormSpecs(copy);
                               }}
                               className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
@@ -1580,19 +1993,32 @@ export const AdminProductsPage: React.FC = () => {
                       </div>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setFormSpecs([
-                          ...formSpecs,
-                          { group: 'Chung', key: '', value: '' },
-                        ])
-                      }
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Thêm dòng thông số mới</span>
-                    </button>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormSpecs([
+                            ...formSpecs,
+                            {
+                              group:
+                                specGroupFilter !== 'ALL' ? specGroupFilter : 'Thông số chung',
+                              key: '',
+                              value: '',
+                            },
+                          ])
+                        }
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Thêm dòng thông số mới</span>
+                      </button>
+
+                      {formSpecs.length > 0 && (
+                        <span className="text-[11px] text-slate-400">
+                          Mẹo: Các dòng có tên thông số và giá trị sẽ được lưu tự động khi bạn lưu sản phẩm.
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )}
 
