@@ -56,13 +56,8 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Cho phép các port của Vite React và frontend phổ biến
-        configuration.setAllowedOrigins(List.of(
-                "http://localhost:5173",
-                "http://127.0.0.1:5173",
-                "http://localhost:3000",
-                "http://127.0.0.1:3000"
-        ));
+        // Cho phép mọi origin truy cập phát triển (localhost, 127.0.0.1, mọi cổng và IP)
+        configuration.setAllowedOriginPatterns(List.of("*"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(List.of("Authorization", "Content-Disposition"));
@@ -79,17 +74,34 @@ public class SecurityConfig {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
-                .exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setContentType(org.springframework.http.MediaType.APPLICATION_JSON_VALUE);
+                            response.setCharacterEncoding("UTF-8");
+                            response.setStatus(jakarta.servlet.http.HttpServletResponse.SC_FORBIDDEN);
+                            String json = String.format(
+                                    "{\"success\":false,\"status\":403,\"message\":\"%s\",\"data\":null,\"errors\":null,\"timestamp\":\"%s\"}",
+                                    "Tài khoản không có quyền truy cập hệ thống!",
+                                    java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+                            );
+                            response.getWriter().write(json);
+                        })
+                )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // Cho phép gọi các endpoint Auth không cần đăng nhập
+                        // Cho phép Preflight OPTIONS cho mọi endpoint để không bị lỗi CORS/Preflight 403
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // Cho phép gọi các endpoint Auth và Chatbot AI không cần đăng nhập
                         .requestMatchers("/api/auth/**").permitAll()
-                        // Cho phép xem sản phẩm, danh mục công khai
-                        .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**").permitAll()
+                        .requestMatchers("/api/ai/**").permitAll()
+                        // Cho phép xem sản phẩm, danh mục và tra cứu mã giảm giá công khai
+                        .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**", "/api/promotions/**").permitAll()
                         // Phân quyền ADMIN cho các chức năng quản trị
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        // Các API cá nhân yêu cầu đã đăng nhập
+                        // Các API cá nhân và đơn hàng yêu cầu đã đăng nhập
                         .requestMatchers("/api/users/**").authenticated()
+                        .requestMatchers("/api/orders/**").authenticated()
                         // Tất cả các yêu cầu còn lại
                         .anyRequest().authenticated()
                 );

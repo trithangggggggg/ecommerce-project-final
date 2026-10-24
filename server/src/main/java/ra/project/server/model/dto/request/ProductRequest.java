@@ -1,7 +1,6 @@
 package ra.project.server.model.dto.request;
 
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.Min;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -11,6 +10,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
 @Builder
@@ -18,18 +19,19 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class ProductRequest {
 
+    private Long id;
+
     @NotBlank(message = "Tên sản phẩm không được để trống")
     @Size(max = 200, message = "Tên sản phẩm tối đa 200 ký tự")
     private String name;
 
+    @Size(max = 100, message = "Thương hiệu tối đa 100 ký tự")
+    private String brand;
+
     private String description;
 
-    @NotNull(message = "Giá sản phẩm không được để trống")
-    @DecimalMin(value = "0.0", inclusive = false, message = "Giá sản phẩm phải lớn hơn 0")
     private BigDecimal price;
 
-    @NotNull(message = "Số lượng tồn kho không được để trống")
-    @Min(value = 0, message = "Số lượng tồn kho không được âm")
     private Integer stock;
 
     private String imageUrl;
@@ -39,4 +41,20 @@ public class ProductRequest {
 
     @Builder.Default
     private Boolean status = true;
+
+    @Valid
+    @Builder.Default
+    private List<OptionRequest> options = new ArrayList<>();
+
+    @Valid
+    @Builder.Default
+    private List<VariantRequest> variants = new ArrayList<>();
+
+    @Valid
+    @Builder.Default
+    private List<SpecRequest> specs = new ArrayList<>();
+
+    @Valid
+    @Builder.Default
+    private List<ImageRequest> images = new ArrayList<>();
 }

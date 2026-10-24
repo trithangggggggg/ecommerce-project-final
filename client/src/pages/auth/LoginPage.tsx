@@ -1,18 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import {
-  AlertCircle,
-  ArrowRight,
-  Eye,
-  EyeOff,
-  Lock,
-  Mail,
-  ShieldCheck,
-  UserCheck,
-} from 'lucide-react';
+import { AlertCircle, ArrowRight, Eye, EyeOff, Lock, Mail, X } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { ROLES } from '../../constants/roles';
 import { ROUTES } from '../../constants/routes';
+import Button from '../../components/common/Button/Button';
+import Input from '../../components/common/Input/Input';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -25,8 +18,50 @@ export const LoginPage: React.FC = () => {
   const [rememberMe, setRememberMe] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Lấy đường dẫn trước đó nếu bị chặn bởi ProtectedRoute
-  const fromLocation = (location.state as { from?: { pathname: string } })?.from?.pathname;
+  const searchParams = new URLSearchParams(location.search);
+  const isExpired = searchParams.get('expired') === 'true';
+  const redirectParam = searchParams.get('redirect');
+
+  const fromState = (location.state as { from?: string | { pathname: string } })?.from;
+  const fromLocation = redirectParam || (typeof fromState === 'string' ? fromState : fromState?.pathname);
+
+  // Xóa sạch lỗi cũ khi mở modal
+  useEffect(() => {
+    clearError();
+    setFormError(null);
+  }, [clearError]);
+
+  // Hiển thị thông báo khi phiên làm việc hết hạn
+  useEffect(() => {
+    if (isExpired) {
+      setFormError('Phiên làm việc của bạn đã hết hạn hoặc không đủ quyền truy cập. Vui lòng đăng nhập lại!');
+    }
+  }, [isExpired]);
+
+  const handleClose = () => {
+    if (fromLocation) {
+      navigate(fromLocation, { replace: true });
+    } else {
+      navigate(ROUTES.HOME, { replace: true });
+    }
+  };
+
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      handleClose();
+    }
+  };
+
+  // Hỗ trợ phím Escape để đóng modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +69,7 @@ export const LoginPage: React.FC = () => {
     clearError();
 
     if (!email.trim()) {
-      setFormError('Vui lòng nhập địa chỉ Email');
+      setFormError('Vui lòng nhập địa chỉ Email hoặc Tên đăng nhập');
       return;
     }
     if (!password) {
@@ -45,10 +80,10 @@ export const LoginPage: React.FC = () => {
     try {
       const user = await login({ email: email.trim(), password });
 
-      // Chuyển hướng theo đúng phân quyền người dùng
+      // Chuyển hướng theo đúng phân quyền
       if (user.role === ROLES.ADMIN) {
-        navigate(ROUTES.ADMIN, { replace: true });
-      } else if (fromLocation) {
+        navigate(fromLocation && fromLocation.includes('/admin') ? fromLocation : ROUTES.ADMIN, { replace: true });
+      } else if (fromLocation && !fromLocation.includes('/admin')) {
         navigate(fromLocation, { replace: true });
       } else {
         navigate(ROUTES.HOME, { replace: true });
@@ -59,211 +94,195 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  /**
-   * Đăng nhập nhanh tài khoản mẫu (Phục vụ kiểm thử và chấm bài)
-   */
-  const handleQuickLogin = async (role: 'ADMIN' | 'CUSTOMER') => {
-    clearError();
+  const handleQuickLogin = async (userEmail: string, userPass: string) => {
+    setEmail(userEmail);
+    setPassword(userPass);
     setFormError(null);
-
-    // Tài khoản khớp với seed data trong database/init.sql: admin@ecommerce.com / 123456
-    const testEmail = role === 'ADMIN' ? 'admin@ecommerce.com' : 'customer@ecommerce.com';
-    const testPassword = '123456';
-
-    setEmail(testEmail);
-    setPassword(testPassword);
+    clearError();
 
     try {
-      const user = await login({ email: testEmail, password: testPassword });
+      const user = await login({ email: userEmail, password: userPass });
       if (user.role === ROLES.ADMIN) {
-        navigate(ROUTES.ADMIN, { replace: true });
-      } else if (fromLocation) {
+        navigate(fromLocation && fromLocation.includes('/admin') ? fromLocation : ROUTES.ADMIN, { replace: true });
+      } else if (fromLocation && !fromLocation.includes('/admin')) {
         navigate(fromLocation, { replace: true });
       } else {
         navigate(ROUTES.HOME, { replace: true });
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Lỗi đăng nhập nhanh';
+      const message = err instanceof Error ? err.message : 'Đăng nhập không thành công';
       setFormError(message);
     }
   };
 
   return (
-    <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 p-6 sm:p-8">
-      {/* Title */}
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold text-slate-800">Chào mừng trở lại!</h2>
-        <p className="text-sm text-slate-500 mt-1">
-          Nhập thông tin tài khoản để truy cập vào hệ thống
-        </p>
-      </div>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md transition-all duration-300 animate-in fade-in"
+      onClick={handleBackdropClick}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="login-modal-title"
+    >
+      {/* Modal White Card */}
+      <div
+        className="bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 sm:p-8 w-full max-w-md relative z-10 transition-all transform animate-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close Button */}
+        <button
+          type="button"
+          onClick={handleClose}
+          className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition cursor-pointer"
+          title="Đóng (Esc)"
+          aria-label="Đóng modal"
+        >
+          <X className="w-5 h-5" />
+        </button>
 
-      {/* Quick Test Accounts Banner */}
-      <div className="mb-6 p-3.5 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100">
-        <div className="text-xs font-semibold text-indigo-900 mb-2 flex items-center justify-between">
-          <span>🚀 ĐĂNG NHẬP NHANH (MOCK ACCOUNTS):</span>
-          <span className="text-[10px] text-indigo-600 bg-indigo-100/70 px-2 py-0.5 rounded-full font-medium">
-            Dành cho Dev & QA
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => handleQuickLogin('ADMIN')}
-            disabled={isLoading}
-            className="flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-medium text-purple-700 bg-white hover:bg-purple-100/60 rounded-lg border border-purple-200 transition-all shadow-xs cursor-pointer active:scale-98"
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
-            <span>Admin Portal</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleQuickLogin('CUSTOMER')}
-            disabled={isLoading}
-            className="flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-medium text-indigo-700 bg-white hover:bg-indigo-100/60 rounded-lg border border-indigo-200 transition-all shadow-xs cursor-pointer active:scale-98"
-          >
-            <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Khách hàng</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Error Alert */}
-      {(formError || error) && (
-        <div className="mb-5 p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-3 text-rose-700 text-sm animate-shake">
-          <AlertCircle className="w-5 h-5 shrink-0 text-rose-500 mt-0.5" />
-          <div className="flex-1">
-            <span className="font-semibold block">Đăng nhập thất bại</span>
-            <span className="text-xs">{formError || error}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Login Form */}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Email Input */}
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">
-            Email tài khoản
-          </label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-              <Mail className="w-4 h-4" />
-            </div>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@example.com"
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
-              required
+        {/* Modal Brand Logo & Title */}
+        <div className="text-center mb-6">
+          <div className="w-14 h-14 mx-auto mb-3 flex items-center justify-center">
+            <img
+              src="/images/nexor_logo.png"
+              alt="NEXOR Logo"
+              className="w-14 h-14 object-contain drop-shadow-md"
             />
           </div>
+          <h1 id="login-modal-title" className="text-xl font-bold text-gray-900 tracking-tight">
+            Đăng Nhập Tài Khoản
+          </h1>
+          <p className="text-xs text-gray-500 mt-1">
+            Chào mừng bạn quay lại với NEXOR Flagship Tech Store
+          </p>
         </div>
 
-        {/* Password Input */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
-              Mật khẩu
-            </label>
-            <a
-              href="#forgot-password"
-              onClick={(e) => {
-                e.preventDefault();
-                alert('Vui lòng liên hệ Admin qua email hỗ trợ để cấp lại mật khẩu!');
-              }}
-              className="text-xs text-indigo-600 hover:text-indigo-700 font-medium hover:underline"
-            >
-              Quên mật khẩu?
-            </a>
-          </div>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-              <Lock className="w-4 h-4" />
+        {/* Error Alert */}
+        {(formError || error) && (
+          <div className="mb-5 p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-red-700 text-xs animate-shake">
+            <AlertCircle className="w-4 h-4 shrink-0 text-red-500 mt-0.5" />
+            <div className="flex-1">
+              <span className="font-bold block mb-0.5">Đăng nhập thất bại</span>
+              <span>{formError || error}</span>
             </div>
-            <input
+          </div>
+        )}
+
+        {/* Login Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Email or Username Input */}
+          <Input
+            label="Email hoặc Tên đăng nhập"
+            type="text"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="name@example.com hoặc username"
+            leftIcon={<Mail className="w-4 h-4" />}
+            required
+            autoFocus
+          />
+
+          {/* Password Input */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                Mật khẩu
+              </label>
+              <a
+                href="#forgot-password"
+                onClick={(e) => {
+                  e.preventDefault();
+                  alert(
+                    'Vui lòng liên hệ quản trị viên qua email cskh@nexor.vn để được hỗ trợ cấp lại mật khẩu!'
+                  );
+                }}
+                className="text-xs text-blue-600 hover:text-blue-700 font-semibold hover:underline"
+              >
+                Quên mật khẩu?
+              </a>
+            </div>
+
+            <Input
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
+              leftIcon={<Lock className="w-4 h-4" />}
+              rightIcon={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-gray-400 hover:text-gray-600 cursor-pointer focus:outline-none"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              }
               required
             />
+          </div>
+
+          {/* Remember me Checkbox */}
+          <div className="flex items-center justify-between pt-1">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+              />
+              <span className="text-xs text-gray-600">Ghi nhớ đăng nhập</span>
+            </label>
+          </div>
+
+          {/* Submit CTA Button */}
+          <div className="pt-2">
+            <Button
+              type="submit"
+              variant="dark"
+              size="md"
+              fullWidth
+              isLoading={isLoading}
+              rightIcon={<ArrowRight className="w-4 h-4" />}
+            >
+              Đăng nhập ngay
+            </Button>
+          </div>
+
+          {/* Quick 1-Click Login Buttons */}
+          <div className="pt-3 border-t border-gray-100 flex gap-2">
             <button
               type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+              disabled={isLoading}
+              onClick={() => handleQuickLogin('admin@nexor.vn', '123123123')}
+              className="flex-1 py-2 px-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 transition flex items-center justify-center gap-1.5 text-xs font-bold cursor-pointer shadow-xs disabled:opacity-50"
+              title="1-Click Đăng nhập trực tiếp tài khoản Quản trị viên"
             >
-              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              <span>🔑 1-Click Admin</span>
+            </button>
+            <button
+              type="button"
+              disabled={isLoading}
+              onClick={() => handleQuickLogin('customer@nexor.vn', '123123123')}
+              className="flex-1 py-2 px-2 rounded-xl border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-900 transition flex items-center justify-center gap-1.5 text-xs font-bold cursor-pointer shadow-xs disabled:opacity-50"
+              title="1-Click Đăng nhập trực tiếp tài khoản Khách hàng"
+            >
+              <span>👤 1-Click Khách hàng</span>
             </button>
           </div>
+        </form>
+
+        {/* Switch to Register */}
+        <div className="mt-6 pt-5 border-t border-gray-100 text-center">
+          <p className="text-xs text-gray-600">
+            Chưa có tài khoản NEXOR?{' '}
+            <Link
+              to={ROUTES.REGISTER}
+              className="font-bold text-blue-600 hover:text-blue-700 hover:underline"
+            >
+              Đăng ký tài khoản mới
+            </Link>
+          </p>
         </div>
-
-        {/* Remember me */}
-        <div className="flex items-center">
-          <input
-            id="remember-me"
-            type="checkbox"
-            checked={rememberMe}
-            onChange={(e) => setRememberMe(e.target.checked)}
-            className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
-          />
-          <label htmlFor="remember-me" className="ml-2 block text-xs text-slate-600 cursor-pointer">
-            Ghi nhớ phiên đăng nhập trên thiết bị này
-          </label>
-        </div>
-
-        {/* Submit Button */}
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="w-full mt-2 py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl text-sm shadow-md shadow-indigo-500/25 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed hover:shadow-lg active:scale-99"
-        >
-          {isLoading ? (
-            <>
-              <svg
-                className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8v8H4z"
-                />
-              </svg>
-              <span>Đang xác thực...</span>
-            </>
-          ) : (
-            <>
-              <span>Đăng nhập ngay</span>
-              <ArrowRight className="w-4 h-4" />
-            </>
-          )}
-        </button>
-      </form>
-
-      {/* Switch to Register */}
-      <div className="mt-6 pt-5 border-t border-slate-100 text-center">
-        <p className="text-xs text-slate-600">
-          Chưa có tài khoản E-Shop?{' '}
-          <Link
-            to={ROUTES.REGISTER}
-            className="font-semibold text-indigo-600 hover:text-indigo-700 hover:underline inline-flex items-center gap-1"
-          >
-            Đăng ký tài khoản mới
-          </Link>
-        </p>
       </div>
     </div>
   );

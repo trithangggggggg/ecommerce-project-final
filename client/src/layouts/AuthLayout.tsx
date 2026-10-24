@@ -1,44 +1,52 @@
 import React from 'react';
 import { Link, Outlet } from 'react-router-dom';
-import { ShoppingBag, Sparkles } from 'lucide-react';
-import { ROUTES } from '../constants/routes';
 
 export const AuthLayout: React.FC = () => {
+  const currentYear = new Date().getFullYear();
+
   return (
-    <div className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 px-4 py-8 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Background decorative glow effects */}
-      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen flex flex-col justify-between bg-[#f5f6fa] text-gray-800 font-sans">
+      {/* Top Simple Header */}
+      <header className="bg-[#181a20] border-b border-gray-800 py-3.5 px-4 sm:px-8">
+        <div className="max-w-[1360px] mx-auto flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-3 shrink-0 group">
+            <div className="w-8 h-8 flex items-center justify-center shrink-0">
+              <img
+                src="/images/nexor_logo.png"
+                alt="NEXOR Logo"
+                className="w-8 h-8 object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-200"
+              />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-lg font-black tracking-tight text-white leading-none">
+                NEXOR<span className="text-indigo-400">.</span>
+              </span>
+              <span className="text-[10px] text-gray-400 tracking-wider font-normal mt-0.5">
+                Tech for a better life
+              </span>
+            </div>
+          </Link>
 
-      {/* Brand Header */}
-      <div className="mb-6 text-center z-10">
-        <Link
-          to={ROUTES.HOME}
-          className="inline-flex items-center gap-3 group transition-transform duration-300 hover:scale-105"
-        >
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/30 text-white">
-            <ShoppingBag className="w-6 h-6" />
-          </div>
-          <div className="text-left">
-            <span className="text-2xl font-black tracking-tight text-white flex items-center gap-1.5">
-              E-SHOP <Sparkles className="w-4 h-4 text-amber-400 inline" />
-            </span>
-            <span className="text-xs text-indigo-300 tracking-wider uppercase block">
-              Modern Ecommerce Platform
-            </span>
-          </div>
-        </Link>
-      </div>
+          <Link
+            to="/"
+            className="text-xs font-semibold text-gray-300 hover:text-white transition"
+          >
+            ← Về trang chủ
+          </Link>
+        </div>
+      </header>
 
-      {/* Auth Card Container */}
-      <div className="w-full max-w-md z-10">
-        <Outlet />
-      </div>
+      {/* Main Content Area */}
+      <main className="flex-1 flex items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+        <div className="w-full max-w-md">
+          <Outlet />
+        </div>
+      </main>
 
-      {/* Footer Info */}
-      <div className="mt-8 text-center text-xs text-slate-400 z-10">
-        <p>© 2026 E-Shop Project. Nền tảng thương mại điện tử chuẩn Enterprise.</p>
-      </div>
+      {/* Bottom Footer Note */}
+      <footer className="border-t border-gray-200 bg-white py-4 px-4 text-center text-xs text-gray-500">
+        <p>© {currentYear} NEXOR. Tất cả quyền được bảo lưu.</p>
+      </footer>
     </div>
   );
 };

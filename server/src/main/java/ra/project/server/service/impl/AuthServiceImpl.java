@@ -22,7 +22,10 @@ import ra.project.server.model.entity.User;
 import ra.project.server.model.enums.Role;
 import ra.project.server.repository.UserRepository;
 import ra.project.server.security.JwtTokenProvider;
+import org.springframework.beans.factory.annotation.Value;
 import ra.project.server.service.AuthService;
+
+import java.time.LocalDateTime;
 
 @Slf4j
 @Service
@@ -69,27 +72,28 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(readOnly = true)
     public ApiResponse<AuthResponse> login(LoginRequest request) {
-        String identifier = request.getUsernameOrEmail().trim();
+        String identifier = request.getUsernameOrEmail() != null ? request.getUsernameOrEmail().trim() : "";
+        String inputPassword = request.getPassword() != null ? request.getPassword().trim() : "";
 
-        User user = userRepository.findByUsername(identifier)
-                .or(() -> userRepository.findByEmail(identifier))
+        if (!org.springframework.util.StringUtils.hasText(identifier) || !org.springframework.util.StringUtils.hasText(inputPassword)) {
+            throw new BadRequestException("Tên đăng nhập và mật khẩu không được để trống");
+        }
+
+        // Tìm kiếm người dùng trong MySQL theo email hoặc username (IgnoreCase)
+        User user = userRepository.findByEmailIgnoreCase(identifier)
+                .or(() -> userRepository.findByUsernameIgnoreCase(identifier))
                 .orElseThrow(() -> new UnauthorizedException("Tên đăng nhập hoặc mật khẩu không chính xác"));
 
         if (Boolean.FALSE.equals(user.getStatus())) {
             throw new BadRequestException("Tài khoản của bạn đã bị khóa, vui lòng liên hệ quản trị viên");
         }
 
-        Authentication authentication;
-        try {
-            authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(user.getUsername(), request.getPassword())
-            );
-        } catch (BadCredentialsException ex) {
+        if (!passwordEncoder.matches(inputPassword, user.getPassword())) {
             throw new UnauthorizedException("Tên đăng nhập hoặc mật khẩu không chính xác");
         }
 
-        String token = jwtTokenProvider.generateToken(authentication);
-        log.info("Người dùng '{}' đã đăng nhập thành công với vai trò: {}", user.getUsername(), user.getRole());
+        String token = jwtTokenProvider.generateTokenFromUsername(user.getUsername());
+        log.info("Người dùng '{}' [Role: {}] đã đăng nhập thành công", user.getUsername(), user.getRole());
 
         AuthResponse authResponse = AuthResponse.builder()
                 .accessToken(token)

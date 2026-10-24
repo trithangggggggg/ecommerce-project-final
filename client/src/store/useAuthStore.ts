@@ -39,11 +39,14 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
         try {
           const authData = await authService.login(payload);
-          const { token, user } = authData;
+          const user = authData.user;
+          const token = authData.token || authData.accessToken || '';
 
           // Lưu token riêng để axios interceptor đọc dễ dàng
           try {
-            localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+            if (token) {
+              localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+            }
             localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
           } catch {
             // Ignore storage errors

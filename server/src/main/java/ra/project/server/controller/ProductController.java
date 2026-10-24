@@ -29,6 +29,7 @@ public class ProductController {
             @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "categoryId", required = false) Long categoryId,
+            @RequestParam(name = "brand", required = false) String brand,
             @RequestParam(name = "status", required = false) Boolean status,
             @RequestParam(name = "page", defaultValue = "0") Integer page,
             @RequestParam(name = "size", defaultValue = "10") Integer size,
@@ -36,7 +37,7 @@ public class ProductController {
     ) {
         String searchKeyword = org.springframework.util.StringUtils.hasText(keyword) ? keyword : q;
         Pageable pageable = PaginationUtil.createPageable(page, size, sort);
-        PageResponse<ProductResponse> products = productService.getAllProducts(searchKeyword, categoryId, status, pageable);
+        PageResponse<ProductResponse> products = productService.getAllProducts(searchKeyword, categoryId, brand, status, pageable);
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách sản phẩm thành công", products));
     }
 
@@ -60,8 +61,10 @@ public class ProductController {
 
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> searchProducts(
-            @RequestParam(name = "q", required = false) String keyword,
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "categoryId", required = false) Long categoryId,
+            @RequestParam(name = "brand", required = false) String brand,
             @RequestParam(name = "minPrice", required = false) BigDecimal minPrice,
             @RequestParam(name = "maxPrice", required = false) BigDecimal maxPrice,
             @RequestParam(name = "status", required = false) Boolean status,
@@ -69,33 +72,10 @@ public class ProductController {
             @RequestParam(name = "size", defaultValue = "10") Integer size,
             @RequestParam(name = "sort", defaultValue = "createdAt,desc") String sort
     ) {
+        String searchKeyword = org.springframework.util.StringUtils.hasText(keyword) ? keyword : q;
         Pageable pageable = PaginationUtil.createPageable(page, size, sort);
-        PageResponse<ProductResponse> products = productService.searchProducts(keyword, categoryId, minPrice, maxPrice, status, pageable);
+        PageResponse<ProductResponse> products = productService.searchProducts(searchKeyword, categoryId, brand, minPrice, maxPrice, status, pageable);
         return ResponseEntity.ok(ApiResponse.success("Tìm kiếm sản phẩm thành công", products));
     }
-
-    @PostMapping
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('ADMIN')")
-    public ResponseEntity<ApiResponse<ProductResponse>> createProduct(@Valid @RequestBody ProductRequest request) {
-        ProductResponse createdProduct = productService.createProduct(request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.created("Thêm sản phẩm mới thành công", createdProduct));
-    }
-
-    @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('ADMIN')")
-    public ResponseEntity<ApiResponse<ProductResponse>> updateProduct(
-            @PathVariable Long id,
-            @Valid @RequestBody ProductRequest request
-    ) {
-        ProductResponse updatedProduct = productService.updateProduct(id, request);
-        return ResponseEntity.ok(ApiResponse.success("Cập nhật sản phẩm thành công", updatedProduct));
-    }
-
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('ADMIN')")
-    public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable Long id) {
-        productService.deleteProduct(id);
-        return ResponseEntity.ok(ApiResponse.success("Xóa sản phẩm thành công", null));
-    }
 }
+

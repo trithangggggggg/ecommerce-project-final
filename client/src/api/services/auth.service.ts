@@ -17,10 +17,14 @@ export const authService = {
    */
   async login(payload: LoginPayload): Promise<AuthResponse> {
     try {
-      // Backend LoginRequest yêu cầu: usernameOrEmail và password
+      // Backend LoginRequest chấp nhận: usernameOrEmail, username, hoặc email
+      const cleanIdentifier = (payload.email || '').trim();
+      const cleanPassword = (payload.password || '').trim();
       const backendPayload = {
-        usernameOrEmail: payload.email.trim(),
-        password: payload.password,
+        usernameOrEmail: cleanIdentifier,
+        username: cleanIdentifier,
+        email: cleanIdentifier,
+        password: cleanPassword,
       };
 
       const response = await axiosClient.post<ApiResponse<AuthResponse> | AuthResponse>(
@@ -50,13 +54,7 @@ export const authService = {
         user,
       };
     } catch (error) {
-      if (
-        payload.email === 'admin@ecommerce.com' ||
-        payload.email === 'admin@eshop.com' ||
-        payload.email === 'customer@ecommerce.com' ||
-        payload.email === 'customer@eshop.com' ||
-        import.meta.env.VITE_ENABLE_MOCK_API === 'true'
-      ) {
+      if (import.meta.env.VITE_ENABLE_MOCK_API === 'true') {
         return authService.mockLogin(payload);
       }
       throw error;
@@ -155,7 +153,7 @@ export const authService = {
         return {
           id: 1,
           email: 'user@ecommerce.com',
-          fullName: payload.fullName || 'Người dùng E-Shop',
+          fullName: payload.fullName || 'Người dùng NEXOR',
           role: ROLES.CUSTOMER,
           phone: payload.phone || payload.phoneNumber,
           phoneNumber: payload.phone || payload.phoneNumber,
@@ -168,18 +166,14 @@ export const authService = {
   },
 
   /**
-   * Đổi mật khẩu
+   * Đổi mật khẩu tài khoản trực tiếp qua MySQL
    */
   async changePassword(payload: ChangePasswordPayload): Promise<void> {
-    // Nếu backend chưa có endpoint change-password riêng, hỗ trợ mock
-    try {
-      await axiosClient.post('/auth/change-password', payload);
-    } catch (err) {
-      if (import.meta.env.VITE_ENABLE_MOCK_API === 'true') {
-        return;
-      }
-      throw err;
-    }
+    await axiosClient.put(ENDPOINTS.USERS.CHANGE_PASSWORD, {
+      currentPassword: payload.currentPassword,
+      newPassword: payload.newPassword,
+      confirmPassword: payload.confirmPassword || payload.newPassword,
+    });
   },
 
   /**

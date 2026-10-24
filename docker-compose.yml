@@ -25,7 +25,6 @@ services:
       TZ: Asia/Ho_Chi_Minh
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
       interval: 10s
@@ -51,6 +50,9 @@ services:
       DB_PASSWORD: ${MYSQL_PASSWORD:-Ecommerce@2026}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-${ADMIN_EMAIL:-admin}}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-${ADMIN_USERNAME:-admin@nexor.vn}}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-123123123}
       TZ: Asia/Ho_Chi_Minh
     depends_on:
       mysql:

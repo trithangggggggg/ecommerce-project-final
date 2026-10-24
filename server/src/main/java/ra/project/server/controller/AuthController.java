@@ -25,6 +25,20 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @GetMapping("/login")
+    public ResponseEntity<ApiResponse<String>> loginGetInfo() {
+        return ResponseEntity.ok(ApiResponse.success(
+                "API Endpoint Xác thực: Vui lòng gửi yêu cầu POST đến /api/auth/login kèm body JSON { usernameOrEmail, password }, hoặc truy cập giao diện web tại http://localhost:5173/login"
+        ));
+    }
+
+    @GetMapping("/register")
+    public ResponseEntity<ApiResponse<String>> registerGetInfo() {
+        return ResponseEntity.ok(ApiResponse.success(
+                "API Endpoint Đăng ký: Vui lòng gửi yêu cầu POST đến /api/auth/register kèm body JSON, hoặc truy cập giao diện web tại http://localhost:5173/register"
+        ));
+    }
+
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
         ApiResponse<AuthResponse> response = authService.login(request);

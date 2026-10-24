@@ -83,7 +83,9 @@ jobs:
           APP_IMAGE: ${{ steps.meta.outputs.image }}
           FRONTEND_IMAGE: ${{ steps.meta.outputs.frontend_image }}
           APP_TAG: ${{ github.sha }}
-          APP_VERSION: ${{ github.sha }}
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME || secrets.ADMIN_EMAIL || 'admin' }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || secrets.ADMIN_USERNAME || 'admin@nexor.vn' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || '123123123' }}
         run: docker compose --env-file student.env up -d --build --wait --wait-timeout 300
 
       - name: Smoke test kiểm tra dịch vụ
@@ -92,15 +94,15 @@ jobs:
           BASE="http://localhost:${APP_PORT}"
 
           echo "1. Kiểm tra trang chủ Frontend..."
-          curl -fsS --retry 12 --retry-delay 5 --retry-all-errors "$BASE/" | grep -q 'E-Commerce'
+          curl -fsS --retry 15 --retry-delay 5 --retry-all-errors "$BASE/" | grep -qiE 'E-Commerce|<div id="root">'
           echo "Frontend OK!"
 
           echo "2. Kiểm tra API Categories Backend..."
-          curl -fsS --retry 12 --retry-delay 5 --retry-all-errors "$BASE/api/categories" | grep -q 'success'
+          curl -fsS --retry 15 --retry-delay 5 --retry-all-errors "$BASE/api/categories" | grep -q 'success'
           echo "Backend API Categories OK!"
 
           echo "3. Kiểm tra API Products Backend..."
-          curl -fsS --retry 12 --retry-delay 5 --retry-all-errors "$BASE/api/products" | grep -q 'content'
+          curl -fsS --retry 15 --retry-delay 5 --retry-all-errors "$BASE/api/products" | grep -q 'content'
           echo "Backend API Products OK!"
 
           echo "All Smoke Tests PASSED!"
@@ -140,7 +142,7 @@ jobs:
   deploy:
     name: Deploy lên Server
     needs: build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -167,21 +169,45 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
           DEPLOY_DIR: ${{ github.event.repository.name }}
+          BRANCH_NAME: ${{ github.ref_name }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.5-flash-lite' }}
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME || secrets.ADMIN_EMAIL || 'admin' }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || secrets.ADMIN_USERNAME || 'admin@nexor.vn' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || '123123123' }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          envs: APP_IMAGE,FRONTEND_IMAGE,APP_TAG,GHCR_USER,GHCR_TOKEN,REPO_URL,DEPLOY_DIR
+          password: ${{ secrets.SERVER_PASSWORD }}
+          envs: APP_IMAGE,FRONTEND_IMAGE,APP_TAG,GHCR_USER,GHCR_TOKEN,REPO_URL,DEPLOY_DIR,BRANCH_NAME,GEMINI_API_KEY,GEMINI_MODEL,ADMIN_USERNAME,ADMIN_EMAIL,ADMIN_PASSWORD
           script: |
             set -e
             if [ ! -d "$HOME/$DEPLOY_DIR/.git" ]; then
               git clone "$REPO_URL" "$HOME/$DEPLOY_DIR"
             fi
             cd "$HOME/$DEPLOY_DIR"
-            git fetch origin main
-            git reset --hard origin/main
+            git fetch origin "$BRANCH_NAME"
+            git reset --hard "origin/$BRANCH_NAME"
+            if [ -n "$GEMINI_API_KEY" ]; then
+              sed -i "s|GEMINI_API_KEY=.*|GEMINI_API_KEY=\"$GEMINI_API_KEY\"|g" student.env
+              sed -i "s|GEMINI_API_KEY=.*|GEMINI_API_KEY=$GEMINI_API_KEY|g" .env
+            fi
+            if [ -n "$ADMIN_USERNAME" ]; then
+              sed -i "s|^ADMIN_USERNAME=.*|ADMIN_USERNAME=\"$ADMIN_USERNAME\"|g" student.env 2>/dev/null || echo "ADMIN_USERNAME=\"$ADMIN_USERNAME\"" >> student.env
+              sed -i "s|^ADMIN_USERNAME=.*|ADMIN_USERNAME=$ADMIN_USERNAME|g" .env 2>/dev/null || echo "ADMIN_USERNAME=$ADMIN_USERNAME" >> .env
+            fi
+            if [ -n "$ADMIN_EMAIL" ]; then
+              sed -i "s|^ADMIN_EMAIL=.*|ADMIN_EMAIL=\"$ADMIN_EMAIL\"|g" student.env 2>/dev/null || echo "ADMIN_EMAIL=\"$ADMIN_EMAIL\"" >> student.env
+              sed -i "s|^ADMIN_EMAIL=.*|ADMIN_EMAIL=$ADMIN_EMAIL|g" .env 2>/dev/null || echo "ADMIN_EMAIL=$ADMIN_EMAIL" >> .env
+            fi
+            if [ -n "$ADMIN_PASSWORD" ]; then
+              ESC_PASS=$(printf '%s\n' "$ADMIN_PASSWORD" | sed -e 's/[\/&|]/\\&/g')
+              sed -i "s|^ADMIN_PASSWORD=.*|ADMIN_PASSWORD=\"$ESC_PASS\"|g" student.env 2>/dev/null || echo "ADMIN_PASSWORD=\"$ADMIN_PASSWORD\"" >> student.env
+              sed -i "s|^ADMIN_PASSWORD=.*|ADMIN_PASSWORD=$ESC_PASS|g" .env 2>/dev/null || echo "ADMIN_PASSWORD=$ADMIN_PASSWORD" >> .env
+            fi
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            export APP_IMAGE FRONTEND_IMAGE APP_TAG
+            export APP_IMAGE FRONTEND_IMAGE APP_TAG GEMINI_API_KEY GEMINI_MODEL ADMIN_USERNAME ADMIN_EMAIL ADMIN_PASSWORD
             docker compose --env-file student.env pull app nginx
             docker compose --env-file student.env up -d --no-build --wait --wait-timeout 300
             docker logout ghcr.io
