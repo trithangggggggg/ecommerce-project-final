@@ -235,7 +235,7 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
         String query = """
             SELECT oi.id, oi.product_id
             FROM order_items oi
-            WHERE oi.variant_id IS NULL
+            WHERE oi.variant_id IS NULL AND oi.product_id IS NOT NULL
         """;
 
         List<Map<String, Object>> unlinkedItems = jdbcTemplate.queryForList(query);
@@ -248,7 +248,9 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
 
         for (Map<String, Object> item : unlinkedItems) {
             Long itemId = ((Number) item.get("id")).longValue();
-            Long productId = ((Number) item.get("product_id")).longValue();
+            Object prodIdObj = item.get("product_id");
+            if (prodIdObj == null) continue;
+            Long productId = ((Number) prodIdObj).longValue();
 
             // Lấy variant đầu tiên của sản phẩm
             List<Map<String, Object>> variants = jdbcTemplate.queryForList("""

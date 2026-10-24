@@ -1,5 +1,5 @@
 -- =============================================================================
---  database/init.sql - Khởi tạo Database và Dữ liệu mẫu (30 sản phẩm chuẩn SEO theo hồ sơ E-SHOPTECH)
+--  database/init.sql - Khởi tạo cấu trúc Database và Tài khoản mặc định hệ thống
 --  MySQL tự động chạy file này ở lần khởi động đầu tiên khi container được tạo
 -- =============================================================================
 SET NAMES utf8mb4;
@@ -130,7 +130,7 @@ CREATE TABLE IF NOT EXISTS orders (
 CREATE TABLE IF NOT EXISTS order_items (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     order_id BIGINT NOT NULL,
-    product_id BIGINT NOT NULL,
+    product_id BIGINT NULL,
     variant_id BIGINT NULL,
     product_name VARCHAR(255) NULL,
     variant_name VARCHAR(255) NULL,
@@ -139,12 +139,12 @@ CREATE TABLE IF NOT EXISTS order_items (
     price DECIMAL(12, 2) NOT NULL,
     total_price DECIMAL(12, 2) NOT NULL,
     CONSTRAINT fk_order_items_orders FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE,
-    CONSTRAINT fk_order_items_products FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_order_items_products FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE SET NULL,
     CONSTRAINT fk_order_items_variants FOREIGN KEY (variant_id) REFERENCES product_variants (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================================================
---  DỮ LIỆU KHỞI TẠO BAN ĐẦU (SEED DATA - 30 SẢN PHẨM MẪU CHUẨN E-SHOPTECH)
+--  DỮ LIỆU KHỞI TẠO BAN ĐẦU (SEED DATA MẶC ĐỊNH HỆ THỐNG)
 -- =============================================================================
 
 -- Dữ liệu tài khoản khởi tạo ban đầu:
@@ -160,6 +160,7 @@ ON DUPLICATE KEY UPDATE
     role = VALUES(role),
     status = VALUES(status);
 
+-- Danh mục sản phẩm chuẩn:
 INSERT INTO categories (id, name, description, status) VALUES
     (1, 'Điện thoại', 'Các dòng điện thoại thông minh chính hãng mới nhất', TRUE),
     (2, 'Laptop', 'Máy tính xách tay văn phòng và gaming hiệu năng cao', TRUE),
@@ -171,158 +172,3 @@ ON DUPLICATE KEY UPDATE
     name = VALUES(name),
     description = VALUES(description),
     status = VALUES(status);
-
-INSERT INTO products (id, name, brand, description, price, stock, image_url, status, category_id) VALUES
-    (1, 'Apple iPhone 16 Pro Max 256GB', 'Apple', 'Điện thoại cao cấp với màn hình lớn, hiệu năng mạnh và hệ thống camera linh hoạt, phù hợp chụp ảnh, quay video và giải trí.\n\nThông số kỹ thuật:\nMàn hình Super Retina XDR OLED 6,9 inch, ProMotion 120Hz; chip Apple A18 Pro; bộ nhớ 256GB; camera sau 48MP chính + 48MP góc siêu rộng + 12MP tele 5x; camera trước 12MP; USB-C; 5G; iOS 18 khi ra mắt; khối lượng khoảng 227g.', 30990000.00, 15, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/329149/iphone-16-pro-max-titan-den-0-639175378232922591.jpg', TRUE, 1),
-    (2, 'Samsung Galaxy S25 Ultra 256GB 12GB RAM', 'Samsung', 'Điện thoại cao cấp có màn hình lớn, camera độ phân giải cao, bút S Pen và các tính năng Galaxy AI.\n\nThông số kỹ thuật:\nMàn hình Dynamic AMOLED 2X 6,9 inch, 120Hz; Snapdragon 8 Elite for Galaxy; RAM 12GB; bộ nhớ 256GB; camera sau 200MP + 50MP góc siêu rộng + 10MP tele 3x + 50MP tele 5x; camera trước 12MP; pin 5000mAh; USB-C; 5G; IP68; Android 15/One UI 7 khi ra mắt; khoảng 218g.', 27490000.00, 12, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/361947/samsung-galaxy-s26-blue-1-639077197706721504.jpg', TRUE, 1),
-    (3, 'Xiaomi 15 256GB', 'Xiaomi', 'Điện thoại hiệu năng cao với thiết kế gọn, camera hợp tác Leica và sạc nhanh, phù hợp nhu cầu chụp ảnh và sử dụng đa nhiệm.\n\nThông số kỹ thuật:\nMàn hình AMOLED khoảng 6,36 inch, tối đa 120Hz; Snapdragon 8 Elite; RAM 12GB (tùy phiên bản); bộ nhớ 256GB; hệ thống camera sau ba camera 50MP; camera trước 32MP; pin và công suất sạc tùy phiên bản thị trường; USB-C; 5G; Android/HyperOS theo bản phát hành.', 18990000.00, 20, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/360307/xiaomi-redmi-note-15-pro-xanh-1-639032525099082700.jpg', TRUE, 1),
-    (4, 'Apple iPhone 18 128GB', 'Apple', 'Điện thoại gọn nhẹ với chip A18, camera Fusion 48MP và trải nghiệm hệ sinh thái Apple cho nhu cầu hằng ngày.\n\nThông số kỹ thuật:\nMàn hình Super Retina XDR OLED 6,1 inch, 60Hz; chip Apple A18; bộ nhớ 128GB; camera sau 48MP Fusion + 12MP góc siêu rộng; camera trước 12MP; USB-C; 5G; Face ID; iOS 18 khi ra mắt; khoảng 170g.', 18990000.00, 18, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/370980/iphone-18-pro-burgundy-1-639246114764541080.jpg', TRUE, 1),
-    (5, 'Samsung Galaxy S25 256GB 12GB RAM', 'Samsung', 'Điện thoại cao cấp nhỏ gọn với màn hình 120Hz, hiệu năng mạnh và các tính năng Galaxy AI.\n\nThông số kỹ thuật:\nMàn hình Dynamic AMOLED 2X 6,2 inch, 120Hz; Snapdragon 8 Elite for Galaxy; RAM 12GB; bộ nhớ 256GB; camera sau 50MP + 12MP góc siêu rộng + 10MP tele 3x; camera trước 12MP; pin 4000mAh; USB-C; 5G; IP68; Android 15/One UI 7 khi ra mắt; khoảng 162g.', 17690000.00, 16, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/333363/samsung-galaxy-s25-xanh-2-638747827770343042.jpg', TRUE, 1),
-    (6, 'ASUS Vivobook 15 X1504VA Core i5', 'ASUS', 'Laptop phổ thông cho học tập và văn phòng, có màn hình 15,6 inch và cấu hình hướng đến công việc hằng ngày.\n\nThông số kỹ thuật:\nCPU Intel Core i5 thế hệ 13 (tùy SKU); đồ họa Intel tích hợp; RAM thường 8GB/16GB tùy cấu hình; SSD NVMe 512GB tùy SKU; màn hình 15,6 inch Full HD; Wi‑Fi; Bluetooth; webcam; Windows tùy gói bán; khối lượng khoảng 1,7kg. Phải xác nhận mã SKU trước khi chốt.', 14990000.00, 10, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/44/369758/asus-vivobook-go-15-x1504ma-bq893w-core-3-304-8gb-512gb-full-hd-win11-1-639211905724656906.jpg', TRUE, 2),
-    (7, 'Acer Aspire 5 A515 Core i5', 'Acer', 'Laptop phục vụ học tập, làm việc văn phòng và đa nhiệm cơ bản với màn hình rộng và SSD.\n\nThông số kỹ thuật:\nCPU Intel Core i5 tùy thế hệ/SKU; đồ họa Intel Iris Xe hoặc UHD tùy cấu hình; RAM 8GB/16GB tùy SKU; SSD 512GB thường gặp; màn hình 15,6 inch Full HD; Wi‑Fi; Bluetooth; cổng USB-A/USB-C/HDMI tùy bản; Windows tùy gói; khoảng 1,7–1,8kg.', 15990000.00, 8, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/44/330167/acer-aspire-5-a515-58p-774r-i7-nxkhjsv005-3-638648695329312043.jpg', TRUE, 2),
-    (8, 'Lenovo IdeaPad Slim 3 15IRH10', 'Lenovo', 'Laptop gọn nhẹ cho sinh viên và nhân viên văn phòng, phù hợp xử lý tài liệu, học trực tuyến và đa nhiệm.\n\nThông số kỹ thuật:\nCPU Intel Core H-series tùy cấu hình; đồ họa tích hợp; RAM và SSD tùy SKU; màn hình khoảng 15,3–15,6 inch tùy phiên bản; webcam; Wi‑Fi; Bluetooth; USB-C/USB-A/HDMI tùy SKU; hệ điều hành tùy gói bán. Cần đối chiếu mã máy cụ thể.', 15990000.00, 9, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/44/334444/lenovo-ideapad-slim-3-15irh10-i7-83k1000jvn-1-638756561663160755.jpg', TRUE, 2),
-    (9, 'Apple MacBook Air 13 inch M3 256GB', 'Apple', 'Laptop mỏng nhẹ, hoạt động yên tĩnh với chip Apple silicon, phù hợp học tập, văn phòng và sáng tạo nội dung nhẹ.\n\nThông số kỹ thuật:\nMàn hình Liquid Retina 13,6 inch; chip Apple M3; bộ nhớ SSD 256GB; RAM thống nhất tùy cấu hình bán; camera 1080p; MagSafe 3; hai cổng Thunderbolt/USB 4; Wi‑Fi; Bluetooth; macOS; pin theo công bố Apple; khối lượng khoảng 1,24kg.', 23990000.00, 7, 'https://cdn.tgdd.vn/Products/Images/44/322612/macbook-air-13-inch-m3-2024-1-1.jpg', TRUE, 2),
-    (10, 'HP 15s Core i5 512GB SSD', 'HP', 'Laptop văn phòng phổ thông có màn hình lớn và ổ SSD, phù hợp làm bài tập, họp trực tuyến và công việc hằng ngày.\n\nThông số kỹ thuật:\nCPU Intel Core i5 tùy thế hệ/SKU; đồ họa tích hợp; RAM thường 8GB/16GB tùy cấu hình; SSD 512GB tùy SKU; màn hình 15,6 inch Full HD tùy bản; webcam; Wi‑Fi; Bluetooth; cổng kết nối tùy model; Windows tùy gói; khoảng 1,6–1,8kg.', 14990000.00, 8, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/44/365608/hp-240r-g9-core-5-120u-c40lgat-1-639116909181716925.jpg', TRUE, 2),
-    (11, 'Apple iPad Air 11 inch M2 Wi‑Fi 128GB', 'Apple', 'Máy tính bảng mỏng nhẹ cho học tập, ghi chú, giải trí và sáng tạo nội dung với hỗ trợ phụ kiện tương thích.\n\nThông số kỹ thuật:\nMàn hình Liquid Retina 11 inch; chip Apple M2; bộ nhớ 128GB; camera sau 12MP; camera trước 12MP bố trí cạnh ngang; USB-C; Wi‑Fi; Touch ID; hỗ trợ Apple Pencil tương thích; iPadOS; khối lượng khoảng 462g đối với bản Wi‑Fi.', 14990000.00, 10, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/522/363418/ipad-air-m4-11-inch-wifi-xam-0-639176442561577028.jpg', TRUE, 3),
-    (12, 'Apple iPad 10 10.9 inch Wi‑Fi 64GB', 'Apple', 'Máy tính bảng dành cho học tập và giải trí, có màn hình lớn, camera trước cạnh ngang và cổng USB-C.\n\nThông số kỹ thuật:\nMàn hình Liquid Retina 10,9 inch; chip A14 Bionic; bộ nhớ 64GB; camera sau 12MP; camera trước 12MP Ultra Wide; USB-C; Wi‑Fi; Touch ID; hỗ trợ Apple Pencil thế hệ 1 qua bộ chuyển đổi phù hợp; iPadOS; khoảng 477g bản Wi‑Fi.', 8490000.00, 14, 'https://cdn.tgdd.vn/Products/Images/522/295452/ipad-10-5g-hong-1.jpg', TRUE, 3),
-    (13, 'Samsung Galaxy Tab S10 FE Wi‑Fi 128GB', 'Samsung', 'Máy tính bảng Android cho học tập và làm việc, hỗ trợ bút S Pen và màn hình kích thước lớn.\n\nThông số kỹ thuật:\nMàn hình khoảng 10,9 inch; chipset Exynos 1580; RAM/bộ nhớ tùy bản, cấu hình tham khảo 8GB/128GB; camera sau 13MP; camera trước 12MP; pin khoảng 8000mAh; USB-C; Wi‑Fi; hỗ trợ S Pen; IP68 trên thiết bị và bút theo công bố Samsung; Android/One UI theo phiên bản.', 11990000.00, 10, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/522/322131/samsung-galaxy-tab-s10-plus-sliver-4-638640919802337984.jpg', TRUE, 3),
-    (14, 'Xiaomi Redmi Pad Pro 8GB 256GB', 'Xiaomi', 'Máy tính bảng màn hình lớn, tần số quét cao và pin dung lượng lớn, phù hợp xem phim, học tập và giải trí.\n\nThông số kỹ thuật:\nMàn hình LCD 12,1 inch 2.5K, tối đa 120Hz; Snapdragon 7s Gen 2; RAM 8GB; bộ nhớ 256GB; camera sau 8MP; camera trước 8MP; pin 10000mAh; sạc 33W; USB-C; Wi‑Fi; HyperOS dựa trên Android.', 7990000.00, 12, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/522/339207/xiaomi-redmi-pad-2-4g-xam-12-638890346892960318.jpg', TRUE, 3),
-    (15, 'Lenovo Tab M11 8GB 128GB', 'Lenovo', 'Máy tính bảng Android phục vụ học tập, đọc tài liệu và giải trí cơ bản với màn hình 11 inch.\n\nThông số kỹ thuật:\nMàn hình IPS LCD 11 inch, 90Hz; MediaTek Helio G88; RAM/bộ nhớ tùy thị trường, cấu hình tham khảo 8GB/128GB; camera sau 8MP; camera trước 8MP; pin khoảng 7040mAh; USB-C; Wi‑Fi; hỗ trợ bút trên phiên bản tương thích; Android theo bản phát hành.', 4990000.00, 15, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/522/368516/lenovo-idea-tab-4gb-xam-2-639229892356418443.jpg', TRUE, 3),
-    (16, 'Apple AirPods Pro 2 USB‑C', 'Apple', 'Tai nghe không dây có chống ồn chủ động, chế độ xuyên âm và hộp sạc USB-C, phù hợp nghe nhạc và gọi điện.\n\nThông số kỹ thuật:\nDriver tùy chỉnh; chống ồn chủ động; chế độ xuyên âm; âm thanh thích ứng và nhận biết cuộc hội thoại tùy thiết bị/phần mềm; điều khiển cảm ứng; Bluetooth; hộp sạc USB-C; kháng bụi/nước theo tiêu chuẩn công bố; thời lượng pin phụ thuộc chế độ sử dụng.', 4990000.00, 20, 'https://cdn.tgdd.vn/Products/Images/54/315014/tai-nghe-bluetooth-airpods-pro-2nd-gen-usb-c-charge-apple-1.jpg', TRUE, 4),
-    (17, 'Samsung Galaxy Buds3 Pro', 'Samsung', 'Tai nghe true wireless cao cấp với chống ồn chủ động, âm thanh độ phân giải cao tương thích và tích hợp hệ sinh thái Galaxy.\n\nThông số kỹ thuật:\nThiết kế in-ear; driver hai đường tiếng; chống ồn chủ động; Adaptive EQ/ANC; Bluetooth; điều khiển cảm ứng; hộp sạc; khả năng kháng nước theo công bố; một số tính năng yêu cầu thiết bị Samsung Galaxy tương thích.', 4490000.00, 16, 'https://cdn.tgdd.vn/Products/Images/54/327554/tai-nghe-bluetooth-true-wireless-samsung-galaxy-buds-3-pro-r630n-xam-1.jpg', TRUE, 4),
-    (18, 'Sony WF‑1000XM5', 'Sony', 'Tai nghe không dây chống ồn cao cấp, hỗ trợ âm thanh chất lượng cao và nhiều tính năng tùy chỉnh qua ứng dụng.\n\nThông số kỹ thuật:\nTai nghe in-ear true wireless; chống ồn chủ động; bộ xử lý và driver theo thiết kế Sony; Bluetooth; hỗ trợ codec tùy thiết bị; microphone tích hợp; sạc USB-C và sạc không dây cho hộp; kháng nước IPX4; thời lượng pin tùy chế độ.', 5290000.00, 9, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/54/313700/tai-nghe-bluetooth-true-wireless-sony-wf1000xm5-hong-1-638633925273870359.jpg', TRUE, 4),
-    (19, 'JBL Tune 770NC', 'JBL', 'Tai nghe chụp tai không dây có chống ồn thích ứng, thiết kế gập gọn và thời lượng pin dài.\n\nThông số kỹ thuật:\nThiết kế over-ear; driver 40mm; Adaptive Noise Cancelling; Bluetooth; microphone tích hợp; cổng USB-C; hỗ trợ kết nối đa điểm tùy firmware; thời lượng pin công bố lên đến khoảng 70 giờ khi tắt ANC; khối lượng khoảng 232g.', 2190000.00, 18, 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800', TRUE, 4),
-    (20, 'Soundcore Life Q30', 'Anker', 'Tai nghe chụp tai không dây có chống ồn nhiều chế độ và pin lâu, phù hợp học tập, làm việc và di chuyển.\n\nThông số kỹ thuật:\nThiết kế over-ear; driver 40mm; chống ồn chủ động với các chế độ tùy chỉnh; Bluetooth; microphone tích hợp; USB-C; có thể dùng dây 3,5mm tùy cấu hình; thời lượng pin phụ thuộc ANC và âm lượng.', 1390000.00, 20, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/54/364925/tai-nghe-bluetooth-true-wireless-havit-life-t1-hong-1-639161663227897086.jpg', TRUE, 4),
-    (21, 'Apple Watch Series 10 GPS 42mm', 'Apple', 'Đồng hồ thông minh hỗ trợ theo dõi hoạt động, thông báo và các tính năng sức khỏe, phù hợp người dùng iPhone.\n\nThông số kỹ thuật:\nVỏ 42mm; màn hình Retina Always-On OLED LTPO; chip S10; GPS; cảm biến nhịp tim và cảm biến sức khỏe theo cấu hình; theo dõi giấc ngủ và hoạt động; chống nước theo công bố Apple; watchOS; chỉ tương thích iPhone phù hợp.', 9990000.00, 8, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/7077/371219/apple-watch-series-12-gps-46mm-vien-nhom-day-silicone-den-1-639246692345321374.jpg', TRUE, 5),
-    (22, 'Samsung Galaxy Watch7 44mm Bluetooth', 'Samsung', 'Đồng hồ thông minh Android có GPS, theo dõi vận động và các chỉ số sức khỏe, tích hợp hệ sinh thái Samsung Galaxy.\n\nThông số kỹ thuật:\nMàn hình Super AMOLED khoảng 1,5 inch trên bản 44mm; chip Exynos W1000; RAM 2GB; bộ nhớ 32GB; GPS; cảm biến BioActive; Wear OS với One UI Watch; pin khoảng 425mAh; chống nước/bụi theo chuẩn công bố; tương thích Android, một số tính năng phụ thuộc điện thoại.', 5990000.00, 10, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/7077/340067/samsung-galaxy-watch8-lte-44mm-xam-1-638878306043919194.jpg', TRUE, 5),
-    (23, 'Huawei Watch GT 5 46mm', 'Huawei', 'Đồng hồ thông minh thiên về thời lượng pin và theo dõi luyện tập, phù hợp người dùng muốn thiết kế thể thao.\n\nThông số kỹ thuật:\nMàn hình AMOLED khoảng 1,43 inch; GPS; cảm biến nhịp tim và SpO₂; theo dõi giấc ngủ, vận động và nhiều môn thể thao; Bluetooth; hệ điều hành HarmonyOS; thời lượng pin phụ thuộc cách dùng; tương thích Android/iOS với giới hạn tính năng tùy hệ điều hành.', 4690000.00, 12, 'https://cdn2.fptshop.com.vn/unsafe/512x0/filters:format(webp):quality(75)/huawei_watch_gt_5_46mm_den_1_1c13288167.jpg', TRUE, 5),
-    (24, 'Xiaomi Smart Band 9 Pro', 'Xiaomi', 'Vòng đeo thông minh có màn hình lớn, GPS tích hợp và nhiều chế độ luyện tập, phù hợp theo dõi vận động hằng ngày.\n\nThông số kỹ thuật:\nMàn hình AMOLED khoảng 1,74 inch; GPS tích hợp; cảm biến nhịp tim, SpO₂, giấc ngủ; nhiều chế độ thể thao; chống nước theo công bố; kết nối Bluetooth; thời lượng pin tùy cách sử dụng; ứng dụng quản lý trên điện thoại.', 1590000.00, 20, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/7077/332404/mi-band-9-pro-hong-hc-1-638687655038773782.jpg', TRUE, 5),
-    (25, 'Garmin Forerunner 165', 'Garmin', 'Đồng hồ GPS thể thao dành cho người chạy bộ, cung cấp dữ liệu luyện tập, nhịp tim và theo dõi hoạt động.\n\nThông số kỹ thuật:\nMàn hình AMOLED; GPS đa hệ thống; cảm biến nhịp tim cổ tay; theo dõi giấc ngủ và hoạt động; hồ sơ chạy bộ và luyện tập; Bluetooth; Garmin Connect; thời lượng pin phụ thuộc chế độ GPS và sử dụng; kích thước/phiên bản cần xác nhận khi nhập hàng.', 5990000.00, 7, 'https://cdn.tgdd.vn/Products/Images/7077/322848/garmin-forerunner-165-den-1.jpg', TRUE, 5),
-    (26, 'Apple 20W USB‑C Power Adapter', 'Apple', 'Bộ tiếp hợp nguồn USB-C nhỏ gọn để sạc iPhone, iPad và các thiết bị tương thích hỗ trợ sạc USB-C.\n\nThông số kỹ thuật:\nCông suất tối đa 20W; đầu ra USB-C; hỗ trợ sạc nhanh với thiết bị tương thích; không kèm cáp trong nhiều gói bán; cần dùng cáp và thiết bị tương thích; thông số điện đầu vào theo nhãn sản phẩm.', 490000.00, 30, 'https://cdn.tgdd.vn/Products/Images/9499/230315/adapter-sac-type-c-20w-cho-iphone-ipad-apple-mhje3-1.jpg', TRUE, 6),
-    (27, 'Anker 323 Charger 33W USB‑C', 'Anker', 'Củ sạc USB-C công suất cao cho điện thoại và thiết bị tương thích, thiết kế nhỏ gọn để mang theo.\n\nThông số kỹ thuật:\nCông suất tối đa khoảng 33W tùy phiên bản; cổng USB-C; hỗ trợ các chuẩn sạc nhanh tương thích; cơ chế bảo vệ an toàn theo công bố hãng; cần kiểm tra mã model và chuẩn phích cắm của bản phân phối.', 490000.00, 25, 'https://cdn.tgdd.vn/Products/Images/9499/324952/adapter-sac-3-cong-usb-type-c-iq3-100w-anker-a2145-1.jpg', TRUE, 6),
-    (28, 'Samsung 25W USB‑C Power Adapter', 'Samsung', 'Củ sạc USB-C 25W cho các thiết bị Samsung và thiết bị tương thích với chuẩn sạc nhanh hỗ trợ.\n\nThông số kỹ thuật:\nCông suất tối đa 25W; cổng USB-C; hỗ trợ USB Power Delivery/PPS tùy model; bảo vệ quá dòng/quá áp theo công bố; cáp có thể bán riêng; kiểm tra mã EP-TA800 hoặc mã tương ứng trước khi nhập.', 350000.00, 30, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/57/369351/pin-sac-du-phong-10000mah-type-c-pd-25w-samsung-eb-p3401-1-639202293308430961.jpg', TRUE, 6),
-    (29, 'Logitech Pebble Mouse 2 M350s', 'Logitech', 'Chuột không dây nhỏ gọn, thiết kế tối giản, phù hợp laptop, học tập và làm việc văn phòng.\n\nThông số kỹ thuật:\nChuột không dây; kết nối Bluetooth Low Energy và đầu thu Logi Bolt tùy gói bán; nút giữa có thể tùy chỉnh qua phần mềm tương thích; pin AA; tương thích nhiều hệ điều hành; màu sắc tùy phiên bản.', 590000.00, 20, 'https://resource.logitech.com/w_544,h_466,ar_7:6,c_pad,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/pebble-mouse-2-m350s/2026-refresh/gallery/pebble-mouse-2-m350s-tonal-rose-top-angle-gallery-1.png', TRUE, 6),
-    (30, 'SanDisk Ultra microSDXC 256GB', 'SanDisk', 'Thẻ nhớ microSDXC 256GB giúp mở rộng dung lượng lưu trữ cho thiết bị tương thích như điện thoại, camera và máy tính bảng.\n\nThông số kỹ thuật:\nDung lượng danh nghĩa 256GB; định dạng microSDXC; tốc độ và chuẩn hiệu năng tùy phiên bản cụ thể; thường kèm adapter SD tùy gói; cần kiểm tra mã sản phẩm, tốc độ đọc/ghi và tính tương thích trước khi nhập.', 490000.00, 25, 'https://cdn2.cellphones.com.vn/insecure/rs:fill:0:358/q:90/plain/https://cellphones.com.vn/media/catalog/product/t/h/the-nho-microsdhc-sandisk-ultra-a1-256gb-150mbs_1.png', TRUE, 6)
-ON DUPLICATE KEY UPDATE 
-    name = VALUES(name),
-    brand = VALUES(brand),
-    description = VALUES(description),
-    price = VALUES(price),
-    stock = VALUES(stock),
-    image_url = VALUES(image_url),
-    status = VALUES(status),
-    category_id = VALUES(category_id);
-
--- 4. Thêm đơn hàng mẫu vào bảng orders (gắn với tài khoản Admin ID 1)
--- 4. Thêm biến thể mặc định và biến thể nâng cao cho các sản phẩm
--- 4.1 Biến thể mặc định cho 30 sản phẩm (SKU-P{id}-STD)
-INSERT INTO product_variants (id, product_id, sku, price, original_price, stock, image_url, status) VALUES
-    (1, 1, 'IP16PM-256-BLK', 30990000.00, 34990000.00, 15, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/329149/iphone-16-pro-max-titan-den-0-639175378232922591.jpg', TRUE),
-    (2, 1, 'IP16PM-512-NAT', 36990000.00, 40990000.00, 10, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/329149/iphone-16-pro-max-titan-den-0-639175378232922591.jpg', TRUE),
-    (3, 1, 'IP16PM-1TB-DES', 44990000.00, 48990000.00, 5, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/329149/iphone-16-pro-max-titan-den-0-639175378232922591.jpg', TRUE),
-    (4, 2, 'SKU-P2-STD', 27490000.00, 31990000.00, 12, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/361947/samsung-galaxy-s26-blue-1-639077197706721504.jpg', TRUE),
-    (5, 3, 'SKU-P3-STD', 18990000.00, 21990000.00, 20, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/360307/xiaomi-redmi-note-15-pro-xanh-1-639032525099082700.jpg', TRUE),
-    (6, 4, 'SKU-P4-STD', 18990000.00, 21990000.00, 18, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/370980/iphone-18-pro-burgundy-1-639246114764541080.jpg', TRUE),
-    (7, 5, 'SKU-P5-STD', 17690000.00, 19990000.00, 16, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/333363/samsung-galaxy-s25-xanh-2-638747827770343042.jpg', TRUE),
-    (8, 6, 'SKU-P6-STD', 14990000.00, 16990000.00, 10, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/44/369758/asus-vivobook-go-15-x1504ma-bq893w-core-3-304-8gb-512gb-full-hd-win11-1-639211905724656906.jpg', TRUE),
-    (9, 7, 'SKU-P7-STD', 15990000.00, 17990000.00, 8, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/44/330167/acer-aspire-5-a515-58p-774r-i7-nxkhjsv005-3-638648695329312043.jpg', TRUE),
-    (10, 8, 'SKU-P8-STD', 15990000.00, 17990000.00, 9, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/44/334444/lenovo-ideapad-slim-3-15irh10-i7-83k1000jvn-1-638756561663160755.jpg', TRUE),
-    (11, 9, 'SKU-P9-STD', 23990000.00, 26990000.00, 7, 'https://cdn.tgdd.vn/Products/Images/44/322612/macbook-air-13-inch-m3-2024-1-1.jpg', TRUE),
-    (12, 10, 'SKU-P10-STD', 14990000.00, 16990000.00, 8, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/44/365608/hp-240r-g9-core-5-120u-c40lgat-1-639116909181716925.jpg', TRUE),
-    (13, 11, 'IPAD-M2-128-GRY', 14990000.00, 16990000.00, 10, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/522/363418/ipad-air-m4-11-inch-wifi-xam-0-639176442561577028.jpg', TRUE),
-    (14, 11, 'IPAD-M2-256-BLU', 17990000.00, 20490000.00, 8, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/522/363418/ipad-air-m4-11-inch-wifi-xam-0-639176442561577028.jpg', TRUE),
-    (15, 12, 'SKU-P12-STD', 8490000.00, 9990000.00, 14, 'https://cdn.tgdd.vn/Products/Images/522/295452/ipad-10-5g-hong-1.jpg', TRUE),
-    (16, 13, 'SKU-P13-STD', 11990000.00, 13990000.00, 10, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/522/322131/samsung-galaxy-tab-s10-plus-sliver-4-638640919802337984.jpg', TRUE),
-    (17, 14, 'SKU-P14-STD', 7990000.00, 8990000.00, 12, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/522/339207/xiaomi-redmi-pad-2-4g-xam-12-638890346892960318.jpg', TRUE),
-    (18, 15, 'SKU-P15-STD', 4990000.00, 5990000.00, 15, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/522/368516/lenovo-idea-tab-4gb-xam-2-639229892356418443.jpg', TRUE),
-    (19, 16, 'SKU-P16-STD', 4990000.00, 5990000.00, 20, 'https://cdn.tgdd.vn/Products/Images/54/315014/tai-nghe-bluetooth-airpods-pro-2nd-gen-usb-c-charge-apple-1.jpg', TRUE),
-    (20, 17, 'SKU-P17-STD', 4490000.00, 5290000.00, 16, 'https://cdn.tgdd.vn/Products/Images/54/327554/tai-nghe-bluetooth-true-wireless-samsung-galaxy-buds-3-pro-r630n-xam-1.jpg', TRUE),
-    (21, 18, 'SKU-P18-STD', 5290000.00, 6490000.00, 9, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/54/313700/tai-nghe-bluetooth-true-wireless-sony-wf1000xm5-hong-1-638633925273870359.jpg', TRUE),
-    (22, 19, 'SKU-P19-STD', 2190000.00, 2690000.00, 18, 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800', TRUE),
-    (23, 20, 'SKU-P20-STD', 1390000.00, 1790000.00, 20, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/54/364925/tai-nghe-bluetooth-true-wireless-havit-life-t1-hong-1-639161663227897086.jpg', TRUE),
-    (24, 21, 'SKU-P21-STD', 9990000.00, 11990000.00, 8, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/7077/371219/apple-watch-series-12-gps-46mm-vien-nhom-day-silicone-den-1-639246692345321374.jpg', TRUE),
-    (25, 22, 'SKU-P22-STD', 5990000.00, 7290000.00, 10, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/7077/340067/samsung-galaxy-watch8-lte-44mm-xam-1-638878306043919194.jpg', TRUE),
-    (26, 23, 'SKU-P23-STD', 4690000.00, 5690000.00, 12, 'https://cdn2.fptshop.com.vn/unsafe/512x0/filters:format(webp):quality(75)/huawei_watch_gt_5_46mm_den_1_1c13288167.jpg', TRUE),
-    (27, 24, 'SKU-P24-STD', 1590000.00, 1990000.00, 20, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/7077/332404/mi-band-9-pro-hong-hc-1-638687655038773782.jpg', TRUE),
-    (28, 25, 'SKU-P25-STD', 5990000.00, 6990000.00, 7, 'https://cdn.tgdd.vn/Products/Images/7077/322848/garmin-forerunner-165-den-1.jpg', TRUE),
-    (29, 26, 'SKU-P26-STD', 490000.00, 590000.00, 30, 'https://cdn.tgdd.vn/Products/Images/9499/230315/adapter-sac-type-c-20w-cho-iphone-ipad-apple-mhje3-1.jpg', TRUE),
-    (30, 27, 'SKU-P27-STD', 490000.00, 590000.00, 25, 'https://cdn.tgdd.vn/Products/Images/9499/324952/adapter-sac-3-cong-usb-type-c-iq3-100w-anker-a2145-1.jpg', TRUE),
-    (31, 28, 'SKU-P28-STD', 350000.00, 450000.00, 30, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/57/369351/pin-sac-du-phong-10000mah-type-c-pd-25w-samsung-eb-p3401-1-639202293308430961.jpg', TRUE),
-    (32, 29, 'SKU-P29-STD', 590000.00, 790000.00, 20, 'https://resource.logitech.com/w_544,h_466,ar_7:6,c_pad,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/pebble-mouse-2-m350s/2026-refresh/gallery/pebble-mouse-2-m350s-tonal-rose-top-angle-gallery-1.png', TRUE),
-    (33, 30, 'SKU-P30-STD', 490000.00, 690000.00, 25, 'https://cdn2.cellphones.com.vn/insecure/rs:fill:0:358/q:90/plain/https://cellphones.com.vn/media/catalog/product/t/h/the-nho-microsdhc-sandisk-ultra-a1-256gb-150mbs_1.png', TRUE)
-ON DUPLICATE KEY UPDATE sku=VALUES(sku), price=VALUES(price), original_price=VALUES(original_price);
-
--- 4.2 Tùy chọn (Options) cho iPhone 16 Pro Max (ID 1)
-INSERT INTO product_options (id, product_id, name, position) VALUES
-    (1, 1, 'Dung lượng', 0),
-    (2, 1, 'Màu sắc', 1),
-    (3, 11, 'Dung lượng', 0),
-    (4, 11, 'Màu sắc', 1)
-ON DUPLICATE KEY UPDATE name=VALUES(name);
-
--- 4.3 Giá trị tùy chọn (Option Values)
-INSERT INTO product_option_values (id, option_id, value, position) VALUES
-    (1, 1, '256GB', 0),
-    (2, 1, '512GB', 1),
-    (3, 1, '1TB', 2),
-    (4, 2, 'Titan Đen', 0),
-    (5, 2, 'Titan Tự Nhiên', 1),
-    (6, 2, 'Titan Sa Mạc', 2),
-    (7, 3, '128GB', 0),
-    (8, 3, '256GB', 1),
-    (9, 4, 'Xám Không Gian', 0),
-    (10, 4, 'Xanh Da Trời', 1)
-ON DUPLICATE KEY UPDATE value=VALUES(value);
-
--- 4.4 Ánh xạ biến thể <-> giá trị tùy chọn (variant_option_values)
-INSERT INTO variant_option_values (variant_id, option_value_id) VALUES
-    (1, 1), (1, 4),
-    (2, 2), (2, 5),
-    (3, 3), (3, 6),
-    (13, 7), (13, 9),
-    (14, 8), (14, 10)
-ON DUPLICATE KEY UPDATE variant_id=variant_id;
-
--- 4.5 Thông số kỹ thuật (product_specs) cho sản phẩm mẫu
-INSERT INTO product_specs (id, product_id, group_name, spec_key, spec_value, position) VALUES
-    (1, 1, 'Màn hình', 'Công nghệ màn hình', 'Super Retina XDR OLED 6.9 inch, 120Hz ProMotion', 0),
-    (2, 1, 'Hiệu năng', 'Chip vi xử lý', 'Apple A18 Pro 6-core (3nm thế hệ mới)', 1),
-    (3, 1, 'Hiệu năng', 'Bộ xử lý trí tuệ nhân tạo', '16-core Neural Engine cho Apple Intelligence', 2),
-    (4, 1, 'Camera', 'Camera chính', 'Fusion 48MP f/1.78, Ultra Wide 48MP, Telephoto 12MP 5x quang học', 3),
-    (5, 1, 'Thiết kế', 'Khung viền', 'Titanium Cấp 5 siêu nhẹ, viền màn hình mỏng nhất lịch sử Apple', 4),
-    (6, 11, 'Màn hình', 'Công nghệ màn hình', 'Liquid Retina 11 inch LED-backlit IPS, 500 nits', 0),
-    (7, 11, 'Hiệu năng', 'Chip vi xử lý', 'Apple M2 8-core CPU / 10-core GPU', 1),
-    (8, 11, 'Phụ kiện', 'Tương thích phụ kiện', 'Apple Pencil Pro, Apple Pencil USB-C, Magic Keyboard', 2)
-ON DUPLICATE KEY UPDATE spec_value=VALUES(spec_value);
-
--- 4.6 Hình ảnh thư viện (product_images)
-INSERT INTO product_images (id, product_id, variant_id, url, position) VALUES
-    (1, 1, 1, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/42/329149/iphone-16-pro-max-titan-den-0-639175378232922591.jpg', 0),
-    (2, 1, 2, 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=600', 1),
-    (3, 11, 13, 'https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/522/363418/ipad-air-m4-11-inch-wifi-xam-0-639176442561577028.jpg', 0),
-    (4, 11, 14, 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=600', 1)
-ON DUPLICATE KEY UPDATE url=VALUES(url);
-
--- 5. Thêm đơn hàng mẫu vào bảng orders (gắn với tài khoản Admin ID 1)
-INSERT INTO orders (id, user_id, receiver_name, phone_number, shipping_address, total_amount, status, payment_method, note, created_at)
-VALUES 
-    (1001, 1, 'Nguyễn Văn Minh', '0912 345 678', 'Tòa Landmark 81, 720A Điện Biên Phủ, Bình Thạnh, TP.HCM', 30990000.00, 'PENDING', 'COD', 'Giao trong giờ hành chính, gọi trước 15 phút', '2026-10-21 16:30:00'),
-    (1002, 1, 'Trần Thị Mai', '0987 654 321', '45 Lê Duẩn, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh', 23990000.00, 'PROCESSING', 'BANK_TRANSFER', 'Kiểm tra kỹ seal hộp giúp mình nhé', '2026-10-21 17:15:00'),
-    (1003, 1, 'Lê Hoàng Nam', '0905 123 456', '88 Nguyễn Văn Linh, Nam Dương, Hải Châu, Đà Nẵng', 27490000.00, 'SHIPPING', 'VNPAY', 'Giao hỏa tốc, gọi trước khi đến', '2026-10-21 18:00:00'),
-    (1004, 1, 'Đỗ Thu Hương', '0933 221 100', '12 Chùa Bộc, Quang Trung, Đống Đa, Hà Nội', 36680000.00, 'COMPLETED', 'COD', 'Đã nhận đủ quà tặng kèm theo', '2026-10-20 14:00:00'),
-    (1005, 1, 'Phạm Quốc Tuấn', '0944 556 677', '250 Hoàng Diệu 2, Linh Chiểu, TP. Thủ Đức, TP.HCM', 14990000.00, 'COMPLETED', 'BANK_TRANSFER', 'Đơn hàng mua cho nhân viên công ty', '2026-10-19 10:30:00'),
-    (1006, 1, 'Vũ Duy Khánh', '0977 889 900', '15 Lê Lợi, Phường Phú Nhuận, TP. Huế', 18990000.00, 'CANCELLED', 'COD', 'Khách hàng đổi ý muốn đổi sang dòng sản phẩm khác', '2026-10-18 09:00:00')
-ON DUPLICATE KEY UPDATE id=id;
-
--- 6. Thêm chi tiết đơn hàng vào bảng order_items (đã kèm variant_id và snapshot)
-INSERT INTO order_items (id, order_id, product_id, variant_id, product_name, variant_name, sku, quantity, price, total_price)
-VALUES 
-    (1, 1001, 1, 1, 'Apple iPhone 16 Pro Max 256GB', '256GB / Titan Đen', 'IP16PM-256-BLK', 1, 30990000.00, 30990000.00),
-    (2, 1002, 9, 11, 'Apple MacBook Air 13 inch M3 256GB', 'Tiêu chuẩn', 'SKU-P9-STD', 1, 23990000.00, 23990000.00),
-    (3, 1003, 2, 4, 'Samsung Galaxy S25 Ultra 256GB 12GB RAM', 'Tiêu chuẩn', 'SKU-P2-STD', 1, 27490000.00, 27490000.00),
-    (4, 1004, 3, 5, 'Xiaomi 15 256GB', 'Tiêu chuẩn', 'SKU-P3-STD', 1, 18990000.00, 18990000.00),
-    (5, 1004, 5, 7, 'Samsung Galaxy S25 256GB 12GB RAM', 'Tiêu chuẩn', 'SKU-P5-STD', 1, 17690000.00, 17690000.00),
-    (6, 1005, 6, 8, 'ASUS Vivobook 15 X1504VA Core i5', 'Tiêu chuẩn', 'SKU-P6-STD', 1, 14990000.00, 14990000.00),
-    (7, 1006, 4, 6, 'Apple iPhone 18 128GB', 'Tiêu chuẩn', 'SKU-P4-STD', 1, 18990000.00, 18990000.00)
-ON DUPLICATE KEY UPDATE id=id;
-
