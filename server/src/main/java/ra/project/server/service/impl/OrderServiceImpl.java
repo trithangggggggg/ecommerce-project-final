@@ -229,11 +229,13 @@ public class OrderServiceImpl implements OrderService {
                     || newStatus == OrderStatus.CANCELLED;
             case SHIPPING -> newStatus == OrderStatus.COMPLETED 
                     || newStatus == OrderStatus.CANCELLED;
-            case COMPLETED -> newStatus == OrderStatus.CANCELLED;
-            case CANCELLED -> false;
+            case COMPLETED, CANCELLED -> false;
         };
 
         if (!isValidTransition) {
+            if (currentStatus == OrderStatus.COMPLETED) {
+                throw new BadRequestException("Không thể cập nhật trạng thái của đơn hàng đã hoàn thành (COMPLETED)");
+            }
             if (currentStatus == OrderStatus.CANCELLED) {
                 throw new BadRequestException("Không thể cập nhật trạng thái của đơn hàng đã hủy (CANCELLED)");
             }
