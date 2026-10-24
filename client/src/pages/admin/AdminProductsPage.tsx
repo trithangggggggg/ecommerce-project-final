@@ -230,8 +230,7 @@ export const AdminProductsPage: React.FC = () => {
       ]);
       setProducts(prodRes.data || []);
       setCategories(catRes || []);
-    } catch (err) {
-      console.warn('Lỗi khi tải danh sách sản phẩm admin:', err);
+    } catch {
       showToast('Không thể kết nối đến máy chủ để tải sản phẩm', 'error');
     } finally {
       setIsLoading(false);
@@ -366,8 +365,8 @@ export const AdminProductsPage: React.FC = () => {
       } else {
         setFormSpecs([]);
       }
-    } catch (err) {
-      console.error('Lỗi khi tải chi tiết sản phẩm:', err);
+    } catch {
+      // Ignore load detail error
     } finally {
       setIsFormLoading(false);
     }
@@ -515,8 +514,7 @@ export const AdminProductsPage: React.FC = () => {
       }));
       setAiMessage('✨ AI đã tạo xong đoạn mô tả chuẩn SEO chuyên nghiệp!');
       setTimeout(() => setAiMessage(null), 4000);
-    } catch (err) {
-      console.error('Lỗi khi sinh mô tả AI:', err);
+    } catch {
       setAiMessage('⚠️ Có lỗi khi kết nối AI, vui lòng thử lại.');
     } finally {
       setIsGeneratingAi(false);

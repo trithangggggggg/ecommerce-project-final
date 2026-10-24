@@ -75,8 +75,8 @@ export const AdminInventoryPage: React.FC = () => {
         });
         setItems(mapped);
       }
-    } catch (e) {
-      console.warn('Lỗi khi tải dữ liệu tồn kho từ database:', e);
+    } catch {
+      // Ignore load inventory error
     } finally {
       setIsLoading(false);
     }

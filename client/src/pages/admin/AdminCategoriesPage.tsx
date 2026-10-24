@@ -48,8 +48,8 @@ export const AdminCategoriesPage: React.FC = () => {
     try {
       const data = await productService.getCategories();
       setCategories(data);
-    } catch (err) {
-      console.error('Lỗi khi tải danh mục:', err);
+    } catch {
+      // Ignore category fetch error
     } finally {
       setLoading(false);
     }

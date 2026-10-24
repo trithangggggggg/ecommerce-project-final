@@ -97,8 +97,7 @@ export const AdminReportsPage: React.FC = () => {
         });
         setTransactions(mapped);
       }
-    } catch (e) {
-      console.error('Lỗi khi tải dữ liệu báo cáo:', e);
+    } catch {
       setTransactions([]);
     } finally {
       setIsLoading(false);

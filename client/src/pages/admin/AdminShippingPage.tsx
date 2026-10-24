@@ -41,8 +41,7 @@ export const AdminShippingPage: React.FC = () => {
     try {
       const data = await shippingService.getCarriers();
       setCarriers(data);
-    } catch (err) {
-      console.error('Lỗi khi tải đơn vị vận chuyển:', err);
+    } catch {
       setCarriers([]);
     } finally {
       setIsLoading(false);

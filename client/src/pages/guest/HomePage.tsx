@@ -150,8 +150,8 @@ export default function HomePage() {
         if (isMounted && res.data && res.data.length > 0) {
           setLatestProducts(res.data);
         }
-      } catch (err) {
-        console.warn('Failed to load products from API, using fallback data', err);
+      } catch {
+        // Fallback to static initial state if API fails
       } finally {
         if (isMounted) setLoading(false);
       }

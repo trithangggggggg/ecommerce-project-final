@@ -204,7 +204,6 @@ export const dashboardService = {
         recentOrders,
       };
     } catch (error) {
-      console.error('Lỗi khi tải dữ liệu Dashboard:', error);
       throw error;
     }
   },

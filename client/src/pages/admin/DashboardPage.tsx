@@ -24,8 +24,8 @@ export const DashboardPage: React.FC = () => {
       setIsLoading(true);
       const res = await dashboardService.getDashboardData();
       setDashboardData(res);
-    } catch (err) {
-      console.warn('Không thể tải dữ liệu dashboard thời gian thực:', err);
+    } catch {
+      // Ignore dashboard fetch error
     } finally {
       setIsLoading(false);
     }

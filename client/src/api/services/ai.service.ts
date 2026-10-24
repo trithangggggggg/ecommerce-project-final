@@ -298,8 +298,7 @@ export const aiService = {
         recommendedProducts: formattedProducts,
         provider: data?.provider || 'NEXOR AI Assistant',
       };
-    } catch (error: any) {
-      console.warn('AI Chat API call fallback to smart local assistant:', error);
+    } catch {
       // Khi backend chưa phản hồi hoặc mạng chập chờn, tự động kích hoạt bộ xử lý thông minh cục bộ
       return generateSmartClientFallback(cleanMessage);
     }
@@ -323,8 +322,8 @@ export const aiService = {
       if (data?.description) {
         return data.description;
       }
-    } catch (err) {
-      console.warn('Backend AI Description API call fallback to smart generator:', err);
+    } catch {
+      // Backend AI Description API call fallback
     }
 
     // Smart Fallback Description nếu Backend chưa nạp API key

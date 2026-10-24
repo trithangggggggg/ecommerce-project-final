@@ -129,8 +129,8 @@ export const productService = {
           totalPages: 1,
         };
       }
-    } catch (err) {
-      console.error('Lỗi khi gọi API sản phẩm:', err);
+    } catch {
+      // Ignore API product error
     }
 
     return {
@@ -170,8 +170,8 @@ export const productService = {
           imageUrl: c.imageUrl,
         }));
       }
-    } catch (err) {
-      console.error('Lỗi khi tải danh mục từ MySQL:', err);
+    } catch {
+      // Ignore API category error
     }
     return [];
   },

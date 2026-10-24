@@ -45,8 +45,7 @@ export const AdminPromotionsPage: React.FC = () => {
     try {
       const data = await promotionService.getPromotions();
       setPromos(data);
-    } catch (err) {
-      console.error('Lỗi khi tải mã khuyến mãi:', err);
+    } catch {
       setPromos([]);
     } finally {
       setIsLoading(false);

@@ -84,8 +84,7 @@ export default function AiChatbot() {
       };
 
       setMessages((prev) => [...prev, botMsg]);
-    } catch (err) {
-      console.error('Chat error:', err);
+    } catch {
       setMessages((prev) => [
         ...prev,
         {

@@ -43,8 +43,7 @@ export const AdminSuppliersPage: React.FC = () => {
     try {
       const data = await supplierService.getSuppliers();
       setSuppliers(data);
-    } catch (err) {
-      console.error('Lỗi khi tải nhà cung cấp:', err);
+    } catch {
       setSuppliers([]);
     } finally {
       setIsLoading(false);
