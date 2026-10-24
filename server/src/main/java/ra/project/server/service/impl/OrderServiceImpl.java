@@ -23,10 +23,15 @@ import ra.project.server.model.enums.Role;
 import ra.project.server.repository.OrderRepository;
 import ra.project.server.repository.ProductRepository;
 import ra.project.server.repository.ProductVariantRepository;
+import ra.project.server.repository.PromotionRepository;
 import ra.project.server.repository.UserRepository;
 import ra.project.server.service.OrderService;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -39,6 +44,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final PromotionRepository promotionRepository;
     private final UserRepository userRepository;
     private final OrderMapper orderMapper;
 
@@ -118,12 +124,17 @@ public class OrderServiceImpl implements OrderService {
             BigDecimal itemTotalPrice = itemPrice.multiply(BigDecimal.valueOf(itemReq.getQuantity()));
             totalAmount = totalAmount.add(itemTotalPrice);
 
+            String itemImageUrl = (variant != null && variant.getImageUrl() != null && !variant.getImageUrl().isBlank())
+                    ? variant.getImageUrl()
+                    : product.getImageUrl();
+
             OrderItem orderItem = OrderItem.builder()
                     .product(product)
                     .variant(variant)
                     .productName(productName)
                     .variantName(variantName)
                     .sku(sku)
+                    .productImageUrl(itemImageUrl)
                     .quantity(itemReq.getQuantity())
                     .price(itemPrice)
                     .totalPrice(itemTotalPrice)
@@ -134,12 +145,66 @@ public class OrderServiceImpl implements OrderService {
 
         PaymentMethod paymentMethod = request.getPaymentMethod() != null ? request.getPaymentMethod() : PaymentMethod.COD;
 
+        BigDecimal discountAmount = BigDecimal.ZERO;
+        String appliedCoupon = null;
+
+        if (StringUtils.hasText(request.getCouponCode())) {
+            String code = request.getCouponCode().trim();
+            Promotion promo = promotionRepository.findByCodeIgnoreCase(code)
+                    .orElseThrow(() -> new BadRequestException("Mã giảm giá '" + code + "' không tồn tại trên hệ thống"));
+
+            if (!"ACTIVE".equalsIgnoreCase(promo.getStatus())) {
+                throw new BadRequestException("Mã giảm giá '" + code + "' hiện không còn hiệu lực");
+            }
+            if (promo.getMaxUsage() != null && promo.getUsedCount() != null && promo.getUsedCount() >= promo.getMaxUsage()) {
+                throw new BadRequestException("Mã giảm giá '" + code + "' đã hết số lượt sử dụng");
+            }
+
+            // Kiểm tra quyền sở hữu đối với mã giảm giá đền bù / riêng tư
+            Long ownerUserId = promo.getUserId();
+            if (ownerUserId == null && (promo.getCode().toUpperCase().startsWith("DENBU") || orderRepository.findFirstByCompensationCoupon(promo.getCode()).isPresent())) {
+                ownerUserId = orderRepository.findFirstByCompensationCoupon(promo.getCode())
+                        .map(o -> o.getUser() != null ? o.getUser().getId() : null)
+                        .orElse(null);
+            }
+
+            if (ownerUserId != null && !ownerUserId.equals(user.getId())) {
+                throw new BadRequestException("Mã giảm giá này là mã đền bù dành riêng cho tài khoản được bồi thường đơn hàng. Bạn không thể sử dụng mã này.");
+            }
+
+            // Kiểm tra hạn sử dụng nếu có
+            if (StringUtils.hasText(promo.getExpiry())) {
+                try {
+                    LocalDate expiryDate = LocalDate.parse(promo.getExpiry().trim());
+                    if (expiryDate.isBefore(LocalDate.now())) {
+                        throw new BadRequestException("Mã giảm giá '" + code + "' đã hết hạn vào ngày " + promo.getExpiry());
+                    }
+                } catch (DateTimeParseException ignored) {
+                }
+            }
+
+            // Tính tiền giảm giá
+            discountAmount = calculateDiscountAmount(totalAmount, promo.getDiscount());
+            appliedCoupon = promo.getCode();
+
+            // Tăng số lượt sử dụng
+            promo.setUsedCount((promo.getUsedCount() != null ? promo.getUsedCount() : 0) + 1);
+            promotionRepository.save(promo);
+        }
+
+        BigDecimal finalTotal = totalAmount.subtract(discountAmount);
+        if (finalTotal.compareTo(BigDecimal.ZERO) < 0) {
+            finalTotal = BigDecimal.ZERO;
+        }
+
         Order order = Order.builder()
                 .user(user)
                 .receiverName(request.getReceiverName().trim())
                 .phoneNumber(request.getPhoneNumber().trim())
                 .shippingAddress(request.getShippingAddress().trim())
-                .totalAmount(totalAmount)
+                .totalAmount(finalTotal)
+                .couponCode(appliedCoupon)
+                .discountAmount(discountAmount)
                 .status(OrderStatus.PENDING)
                 .paymentMethod(paymentMethod)
                 .note(request.getNote() != null ? request.getNote().trim() : null)
@@ -150,9 +215,36 @@ public class OrderServiceImpl implements OrderService {
         }
 
         Order savedOrder = orderRepository.save(order);
-        log.info("Người dùng '{}' đã đặt hàng thành công với mã đơn hàng: #{}", user.getUsername(), savedOrder.getId());
+        log.info("Người dùng '{}' đã đặt hàng thành công với mã đơn hàng: #{} (Giảm giá: {}, Tổng thanh toán: {})",
+                user.getUsername(), savedOrder.getId(), discountAmount, finalTotal);
 
         return ApiResponse.created("Đặt hàng thành công", orderMapper.toResponse(savedOrder));
+    }
+
+    private BigDecimal calculateDiscountAmount(BigDecimal subtotal, String discountStr) {
+        if (!StringUtils.hasText(discountStr) || subtotal == null || subtotal.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+        String clean = discountStr.trim().replace(".", "").replace(",", "");
+        if (clean.endsWith("%")) {
+            String percentStr = clean.replace("%", "").trim();
+            try {
+                BigDecimal percent = new BigDecimal(percentStr);
+                return subtotal.multiply(percent).divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP);
+            } catch (Exception e) {
+                return BigDecimal.ZERO;
+            }
+        }
+        String numOnly = clean.replaceAll("[^0-9]", "");
+        if (!numOnly.isBlank()) {
+            try {
+                BigDecimal fixed = new BigDecimal(numOnly);
+                return fixed.min(subtotal);
+            } catch (Exception e) {
+                return BigDecimal.ZERO;
+            }
+        }
+        return BigDecimal.ZERO;
     }
 
     @Override

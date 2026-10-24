@@ -55,6 +55,12 @@ public class AdminProductController {
         return ResponseEntity.ok(ApiResponse.success("Cập nhật sản phẩm thành công (Admin)", updatedProduct));
     }
 
+    @GetMapping("/{id}/active-orders")
+    public ResponseEntity<ApiResponse<java.util.List<ra.project.server.model.dto.response.OrderResponse>>> getActiveOrdersForProduct(@PathVariable Long id) {
+        java.util.List<ra.project.server.model.dto.response.OrderResponse> activeOrders = productService.getActiveOrdersForProduct(id);
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách đơn hàng đang đặt của sản phẩm thành công", activeOrders));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable Long id) {
         productService.deleteProduct(id);

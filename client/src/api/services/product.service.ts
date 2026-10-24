@@ -8,6 +8,7 @@ import type {
   ProductListResponse,
   ProductPayload,
 } from '../../models/product.model';
+import type { OrderResponse } from '../../models/order.model';
 
 // Helper map backend product response to frontend Product
 function mapBackendProduct(item: any): Product {
@@ -227,6 +228,15 @@ export const productService = {
     const res = await axiosClient.put(ENDPOINTS.ADMIN_PRODUCT_STOCK(id), { stock });
     const raw = res.data?.data || res.data;
     return mapBackendProduct(raw);
+  },
+
+  /**
+   * [Admin] Lấy danh sách các đơn hàng đang đặt chứa sản phẩm này (GET /api/admin/products/{id}/active-orders)
+   */
+  async getActiveOrders(id: number | string): Promise<OrderResponse[]> {
+    const res = await axiosClient.get(ENDPOINTS.ADMIN_PRODUCT_ACTIVE_ORDERS(id));
+    const data = res.data?.data || res.data;
+    return Array.isArray(data) ? data : [];
   },
 
   /**

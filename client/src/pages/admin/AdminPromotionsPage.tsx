@@ -28,6 +28,7 @@ export interface PromoItem {
   usedCount: number;
   maxUsage: number;
   status: 'ACTIVE' | 'EXPIRED';
+  userId?: number | null;
 }
 
 const ITEMS_PER_PAGE = 10;

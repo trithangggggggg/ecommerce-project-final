@@ -12,11 +12,16 @@ export const ENDPOINTS = {
   PRODUCTS: '/products',
   ADMIN_PRODUCTS: '/admin/products',
   ADMIN_PRODUCT_STOCK: (id: number | string) => `/admin/products/${id}/stock`,
+  ADMIN_PRODUCT_ACTIVE_ORDERS: (id: number | string) => `/admin/products/${id}/active-orders`,
   ORDERS: {
     CHECKOUT: '/orders/checkout',
     MY_ORDERS: '/orders/my-orders',
     DETAIL: (id: number | string) => `/orders/${id}`,
     CANCEL: (id: number | string) => `/orders/${id}/cancel`,
+  },
+  PROMOTIONS: {
+    CHECK: '/promotions/check',
+    AVAILABLE: '/promotions/available',
   },
   ADMIN_ORDERS: {
     LIST: '/admin/orders',

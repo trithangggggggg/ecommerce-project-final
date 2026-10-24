@@ -16,6 +16,10 @@ import {
   AlertCircle,
   Truck,
   CheckCircle,
+  Gift,
+  Copy,
+  Check,
+  Tag,
 } from 'lucide-react';
 import { orderService } from '../../api/services/order.service';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -50,6 +54,13 @@ export const MyOrdersPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<FilterTab>('ALL');
   const [selectedOrder, setSelectedOrder] = useState<OrderResponse | null>(null);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
+  const [copiedCoupon, setCopiedCoupon] = useState<string | null>(null);
+
+  const handleCopyCoupon = (code: string) => {
+    navigator.clipboard?.writeText(code);
+    setCopiedCoupon(code);
+    setTimeout(() => setCopiedCoupon(null), 2500);
+  };
 
   // Nhận newOrderId từ state nếu vừa checkout thành công
   const newOrderId = (location.state as { newOrderId?: number })?.newOrderId;
@@ -367,7 +378,7 @@ export const MyOrdersPage: React.FC = () => {
                     </div>
 
                     {/* Total & Action Buttons */}
-                    <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100">
+                    <div className="flex flex-wrap items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100">
                       <div className="text-left sm:text-right">
                         <span className="text-[11px] text-gray-500 block">
                           Tổng đơn ({totalItemsCount} món):
@@ -375,7 +386,44 @@ export const MyOrdersPage: React.FC = () => {
                         <span className="text-base font-black text-red-600">
                           {formatPrice(order.totalAmount)}
                         </span>
+                        {order.discountAmount && order.discountAmount > 0 ? (
+                          <div className="text-[10px] font-semibold text-emerald-700 flex items-center justify-start sm:justify-end gap-1 mt-0.5">
+                            <Tag className="w-2.5 h-2.5" />
+                            <span>Đã giảm {formatPrice(order.discountAmount)} {order.couponCode ? `(${order.couponCode})` : ''}</span>
+                          </div>
+                        ) : null}
                       </div>
+
+                      {/* Hiển thị lý do hủy & mã giảm giá 5% đền bù bên cạnh nút Chi tiết */}
+                      {order.status === 'CANCELLED' && (order.cancelReason || order.compensationCoupon) && (
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-3 py-1.5 rounded-xl bg-rose-50 border border-rose-200 text-xs">
+                          <div className="flex items-center gap-1.5 text-rose-800">
+                            <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                            <span className="text-[11px]">
+                              <strong className="font-bold text-rose-900">Lý do hủy:</strong> "{order.cancelReason || 'Sản phẩm của chúng tôi gặp vấn đề vì vậy có thể sẽ ngừng cung cấp một thời gian'}"
+                            </span>
+                          </div>
+                          {order.compensationCoupon && (
+                            <div className="flex items-center gap-1.5 sm:pl-2 sm:border-l sm:border-rose-200">
+                              <Gift className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                              <span className="text-[11px] font-bold text-amber-900 whitespace-nowrap">Tặng mã 5%:</span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyCoupon(order.compensationCoupon!)}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-amber-300 font-mono font-bold text-amber-800 hover:bg-amber-100/80 transition cursor-pointer shadow-2xs text-[11px]"
+                                title="Bấm để sao chép mã voucher"
+                              >
+                                <span>{order.compensationCoupon}</span>
+                                {copiedCoupon === order.compensationCoupon ? (
+                                  <Check className="w-3 h-3 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3 h-3 text-amber-600" />
+                                )}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {order.status === 'PENDING' && (
                         <button
@@ -455,6 +503,42 @@ export const MyOrdersPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Cancellation Reason & Compensation Voucher Banner */}
+              {selectedOrder.status === 'CANCELLED' && (selectedOrder.cancelReason || selectedOrder.compensationCoupon) && (
+                <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-950 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-rose-800">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>Lý do hủy đơn hàng:</span>
+                  </div>
+                  <p className="text-rose-900 leading-relaxed pl-6">
+                    "{selectedOrder.cancelReason || 'Sản phẩm của chúng tôi gặp vấn đề vì vậy có thể sẽ ngừng cung cấp một thời gian'}"
+                  </p>
+                  {selectedOrder.compensationCoupon && (
+                    <div className="mt-2 pt-2 border-t border-rose-200 flex flex-wrap items-center justify-between gap-2 pl-6">
+                      <div className="flex items-center gap-1.5 text-amber-900">
+                        <Gift className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span className="font-bold">Mã giảm giá 5% tri ân dành riêng cho bạn:</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyCoupon(selectedOrder.compensationCoupon!)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white border border-amber-300 font-mono font-bold text-amber-800 hover:bg-amber-100/80 transition cursor-pointer shadow-xs text-xs"
+                        title="Bấm để sao chép mã voucher"
+                      >
+                        <span>{selectedOrder.compensationCoupon}</span>
+                        {copiedCoupon === selectedOrder.compensationCoupon ? (
+                          <span className="text-emerald-600 flex items-center gap-1 text-[11px]">
+                            <Check className="w-3.5 h-3.5" /> Đã chép
+                          </span>
+                        ) : (
+                          <Copy className="w-3.5 h-3.5 text-amber-600" />
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Delivery Information Box */}
               <div className="space-y-2 text-xs bg-gray-50/60 p-4 rounded-xl border border-gray-200/80">
                 <h4 className="font-bold text-gray-900 uppercase tracking-wide text-[11px]">
@@ -533,12 +617,33 @@ export const MyOrdersPage: React.FC = () => {
 
               {/* Total Calculation */}
               <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 text-xs space-y-2">
+                {selectedOrder.discountAmount && selectedOrder.discountAmount > 0 ? (
+                  <>
+                    <div className="flex justify-between text-gray-600">
+                      <span>Tạm tính tiền hàng</span>
+                      <span className="font-semibold text-gray-900">
+                        {formatPrice(selectedOrder.totalAmount + selectedOrder.discountAmount)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-emerald-700">
+                      <span className="flex items-center gap-1">
+                        <Tag className="w-3.5 h-3.5" />
+                        Giảm giá voucher {selectedOrder.couponCode ? `(${selectedOrder.couponCode})` : ''}
+                      </span>
+                      <span className="font-semibold">
+                        -{formatPrice(selectedOrder.discountAmount)}
+                      </span>
+                    </div>
+                  </>
+                ) : null}
                 <div className="flex justify-between text-gray-600">
                   <span>Phí vận chuyển</span>
                   <span className="font-semibold text-emerald-600">Miễn phí</span>
                 </div>
                 <div className="flex justify-between items-baseline pt-2 border-t border-gray-200">
-                  <span className="font-bold text-sm text-gray-900">Tổng tiền đã thanh toán</span>
+                  <span className="font-bold text-sm text-gray-900">
+                    Tổng tiền {selectedOrder.paymentMethod === 'COD' ? 'cần thanh toán' : 'đã thanh toán'}
+                  </span>
                   <span className="text-lg font-black text-red-600">
                     {formatPrice(selectedOrder.totalAmount)}
                   </span>

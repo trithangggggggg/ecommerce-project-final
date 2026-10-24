@@ -29,7 +29,7 @@ public class AdminDashboardController {
     @GetMapping("/stats")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getDashboardStats() {
         Map<String, Object> stats = new HashMap<>();
-        long totalProducts = productRepository.count();
+        long totalProducts = productRepository.countActiveProducts();
         long totalOrders = orderRepository.count();
         long totalCustomers = userRepository.countByRole(ra.project.server.model.enums.Role.CUSTOMER);
 

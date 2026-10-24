@@ -42,5 +42,7 @@ public interface ProductService {
 
     ProductResponse updateProductStock(Long id, Integer stock);
 
+    java.util.List<ra.project.server.model.dto.response.OrderResponse> getActiveOrdersForProduct(Long productId);
+
     void deleteProduct(Long id);
 }

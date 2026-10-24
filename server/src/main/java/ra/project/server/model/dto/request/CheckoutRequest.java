@@ -28,6 +28,8 @@ public class CheckoutRequest {
 
     private String note;
 
+    private String couponCode;
+
     @Builder.Default
     private PaymentMethod paymentMethod = PaymentMethod.COD;
 
