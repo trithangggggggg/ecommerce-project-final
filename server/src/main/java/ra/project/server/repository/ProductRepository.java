@@ -31,6 +31,9 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
     long countByCategoryId(Long categoryId);
 
+    @Query("SELECT COUNT(p) FROM Product p WHERE p.isDeleted = false OR p.isDeleted IS NULL")
+    long countActiveProducts();
+
     @Modifying
     @Query("UPDATE Product p SET p.stock = (SELECT COALESCE(SUM(v.stock), 0) FROM ProductVariant v WHERE v.product.id = p.id AND v.status = true) WHERE p.id = :productId")
     void syncProductTotalStock(@Param("productId") Long productId);

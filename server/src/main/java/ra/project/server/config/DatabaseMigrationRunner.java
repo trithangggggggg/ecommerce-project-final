@@ -33,6 +33,7 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
             migrateProductBrandIfNotExists();
             createVariantTablesIfNotExists();
             addOrderItemColumnsIfNotExists();
+            migrateOrderCancelAndProductDeletionColumns();
             migrateDefaultVariantsForExistingProducts();
             backfillOrderItems();
             log.info(">>> [Migration] Hoàn tất migration biến thể sản phẩm thành công!");
@@ -173,6 +174,64 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
         if (!existingColumns.contains("sku")) {
             log.info(">>> [Migration] Thêm cột 'sku' vào bảng 'order_items'...");
             jdbcTemplate.execute("ALTER TABLE order_items ADD COLUMN sku VARCHAR(100) NULL");
+        }
+    }
+
+    private void migrateOrderCancelAndProductDeletionColumns() throws SQLException {
+        Set<String> orderColumns = getTableColumns("orders");
+        if (!orderColumns.contains("cancel_reason")) {
+            log.info(">>> [Migration] Thêm cột 'cancel_reason' vào bảng 'orders'...");
+            jdbcTemplate.execute("ALTER TABLE orders ADD COLUMN cancel_reason VARCHAR(500) NULL");
+        }
+        if (!orderColumns.contains("compensation_coupon")) {
+            log.info(">>> [Migration] Thêm cột 'compensation_coupon' vào bảng 'orders'...");
+            jdbcTemplate.execute("ALTER TABLE orders ADD COLUMN compensation_coupon VARCHAR(100) NULL");
+        }
+        if (!orderColumns.contains("coupon_code")) {
+            log.info(">>> [Migration] Thêm cột 'coupon_code' vào bảng 'orders'...");
+            jdbcTemplate.execute("ALTER TABLE orders ADD COLUMN coupon_code VARCHAR(50) NULL");
+        }
+        if (!orderColumns.contains("discount_amount")) {
+            log.info(">>> [Migration] Thêm cột 'discount_amount' vào bảng 'orders'...");
+            jdbcTemplate.execute("ALTER TABLE orders ADD COLUMN discount_amount DECIMAL(12, 2) NOT NULL DEFAULT 0.00");
+        }
+
+        Set<String> productColumns = getTableColumns("products");
+        if (!productColumns.contains("is_deleted")) {
+            log.info(">>> [Migration] Thêm cột 'is_deleted' vào bảng 'products'...");
+            jdbcTemplate.execute("ALTER TABLE products ADD COLUMN is_deleted BOOLEAN NOT NULL DEFAULT FALSE");
+        }
+
+        Set<String> orderItemColumns = getTableColumns("order_items");
+        if (!orderItemColumns.contains("product_image_url")) {
+            log.info(">>> [Migration] Thêm cột 'product_image_url' vào bảng 'order_items'...");
+            jdbcTemplate.execute("ALTER TABLE order_items ADD COLUMN product_image_url VARCHAR(500) NULL");
+            try {
+                jdbcTemplate.update("""
+                    UPDATE order_items oi
+                    JOIN products p ON oi.product_id = p.id
+                    SET oi.product_image_url = p.image_url
+                    WHERE oi.product_image_url IS NULL AND p.image_url IS NOT NULL
+                """);
+            } catch (Exception e) {
+                log.warn(">>> [Migration] Không thể backfill product_image_url: {}", e.getMessage());
+            }
+        }
+
+        Set<String> promoColumns = getTableColumns("promotions");
+        if (!promoColumns.contains("user_id")) {
+            log.info(">>> [Migration] Thêm cột 'user_id' vào bảng 'promotions'...");
+            jdbcTemplate.execute("ALTER TABLE promotions ADD COLUMN user_id BIGINT NULL");
+            try {
+                jdbcTemplate.update("""
+                    UPDATE promotions p
+                    JOIN orders o ON o.compensation_coupon = p.code
+                    SET p.user_id = o.user_id
+                    WHERE p.user_id IS NULL AND o.compensation_coupon IS NOT NULL
+                """);
+            } catch (Exception e) {
+                log.warn(">>> [Migration] Không thể backfill user_id cho promotions: {}", e.getMessage());
+            }
         }
     }
 

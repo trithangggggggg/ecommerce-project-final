@@ -42,6 +42,9 @@ public class OrderItem {
     @Column(name = "sku", length = 100)
     private String sku;
 
+    @Column(name = "product_image_url", length = 500)
+    private String productImageUrl;
+
     @Column(name = "quantity", nullable = false)
     private Integer quantity;
 

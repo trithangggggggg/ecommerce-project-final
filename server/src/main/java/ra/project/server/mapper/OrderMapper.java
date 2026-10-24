@@ -35,6 +35,10 @@ public class OrderMapper {
                 .status(order.getStatus())
                 .paymentMethod(order.getPaymentMethod())
                 .note(order.getNote())
+                .cancelReason(order.getCancelReason())
+                .compensationCoupon(order.getCompensationCoupon())
+                .couponCode(order.getCouponCode())
+                .discountAmount(order.getDiscountAmount())
                 .orderItems(itemResponses)
                 .createdAt(order.getCreatedAt())
                 .updatedAt(order.getUpdatedAt())
@@ -52,9 +56,11 @@ public class OrderMapper {
         String vName = item.getVariantName();
         String sku = item.getSku() != null ? item.getSku() : (variant != null ? variant.getSku() : null);
 
-        String imgUrl = (variant != null && variant.getImageUrl() != null && !variant.getImageUrl().isBlank())
-                ? variant.getImageUrl()
-                : (product != null ? product.getImageUrl() : null);
+        String imgUrl = (item.getProductImageUrl() != null && !item.getProductImageUrl().isBlank())
+                ? item.getProductImageUrl()
+                : ((variant != null && variant.getImageUrl() != null && !variant.getImageUrl().isBlank())
+                    ? variant.getImageUrl()
+                    : (product != null ? product.getImageUrl() : null));
 
         return OrderItemResponse.builder()
                 .id(item.getId())

@@ -22,6 +22,7 @@ export interface CheckoutRequest {
   phoneNumber: string;
   shippingAddress: string;
   note?: string;
+  couponCode?: string;
   paymentMethod?: PaymentMethod;
   items: OrderItemRequest[];
 }
@@ -51,6 +52,10 @@ export interface OrderResponse {
   status: OrderStatus;
   paymentMethod: PaymentMethod;
   note?: string;
+  cancelReason?: string;
+  compensationCoupon?: string;
+  couponCode?: string;
+  discountAmount?: number;
   orderItems: OrderItemResponse[];
   items?: OrderItemResponse[];
   createdAt: string;

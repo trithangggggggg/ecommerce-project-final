@@ -95,8 +95,8 @@ public class SecurityConfig {
                         // Cho phép gọi các endpoint Auth và Chatbot AI không cần đăng nhập
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/ai/**").permitAll()
-                        // Cho phép xem sản phẩm, danh mục công khai
-                        .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**").permitAll()
+                        // Cho phép xem sản phẩm, danh mục và tra cứu mã giảm giá công khai
+                        .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**", "/api/promotions/**").permitAll()
                         // Phân quyền ADMIN cho các chức năng quản trị
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // Các API cá nhân và đơn hàng yêu cầu đã đăng nhập

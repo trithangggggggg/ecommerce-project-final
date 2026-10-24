@@ -9,10 +9,13 @@ import org.springframework.transaction.annotation.Transactional;
 import ra.project.server.common.response.PageResponse;
 import ra.project.server.exception.BadRequestException;
 import ra.project.server.exception.ResourceNotFoundException;
+import ra.project.server.mapper.OrderMapper;
 import ra.project.server.mapper.ProductMapper;
 import ra.project.server.model.dto.request.*;
+import ra.project.server.model.dto.response.OrderResponse;
 import ra.project.server.model.dto.response.ProductResponse;
 import ra.project.server.model.entity.*;
+import ra.project.server.model.enums.OrderStatus;
 import ra.project.server.repository.*;
 import ra.project.server.service.ProductService;
 
@@ -30,7 +33,10 @@ public class ProductServiceImpl implements ProductService {
     private final ProductOptionRepository productOptionRepository;
     private final ProductVariantRepository productVariantRepository;
     private final OrderItemRepository orderItemRepository;
+    private final OrderRepository orderRepository;
+    private final PromotionRepository promotionRepository;
     private final ProductMapper productMapper;
+    private final OrderMapper orderMapper;
 
     @Override
     @Transactional(readOnly = true)
@@ -146,11 +152,78 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<OrderResponse> getActiveOrdersForProduct(Long productId) {
+        List<OrderStatus> activeStatuses = List.of(
+                OrderStatus.PENDING,
+                OrderStatus.PROCESSING,
+                OrderStatus.SHIPPING
+        );
+        List<Order> activeOrders = orderRepository.findActiveOrdersByProductId(productId, activeStatuses);
+        return activeOrders.stream()
+                .map(orderMapper::toResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional
     public void deleteProduct(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + id));
 
-        productRepository.delete(product);
+        // 1. Tìm tất cả các đơn hàng đang có người đặt (PENDING, PROCESSING, SHIPPING) chứa sản phẩm này
+        List<OrderStatus> activeStatuses = List.of(
+                OrderStatus.PENDING,
+                OrderStatus.PROCESSING,
+                OrderStatus.SHIPPING
+        );
+        List<Order> activeOrders = orderRepository.findActiveOrdersByProductId(id, activeStatuses);
+
+        // 2. Chuyển các đơn hàng này về trạng thái CANCELLED, kèm lý do và tặng mã voucher 5%
+        if (activeOrders != null && !activeOrders.isEmpty()) {
+            for (Order order : activeOrders) {
+                // Hoàn lại tồn kho cho các biến thể trong đơn hàng
+                if (order.getOrderItems() != null) {
+                    for (OrderItem item : order.getOrderItems()) {
+                        if (item.getVariant() != null && item.getVariant().getId() != null && item.getQuantity() != null) {
+                            productVariantRepository.restoreStock(item.getVariant().getId(), item.getQuantity());
+                        }
+                    }
+                }
+
+                order.setStatus(OrderStatus.CANCELLED);
+                order.setCancelReason("Sản phẩm của chúng tôi gặp vấn đề vì vậy có thể sẽ ngừng cung cấp một thời gian");
+
+                // Tạo mã voucher 5% đền bù riêng cho khách hàng sở hữu đơn hàng bị hủy
+                String voucherCode = "DENBU5-" + order.getId() + "-" + UUID.randomUUID().toString().substring(0, 4).toUpperCase();
+                Long recipientUserId = order.getUser() != null ? order.getUser().getId() : null;
+                Promotion promo = Promotion.builder()
+                        .code(voucherCode)
+                        .title("Mã tri ân 5% (Đền bù đơn hàng #" + order.getId() + ")")
+                        .discount("5%")
+                        .minOrder("Mọi đơn hàng")
+                        .expiry("2026-12-31")
+                        .usedCount(0)
+                        .maxUsage(1)
+                        .status("ACTIVE")
+                        .userId(recipientUserId)
+                        .build();
+                promotionRepository.save(promo);
+
+                order.setCompensationCoupon(voucherCode);
+                orderRepository.save(order);
+            }
+        }
+
+        // 3. Xóa mềm sản phẩm (ẩn khỏi toàn bộ danh sách Admin & Khách hàng, ngừng kinh doanh biến thể)
+        product.setIsDeleted(true);
+        product.setStatus(false);
+        if (product.getVariants() != null) {
+            for (ProductVariant v : product.getVariants()) {
+                v.setStatus(false);
+            }
+        }
+        productRepository.save(product);
     }
 
     private void validateVariantsAndOptions(ProductRequest request, Long currentProductId) {

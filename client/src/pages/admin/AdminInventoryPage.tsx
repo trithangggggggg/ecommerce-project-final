@@ -4,7 +4,6 @@ import {
   Plus,
   Search,
   Edit,
-  Trash2,
   X,
   CheckCircle2,
   MapPin,
@@ -92,7 +91,6 @@ export const AdminInventoryPage: React.FC = () => {
   // Modals state
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<InventoryItem | null>(null);
 
   // Forms
   const [addForm, setAddForm] = useState({
@@ -213,14 +211,6 @@ export const AdminInventoryPage: React.FC = () => {
       const msg = err instanceof Error ? err.message : 'Không thể cập nhật số lượng tồn kho';
       showToast(`Lỗi: ${msg}`);
     }
-  };
-
-  // Delete
-  const handleDeleteConfirm = () => {
-    if (!deleteTarget) return;
-    setItems((prev) => prev.filter((item) => item.id !== deleteTarget.id));
-    showToast(`Đã xóa SKU ${deleteTarget.sku} khỏi kho`);
-    setDeleteTarget(null);
   };
 
   // Filter
@@ -385,7 +375,7 @@ export const AdminInventoryPage: React.FC = () => {
                 <th className="py-2.5 px-3 bg-slate-50/95 text-center">Định mức</th>
                 <th className="py-2.5 px-3 bg-slate-50/95">Trạng thái kho</th>
                 <th className="py-2.5 px-3 bg-slate-50/95">Cập nhật</th>
-                <th className="py-2.5 px-3 bg-slate-50/95 text-right">Thao tác</th>
+                <th className="py-2.5 px-3 bg-slate-50/95 text-center">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -475,8 +465,8 @@ export const AdminInventoryPage: React.FC = () => {
                     </td>
 
                     {/* Actions */}
-                    <td className="py-2 px-3 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1">
+                    <td className="py-2 px-3 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1">
                         <button
                           type="button"
                           onClick={() => handleOpenEdit(item)}
@@ -484,14 +474,6 @@ export const AdminInventoryPage: React.FC = () => {
                           title="Cập nhật số lượng / kho"
                         >
                           <Edit className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTarget(item)}
-                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
-                          title="Xóa SKU khỏi kho"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>
@@ -737,38 +719,6 @@ export const AdminInventoryPage: React.FC = () => {
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* ======================================================== */}
-      {/* MODAL 3: XÁC NHẬN XÓA SKU KHỎI KHO                        */}
-      {/* ======================================================== */}
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-sm w-full p-5 shadow-2xl space-y-4 font-sans text-center">
-            <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Xóa SKU {deleteTarget.sku}?</h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Bạn có chắc chắn muốn xóa bản ghi tồn kho của <strong>{deleteTarget.productName}</strong>?
-              </p>
-            </div>
-            <div className="flex justify-center gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)}>
-                Hủy bỏ
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                className="bg-rose-600 hover:bg-rose-700 text-white border-transparent"
-                onClick={handleDeleteConfirm}
-              >
-                Xác nhận xóa
-              </Button>
-            </div>
           </div>
         </div>
       )}

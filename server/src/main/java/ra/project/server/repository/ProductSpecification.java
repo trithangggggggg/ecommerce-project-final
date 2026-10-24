@@ -32,6 +32,9 @@ public class ProductSpecification {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
+            // 0. Bỏ qua các sản phẩm đã bị xóa (isDeleted = true)
+            predicates.add(cb.or(cb.isNull(root.get("isDeleted")), cb.isFalse(root.get("isDeleted"))));
+
             // 1. Tìm kiếm theo keyword trong tên hoặc mô tả
             if (StringUtils.hasText(keyword)) {
                 String pattern = "%" + keyword.trim().toLowerCase() + "%";

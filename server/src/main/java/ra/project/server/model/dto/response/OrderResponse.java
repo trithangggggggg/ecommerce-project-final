@@ -29,6 +29,10 @@ public class OrderResponse {
     private OrderStatus status;
     private PaymentMethod paymentMethod;
     private String note;
+    private String cancelReason;
+    private String compensationCoupon;
+    private String couponCode;
+    private BigDecimal discountAmount;
     private List<OrderItemResponse> orderItems;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")

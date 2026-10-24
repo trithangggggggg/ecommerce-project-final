@@ -25,6 +25,7 @@ import ra.project.server.model.enums.Role;
 import ra.project.server.repository.OrderRepository;
 import ra.project.server.repository.ProductRepository;
 import ra.project.server.repository.ProductVariantRepository;
+import ra.project.server.repository.PromotionRepository;
 import ra.project.server.repository.UserRepository;
 import ra.project.server.service.impl.OrderServiceImpl;
 
@@ -48,6 +49,9 @@ class OrderServiceImplTest {
 
     @Mock
     private ProductVariantRepository productVariantRepository;
+
+    @Mock
+    private PromotionRepository promotionRepository;
 
     @Mock
     private UserRepository userRepository;

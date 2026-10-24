@@ -13,7 +13,6 @@ import {
   Truck,
   Plus,
   Edit,
-  Trash2,
   Calendar,
   ArrowUpDown,
   RotateCcw,
@@ -74,7 +73,6 @@ export const AdminOrdersPage: React.FC = () => {
   // CRUD Modals state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<OrderResponse | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<OrderResponse | null>(null);
 
   // Create form state
   const [newOrderForm, setNewOrderForm] = useState<{
@@ -284,14 +282,6 @@ export const AdminOrdersPage: React.FC = () => {
     }
   };
 
-  // Confirm Delete Order
-  const handleConfirmDelete = () => {
-    if (!deleteTarget) return;
-    setOrders((prev) => prev.filter((o) => o.id !== deleteTarget.id));
-    if (selectedOrder?.id === deleteTarget.id) setSelectedOrder(null);
-    showToast(`Đã xóa đơn hàng #ORD-${deleteTarget.id} khỏi hệ thống.`);
-    setDeleteTarget(null);
-  };
 
   // Đa dạng tìm kiếm cho mục Đơn hàng (mã đơn, tên khách, số điện thoại, tên sản phẩm, trạng thái, địa chỉ)
   const filteredOrders = useMemo(() => {
@@ -764,7 +754,7 @@ export const AdminOrdersPage: React.FC = () => {
                         {formattedDate}
                       </td>
 
-                      {/* 7. THAO TÁC: Xem, Sửa, Xóa */}
+                      {/* 7. THAO TÁC: Xem, Sửa */}
                       <td className="py-2.5 px-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
                           <button
@@ -782,14 +772,6 @@ export const AdminOrdersPage: React.FC = () => {
                             title="Chỉnh sửa đơn hàng"
                           >
                             <Edit className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(order)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                            title="Xóa đơn hàng"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
@@ -1057,37 +1039,6 @@ export const AdminOrdersPage: React.FC = () => {
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* MODAL 3: XÁC NHẬN XÓA ĐƠN HÀNG (XÓA)                     */}
-      {/* ======================================================== */}
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-sm w-full p-5 shadow-2xl space-y-4 font-sans text-center">
-            <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Xóa đơn hàng #ORD-{deleteTarget.id}?</h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Hành động này sẽ xóa vĩnh viễn đơn hàng của khách hàng <strong>{deleteTarget.customerName || deleteTarget.receiverName}</strong> khỏi danh sách.
-              </p>
-            </div>
-            <div className="flex justify-center gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)}>
-                Hủy bỏ
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                className="bg-rose-600 hover:bg-rose-700 text-white border-transparent"
-                onClick={handleConfirmDelete}
-              >
-                Xác nhận xóa
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ======================================================== */}
       {/* MODAL 4: XEM CHI TIẾT ĐƠN HÀNG                           */}

@@ -25,10 +25,13 @@ import {
   ChevronDown,
   RotateCcw,
   Filter,
+  AlertTriangle,
+  Gift,
 } from 'lucide-react';
 import { productService } from '../../api/services/product.service';
 import { aiService } from '../../api/services/ai.service';
 import { formatPrice } from '../../utils/format';
+import type { OrderResponse } from '../../models/order.model';
 import {
   LAPTOP_REQUIRED_SPECS,
   LAPTOP_FULL_SPECS,
@@ -190,6 +193,22 @@ export const AdminProductsPage: React.FC = () => {
   // Delete Confirm Modal
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [activeOrdersForDelete, setActiveOrdersForDelete] = useState<OrderResponse[]>([]);
+  const [isLoadingActiveOrders, setIsLoadingActiveOrders] = useState(false);
+
+  const handleOpenDeleteModal = async (product: { id: number; name: string }) => {
+    setDeleteTarget(product);
+    setIsLoadingActiveOrders(true);
+    setActiveOrdersForDelete([]);
+    try {
+      const orders = await productService.getActiveOrders(product.id);
+      setActiveOrdersForDelete(orders);
+    } catch {
+      setActiveOrdersForDelete([]);
+    } finally {
+      setIsLoadingActiveOrders(false);
+    }
+  };
 
   // Toast Notification
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -821,10 +840,18 @@ export const AdminProductsPage: React.FC = () => {
     setIsDeleting(true);
 
     try {
+      const orderCount = activeOrdersForDelete.length;
       await productService.deleteProduct(deleteTarget.id);
       setProducts((prev) => prev.filter((p) => p.id !== deleteTarget.id));
-      showToast(`Đã xóa sản phẩm "${deleteTarget.name}" khỏi hệ thống!`);
+      if (orderCount > 0) {
+        showToast(
+          `Đã xóa sản phẩm "${deleteTarget.name}", tự động hủy ${orderCount} đơn hàng và tặng mã giảm giá 5% cho khách hàng!`
+        );
+      } else {
+        showToast(`Đã xóa sản phẩm "${deleteTarget.name}" khỏi hệ thống!`);
+      }
       setDeleteTarget(null);
+      setActiveOrdersForDelete([]);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Không thể xóa sản phẩm';
       showToast(msg, 'error');
@@ -1136,7 +1163,7 @@ export const AdminProductsPage: React.FC = () => {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setDeleteTarget({ id: p.id, name: p.name })}
+                            onClick={() => handleOpenDeleteModal({ id: p.id, name: p.name })}
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
                             title="Xóa sản phẩm"
                           >
@@ -2510,49 +2537,163 @@ export const AdminProductsPage: React.FC = () => {
       )}
 
       {/* ======================================================== */}
-      {/* MODAL 2: XÁC NHẬN XÓA SẢN PHẨM                            */}
+      {/* MODAL 2: XÁC NHẬN XÓA SẢN PHẨM & XỬ LÝ ĐƠN HÀNG          */}
       {/* ======================================================== */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 shadow-2xl space-y-4 font-sans">
-            <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-2">
-              <Trash2 className="w-6 h-6" />
-            </div>
+          <div className={`bg-white rounded-2xl border border-slate-200 w-full p-6 shadow-2xl space-y-4 font-sans ${
+            activeOrdersForDelete.length > 0 ? 'max-w-xl' : 'max-w-md'
+          }`}>
+            {isLoadingActiveOrders ? (
+              <div className="py-10 text-center space-y-3">
+                <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto" />
+                <p className="text-xs text-slate-500 font-medium">
+                  Đang kiểm tra các đơn hàng đang đặt của sản phẩm...
+                </p>
+              </div>
+            ) : activeOrdersForDelete.length > 0 ? (
+              <>
+                <div className="flex items-center gap-3 pb-3 border-b border-amber-100">
+                  <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      Sản phẩm đang có người đặt ({activeOrdersForDelete.length} đơn hàng)
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Sản phẩm <strong className="text-slate-800">"{deleteTarget.name}"</strong> hiện đang nằm trong các đơn hàng chưa hoàn thành.
+                    </p>
+                  </div>
+                </div>
 
-            <div className="text-center space-y-1">
-              <h3 className="text-base font-bold text-slate-900">Xác nhận xóa sản phẩm</h3>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Bạn có chắc chắn muốn xóa vĩnh viễn sản phẩm:
-                <br />
-                <strong className="text-slate-800 font-bold">"{deleteTarget.name}"</strong> (#{deleteTarget.id})?
-                <br />
-                <span className="text-rose-600 text-[11px] font-semibold mt-1 block">
-                  Hành động này sẽ gửi yêu cầu DELETE lên máy chủ và không thể hoàn tác.
-                </span>
-              </p>
-            </div>
+                {/* Danh sách đơn hàng đang đặt */}
+                <div className="space-y-1.5">
+                  <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+                    Danh sách đơn hàng bị ảnh hưởng:
+                  </span>
+                  <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100 text-xs">
+                    {activeOrdersForDelete.map((order) => (
+                      <div key={order.id} className="p-3 flex items-center justify-between gap-3 bg-slate-50/50 hover:bg-slate-50 transition">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-slate-900">#{order.id}</span>
+                            <span className="text-slate-400">•</span>
+                            <span className="font-semibold text-slate-700 truncate">
+                              {order.receiverName} ({order.phoneNumber})
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                            {order.shippingAddress}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="font-bold text-red-600 block">
+                            {formatPrice(order.totalAmount)}
+                          </span>
+                          <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            {order.status === 'PENDING'
+                              ? 'Chờ xử lý'
+                              : order.status === 'PROCESSING'
+                              ? 'Đang xử lý'
+                              : 'Đang giao'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
-            <div className="flex items-center justify-center gap-3 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                onClick={() => setDeleteTarget(null)}
-                disabled={isDeleting}
-              >
-                Hủy bỏ
-              </Button>
-              <Button
-                type="button"
-                variant="danger"
-                size="md"
-                isLoading={isDeleting}
-                onClick={handleConfirmDelete}
-                leftIcon={<Trash2 className="w-4 h-4" />}
-              >
-                Xác nhận xóa
-              </Button>
-            </div>
+                {/* Hộp giải thích chính sách khi xóa */}
+                <div className="p-3.5 bg-amber-50/80 rounded-xl border border-amber-200 text-xs text-amber-950 space-y-2">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                    <Gift className="w-4 h-4 text-amber-700" />
+                    <span>Quy trình xử lý tự động khi bạn xác nhận XÓA:</span>
+                  </div>
+                  <ul className="list-disc list-inside space-y-1 text-[11px] text-amber-900/90 leading-relaxed">
+                    <li>
+                      Tự động chuyển <strong>{activeOrdersForDelete.length} đơn hàng</strong> trên sang trạng thái <strong className="text-rose-700">Đã hủy</strong>.
+                    </li>
+                    <li>
+                      Gửi thông báo lý do hủy: <em>"Sản phẩm của chúng tôi gặp vấn đề vì vậy có thể sẽ ngừng cung cấp một thời gian"</em>.
+                    </li>
+                    <li>
+                      Tự động tạo & tặng mỗi khách hàng <strong>mã giảm giá 5%</strong> để tri ân và đền bù.
+                    </li>
+                    <li>
+                      Gỡ sản phẩm khỏi danh mục bán hàng hệ thống.
+                    </li>
+                  </ul>
+                </div>
+
+                {/* 2 Lựa chọn rõ ràng */}
+                <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={() => {
+                      setDeleteTarget(null);
+                      setActiveOrdersForDelete([]);
+                    }}
+                    disabled={isDeleting}
+                  >
+                    Không xóa
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="md"
+                    isLoading={isDeleting}
+                    onClick={handleConfirmDelete}
+                    leftIcon={<Trash2 className="w-4 h-4" />}
+                  >
+                    Xác nhận xóa & Hủy đơn
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-2">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+
+                <div className="text-center space-y-1">
+                  <h3 className="text-base font-bold text-slate-900">Xác nhận xóa sản phẩm</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Sản phẩm <strong className="text-slate-800 font-bold">"{deleteTarget.name}"</strong> hiện không có đơn hàng nào đang đặt.
+                    <br />
+                    Bạn có chắc chắn muốn xóa sản phẩm này khỏi hệ thống?
+                  </p>
+                </div>
+
+                {/* 2 Lựa chọn rõ ràng */}
+                <div className="flex items-center justify-center gap-3 pt-2 border-t border-slate-100">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={() => {
+                      setDeleteTarget(null);
+                      setActiveOrdersForDelete([]);
+                    }}
+                    disabled={isDeleting}
+                  >
+                    Không xóa
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="md"
+                    isLoading={isDeleting}
+                    onClick={handleConfirmDelete}
+                    leftIcon={<Trash2 className="w-4 h-4" />}
+                  >
+                    Xác nhận xóa
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
