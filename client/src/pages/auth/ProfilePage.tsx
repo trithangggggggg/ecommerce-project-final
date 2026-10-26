@@ -142,10 +142,15 @@ export const ProfilePage: React.FC = () => {
                 <img
                   src={
                     user.avatarUrl ||
+                    (user as any).avatar ||
                     'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'
                   }
                   alt={user.fullName}
                   className="w-22 h-22 rounded-2xl object-cover border-4 border-white shadow-md bg-white"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src =
+                      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
+                  }}
                 />
                 <button
                   type="button"

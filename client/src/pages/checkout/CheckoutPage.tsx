@@ -60,9 +60,9 @@ export const CheckoutPage: React.FC = () => {
   // Tự động điền dữ liệu từ thông tin tài khoản đang đăng nhập
   useEffect(() => {
     if (user) {
-      if (!receiverName) setReceiverName(user.fullName || '');
-      if (!phoneNumber) setPhoneNumber(user.phone || user.phoneNumber || '');
-      if (!shippingAddress) setShippingAddress(user.address || '');
+      setReceiverName((prev) => prev || user.fullName || '');
+      setPhoneNumber((prev) => prev || user.phone || user.phoneNumber || '');
+      setShippingAddress((prev) => prev || user.address || '');
     }
   }, [user]);
 

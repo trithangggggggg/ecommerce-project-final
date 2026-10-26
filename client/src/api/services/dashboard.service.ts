@@ -70,8 +70,7 @@ export const dashboardService = {
    * Lấy toàn bộ số liệu thống kê Dashboard từ MySQL Database
    */
   async getDashboardData(): Promise<DashboardData> {
-    try {
-      // 1. Thử gọi API chuyên biệt phía Backend nếu có
+    // 1. Thử gọi API chuyên biệt phía Backend nếu có
       let serverStats: any = null;
       try {
         const adminStatsRes = await axiosClient.get('/admin/dashboard/stats');
@@ -203,9 +202,6 @@ export const dashboardService = {
         topProducts,
         recentOrders,
       };
-    } catch (error) {
-      throw error;
-    }
   },
 };
 

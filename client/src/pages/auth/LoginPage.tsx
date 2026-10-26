@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AlertCircle, ArrowRight, Eye, EyeOff, Lock, Mail, X } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -38,13 +38,13 @@ export const LoginPage: React.FC = () => {
     }
   }, [isExpired]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     if (fromLocation) {
       navigate(fromLocation, { replace: true });
     } else {
       navigate(ROUTES.HOME, { replace: true });
     }
-  };
+  }, [fromLocation, navigate]);
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
@@ -61,7 +61,7 @@ export const LoginPage: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [handleClose]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

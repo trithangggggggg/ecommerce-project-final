@@ -237,10 +237,15 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
               <img
                 src={
                   user?.avatarUrl ||
+                  (user as any)?.avatar ||
                   'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150'
                 }
                 alt={user?.fullName || 'Admin'}
                 className="w-9 h-9 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src =
+                    'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150';
+                }}
               />
               <div className="min-w-0 flex-1">
                 <span className="text-[13px] font-bold text-slate-800 block truncate leading-tight">
