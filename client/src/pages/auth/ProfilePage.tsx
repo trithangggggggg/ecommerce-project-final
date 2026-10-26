@@ -4,6 +4,7 @@ import {
   AlertCircle,
   Camera,
   CheckCircle2,
+  Info,
   KeyRound,
   Lock,
   LogOut,
@@ -12,6 +13,7 @@ import {
   Phone,
   Save,
   ShieldCheck,
+  Sparkles,
   User as UserIcon,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -68,13 +70,16 @@ export const ProfilePage: React.FC = () => {
     }
 
     try {
-      await updateProfile({
+      const updatedUser = await updateProfile({
         fullName: fullName.trim(),
         phone: phone.trim(),
         phoneNumber: phone.trim(),
         address: address.trim(),
         avatarUrl: avatarUrl.trim(),
       });
+      if (updatedUser?.avatarUrl) {
+        setAvatarUrl(updatedUser.avatarUrl);
+      }
       setFeedback({ type: 'success', message: 'Cập nhật thông tin cá nhân thành công!' });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Lỗi khi cập nhật thông tin';
@@ -127,6 +132,12 @@ export const ProfilePage: React.FC = () => {
   }
 
   const isAdmin = user.role === ROLES.ADMIN;
+  const defaultFallbackAvatar = isAdmin
+    ? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150'
+    : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
+
+  const isPinterestLink =
+    avatarUrl.trim().includes('pinterest.com/pin/') || avatarUrl.trim().includes('pin.it/');
 
   return (
     <div className="min-h-screen bg-[#f5f6fa] py-8 px-4 sm:px-6 lg:px-8 font-sans">
@@ -140,16 +151,11 @@ export const ProfilePage: React.FC = () => {
             <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
               <div className="relative group">
                 <img
-                  src={
-                    user.avatarUrl ||
-                    (user as any).avatar ||
-                    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'
-                  }
+                  src={user.avatarUrl || (user as any).avatar || defaultFallbackAvatar}
                   alt={user.fullName}
                   className="w-22 h-22 rounded-2xl object-cover border-4 border-white shadow-md bg-white"
                   onError={(e) => {
-                    (e.target as HTMLImageElement).src =
-                      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
+                    (e.target as HTMLImageElement).src = defaultFallbackAvatar;
                   }}
                 />
                 <button
@@ -307,14 +313,41 @@ export const ProfilePage: React.FC = () => {
                 />
 
                 {/* Avatar URL */}
-                <Input
-                  label="Ảnh đại diện (URL)"
-                  type="url"
-                  value={avatarUrl}
-                  onChange={(e) => setAvatarUrl(e.target.value)}
-                  placeholder="https://example.com/avatar.jpg"
-                  leftIcon={<Camera className="w-4 h-4" />}
-                />
+                <div className="space-y-1.5">
+                  <Input
+                    label="Ảnh đại diện (URL)"
+                    type="url"
+                    value={avatarUrl}
+                    onChange={(e) => setAvatarUrl(e.target.value)}
+                    placeholder="https://example.com/avatar.jpg"
+                    leftIcon={<Camera className="w-4 h-4" />}
+                  />
+
+                  {/* Pinterest Pin URL Detection Banner */}
+                  {isPinterestLink && (
+                    <div className="p-2.5 bg-blue-50/90 border border-blue-200/90 rounded-xl flex items-start gap-2.5 text-xs text-blue-900 animate-fade-in">
+                      <Sparkles className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <span className="font-bold text-blue-800 block">
+                          Đã phát hiện liên kết bài viết Pinterest
+                        </span>
+                        <p className="text-blue-700 text-[11px] mt-0.5 leading-relaxed">
+                          Hệ thống sẽ <strong>tự động chuyển đổi</strong> liên kết bài viết này sang ảnh trực tiếp chất lượng cao (<code className="bg-blue-100 px-1 py-0.5 rounded text-blue-950 font-mono">i.pinimg.com/...jpg</code>) khi bạn bấm <strong>"Lưu thay đổi"</strong>.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Direct Image Tip */}
+                  {!isPinterestLink && (
+                    <p className="text-[11px] text-gray-500 flex items-center gap-1.5 pt-0.5">
+                      <Info className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      <span>
+                        Hỗ trợ link ảnh trực tiếp (.jpg, .png, i.pinimg.com) hoặc link Pinterest pin.
+                      </span>
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Address */}
