@@ -38,6 +38,8 @@ export interface OrderItemResponse {
   quantity: number;
   price: number;
   totalPrice: number;
+  categoryId?: number;
+  categoryName?: string;
 }
 
 export interface OrderResponse {
