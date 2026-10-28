@@ -183,11 +183,16 @@ jobs:
           envs: APP_IMAGE,FRONTEND_IMAGE,APP_TAG,GHCR_USER,GHCR_TOKEN,REPO_URL,DEPLOY_DIR,BRANCH_NAME,GEMINI_API_KEY,GEMINI_MODEL,ADMIN_USERNAME,ADMIN_EMAIL,ADMIN_PASSWORD
           script: |
             set -e
+            echo ">>> [Cleanup] Giai phong dung luong o dia VPS truoc khi deploy..."
+            docker container prune -f || true
+            docker image prune -af || true
+            docker builder prune -af || true
+            df -h /
             if [ ! -d "$HOME/$DEPLOY_DIR/.git" ]; then
-              git clone "$REPO_URL" "$HOME/$DEPLOY_DIR"
+              git clone --depth 1 -b "$BRANCH_NAME" "$REPO_URL" "$HOME/$DEPLOY_DIR"
             fi
             cd "$HOME/$DEPLOY_DIR"
-            git fetch origin "$BRANCH_NAME"
+            git fetch --depth 1 origin "$BRANCH_NAME"
             git reset --hard "origin/$BRANCH_NAME"
             if [ -n "$GEMINI_API_KEY" ]; then
               sed -i "s|GEMINI_API_KEY=.*|GEMINI_API_KEY=\"$GEMINI_API_KEY\"|g" student.env
@@ -211,4 +216,5 @@ jobs:
             docker compose --env-file student.env pull app nginx
             docker compose --env-file student.env up -d --no-build --wait --wait-timeout 300
             docker logout ghcr.io
+            docker image prune -f || true
             docker compose --env-file student.env ps
