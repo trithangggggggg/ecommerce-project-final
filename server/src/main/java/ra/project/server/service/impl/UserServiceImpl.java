@@ -23,7 +23,17 @@ import ra.project.server.repository.UserRepository;
 import ra.project.server.service.UserService;
 
 import java.math.BigDecimal;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Value;
 import ra.project.server.model.enums.Role;
@@ -72,12 +82,74 @@ public class UserServiceImpl implements UserService {
         }
 
         String username = authentication.getName();
-        if (isAdmin(username)) {
-            return getVirtualAdminUser();
+
+        // 1. Tìm tài khoản trong database trước (hỗ trợ cả username hoặc email)
+        Optional<User> userOpt = userRepository.findByUsernameIgnoreCase(username)
+                .or(() -> userRepository.findByEmailIgnoreCase(username));
+        if (userOpt.isPresent()) {
+            return userOpt.get();
+        }
+
+        // 2. Nếu là tài khoản Admin và chưa tìm thấy theo username/email chính xác
+        if (isAdmin(username) || "admin".equalsIgnoreCase(username)) {
+            // Tìm bất kỳ tài khoản nào có role ADMIN trong DB
+            Optional<User> adminInDb = userRepository.findAll().stream()
+                    .filter(u -> u.getRole() == Role.ADMIN)
+                    .findFirst();
+            if (adminInDb.isPresent()) {
+                return adminInDb.get();
+            }
+
+            // Fallback: Lưu virtual admin vào DB với ID tự tăng để có thể lưu và cập nhật vĩnh viễn
+            User newAdmin = getVirtualAdminUser();
+            newAdmin.setId(null);
+            return userRepository.save(newAdmin);
         }
 
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng", "tên tài khoản", username));
+    }
+
+    private String resolveAvatarUrl(String url) {
+        if (url == null || url.trim().isEmpty()) {
+            return url;
+        }
+        String cleanUrl = url.trim();
+
+        // Tự động phân giải link Pinterest sang ảnh trực tiếp chất lượng cao (i.pinimg.com/...jpg)
+        if (cleanUrl.contains("pinterest.com/pin/") || cleanUrl.contains("pin.it/")) {
+            try {
+                String oEmbedEndpoint = "https://www.pinterest.com/oembed.json?url=" +
+                        URLEncoder.encode(cleanUrl, StandardCharsets.UTF_8);
+
+                HttpClient client = HttpClient.newBuilder()
+                        .connectTimeout(Duration.ofSeconds(3))
+                        .followRedirects(HttpClient.Redirect.NORMAL)
+                        .build();
+
+                HttpRequest req = HttpRequest.newBuilder()
+                        .uri(URI.create(oEmbedEndpoint))
+                        .timeout(Duration.ofSeconds(3))
+                        .header("User-Agent", "Mozilla/5.0")
+                        .GET()
+                        .build();
+
+                HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+                if (resp.statusCode() == 200 && resp.body() != null) {
+                    Pattern pattern = Pattern.compile("\"thumbnail_url\"\\s*:\\s*\"([^\"]+)\"");
+                    Matcher matcher = pattern.matcher(resp.body());
+                    if (matcher.find()) {
+                        String thumb = matcher.group(1).replace("\\/", "/");
+                        // Nâng cấp độ phân giải từ 236x lên 736x
+                        return thumb.replace("/236x/", "/736x/");
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Không thể tự động phân giải ảnh Pinterest từ URL '{}': {}", cleanUrl, e.getMessage());
+            }
+        }
+
+        return cleanUrl;
     }
 
     @Override
@@ -92,6 +164,10 @@ public class UserServiceImpl implements UserService {
     public ApiResponse<UserProfileResponse> updateCurrentUserProfile(UpdateProfileRequest request) {
         User user = getCurrentAuthenticatedUser();
 
+        if (user.getId() != null && user.getId() == 0L) {
+            user.setId(null);
+        }
+
         if (request.getFullName() != null) {
             user.setFullName(request.getFullName().trim());
         }
@@ -102,7 +178,7 @@ public class UserServiceImpl implements UserService {
             user.setAddress(request.getAddress().trim());
         }
         if (request.getAvatarUrl() != null) {
-            user.setAvatarUrl(request.getAvatarUrl().trim());
+            user.setAvatarUrl(resolveAvatarUrl(request.getAvatarUrl()));
         }
 
         User updatedUser = userRepository.save(user);

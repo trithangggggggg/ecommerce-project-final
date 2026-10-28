@@ -781,9 +781,13 @@ export const AdminCustomersPage: React.FC = () => {
 
             <div className="flex items-center gap-3.5">
               <img
-                src={selectedCustomer.avatarUrl}
+                src={selectedCustomer.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
                 alt={selectedCustomer.fullName}
                 className="w-14 h-14 rounded-full object-cover ring-2 ring-slate-100"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src =
+                    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100';
+                }}
               />
               <div>
                 <h4 className="font-bold text-slate-900 text-sm">{selectedCustomer.fullName}</h4>
