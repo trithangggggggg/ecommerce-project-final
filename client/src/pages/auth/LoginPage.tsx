@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, ArrowRight, Eye, EyeOff, Lock, Mail, X } from 'lucide-react';
+import { AlertCircle, ArrowRight, CheckCircle2, Eye, EyeOff, Lock, Mail, X } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { ROLES } from '../../constants/roles';
 import { ROUTES } from '../../constants/routes';
@@ -22,8 +22,10 @@ export const LoginPage: React.FC = () => {
   const isExpired = searchParams.get('expired') === 'true';
   const redirectParam = searchParams.get('redirect');
 
-  const fromState = (location.state as { from?: string | { pathname: string } })?.from;
+  const locationState = location.state as { from?: string | { pathname: string }; successMessage?: string } | null;
+  const fromState = locationState?.from;
   const fromLocation = redirectParam || (typeof fromState === 'string' ? fromState : fromState?.pathname);
+  const successStateMessage = locationState?.successMessage;
 
   // Xóa sạch lỗi cũ khi mở modal
   useEffect(() => {
@@ -77,16 +79,19 @@ export const LoginPage: React.FC = () => {
       return;
     }
 
+    if (isLoading) return;
+
     try {
       const user = await login({ email: email.trim(), password });
 
-      // Chuyển hướng theo đúng phân quyền
-      if (user.role === ROLES.ADMIN) {
+      // Chuyển hướng theo đúng phân quyền: CUSTOMER → /, ADMIN → /admin
+      const userRole = (user.role || '').toUpperCase();
+      const isAdmin = userRole === ROLES.ADMIN || userRole === 'ROLE_ADMIN';
+
+      if (isAdmin) {
         navigate(fromLocation && fromLocation.includes('/admin') ? fromLocation : ROUTES.ADMIN, { replace: true });
-      } else if (fromLocation && !fromLocation.includes('/admin')) {
-        navigate(fromLocation, { replace: true });
       } else {
-        navigate(ROUTES.HOME, { replace: true });
+        navigate(fromLocation && !fromLocation.includes('/admin') ? fromLocation : ROUTES.HOME, { replace: true });
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Đăng nhập không thành công';
@@ -100,14 +105,17 @@ export const LoginPage: React.FC = () => {
     setFormError(null);
     clearError();
 
+    if (isLoading) return;
+
     try {
       const user = await login({ email: userEmail, password: userPass });
-      if (user.role === ROLES.ADMIN) {
+      const userRole = (user.role || '').toUpperCase();
+      const isAdmin = userRole === ROLES.ADMIN || userRole === 'ROLE_ADMIN';
+
+      if (isAdmin) {
         navigate(fromLocation && fromLocation.includes('/admin') ? fromLocation : ROUTES.ADMIN, { replace: true });
-      } else if (fromLocation && !fromLocation.includes('/admin')) {
-        navigate(fromLocation, { replace: true });
       } else {
-        navigate(ROUTES.HOME, { replace: true });
+        navigate(fromLocation && !fromLocation.includes('/admin') ? fromLocation : ROUTES.HOME, { replace: true });
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Đăng nhập không thành công';
@@ -155,6 +163,17 @@ export const LoginPage: React.FC = () => {
             Chào mừng bạn quay lại với NEXOR Flagship Tech Store
           </p>
         </div>
+
+        {/* Success Alert (Khi đăng ký thành công chuyển sang) */}
+        {successStateMessage && !formError && (
+          <div className="mb-5 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-3 text-emerald-800 text-xs">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
+            <div className="flex-1">
+              <span className="font-bold block mb-0.5">Thành công!</span>
+              <span>{successStateMessage}</span>
+            </div>
+          </div>
+        )}
 
         {/* Error Alert */}
         {(formError || error) && (
