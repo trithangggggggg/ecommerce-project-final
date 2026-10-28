@@ -48,7 +48,7 @@ export interface DashboardData {
   recentOrders: RecentOrderItem[];
 }
 
-const CATEGORY_COLORS = ['#2563eb', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#6366f1', '#14b8a6', '#94a3b8'];
+
 
 function formatVND(amount: number): string {
   return new Intl.NumberFormat('vi-VN').format(amount) + ' ₫';
