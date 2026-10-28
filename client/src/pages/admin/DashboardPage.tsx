@@ -296,7 +296,7 @@ export const DashboardPage: React.FC = () => {
           <div className="flex flex-col items-center justify-center my-auto py-1">
             <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center shrink-0">
               <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                {categoryStats.length > 0 ? (
+                {categoryStats.length > 0 && categoryStats.some((cat) => cat.percentage > 0) ? (
                   categoryStats.map((cat, i) => (
                     <circle
                       key={i}
@@ -331,17 +331,22 @@ export const DashboardPage: React.FC = () => {
             </div>
 
             {/* Category Legend List */}
-            <div className="w-full mt-2.5 space-y-1 text-xs">
+            <div className="w-full mt-2.5 space-y-1 text-xs max-h-[140px] overflow-y-auto pr-0.5">
               {categoryStats.length > 0 ? (
                 categoryStats.map((cat, i) => (
                   <div key={i} className="flex items-center justify-between text-[10px] sm:text-[11px]">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
                       <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                      <span className="text-slate-600 font-medium">{cat.name}</span>
+                      <span className="text-slate-600 font-medium truncate" title={cat.name}>{cat.name}</span>
                     </div>
-                    <div className="flex items-center gap-2 font-semibold text-slate-800">
+                    <div className="flex items-center gap-2 font-semibold text-slate-800 shrink-0">
                       <span className="text-slate-400 font-normal">{cat.percentage}%</span>
-                      <span>{cat.value}</span>
+                      <span
+                        className="cursor-help"
+                        title={cat.rawRevenue !== undefined ? new Intl.NumberFormat('vi-VN').format(cat.rawRevenue) + ' ₫' : cat.value}
+                      >
+                        {cat.value}
+                      </span>
                     </div>
                   </div>
                 ))

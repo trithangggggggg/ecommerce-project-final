@@ -51,6 +51,16 @@ public class OrderMapper {
         }
         Product product = item.getProduct();
         ProductVariant variant = item.getVariant();
+        if (product == null && variant != null) {
+            product = variant.getProduct();
+        }
+
+        Long catId = null;
+        String catName = null;
+        if (product != null && product.getCategory() != null) {
+            catId = product.getCategory().getId();
+            catName = product.getCategory().getName();
+        }
 
         String pName = item.getProductName() != null ? item.getProductName() : (product != null ? product.getName() : null);
         String vName = item.getVariantName();
@@ -73,6 +83,8 @@ public class OrderMapper {
                 .quantity(item.getQuantity())
                 .price(item.getPrice())
                 .totalPrice(item.getTotalPrice())
+                .categoryId(catId)
+                .categoryName(catName)
                 .build();
     }
 }
