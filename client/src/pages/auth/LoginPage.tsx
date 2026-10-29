@@ -94,6 +94,7 @@ export const LoginPage: React.FC = () => {
     }
   };
 
+<<<<<<< Updated upstream
   const handleQuickLogin = async (userEmail: string, userPass: string) => {
     setEmail(userEmail);
     setPassword(userPass);
@@ -114,6 +115,8 @@ export const LoginPage: React.FC = () => {
       setFormError(message);
     }
   };
+=======
+>>>>>>> Stashed changes
 
   return (
     <div
@@ -248,27 +251,6 @@ export const LoginPage: React.FC = () => {
             </Button>
           </div>
 
-          {/* Quick 1-Click Login Buttons */}
-          <div className="pt-3 border-t border-gray-100 flex gap-2">
-            <button
-              type="button"
-              disabled={isLoading}
-              onClick={() => handleQuickLogin('admin@nexor.vn', '123123123')}
-              className="flex-1 py-2 px-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 transition flex items-center justify-center gap-1.5 text-xs font-bold cursor-pointer shadow-xs disabled:opacity-50"
-              title="1-Click Đăng nhập trực tiếp tài khoản Quản trị viên"
-            >
-              <span>🔑 1-Click Admin</span>
-            </button>
-            <button
-              type="button"
-              disabled={isLoading}
-              onClick={() => handleQuickLogin('customer@nexor.vn', '123123123')}
-              className="flex-1 py-2 px-2 rounded-xl border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-900 transition flex items-center justify-center gap-1.5 text-xs font-bold cursor-pointer shadow-xs disabled:opacity-50"
-              title="1-Click Đăng nhập trực tiếp tài khoản Khách hàng"
-            >
-              <span>👤 1-Click Khách hàng</span>
-            </button>
-          </div>
         </form>
 
         {/* Switch to Register */}
