@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
-import { ROLES } from '../constants/roles';
 
 // Layouts
 import GuestLayout from '../layouts/GuestLayout';
@@ -37,6 +36,7 @@ const AdminSettingsPage = React.lazy(() => import('../pages/admin/AdminSettingsP
 
 // Route Guards
 import ProtectedRoute from './ProtectedRoute';
+import AdminRoute from './AdminRoute';
 import PublicRoute from './PublicRoute';
 
 const AdminLoadingFallback: React.FC = () => (
@@ -92,7 +92,7 @@ export const AppRoutes: React.FC = () => {
         </Route>
 
         {/* Phân vùng Quản trị: Admin Portal (Yêu cầu quyền ADMIN, Lazy Loaded) */}
-        <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]} />}>
+        <Route element={<AdminRoute />}>
           <Route
             path={ROUTES.ADMIN}
             element={

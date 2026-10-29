@@ -65,6 +65,13 @@ axiosClient.interceptors.response.use(
           // Bỏ qua lỗi truy cập storage
         }
 
+        // Tự động xóa trạng thái đăng nhập trong Auth Store
+        import('../store/useAuthStore')
+          .then(({ useAuthStore }) => {
+            useAuthStore.getState().logout();
+          })
+          .catch(() => {});
+
         // Tự động out ra trang đăng nhập ngay lập tức theo chuẩn bảo mật
         if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
           const currentPath = window.location.pathname + window.location.search;

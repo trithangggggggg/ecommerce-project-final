@@ -8,6 +8,7 @@ import {
   EyeOff,
   Lock,
   Mail,
+  MapPin,
   Phone,
   User,
 } from 'lucide-react';
@@ -24,12 +25,15 @@ export const RegisterPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(true);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Xóa sạch lỗi cũ khi vào trang đăng ký
@@ -40,58 +44,130 @@ export const RegisterPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Chống bấm đúp nhiều lần khi đang xử lý
+    if (isLoading || isSubmitting || toastMessage) return;
+
     setFormError(null);
     setSuccessMessage(null);
     clearError();
 
-    // Client Validation
+    // Validate client: các trường bắt buộc
     if (!fullName.trim()) {
       setFormError('Vui lòng nhập họ và tên của bạn');
       return;
     }
-    const cleanUsername = username.trim() || email.split('@')[0];
-    if (cleanUsername.length < 3) {
+
+    if (!username.trim()) {
+      setFormError('Vui lòng nhập tên đăng nhập');
+      return;
+    }
+    if (username.trim().length < 3) {
       setFormError('Tên đăng nhập phải có tối thiểu 3 ký tự');
       return;
     }
-    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+
+    // Validate email hợp lệ
+    if (!email.trim()) {
+      setFormError('Vui lòng nhập địa chỉ email');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setFormError('Địa chỉ email không đúng định dạng');
+      return;
+    }
+
+    // Validate số điện thoại bắt buộc & định dạng hợp lệ
+    const cleanPhone = phone.trim().replace(/[\s.-]/g, '');
+    if (!cleanPhone) {
+      setFormError('Vui lòng nhập số điện thoại');
+      return;
+    }
+    if (!/^(0|\+84)[3|5|7|8|9][0-9]{8}$/.test(cleanPhone)) {
+      setFormError('Số điện thoại không hợp lệ (gồm 10 số, bắt đầu bằng 03, 05, 07, 08, 09)');
+      return;
+    }
+
+    // Validate địa chỉ bắt buộc
+    if (!address.trim()) {
+      setFormError('Vui lòng nhập địa chỉ nhận hàng của bạn');
+      return;
+    }
+
+    // Validate mật khẩu ≥ 6 ký tự
+    if (!password) {
+      setFormError('Vui lòng nhập mật khẩu');
       return;
     }
     if (password.length < 6) {
       setFormError('Mật khẩu phải có tối thiểu 6 ký tự');
       return;
     }
+
+    // Validate 2 mật khẩu khớp
+    if (!confirmPassword) {
+      setFormError('Vui lòng xác nhận lại mật khẩu');
+      return;
+    }
     if (password !== confirmPassword) {
       setFormError('Mật khẩu xác nhận không khớp');
       return;
     }
+
     if (!agreeTerms) {
       setFormError('Bạn cần đồng ý với Điều khoản dịch vụ để tiếp tục');
       return;
     }
 
+    setIsSubmitting(true);
+
     try {
+      // Gọi POST /api/auth/register qua authStore & authService
       await register({
-        username: cleanUsername,
+        username: username.trim(),
         fullName: fullName.trim(),
         email: email.trim(),
-        phone: phone.trim() || undefined,
-        phoneNumber: phone.trim() || undefined,
+        phone: cleanPhone,
+        phoneNumber: cleanPhone,
+        address: address.trim(),
         password,
         confirmPassword,
       });
 
+      // Thành công: hiện Toast + chuyển sang /login
+      setToastMessage('Đăng ký tài khoản thành công!');
       setSuccessMessage('Đăng ký tài khoản thành công! Đang chuyển hướng sang đăng nhập...');
-      setTimeout(() => navigate(ROUTES.LOGIN), 1500);
+
+      setTimeout(() => {
+        navigate(ROUTES.LOGIN, {
+          state: { successMessage: 'Đăng ký tài khoản thành công! Vui lòng đăng nhập để tiếp tục.' },
+          replace: true,
+        });
+      }, 1500);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Đăng ký không thành công');
+      // Hiển thị lỗi từ server (trùng email/username, lỗi xác thực...)
+      setFormError(err instanceof Error ? err.message : 'Đăng ký không thành công. Vui lòng thử lại!');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
+  const isButtonBusy = isLoading || isSubmitting || !!toastMessage;
+
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-6 sm:p-8 font-sans">
-      {/* Title */}
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-6 sm:p-8 font-sans relative">
+      {/* Toast Notification khi thành công */}
+      {toastMessage && (
+        <div className="fixed top-6 right-6 z-50 bg-gray-900/95 backdrop-blur-md text-white text-sm px-5 py-3.5 rounded-xl shadow-2xl flex items-center gap-3 border border-emerald-500/40 animate-in fade-in slide-in-from-top-4">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          <div>
+            <p className="font-semibold text-emerald-300">{toastMessage}</p>
+            <p className="text-xs text-gray-300">Đang tự động chuyển sang trang đăng nhập...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Header Form */}
       <div className="text-center mb-6">
         <div className="w-14 h-14 mx-auto mb-3 flex items-center justify-center">
           <img
@@ -106,7 +182,7 @@ export const RegisterPage: React.FC = () => {
         </p>
       </div>
 
-      {/* Success Alert */}
+      {/* Inline Success Alert */}
       {successMessage && (
         <div className="mb-5 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-3 text-emerald-800 text-xs">
           <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
@@ -117,7 +193,7 @@ export const RegisterPage: React.FC = () => {
         </div>
       )}
 
-      {/* Error Alert */}
+      {/* Inline Error Alert (Lỗi Client hoặc Server như trùng email/username) */}
       {(formError || error) && !successMessage && (
         <div className="mb-5 p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-red-700 text-xs animate-shake">
           <AlertCircle className="w-4 h-4 shrink-0 text-red-500 mt-0.5" />
@@ -129,13 +205,13 @@ export const RegisterPage: React.FC = () => {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-3.5">
-        {/* Full Name */}
+        {/* Họ tên */}
         <Input
           label="Họ và tên"
           type="text"
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
-          placeholder="Nguyễn Văn A"
+          placeholder="VD: Nguyễn Văn A"
           leftIcon={<User className="w-4 h-4" />}
           required
         />
@@ -162,17 +238,29 @@ export const RegisterPage: React.FC = () => {
           required
         />
 
-        {/* Phone */}
+        {/* SĐT */}
         <Input
           label="Số điện thoại"
           type="tel"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
-          placeholder="0912 345 678 (tùy chọn)"
+          placeholder="VD: 0912345678"
           leftIcon={<Phone className="w-4 h-4" />}
+          required
         />
 
-        {/* Password */}
+        {/* Địa chỉ */}
+        <Input
+          label="Địa chỉ"
+          type="text"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder="VD: Số 123 Đường Cầu Giấy, Hà Nội"
+          leftIcon={<MapPin className="w-4 h-4" />}
+          required
+        />
+
+        {/* Mật khẩu */}
         <div>
           <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
             Mật khẩu
@@ -181,7 +269,7 @@ export const RegisterPage: React.FC = () => {
             type={showPassword ? 'text' : 'password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Ít nhất 6 ký tự"
+            placeholder="Tối thiểu 6 ký tự"
             leftIcon={<Lock className="w-4 h-4" />}
             rightIcon={
               <button
@@ -197,7 +285,7 @@ export const RegisterPage: React.FC = () => {
           />
         </div>
 
-        {/* Confirm Password */}
+        {/* Xác nhận mật khẩu */}
         <div>
           <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
             Xác nhận mật khẩu
@@ -206,13 +294,13 @@ export const RegisterPage: React.FC = () => {
             type={showPassword ? 'text' : 'password'}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="Nhập lại mật khẩu"
+            placeholder="Nhập lại mật khẩu để xác nhận"
             leftIcon={<Lock className="w-4 h-4" />}
             required
           />
         </div>
 
-        {/* Terms Checkbox */}
+        {/* Điều khoản Checkbox */}
         <div className="flex items-start pt-1">
           <label className="flex items-start gap-2 cursor-pointer select-none">
             <input
@@ -230,14 +318,15 @@ export const RegisterPage: React.FC = () => {
           </label>
         </div>
 
-        {/* Submit CTA Button */}
+        {/* Submit Button với trạng thái loading & chống bấm đúp */}
         <div className="pt-2">
           <Button
             type="submit"
             variant="dark"
             size="md"
             fullWidth
-            isLoading={isLoading || !!successMessage}
+            isLoading={isButtonBusy}
+            disabled={isButtonBusy}
             rightIcon={<ArrowRight className="w-4 h-4" />}
           >
             Đăng ký tài khoản
@@ -245,7 +334,7 @@ export const RegisterPage: React.FC = () => {
         </div>
       </form>
 
-      {/* Switch to Login */}
+      {/* Chuyển sang Đăng nhập */}
       <div className="mt-6 pt-5 border-t border-gray-100 text-center">
         <p className="text-xs text-gray-600">
           Đã có tài khoản?{' '}
