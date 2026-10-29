@@ -99,32 +99,6 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-<<<<<<< Updated upstream
-  const handleQuickLogin = async (userEmail: string, userPass: string) => {
-    setEmail(userEmail);
-    setPassword(userPass);
-    setFormError(null);
-    clearError();
-
-    if (isLoading) return;
-
-    try {
-      const user = await login({ email: userEmail, password: userPass });
-      const userRole = (user.role || '').toUpperCase();
-      const isAdmin = userRole === ROLES.ADMIN || userRole === 'ROLE_ADMIN';
-
-      if (isAdmin) {
-        navigate(fromLocation && fromLocation.includes('/admin') ? fromLocation : ROUTES.ADMIN, { replace: true });
-      } else {
-        navigate(fromLocation && !fromLocation.includes('/admin') ? fromLocation : ROUTES.HOME, { replace: true });
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Đăng nhập không thành công';
-      setFormError(message);
-    }
-  };
-=======
->>>>>>> Stashed changes
 
   return (
     <div
