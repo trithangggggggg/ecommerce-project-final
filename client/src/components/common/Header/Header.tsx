@@ -374,6 +374,7 @@ export const Header: React.FC = () => {
                       if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
                       setUserDropdownOpen(false);
                       logout();
+                      navigate(ROUTES.HOME, { replace: true });
                     }}
                     className="w-full text-left px-3.5 py-2 text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2.5 cursor-pointer transition font-medium"
                   >
