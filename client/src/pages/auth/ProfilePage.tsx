@@ -123,7 +123,7 @@ export const ProfilePage: React.FC = () => {
   const handleLogout = () => {
     if (window.confirm('Bạn có chắc chắn muốn đăng xuất khỏi hệ thống NEXOR?')) {
       logout();
-      navigate(ROUTES.LOGIN);
+      navigate(ROUTES.HOME, { replace: true });
     }
   };
 

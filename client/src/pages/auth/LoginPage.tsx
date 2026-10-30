@@ -41,9 +41,21 @@ export const LoginPage: React.FC = () => {
   }, [isExpired]);
 
   const handleClose = useCallback(() => {
-    if (fromLocation) {
+    // Kiểm tra xem trang trước đó có phải là trang công khai an toàn không
+    const isProtected =
+      !fromLocation ||
+      fromLocation.startsWith('/admin') ||
+      fromLocation.startsWith('/profile') ||
+      fromLocation.startsWith('/checkout') ||
+      fromLocation.startsWith('/my-orders') ||
+      fromLocation.startsWith('/login') ||
+      fromLocation.startsWith('/register') ||
+      fromLocation.startsWith('/unauthorized');
+
+    if (!isProtected) {
       navigate(fromLocation, { replace: true });
     } else {
+      // Sau khi đăng xuất hoặc khi trang trước là trang bảo vệ, đóng modal chuyển ngay về Trang Chủ
       navigate(ROUTES.HOME, { replace: true });
     }
   }, [fromLocation, navigate]);
@@ -140,7 +152,7 @@ export const LoginPage: React.FC = () => {
         <button
           type="button"
           onClick={handleClose}
-          className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition cursor-pointer"
+          className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition cursor-pointer z-30"
           title="Đóng (Esc)"
           aria-label="Đóng modal"
         >
