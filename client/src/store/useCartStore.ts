@@ -124,6 +124,15 @@ export const useCartStore = create<CartStore>()(
           requestedQty = 1;
         }
 
+        // Validate: Bắt buộc người dùng phải đăng nhập mới được thêm vào giỏ hàng
+        const hasAuth =
+          typeof window !== 'undefined' &&
+          (Boolean(localStorage.getItem(STORAGE_KEYS.TOKEN)) ||
+            Boolean(localStorage.getItem(STORAGE_KEYS.USER)));
+        if (!hasAuth) {
+          return { success: false, maxStockReached: false, addedQty: 0, maxStock: 0 };
+        }
+
         // Validate: product phải hợp lệ
         if (!product || !product.id) {
           return { success: false, maxStockReached: false, addedQty: 0, maxStock: 0 };

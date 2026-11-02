@@ -13,6 +13,8 @@ import {
   ChevronRight,
   Sparkles,
   Check,
+  Lock,
+  LogIn,
 } from 'lucide-react';
 import { useCartStore } from '../../store/useCartStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -105,6 +107,44 @@ export const CartPage: React.FC = () => {
     }
     navigate(ROUTES.CHECKOUT);
   };
+
+  // ----------------------------------------------------------------
+  // Chưa đăng nhập → Yêu cầu đăng nhập để xem giỏ hàng
+  // ----------------------------------------------------------------
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-[70vh] bg-[#f5f6fa] py-12 px-4 sm:px-6 lg:px-8 font-sans flex items-center justify-center">
+        <div className="max-w-md w-full text-center bg-white rounded-2xl border border-gray-200/80 p-8 shadow-xs">
+          <div className="w-20 h-20 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-5 shadow-inner">
+            <Lock className="w-10 h-10 stroke-[1.5]" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Vui lòng đăng nhập</h2>
+          <p className="text-xs text-gray-500 mb-6 leading-relaxed">
+            Bạn cần đăng nhập tài khoản để xem, thêm và quản lý sản phẩm trong giỏ hàng của mình.
+          </p>
+          <div className="space-y-3">
+            <Button
+              variant="dark"
+              size="md"
+              fullWidth
+              onClick={() => navigate(`${ROUTES.LOGIN}?redirect=${ROUTES.CART}`)}
+              leftIcon={<LogIn className="w-4 h-4 text-blue-400" />}
+            >
+              Đăng nhập ngay
+            </Button>
+            <Button
+              variant="outline"
+              size="md"
+              fullWidth
+              onClick={() => navigate(ROUTES.PRODUCTS)}
+            >
+              Khám phá sản phẩm
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ----------------------------------------------------------------
   // Giỏ hàng trống

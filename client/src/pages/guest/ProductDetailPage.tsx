@@ -18,6 +18,7 @@ import {
 import { productService } from '../../api/services/product.service';
 import type { Product, ProductVariant } from '../../models/product.model';
 import { useCartStore } from '../../store/useCartStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import ProductCard from '../../components/common/Card/ProductCard';
 import { formatPrice } from '../../utils/format';
 
@@ -25,6 +26,7 @@ export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { addItem } = useCartStore();
+  const { isAuthenticated } = useAuthStore();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
@@ -140,6 +142,13 @@ export default function ProductDetailPage() {
   // ----------------------------------------------------------------
   function handleBuyNow() {
     if (!product || isOutOfStock) return;
+    if (!isAuthenticated) {
+      triggerToast('Vui lòng đăng nhập để tiến hành mua hàng!', 'warning');
+      setTimeout(() => {
+        navigate(`/login?redirect=${encodeURIComponent(`/products/${product.id}`)}`);
+      }, 700);
+      return;
+    }
     const result = addItem(product, matchedVariant || undefined, 1);
     if (result.success || result.addedQty > 0) {
       navigate('/cart');
@@ -153,6 +162,13 @@ export default function ProductDetailPage() {
 
   function handleAddToCart() {
     if (!product || isOutOfStock) return;
+    if (!isAuthenticated) {
+      triggerToast('Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng!', 'warning');
+      setTimeout(() => {
+        navigate(`/login?redirect=${encodeURIComponent(`/products/${product.id}`)}`);
+      }, 700);
+      return;
+    }
     const result = addItem(product, matchedVariant || undefined, 1);
     const variantLabel = matchedVariant?.title ? ` - ${matchedVariant.title}` : '';
 
