@@ -32,7 +32,10 @@ export default function ProductDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string>('');
   const [liked, setLiked] = useState(false);
+
+  // Toast state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<'success' | 'warning' | 'error'>('success');
 
   // Dynamic selected options map: e.g. { "Dung lượng": "256GB", "Màu sắc": "Titan Trắng" }
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
@@ -107,9 +110,13 @@ export default function ProductDetailPage() {
     }
   }, [matchedVariant]);
 
-  function triggerToast(msg: string) {
+  // ----------------------------------------------------------------
+  // Toast helpers
+  // ----------------------------------------------------------------
+  function triggerToast(msg: string, type: 'success' | 'warning' | 'error' = 'success') {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+    setToastType(type);
+    setTimeout(() => setToastMessage(null), 3500);
   }
 
   // Current display values derived from matched variant or product fallback
@@ -128,17 +135,49 @@ export default function ProductDetailPage() {
       : (product?.discountPercent ?? 0)
   );
 
+  // ----------------------------------------------------------------
+  // Add to cart & Buy Now handlers
+  // ----------------------------------------------------------------
   function handleBuyNow() {
     if (!product || isOutOfStock) return;
-    addItem(product, matchedVariant || undefined, 1);
-    navigate('/cart');
+    const result = addItem(product, matchedVariant || undefined, 1);
+    if (result.success || result.addedQty > 0) {
+      navigate('/cart');
+    } else if (result.maxStockReached) {
+      triggerToast(
+        `Sản phẩm đã đạt số lượng tối đa tồn kho (${result.maxStock}). Vui lòng vào giỏ hàng để kiểm tra.`,
+        'warning'
+      );
+    }
   }
 
   function handleAddToCart() {
     if (!product || isOutOfStock) return;
-    addItem(product, matchedVariant || undefined, 1);
+    const result = addItem(product, matchedVariant || undefined, 1);
     const variantLabel = matchedVariant?.title ? ` - ${matchedVariant.title}` : '';
-    triggerToast(`Đã thêm "${product.name}${variantLabel}" vào giỏ hàng thành công!`);
+
+    if (result.maxStockReached && result.addedQty === 0) {
+      // Đã đạt tồn kho tối đa, không thêm được
+      triggerToast(
+        `"${product.name}${variantLabel}" đã đạt số lượng tối đa trong giỏ hàng (${result.maxStock} sản phẩm).`,
+        'warning'
+      );
+    } else if (result.success) {
+      if (result.maxStockReached) {
+        // Thêm được nhưng đã đạt giới hạn
+        triggerToast(
+          `Đã thêm "${product.name}${variantLabel}" vào giỏ hàng. Đây là số lượng tối đa còn lại (${result.maxStock}).`,
+          'warning'
+        );
+      } else {
+        triggerToast(
+          `Đã thêm "${product.name}${variantLabel}" vào giỏ hàng thành công!`,
+          'success'
+        );
+      }
+    } else {
+      triggerToast('Không thể thêm sản phẩm vào giỏ hàng.', 'error');
+    }
   }
 
   // Handle option value selection
@@ -206,9 +245,21 @@ export default function ProductDetailPage() {
     <div className="pb-16 font-sans">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-20 right-6 z-50 bg-gray-900 text-white text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 animate-bounce border border-gray-700">
-          <Check size={18} className="text-emerald-400" />
-          <span>{toastMessage}</span>
+        <div
+          className={`fixed top-20 right-6 z-50 text-white text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 border max-w-sm ${
+            toastType === 'success'
+              ? 'bg-gray-900 border-gray-700'
+              : toastType === 'warning'
+              ? 'bg-amber-700 border-amber-600'
+              : 'bg-red-700 border-red-600'
+          }`}
+        >
+          {toastType === 'success' ? (
+            <Check size={18} className="text-emerald-400 shrink-0" />
+          ) : (
+            <AlertCircle size={18} className="text-white shrink-0" />
+          )}
+          <span className="text-xs leading-snug">{toastMessage}</span>
         </div>
       )}
 
@@ -309,7 +360,7 @@ export default function ProductDetailPage() {
               {product.name}
             </h1>
 
-            {/* Product Meta / Stock status - NO mock reviews */}
+            {/* Product Meta / Stock status */}
             <div className="flex items-center gap-3 text-xs text-gray-500 mb-4 pb-4 border-b border-gray-200">
               {product.brand && (
                 <>
