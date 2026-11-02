@@ -33,8 +33,19 @@ public class Order extends BaseEntity {
     @Column(name = "phone_number", nullable = false, length = 20)
     private String phoneNumber;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "carrier_id")
+    private ShippingCarrier shippingCarrier;
+
+    @Column(name = "tracking_code", length = 100)
+    private String trackingCode;
+
     @Column(name = "shipping_address", nullable = false, length = 255)
     private String shippingAddress;
+
+    @Column(name = "shipping_fee", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal shippingFee = BigDecimal.ZERO;
 
     @Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount;

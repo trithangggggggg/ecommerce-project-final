@@ -7,10 +7,15 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import ra.project.server.common.response.ApiResponse;
 import ra.project.server.exception.ResourceNotFoundException;
+import ra.project.server.model.entity.Order;
 import ra.project.server.model.entity.ShippingCarrier;
+import ra.project.server.model.enums.OrderStatus;
+import ra.project.server.repository.OrderRepository;
 import ra.project.server.repository.ShippingCarrierRepository;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/admin/shipping-carriers")
@@ -20,10 +25,106 @@ import java.util.List;
 public class AdminShippingCarrierController {
 
     private final ShippingCarrierRepository shippingCarrierRepository;
+    private final OrderRepository orderRepository;
+
+    private void seedDefaultCarriersIfEmpty() {
+        if (shippingCarrierRepository.count() == 0) {
+            List<ShippingCarrier> defaults = List.of(
+                    ShippingCarrier.builder()
+                            .code("GHN")
+                            .name("Giao Hàng Nhanh")
+                            .serviceType("Chuyển phát nhanh 24h & Hỏa tốc")
+                            .hotline("1900 636677")
+                            .shippingFee(java.math.BigDecimal.valueOf(35000))
+                            .rating(4.9)
+                            .status("ACTIVE")
+                            .activeOrders(0)
+                            .build(),
+                    ShippingCarrier.builder()
+                            .code("GHTK")
+                            .name("Giao Hàng Tiết Kiệm")
+                            .serviceType("Giao hàng tiêu chuẩn toàn quốc")
+                            .hotline("1900 6092")
+                            .shippingFee(java.math.BigDecimal.valueOf(22000))
+                            .rating(4.8)
+                            .status("ACTIVE")
+                            .activeOrders(0)
+                            .build(),
+                    ShippingCarrier.builder()
+                            .code("VTP")
+                            .name("Viettel Post")
+                            .serviceType("Bưu chính chuyển phát liên tỉnh")
+                            .hotline("1900 8095")
+                            .shippingFee(java.math.BigDecimal.valueOf(25000))
+                            .rating(4.7)
+                            .status("ACTIVE")
+                            .activeOrders(0)
+                            .build(),
+                    ShippingCarrier.builder()
+                            .code("JNT")
+                            .name("J&T Express")
+                            .serviceType("Vận chuyển nhanh TMĐT")
+                            .hotline("1900 1088")
+                            .shippingFee(java.math.BigDecimal.valueOf(28000))
+                            .rating(4.6)
+                            .status("ACTIVE")
+                            .activeOrders(0)
+                            .build(),
+                    ShippingCarrier.builder()
+                            .code("NEXOR")
+                            .name("NEXOR Express (Nội bộ)")
+                            .serviceType("Giao hàng siêu tốc 2H nội thành")
+                            .hotline("1800 6936")
+                            .shippingFee(java.math.BigDecimal.valueOf(50000))
+                            .rating(5.0)
+                            .status("ACTIVE")
+                            .activeOrders(0)
+                            .build()
+            );
+            shippingCarrierRepository.saveAll(defaults);
+        }
+    }
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<ShippingCarrier>>> getAllCarriers() {
+        seedDefaultCarriersIfEmpty();
         List<ShippingCarrier> list = shippingCarrierRepository.findAll();
+
+        // Tự động gán cước mặc định cho các đối tác chưa có shippingFee
+        for (ShippingCarrier carrier : list) {
+            if (carrier.getShippingFee() == null) {
+                if ("GHTK".equalsIgnoreCase(carrier.getCode())) {
+                    carrier.setShippingFee(java.math.BigDecimal.valueOf(22000));
+                } else if ("VTP".equalsIgnoreCase(carrier.getCode())) {
+                    carrier.setShippingFee(java.math.BigDecimal.valueOf(25000));
+                } else if ("JNT".equalsIgnoreCase(carrier.getCode())) {
+                    carrier.setShippingFee(java.math.BigDecimal.valueOf(28000));
+                } else if ("GHN".equalsIgnoreCase(carrier.getCode())) {
+                    carrier.setShippingFee(java.math.BigDecimal.valueOf(35000));
+                } else if ("NEXOR".equalsIgnoreCase(carrier.getCode())) {
+                    carrier.setShippingFee(java.math.BigDecimal.valueOf(50000));
+                } else {
+                    carrier.setShippingFee(java.math.BigDecimal.valueOf(30000));
+                }
+                shippingCarrierRepository.save(carrier);
+            }
+        }
+
+        // Đồng bộ số lượng đơn đang luân chuyển (status = SHIPPING) cho từng đối tác
+        try {
+            List<Order> shippingOrders = orderRepository.findByStatusOrderByCreatedAtDesc(OrderStatus.SHIPPING);
+            Map<Long, Long> counts = shippingOrders.stream()
+                    .filter(o -> o.getShippingCarrier() != null)
+                    .collect(Collectors.groupingBy(o -> o.getShippingCarrier().getId(), Collectors.counting()));
+
+            for (ShippingCarrier carrier : list) {
+                long c = counts.getOrDefault(carrier.getId(), 0L);
+                carrier.setActiveOrders((int) c);
+            }
+        } catch (Exception ignored) {
+            // Giữ nguyên activeOrders nếu có lỗi truy vấn
+        }
+
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách đơn vị vận chuyển thành công", list));
     }
 
@@ -38,6 +139,9 @@ public class AdminShippingCarrierController {
     public ResponseEntity<ApiResponse<ShippingCarrier>> createCarrier(@RequestBody ShippingCarrier request) {
         if (shippingCarrierRepository.existsByCodeIgnoreCase(request.getCode())) {
             throw new IllegalArgumentException("Mã đơn vị vận chuyển '" + request.getCode() + "' đã tồn tại!");
+        }
+        if (request.getShippingFee() == null) {
+            request.setShippingFee(java.math.BigDecimal.valueOf(30000));
         }
         ShippingCarrier saved = shippingCarrierRepository.save(request);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -59,6 +163,9 @@ public class AdminShippingCarrierController {
         existing.setActiveOrders(request.getActiveOrders());
         existing.setRating(request.getRating());
         existing.setStatus(request.getStatus());
+        if (request.getShippingFee() != null) {
+            existing.setShippingFee(request.getShippingFee());
+        }
 
         ShippingCarrier updated = shippingCarrierRepository.save(existing);
         return ResponseEntity.ok(ApiResponse.success("Cập nhật đơn vị vận chuyển thành công", updated));

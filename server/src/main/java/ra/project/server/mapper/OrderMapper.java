@@ -8,6 +8,7 @@ import ra.project.server.model.entity.OrderItem;
 import ra.project.server.model.entity.Product;
 import ra.project.server.model.entity.ProductVariant;
 
+import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
 
@@ -39,6 +40,11 @@ public class OrderMapper {
                 .compensationCoupon(order.getCompensationCoupon())
                 .couponCode(order.getCouponCode())
                 .discountAmount(order.getDiscountAmount())
+                .shippingFee(order.getShippingFee() != null ? order.getShippingFee() : BigDecimal.ZERO)
+                .carrierId(order.getShippingCarrier() != null ? order.getShippingCarrier().getId() : null)
+                .carrierName(order.getShippingCarrier() != null ? order.getShippingCarrier().getName() : null)
+                .carrierCode(order.getShippingCarrier() != null ? order.getShippingCarrier().getCode() : null)
+                .trackingCode(order.getTrackingCode())
                 .orderItems(itemResponses)
                 .createdAt(order.getCreatedAt())
                 .updatedAt(order.getUpdatedAt())

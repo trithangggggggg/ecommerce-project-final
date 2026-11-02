@@ -15,6 +15,7 @@ import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import AdminPagination from '../../components/admin/AdminPagination';
 import { shippingService } from '../../api/services/shipping.service';
+import { formatPrice } from '../../utils/format';
 
 export interface ShippingCarrier {
   id: number;
@@ -22,6 +23,7 @@ export interface ShippingCarrier {
   name: string;
   serviceType: string;
   hotline: string;
+  shippingFee: number;
   activeOrders: number;
   rating: number;
   status: 'ACTIVE' | 'INACTIVE';
@@ -66,6 +68,7 @@ export const AdminShippingPage: React.FC = () => {
     name: '',
     serviceType: '',
     hotline: '',
+    shippingFee: 30000,
     rating: 5.0,
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
   });
@@ -75,6 +78,7 @@ export const AdminShippingPage: React.FC = () => {
     name: '',
     serviceType: '',
     hotline: '',
+    shippingFee: 30000,
     rating: 5.0,
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
   });
@@ -98,6 +102,7 @@ export const AdminShippingPage: React.FC = () => {
         name: addForm.name.trim(),
         serviceType: addForm.serviceType.trim() || 'Chuyển phát nhanh',
         hotline: addForm.hotline.trim() || '1900 0000',
+        shippingFee: Number(addForm.shippingFee) || 30000,
         activeOrders: 0,
         rating: Number(addForm.rating) || 5.0,
         status: addForm.status,
@@ -110,6 +115,7 @@ export const AdminShippingPage: React.FC = () => {
         name: '',
         serviceType: '',
         hotline: '',
+        shippingFee: 30000,
         rating: 5.0,
         status: 'ACTIVE',
       });
@@ -128,6 +134,7 @@ export const AdminShippingPage: React.FC = () => {
       name: c.name,
       serviceType: c.serviceType,
       hotline: c.hotline,
+      shippingFee: c.shippingFee || 30000,
       rating: c.rating,
       status: c.status,
     });
@@ -144,6 +151,7 @@ export const AdminShippingPage: React.FC = () => {
         name: editForm.name.trim(),
         serviceType: editForm.serviceType.trim(),
         hotline: editForm.hotline.trim(),
+        shippingFee: Number(editForm.shippingFee) || 30000,
         rating: Number(editForm.rating) || 5.0,
         status: editForm.status,
       });
@@ -341,6 +349,7 @@ export const AdminShippingPage: React.FC = () => {
                 <th className="py-2.5 px-3 bg-slate-50/95">Mã đối tác</th>
                 <th className="py-2.5 px-3 bg-slate-50/95">Đơn vị vận chuyển</th>
                 <th className="py-2.5 px-3 bg-slate-50/95">Dịch vụ</th>
+                <th className="py-2.5 px-3 bg-slate-50/95">Cước phí</th>
                 <th className="py-2.5 px-3 bg-slate-50/95">Hotline</th>
                 <th className="py-2.5 px-3 bg-slate-50/95 text-center">Đơn đang giao</th>
                 <th className="py-2.5 px-3 bg-slate-50/95">Đánh giá</th>
@@ -351,7 +360,7 @@ export const AdminShippingPage: React.FC = () => {
             <tbody className="divide-y divide-slate-100">
               {filteredCarriers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
+                  <td colSpan={9} className="py-8 text-center text-slate-400">
                     Không tìm thấy đối tác vận chuyển nào phù hợp.
                   </td>
                 </tr>
@@ -380,6 +389,13 @@ export const AdminShippingPage: React.FC = () => {
                     {/* Service */}
                     <td className="py-2 px-3 text-slate-600 font-medium whitespace-nowrap">
                       {c.serviceType}
+                    </td>
+
+                    {/* Shipping Fee */}
+                    <td className="py-2 px-3 whitespace-nowrap">
+                      <span className="font-bold text-slate-800 text-xs">
+                        {formatPrice(c.shippingFee || 30000)}
+                      </span>
                     </td>
 
                     {/* Hotline */}
@@ -518,7 +534,20 @@ export const AdminShippingPage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Cước phí cơ bản (VNĐ) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    required
+                    placeholder="30000"
+                    value={addForm.shippingFee}
+                    onChange={(e) => setAddForm({ ...addForm, shippingFee: Number(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-semibold text-blue-600 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  />
+                </div>
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">Hotline CSKH</label>
                   <input
@@ -609,7 +638,20 @@ export const AdminShippingPage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Cước phí cơ bản (VNĐ) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    required
+                    placeholder="30000"
+                    value={editForm.shippingFee}
+                    onChange={(e) => setEditForm({ ...editForm, shippingFee: Number(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-semibold text-blue-600 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  />
+                </div>
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">Hotline CSKH</label>
                   <input

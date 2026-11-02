@@ -19,22 +19,34 @@ public class UpdateOrderStatusRequest {
     @NotNull(message = "Trạng thái đơn hàng không được để trống")
     private OrderStatus status;
 
+    private Long carrierId;
+    private String trackingCode;
+
+    public UpdateOrderStatusRequest(OrderStatus status) {
+        this.status = status;
+    }
+
     @JsonCreator
-    public static UpdateOrderStatusRequest create(@JsonProperty("status") Object statusObj) {
-        if (statusObj == null) {
-            return new UpdateOrderStatusRequest(null);
+    public static UpdateOrderStatusRequest create(
+            @JsonProperty("status") Object statusObj,
+            @JsonProperty("carrierId") Long carrierId,
+            @JsonProperty("trackingCode") String trackingCode
+    ) {
+        OrderStatus targetStatus = null;
+        if (statusObj != null) {
+            if (statusObj instanceof OrderStatus os) {
+                targetStatus = os;
+            } else {
+                String statusStr = statusObj.toString().trim();
+                if (!statusStr.isEmpty()) {
+                    try {
+                        targetStatus = OrderStatus.valueOf(statusStr.toUpperCase());
+                    } catch (IllegalArgumentException e) {
+                        throw new BadRequestException("Trạng thái đơn hàng không hợp lệ: '" + statusStr + "'. Các trạng thái hợp lệ: PENDING, PROCESSING, SHIPPING, COMPLETED, CANCELLED");
+                    }
+                }
+            }
         }
-        if (statusObj instanceof OrderStatus os) {
-            return new UpdateOrderStatusRequest(os);
-        }
-        String statusStr = statusObj.toString().trim();
-        if (statusStr.isEmpty()) {
-            return new UpdateOrderStatusRequest(null);
-        }
-        try {
-            return new UpdateOrderStatusRequest(OrderStatus.valueOf(statusStr.toUpperCase()));
-        } catch (IllegalArgumentException e) {
-            throw new BadRequestException("Trạng thái đơn hàng không hợp lệ: '" + statusStr + "'. Các trạng thái hợp lệ: PENDING, PROCESSING, SHIPPING, COMPLETED, CANCELLED");
-        }
+        return new UpdateOrderStatusRequest(targetStatus, carrierId, trackingCode);
     }
 }

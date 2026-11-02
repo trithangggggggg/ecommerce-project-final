@@ -57,7 +57,15 @@ public class AdminOrderController {
             throw new BadRequestException("Trạng thái đơn hàng (status) không được để trống");
         }
 
-        ApiResponse<OrderResponse> response = orderService.updateOrderStatus(id, targetStatus);
+        Long carrierId = request != null ? request.getCarrierId() : null;
+        String trackingCode = request != null ? request.getTrackingCode() : null;
+
+        ApiResponse<OrderResponse> response;
+        if (carrierId != null || trackingCode != null) {
+            response = orderService.updateOrderStatus(id, targetStatus, carrierId, trackingCode);
+        } else {
+            response = orderService.updateOrderStatus(id, targetStatus);
+        }
         return ResponseEntity.ok(response);
     }
 }

@@ -23,6 +23,8 @@ import {
 import { useCartStore } from '../../store/useCartStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { orderService } from '../../api/services/order.service';
+import { shippingService } from '../../api/services/shipping.service';
+import type { ShippingCarrier } from '../admin/AdminShippingPage';
 import { promotionService, type PromotionCheckResult } from '../../api/services/promotion.service';
 import type { PromoItem } from '../admin/AdminPromotionsPage';
 import { ROUTES } from '../../constants/routes';
@@ -43,6 +45,11 @@ export const CheckoutPage: React.FC = () => {
   const [shippingAddress, setShippingAddress] = useState('');
   const [note, setNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE'>('COD');
+
+  // Shipping Carrier State
+  const [carriers, setCarriers] = useState<ShippingCarrier[]>([]);
+  const [selectedCarrierId, setSelectedCarrierId] = useState<number | null>(null);
+  const [isLoadingCarriers, setIsLoadingCarriers] = useState(false);
 
   // Coupon / Voucher State
   const [couponInput, setCouponInput] = useState('');
@@ -66,6 +73,25 @@ export const CheckoutPage: React.FC = () => {
     }
   }, [user]);
 
+  // Lấy danh sách đối tác vận chuyển khả dụng
+  useEffect(() => {
+    setIsLoadingCarriers(true);
+    shippingService
+      .getActiveCarriers()
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setCarriers(data);
+          setSelectedCarrierId(data[0].id);
+        }
+      })
+      .catch((err) => {
+        console.error('Không thể lấy danh sách đối tác vận chuyển:', err);
+      })
+      .finally(() => {
+        setIsLoadingCarriers(false);
+      });
+  }, []);
+
   // Lấy danh sách voucher khả dụng để hiển thị gợi ý
   useEffect(() => {
     promotionService
@@ -80,9 +106,29 @@ export const CheckoutPage: React.FC = () => {
       });
   }, []);
 
-  // Tính số tiền giảm và tổng thanh toán cuối cùng
+  // Tính số tiền giảm và tiền hàng sau giảm
   const discountAmount = appliedPromotion ? appliedPromotion.discountAmount : 0;
-  const finalTotal = Math.max(0, totalPrice - discountAmount);
+  const subtotalAfterDiscount = Math.max(0, totalPrice - discountAmount);
+
+  // Đối tác vận chuyển được khách chọn
+  const selectedCarrier = carriers.find((c) => c.id === selectedCarrierId) || carriers[0];
+  const baseShippingFee = selectedCarrier ? (selectedCarrier.shippingFee ?? 30000) : 30000;
+
+  // Tính phí vận chuyển thực tế theo chính sách:
+  // - Đơn hàng >= 20.000.000₫: Miễn phí 100% phí ship (Freeship 0₫)
+  // - Đơn hàng >= 10.000.000₫: Giảm 50% phí ship
+  // - Đơn hàng < 10.000.000₫: Phí cước gốc của hãng
+  let actualShippingFee = baseShippingFee;
+  let shippingBadge = '';
+  if (subtotalAfterDiscount >= 20000000) {
+    actualShippingFee = 0;
+    shippingBadge = 'Freeship 100% (Đơn ≥ 20tr)';
+  } else if (subtotalAfterDiscount >= 10000000) {
+    actualShippingFee = Math.round(baseShippingFee / 2);
+    shippingBadge = 'Giảm 50% ship (Đơn ≥ 10tr)';
+  }
+
+  const finalTotal = subtotalAfterDiscount + actualShippingFee;
 
   // Xử lý áp dụng mã giảm giá
   const handleApplyCoupon = async (codeToApply?: string) => {
@@ -221,6 +267,7 @@ export const CheckoutPage: React.FC = () => {
       shippingAddress: shippingAddress.trim(),
       note: note.trim() || undefined,
       paymentMethod,
+      carrierId: selectedCarrierId || undefined,
       couponCode: appliedPromotion?.code || undefined,
       items: items.map((i) => ({
         productId: i.product.id,
@@ -391,14 +438,147 @@ export const CheckoutPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Card 2: Payment Method */}
+              {/* Card 2: Shipping Carrier */}
+              <div className="bg-white rounded-2xl border border-gray-200/90 shadow-xs p-5 sm:p-6 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                      <Truck className="w-4 h-4" />
+                    </div>
+                    <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
+                      2. Đơn vị vận chuyển
+                    </h2>
+                  </div>
+                  <span
+                    className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
+                      actualShippingFee === 0
+                        ? 'text-emerald-700 bg-emerald-50 border border-emerald-200'
+                        : 'text-indigo-700 bg-indigo-50 border border-indigo-200'
+                    }`}
+                  >
+                    {actualShippingFee === 0
+                      ? 'Miễn phí giao hàng'
+                      : `Cước phí: ${formatPrice(actualShippingFee)}`}
+                  </span>
+                </div>
+
+                {/* Banner ưu đãi phí giao hàng */}
+                <div className="bg-gradient-to-r from-blue-50/90 via-indigo-50/80 to-emerald-50/90 border border-blue-200/70 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs shadow-2xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-900">
+                        Ưu đãi phí giao hàng theo giá trị đơn
+                      </p>
+                      <p className="text-[11px] text-slate-600">
+                        Giảm 50% phí ship đơn từ <strong className="text-blue-700 font-bold">10.000.000₫</strong> • Miễn phí ship 100% đơn từ <strong className="text-emerald-700 font-bold">20.000.000₫</strong>
+                      </p>
+                    </div>
+                  </div>
+                  {shippingBadge && (
+                    <span className="self-start sm:self-auto px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs shrink-0">
+                      ✓ {shippingBadge}
+                    </span>
+                  )}
+                </div>
+
+                {isLoadingCarriers ? (
+                  <div className="py-6 text-center text-xs text-gray-500 space-y-2">
+                    <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                    <span>Đang tải các đối tác giao hàng...</span>
+                  </div>
+                ) : carriers.length === 0 ? (
+                  <p className="text-xs text-gray-500 italic py-2">
+                    Hệ thống sẽ tự động chỉ định đối tác giao vận nhanh nhất cho đơn hàng của bạn.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {carriers.map((c) => {
+                      const isSelected = selectedCarrierId === c.id;
+                      const cFee = c.shippingFee ?? 30000;
+                      let carrierActualFee = cFee;
+                      if (subtotalAfterDiscount >= 20000000) {
+                        carrierActualFee = 0;
+                      } else if (subtotalAfterDiscount >= 10000000) {
+                        carrierActualFee = Math.round(cFee / 2);
+                      }
+
+                      return (
+                        <div
+                          key={c.id}
+                          onClick={() => setSelectedCarrierId(c.id)}
+                          className={`relative p-3.5 rounded-xl border-2 transition cursor-pointer flex flex-col justify-between gap-2.5 ${
+                            isSelected
+                              ? 'border-indigo-600 bg-indigo-50/40 shadow-xs ring-1 ring-indigo-500/20'
+                              : 'border-gray-200 hover:border-indigo-200 bg-white hover:bg-slate-50/50'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="font-bold text-xs text-gray-900 truncate">
+                                {c.name}
+                              </span>
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700 shrink-0">
+                                {c.code}
+                              </span>
+                            </div>
+                            <div
+                              className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                                isSelected
+                                  ? 'border-indigo-600 bg-indigo-600 text-white'
+                                  : 'border-gray-300 bg-white'
+                              }`}
+                            >
+                              {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                            </div>
+                          </div>
+
+                          <p className="text-[11px] text-gray-500 line-clamp-1">
+                            {c.serviceType || 'Chuyển phát nhanh tiêu chuẩn'}
+                          </p>
+
+                          <div className="flex items-center justify-between pt-1 border-t border-gray-100/80 text-[10px]">
+                            {subtotalAfterDiscount >= 20000000 ? (
+                              <span className="text-emerald-700 font-bold flex items-center gap-1">
+                                <span>Freeship 0₫</span>
+                                <span className="line-through text-gray-400 font-normal text-[9px]">
+                                  {formatPrice(cFee)}
+                                </span>
+                              </span>
+                            ) : subtotalAfterDiscount >= 10000000 ? (
+                              <span className="text-blue-700 font-bold flex items-center gap-1">
+                                <span>{formatPrice(carrierActualFee)}</span>
+                                <span className="line-through text-gray-400 font-normal text-[9px]">
+                                  {formatPrice(cFee)}
+                                </span>
+                                <span className="text-emerald-600 font-bold">(-50%)</span>
+                              </span>
+                            ) : (
+                              <span className="text-gray-900 font-bold">
+                                {formatPrice(cFee)}
+                              </span>
+                            )}
+                            <span className="text-amber-600 font-semibold flex items-center gap-0.5">
+                              ★ {c.rating ? c.rating.toFixed(1) : '5.0'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Card 3: Payment Method */}
               <div className="bg-white rounded-2xl border border-gray-200/90 shadow-xs p-5 sm:p-6 space-y-4">
                 <div className="flex items-center gap-2.5 pb-3 border-b border-gray-100">
                   <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
                     <CreditCard className="w-4 h-4" />
                   </div>
                   <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
-                    2. Phương thức thanh toán
+                    3. Phương thức thanh toán
                   </h2>
                 </div>
 
@@ -699,9 +879,46 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                   )}
 
+                  {selectedCarrier && (
+                    <div className="flex justify-between text-gray-600">
+                      <span>Đơn vị giao hàng</span>
+                      <span className="font-semibold text-indigo-700 flex items-center gap-1">
+                        <Truck className="w-3.5 h-3.5 text-indigo-600" />
+                        {selectedCarrier.name}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="flex justify-between text-gray-600">
-                    <span>Phí vận chuyển</span>
-                    <span className="font-semibold text-emerald-600">Miễn phí</span>
+                    <span className="flex items-center gap-1.5">
+                      <span>Phí vận chuyển</span>
+                      {shippingBadge && (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded">
+                          {shippingBadge}
+                        </span>
+                      )}
+                    </span>
+                    <span className={`font-semibold ${actualShippingFee === 0 ? 'text-emerald-600' : 'text-gray-900'}`}>
+                      {actualShippingFee === 0 ? (
+                        <span className="flex items-center gap-1">
+                          <span>Miễn phí</span>
+                          {baseShippingFee > 0 && (
+                            <span className="line-through text-gray-400 font-normal text-[10px]">
+                              {formatPrice(baseShippingFee)}
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1">
+                          <span>{formatPrice(actualShippingFee)}</span>
+                          {actualShippingFee < baseShippingFee && (
+                            <span className="line-through text-gray-400 font-normal text-[10px]">
+                              {formatPrice(baseShippingFee)}
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </span>
                   </div>
                   <div className="pt-2 border-t border-gray-100 flex items-baseline justify-between">
                     <div>
