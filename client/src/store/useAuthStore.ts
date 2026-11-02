@@ -6,8 +6,10 @@ import type {
   ChangePasswordPayload,
   LoginPayload,
   RegisterPayload,
+  ResendOtpPayload,
   UpdateProfilePayload,
   User,
+  VerifyOtpPayload,
 } from '../models/auth.model';
 
 export interface AuthState {
@@ -19,6 +21,8 @@ export interface AuthState {
 
   login: (payload: LoginPayload) => Promise<User>;
   register: (payload: RegisterPayload) => Promise<void>;
+  verifyOtp: (payload: VerifyOtpPayload) => Promise<User>;
+  resendOtp: (payload: ResendOtpPayload) => Promise<string>;
   logout: () => void;
   updateProfile: (payload: UpdateProfilePayload) => Promise<User>;
   changePassword: (payload: ChangePasswordPayload) => Promise<void>;
@@ -42,7 +46,6 @@ export const useAuthStore = create<AuthState>()(
           const user = authData.user;
           const token = authData.token || authData.accessToken || '';
 
-          // Lưu token riêng để axios interceptor đọc dễ dàng
           try {
             if (token) {
               localStorage.setItem(STORAGE_KEYS.TOKEN, token);
@@ -75,6 +78,51 @@ export const useAuthStore = create<AuthState>()(
           set({ isLoading: false, error: null });
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : 'Đăng ký tài khoản thất bại!';
+          set({ isLoading: false, error: errorMessage });
+          throw err;
+        }
+      },
+
+      verifyOtp: async (payload: VerifyOtpPayload): Promise<User> => {
+        set({ isLoading: true, error: null });
+        try {
+          const authData = await authService.verifyOtp(payload);
+          const user = authData.user;
+          const token = authData.token || authData.accessToken || '';
+
+          try {
+            if (token) {
+              localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+            }
+            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+          } catch {
+            // Ignore storage errors
+          }
+
+          set({
+            user,
+            token,
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          });
+
+          return user;
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : 'Xác thực OTP thất bại!';
+          set({ isLoading: false, error: errorMessage });
+          throw err;
+        }
+      },
+
+      resendOtp: async (payload: ResendOtpPayload): Promise<string> => {
+        set({ isLoading: true, error: null });
+        try {
+          const res = await authService.resendOtp(payload);
+          set({ isLoading: false, error: null });
+          return res.message;
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : 'Không thể gửi lại mã OTP!';
           set({ isLoading: false, error: errorMessage });
           throw err;
         }

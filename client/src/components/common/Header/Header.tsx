@@ -402,7 +402,7 @@ export const Header: React.FC = () => {
             title="Giỏ hàng"
           >
             <ShoppingCart className="w-4.5 h-4.5" />
-            {totalItems > 0 && (
+            {isAuthenticated && totalItems > 0 && (
               <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border-2 border-[#181a20]">
                 {totalItems > 99 ? '99+' : totalItems}
               </span>

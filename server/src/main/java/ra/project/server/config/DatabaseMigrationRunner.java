@@ -36,7 +36,8 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
             migrateOrderCancelAndProductDeletionColumns();
             migrateDefaultVariantsForExistingProducts();
             backfillOrderItems();
-            log.info(">>> [Migration] Hoàn tất migration biến thể sản phẩm thành công!");
+            createEmailOtpTableIfNotExists();
+            log.info(">>> [Migration] Hoàn tất migration biến thể sản phẩm & email OTP thành công!");
         } catch (Exception e) {
             log.error(">>> [Migration] Gặp lỗi trong quá trình thực thi migration:", e);
             throw new RuntimeException("Migration failed", e);
@@ -333,5 +334,21 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
                 """, variantId, productName, "Tiêu chuẩn", sku, itemId);
             }
         }
+    }
+
+    private void createEmailOtpTableIfNotExists() {
+        log.info(">>> [Migration] Kiểm tra và tạo bảng 'email_otps' nếu chưa tồn tại...");
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS email_otps (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                email VARCHAR(150) NOT NULL,
+                otp VARCHAR(10) NOT NULL,
+                expiry_time DATETIME NOT NULL,
+                used BOOLEAN NOT NULL DEFAULT FALSE,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_email_otps_email (email),
+                INDEX idx_email_otps_created_at (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        """);
     }
 }

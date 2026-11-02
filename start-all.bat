@@ -8,7 +8,7 @@ echo          E-COMMERCE SYSTEM - LOCAL RUNNER
 echo =======================================================
 echo.
 echo [1/2] Dang khoi dong Backend Spring Boot (Port 8080)...
-start "Backend Server (Spring Boot :8080)" /D "%~dp0server" cmd /k "gradlew.bat bootRun"
+start "Backend Server (Spring Boot :8080)" /D "%~dp0server" cmd /k "set DB_USER=root&& set DB_PASSWORD=123456&& gradlew.bat bootRun"
 
 echo [2/2] Dang khoi dong Frontend React Vite (Port 5173)...
 start "Frontend Client (Vite :5173)" /D "%~dp0client" cmd /k "npm.cmd run dev"

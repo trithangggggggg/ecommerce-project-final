@@ -12,13 +12,11 @@ export const axiosClient: AxiosInstance = axios.create({
   },
 });
 
-// Request Interceptor: Tự động gắn Bearer Token nếu có trong localStorage (trừ endpoint login/register)
+// Request Interceptor: Tự động gắn Bearer Token nếu có trong localStorage (trừ endpoint /auth/*)
 axiosClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     try {
-      const isAuthEndpoint =
-        config.url &&
-        (config.url.includes('/auth/login') || config.url.includes('/auth/register'));
+      const isAuthEndpoint = config.url && config.url.includes('/auth/');
 
       if (isAuthEndpoint) {
         if (config.headers) {
@@ -50,10 +48,7 @@ axiosClient.interceptors.response.use(
 
     if (error.response) {
       const status = error.response.status;
-      const isAuthEndpoint =
-        originalRequest?.url &&
-        (originalRequest.url.includes('/auth/login') ||
-          originalRequest.url.includes('/auth/register'));
+      const isAuthEndpoint = originalRequest?.url && originalRequest.url.includes('/auth/');
 
       // Khi phiên đăng nhập hết hạn (401 Unauthorized) trên các protected API
       if (status === 401 && !isAuthEndpoint) {
@@ -92,7 +87,7 @@ axiosClient.interceptors.response.use(
         }
       }
 
-      // Đối với login / register: ưu tiên hiển thị message từ server
+      // Đối với auth endpoints: ưu tiên hiển thị message chính xác từ server
       if (isAuthEndpoint) {
         if (status === 401) {
           message = message || 'Tên đăng nhập hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại thông tin!';
@@ -102,6 +97,8 @@ axiosClient.interceptors.response.use(
           message = message || 'Tên đăng nhập hoặc địa chỉ email đã được sử dụng. Vui lòng chọn thông tin khác!';
         } else if (status === 403) {
           message = message || 'Tài khoản chưa được kích hoạt hoặc bị từ chối truy cập. Vui lòng kiểm tra lại thông tin!';
+        } else if (status === 404) {
+          message = message || 'Không tìm thấy thông tin tài khoản hoặc email trong hệ thống!';
         } else if (status === 405) {
           message = message || 'Phương thức yêu cầu không hợp lệ. Vui lòng thử lại!';
         } else if (status >= 500) {
