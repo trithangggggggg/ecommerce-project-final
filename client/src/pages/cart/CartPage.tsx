@@ -12,27 +12,143 @@ import {
   RotateCcw,
   ChevronRight,
   Sparkles,
+  Check,
+  Lock,
+  LogIn,
 } from 'lucide-react';
 import { useCartStore } from '../../store/useCartStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { ROUTES } from '../../constants/routes';
 import { formatPrice } from '../../utils/format';
 import Button from '../../components/common/Button/Button';
 
+// ============================================================
+// CartPage — Trang giỏ hàng (FE_08 / FR_CART_01)
+// ============================================================
+
+// Toast nội tuyến, không cần thư viện ngoài
+interface ToastState {
+  message: string;
+  type: 'success' | 'warning' | 'error';
+}
+
+function useToast() {
+  const [toast, setToast] = React.useState<ToastState | null>(null);
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = React.useCallback((message: string, type: ToastState['type'] = 'success') => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setToast({ message, type });
+    timerRef.current = setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  React.useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  return { toast, showToast };
+}
+
 export const CartPage: React.FC = () => {
   const navigate = useNavigate();
-  const { items, totalItems, totalPrice, updateQuantity, removeItem, clearCart } =
+  const { items, totalItems, totalPrice, subtotal, updateQuantity, removeItem, clearCart } =
     useCartStore();
+  const { isAuthenticated } = useAuthStore();
+  const { toast, showToast } = useToast();
 
+  // ----------------------------------------------------------------
+  // Handlers
+  // ----------------------------------------------------------------
   const handleClearCart = () => {
     if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ sản phẩm trong giỏ hàng?')) {
       clearCart();
+      showToast('Đã xóa toàn bộ giỏ hàng.', 'success');
     }
   };
 
+  const handleQuantityChange = (variantId: number, newQty: number, maxStock: number) => {
+    if (newQty > maxStock) {
+      showToast(`Số lượng tối đa cho sản phẩm này là ${maxStock}.`, 'warning');
+      updateQuantity(variantId, maxStock);
+      return;
+    }
+    updateQuantity(variantId, newQty);
+  };
+
+  const handleIncrease = (variantId: number, currentQty: number, maxStock: number) => {
+    if (currentQty >= maxStock) {
+      showToast(`Đã đạt số lượng tối đa tồn kho (${maxStock} sản phẩm).`, 'warning');
+      return;
+    }
+    updateQuantity(variantId, currentQty + 1);
+  };
+
+  const handleDecrease = (variantId: number, currentQty: number) => {
+    if (currentQty <= 1) return;
+    updateQuantity(variantId, currentQty - 1);
+  };
+
+  const handleRemoveItem = (variantId: number, productName: string) => {
+    removeItem(variantId);
+    showToast(`Đã xóa "${productName}" khỏi giỏ hàng.`, 'success');
+  };
+
+  /**
+   * Nhấn "Tiến hành thanh toán":
+   * - Nếu chưa đăng nhập → chuyển đến /login?redirect=/checkout
+   * - Nếu đã đăng nhập → chuyển đến /checkout
+   */
   const handleCheckoutRedirect = () => {
+    if (!isAuthenticated) {
+      navigate(`${ROUTES.LOGIN}?redirect=${ROUTES.CHECKOUT}`);
+      return;
+    }
     navigate(ROUTES.CHECKOUT);
   };
 
+  // ----------------------------------------------------------------
+  // Chưa đăng nhập → Yêu cầu đăng nhập để xem giỏ hàng
+  // ----------------------------------------------------------------
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-[70vh] bg-[#f5f6fa] py-12 px-4 sm:px-6 lg:px-8 font-sans flex items-center justify-center">
+        <div className="max-w-md w-full text-center bg-white rounded-2xl border border-gray-200/80 p-8 shadow-xs">
+          <div className="w-20 h-20 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-5 shadow-inner">
+            <Lock className="w-10 h-10 stroke-[1.5]" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Vui lòng đăng nhập</h2>
+          <p className="text-xs text-gray-500 mb-6 leading-relaxed">
+            Bạn cần đăng nhập tài khoản để xem, thêm và quản lý sản phẩm trong giỏ hàng của mình.
+          </p>
+          <div className="space-y-3">
+            <Button
+              variant="dark"
+              size="md"
+              fullWidth
+              onClick={() => navigate(`${ROUTES.LOGIN}?redirect=${ROUTES.CART}`)}
+              leftIcon={<LogIn className="w-4 h-4 text-blue-400" />}
+            >
+              Đăng nhập ngay
+            </Button>
+            <Button
+              variant="outline"
+              size="md"
+              fullWidth
+              onClick={() => navigate(ROUTES.PRODUCTS)}
+            >
+              Khám phá sản phẩm
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ----------------------------------------------------------------
+  // Giỏ hàng trống
+  // ----------------------------------------------------------------
   if (items.length === 0) {
     return (
       <div className="min-h-[70vh] bg-[#f5f6fa] py-12 px-4 sm:px-6 lg:px-8 font-sans flex items-center justify-center">
@@ -42,7 +158,8 @@ export const CartPage: React.FC = () => {
           </div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">Giỏ hàng của bạn đang trống</h2>
           <p className="text-xs text-gray-500 mb-6 leading-relaxed">
-            Bạn chưa chọn sản phẩm công nghệ nào. Hãy khám phá hàng ngàn siêu phẩm điện thoại, laptop, phụ kiện chính hãng tại NEXOR nhé!
+            Bạn chưa chọn sản phẩm công nghệ nào. Hãy khám phá hàng ngàn siêu phẩm điện thoại,
+            laptop, phụ kiện chính hãng tại NEXOR nhé!
           </p>
           <div className="space-y-3">
             <Button
@@ -68,8 +185,27 @@ export const CartPage: React.FC = () => {
     );
   }
 
+  // ----------------------------------------------------------------
+  // Giỏ hàng có sản phẩm
+  // ----------------------------------------------------------------
   return (
     <div className="min-h-screen bg-[#f5f6fa] py-6 px-4 sm:px-6 lg:px-8 font-sans">
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed top-20 right-4 sm:right-6 z-50 text-white text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 border transition-all duration-300 max-w-sm ${
+            toast.type === 'success'
+              ? 'bg-gray-900 border-gray-700'
+              : toast.type === 'warning'
+              ? 'bg-amber-700 border-amber-600'
+              : 'bg-red-700 border-red-600'
+          }`}
+        >
+          <Check size={16} className={toast.type === 'success' ? 'text-emerald-400' : 'text-white'} />
+          <span className="text-xs leading-snug">{toast.message}</span>
+        </div>
+      )}
+
       <div className="max-w-[1360px] mx-auto space-y-5">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-xs text-gray-500">
@@ -113,13 +249,16 @@ export const CartPage: React.FC = () => {
                 {items.map((item) => {
                   const product = item.product;
                   const variant = item.variant;
-                  const itemKey = item.variantId || variant?.id || product.id;
+                  const itemKey = item.variantId ?? variant?.id ?? product.id;
                   const unitPrice = variant?.price ?? product.price ?? 0;
                   const originalPrice = variant?.originalPrice ?? product.originalPrice;
                   const itemTotal = unitPrice * item.quantity;
-                  const maxStock = variant?.stock ?? (product.stock !== undefined && product.stock > 0 ? product.stock : 999);
-                  const isMaxStock = item.quantity >= maxStock;
-                  const itemImage = variant?.imageUrl || product.imageUrl || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200';
+                  const maxStock = variant?.stock ?? (product.stock > 0 ? product.stock : 999);
+                  const isAtMaxStock = item.quantity >= maxStock;
+                  const itemImage =
+                    variant?.imageUrl ||
+                    product.imageUrl ||
+                    'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200';
 
                   return (
                     <div
@@ -188,44 +327,59 @@ export const CartPage: React.FC = () => {
                               </span>
                             )}
                           </div>
+
+                          {/* Stock warning (mobile) */}
+                          {isAtMaxStock && (
+                            <p className="text-[10px] text-amber-600 font-semibold mt-1 sm:hidden">
+                              Đã đạt tối đa tồn kho ({maxStock})
+                            </p>
+                          )}
                         </div>
                       </div>
 
                       {/* Quantity Modifier & Subtotal */}
                       <div className="flex items-center justify-between sm:justify-end gap-5 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100">
                         {/* Quantity Counter */}
-                        <div className="flex items-center border border-gray-200 rounded-lg bg-white overflow-hidden shadow-2xs">
-                          <button
-                            type="button"
-                            onClick={() => updateQuantity(itemKey, item.quantity - 1)}
-                            className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-black transition cursor-pointer disabled:opacity-40"
-                            disabled={item.quantity <= 1}
-                            title="Giảm số lượng"
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                          <input
-                            type="number"
-                            min={1}
-                            max={maxStock}
-                            value={item.quantity}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value, 10);
-                              if (!isNaN(val)) {
-                                updateQuantity(itemKey, Math.max(1, Math.min(val, maxStock)));
-                              }
-                            }}
-                            className="w-12 h-8 text-center text-xs font-bold text-gray-900 border-x border-gray-200 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => updateQuantity(itemKey, item.quantity + 1)}
-                            className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-black transition cursor-pointer disabled:opacity-40"
-                            disabled={isMaxStock}
-                            title={isMaxStock ? 'Đã đạt giới hạn tồn kho' : 'Tăng số lượng'}
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
+                        <div className="flex flex-col items-start gap-1">
+                          <div className="flex items-center border border-gray-200 rounded-lg bg-white overflow-hidden shadow-2xs">
+                            <button
+                              type="button"
+                              onClick={() => handleDecrease(itemKey, item.quantity)}
+                              className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-black transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                              disabled={item.quantity <= 1}
+                              title="Giảm số lượng"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <input
+                              type="number"
+                              min={1}
+                              max={maxStock}
+                              value={item.quantity}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10);
+                                if (!isNaN(val) && val >= 1) {
+                                  handleQuantityChange(itemKey, val, maxStock);
+                                }
+                              }}
+                              className="w-12 h-8 text-center text-xs font-bold text-gray-900 border-x border-gray-200 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleIncrease(itemKey, item.quantity, maxStock)}
+                              className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-black transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                              disabled={isAtMaxStock}
+                              title={isAtMaxStock ? `Đã đạt giới hạn tồn kho (${maxStock})` : 'Tăng số lượng'}
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          {/* Stock warning (desktop) */}
+                          {isAtMaxStock && (
+                            <p className="hidden sm:block text-[10px] text-amber-600 font-semibold">
+                              Tối đa: {maxStock}
+                            </p>
+                          )}
                         </div>
 
                         {/* Item Total Price */}
@@ -241,7 +395,7 @@ export const CartPage: React.FC = () => {
                         {/* Delete single button */}
                         <button
                           type="button"
-                          onClick={() => removeItem(itemKey)}
+                          onClick={() => handleRemoveItem(itemKey, product.name)}
                           className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
                           title="Xóa khỏi giỏ hàng"
                         >
@@ -277,13 +431,15 @@ export const CartPage: React.FC = () => {
               <div className="space-y-3 text-xs">
                 <div className="flex justify-between text-gray-600">
                   <span>Tạm tính ({totalItems} sản phẩm)</span>
-                  <span className="font-semibold text-gray-900">{formatPrice(totalPrice)}</span>
+                  <span className="font-semibold text-gray-900">
+                    {formatPrice(subtotal || totalPrice)}
+                  </span>
                 </div>
 
                 <div className="flex justify-between text-gray-600">
                   <span className="flex items-center gap-1.5">
                     <span>Phí giao hàng</span>
-                    <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.2 rounded font-semibold border border-emerald-200">
+                    <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-semibold border border-emerald-200">
                       Miễn phí
                     </span>
                   </span>
@@ -301,13 +457,13 @@ export const CartPage: React.FC = () => {
                     <span className="text-[10px] text-gray-400">(Đã bao gồm thuế VAT)</span>
                   </div>
                   <span className="text-xl font-black text-red-600">
-                    {formatPrice(totalPrice)}
+                    {formatPrice(subtotal || totalPrice)}
                   </span>
                 </div>
               </div>
 
               {/* Checkout CTA Button */}
-              <div className="pt-2">
+              <div className="pt-2 space-y-2">
                 <Button
                   type="button"
                   variant="primary"
@@ -319,6 +475,12 @@ export const CartPage: React.FC = () => {
                 >
                   Tiến hành thanh toán
                 </Button>
+
+                {!isAuthenticated && (
+                  <p className="text-[10px] text-gray-400 text-center">
+                    Bạn sẽ được yêu cầu đăng nhập trước khi thanh toán
+                  </p>
+                )}
               </div>
 
               <div className="text-[11px] text-gray-500 text-center">

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { ShoppingCart, Heart, Check } from 'lucide-react';
 import type { Product } from '../../../models/product.model';
 import { useCartStore } from '../../../store/useCartStore';
+import { useAuthStore } from '../../../store/useAuthStore';
 import { formatPrice } from '../../../utils/format';
 
 interface ProductCardProps {
@@ -12,6 +13,9 @@ interface ProductCardProps {
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
   const { addItem } = useCartStore();
+  const { isAuthenticated } = useAuthStore();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [added, setAdded] = useState(false);
   const [liked, setLiked] = useState(false);
 
@@ -24,6 +28,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!isAuthenticated) {
+      const currentUrl = location.pathname + (location.search || '');
+      navigate(`/login?redirect=${encodeURIComponent(currentUrl)}`);
+      return;
+    }
     addItem(product, 1);
     setAdded(true);
     setTimeout(() => setAdded(false), 1500);
