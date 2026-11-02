@@ -67,7 +67,7 @@ public class EmailServiceImpl implements EmailService {
     }
 
     private String buildHtmlOtpTemplate(String name, String otp, String expireTime) {
-        return """
+        String template = """
                 <!DOCTYPE html>
                 <html>
                 <head>
@@ -84,15 +84,15 @@ public class EmailServiceImpl implements EmailService {
                         </tr>
                         <tr>
                             <td style="padding: 32px 28px;">
-                                <h2 style="color: #111827; font-size: 18px; margin-top: 0;">Xin chào %s,</h2>
+                                <h2 style="color: #111827; font-size: 18px; margin-top: 0;">Xin chào {{NAME}},</h2>
                                 <p style="color: #4b5563; font-size: 14px; line-height: 1.6; margin-bottom: 24px;">
                                     Cảm ơn bạn đã lựa chọn đăng ký tài khoản tại <strong>NEXOR Flagship Store</strong>. Để hoàn tất kích hoạt tài khoản, vui lòng sử dụng mã xác thực OTP 6 chữ số dưới đây:
                                 </p>
                                 <div style="text-align: center; margin: 28px 0; padding: 20px; background-color: #f8fafc; border: 2px dashed #3b82f6; border-radius: 10px;">
-                                    <span style="font-size: 34px; font-weight: 800; letter-spacing: 8px; color: #1d4ed8; font-family: 'Courier New', monospace;">%s</span>
+                                    <span style="font-size: 34px; font-weight: 800; letter-spacing: 8px; color: #1d4ed8; font-family: 'Courier New', monospace;">{{OTP}}</span>
                                 </div>
                                 <p style="color: #dc2626; font-size: 13px; font-weight: 600; text-align: center; margin-bottom: 24px;">
-                                    ⏱️ Mã này có hiệu lực trong vòng 5 phút (hết hạn lúc %s).
+                                    ⏱️ Mã này có hiệu lực trong vòng 5 phút (hết hạn lúc {{EXPIRE_TIME}}).
                                 </p>
                                 <p style="color: #6b7280; font-size: 13px; line-height: 1.5; margin: 0;">
                                     Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email. Tuyệt đối không chia sẻ mã này cho bất kỳ ai khác để đảm bảo an toàn tài khoản.
@@ -109,6 +109,10 @@ public class EmailServiceImpl implements EmailService {
                     </table>
                 </body>
                 </html>
-                """.formatted(name, otp, expireTime);
+                """;
+        return template
+                .replace("{{NAME}}", name != null ? name : "Khách hàng NEXOR")
+                .replace("{{OTP}}", otp != null ? otp : "")
+                .replace("{{EXPIRE_TIME}}", expireTime != null ? expireTime : "");
     }
 }
