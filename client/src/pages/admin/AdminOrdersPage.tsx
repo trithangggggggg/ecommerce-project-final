@@ -16,14 +16,17 @@ import {
   Calendar,
   ArrowUpDown,
   RotateCcw,
+  Package,
 } from 'lucide-react';
 import { orderService } from '../../api/services/order.service';
+import { productService } from '../../api/services/product.service';
 import { formatPrice, formatDateTime } from '../../utils/format';
 import {
   type OrderResponse,
   type OrderStatus,
   type PaymentMethod,
 } from '../../models/order.model';
+import { type Product, type ProductVariant } from '../../models/product.model';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import AdminPagination from '../../components/admin/AdminPagination';
@@ -74,6 +77,15 @@ export const AdminOrdersPage: React.FC = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<OrderResponse | null>(null);
 
+  // Product Selection & Variant State for Create Order
+  const [availableProducts, setAvailableProducts] = useState<Product[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState<number | ''>('');
+  const [selectedProductDetail, setSelectedProductDetail] = useState<Product | null>(null);
+  const [isLoadingProductDetail, setIsLoadingProductDetail] = useState(false);
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
+  const [isCreating, setIsCreating] = useState(false);
+
   // Create form state
   const [newOrderForm, setNewOrderForm] = useState<{
     receiverName: string;
@@ -89,9 +101,9 @@ export const AdminOrdersPage: React.FC = () => {
     phoneNumber: '',
     shippingAddress: '',
     paymentMethod: 'COD',
-    productName: 'iPhone 15 Pro Max 256GB',
+    productName: '',
     quantity: 1,
-    price: 29990000,
+    price: 0,
     note: '',
   });
 
@@ -129,9 +141,56 @@ export const AdminOrdersPage: React.FC = () => {
     }
   }, []);
 
+  const fetchAvailableProducts = useCallback(async () => {
+    setIsLoadingProducts(true);
+    try {
+      const res = await productService.getProducts({ limit: 100 });
+      const active = (res.data || []).filter((p) => p.status !== false);
+      setAvailableProducts(active);
+    } catch {
+      setAvailableProducts([]);
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchOrders();
-  }, [fetchOrders]);
+    fetchAvailableProducts();
+  }, [fetchOrders, fetchAvailableProducts]);
+
+  // Match current combination of options with backend variants
+  const matchedVariant: ProductVariant | null = useMemo(() => {
+    if (!selectedProductDetail) return null;
+    const variants = selectedProductDetail.variants;
+    if (!variants || variants.length === 0) return null;
+
+    // If product has no options, return the first variant
+    if (!selectedProductDetail.options || selectedProductDetail.options.length === 0) {
+      return variants[0];
+    }
+
+    // Match all selected options
+    const found = variants.find((variant) => {
+      if (!variant.optionValues) return false;
+      return Object.entries(selectedOptions).every(([optName, optVal]) => {
+        const varVal = variant.optionValues?.[optName];
+        return varVal && varVal.trim().toLowerCase() === optVal.trim().toLowerCase();
+      });
+    });
+
+    return found || variants[0] || null;
+  }, [selectedProductDetail, selectedOptions]);
+
+  // Keep price updated with matched variant
+  useEffect(() => {
+    if (matchedVariant) {
+      setNewOrderForm((prev) => ({
+        ...prev,
+        price: matchedVariant.price,
+      }));
+    }
+  }, [matchedVariant]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -175,6 +234,130 @@ export const AdminOrdersPage: React.FC = () => {
     }
   };
 
+  // Handler when user selects a product from the dropdown
+  const handleProductChange = async (productIdStr: string) => {
+    if (!productIdStr) {
+      setSelectedProductId('');
+      setSelectedProductDetail(null);
+      setSelectedOptions({});
+      setNewOrderForm((prev) => ({
+        ...prev,
+        productName: '',
+        price: 0,
+        quantity: 1,
+      }));
+      return;
+    }
+
+    const pId = Number(productIdStr);
+    setSelectedProductId(pId);
+    setIsLoadingProductDetail(true);
+
+    try {
+      const detail = await productService.getProductById(pId);
+      setSelectedProductDetail(detail);
+
+      // Initialize selected options with the first value of each option
+      const initialOptions: Record<string, string> = {};
+      if (detail.options && detail.options.length > 0) {
+        detail.options.forEach((opt) => {
+          if (opt.values && opt.values.length > 0) {
+            initialOptions[opt.name] = opt.values[0].value;
+          }
+        });
+        setSelectedOptions(initialOptions);
+      } else {
+        setSelectedOptions({});
+      }
+
+      // Initial matched variant
+      let initialVariant: ProductVariant | null = null;
+      if (detail.variants && detail.variants.length > 0) {
+        if (detail.options && detail.options.length > 0) {
+          initialVariant =
+            detail.variants.find((v) => {
+              if (!v.optionValues) return false;
+              return Object.entries(initialOptions).every(([k, val]) => {
+                const varVal = v.optionValues?.[k];
+                return varVal && varVal.trim().toLowerCase() === val.trim().toLowerCase();
+              });
+            }) || detail.variants[0];
+        } else {
+          initialVariant = detail.variants[0];
+        }
+      }
+
+      const initialPrice = initialVariant?.price ?? detail.minPrice ?? detail.price ?? 0;
+      setNewOrderForm((prev) => ({
+        ...prev,
+        productName: detail.name,
+        price: initialPrice,
+        quantity: 1,
+      }));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Không thể tải chi tiết sản phẩm.';
+      showToast(`Lỗi: ${msg}`);
+    } finally {
+      setIsLoadingProductDetail(false);
+    }
+  };
+
+  // Handler when user changes a variant option (e.g. Color, Storage)
+  const handleOptionChange = (optionName: string, optionValue: string) => {
+    const updatedOptions = { ...selectedOptions, [optionName]: optionValue };
+    setSelectedOptions(updatedOptions);
+
+    if (selectedProductDetail?.variants && selectedProductDetail.variants.length > 0) {
+      const matched =
+        selectedProductDetail.variants.find((v) => {
+          if (!v.optionValues) return false;
+          return Object.entries(updatedOptions).every(([k, val]) => {
+            const varVal = v.optionValues?.[k];
+            return varVal && varVal.trim().toLowerCase() === val.trim().toLowerCase();
+          });
+        }) || selectedProductDetail.variants[0];
+
+      if (matched) {
+        setNewOrderForm((prev) => ({
+          ...prev,
+          price: matched.price,
+        }));
+      }
+    }
+  };
+
+  // Handler when selecting variant directly (if no options but multiple variants)
+  const handleVariantSelect = (variantId: number) => {
+    const v = selectedProductDetail?.variants?.find((item) => item.id === variantId);
+    if (v) {
+      setNewOrderForm((prev) => ({
+        ...prev,
+        price: v.price,
+      }));
+    }
+  };
+
+  // Open Create Order Modal
+  const handleOpenCreateModal = () => {
+    setSelectedProductId('');
+    setSelectedProductDetail(null);
+    setSelectedOptions({});
+    setNewOrderForm({
+      receiverName: '',
+      phoneNumber: '',
+      shippingAddress: '',
+      paymentMethod: 'COD',
+      productName: '',
+      quantity: 1,
+      price: 0,
+      note: '',
+    });
+    setIsCreateOpen(true);
+    if (availableProducts.length === 0) {
+      fetchAvailableProducts();
+    }
+  };
+
   // Submit Create Order
   const handleCreateOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -183,6 +366,23 @@ export const AdminOrdersPage: React.FC = () => {
       return;
     }
 
+    if (!selectedProductId) {
+      showToast('Vui lòng chọn sản phẩm cần đặt hàng');
+      return;
+    }
+
+    const orderQuantity = Number(newOrderForm.quantity) || 1;
+    if (orderQuantity < 1) {
+      showToast('Số lượng đặt hàng tối thiểu là 1');
+      return;
+    }
+
+    if (matchedVariant?.stock != null && matchedVariant.stock < orderQuantity) {
+      showToast(`Số lượng tồn kho không đủ (Hiện còn: ${matchedVariant.stock})`);
+      return;
+    }
+
+    setIsCreating(true);
     try {
       const created = await orderService.checkout({
         receiverName: newOrderForm.receiverName.trim(),
@@ -192,28 +392,34 @@ export const AdminOrdersPage: React.FC = () => {
         note: newOrderForm.note?.trim() || undefined,
         items: [
           {
-            productId: 1,
-            quantity: Number(newOrderForm.quantity) || 1,
+            productId: Number(selectedProductId),
+            variantId: matchedVariant?.id,
+            quantity: orderQuantity,
           },
         ],
       });
 
       setOrders([created, ...orders]);
       setIsCreateOpen(false);
+      setSelectedProductId('');
+      setSelectedProductDetail(null);
+      setSelectedOptions({});
       setNewOrderForm({
         receiverName: '',
         phoneNumber: '',
         shippingAddress: '',
         paymentMethod: 'COD',
-        productName: 'iPhone 15 Pro Max 256GB',
+        productName: '',
         quantity: 1,
-        price: 29990000,
+        price: 0,
         note: '',
       });
       showToast(`Đã tạo đơn hàng mới #ORD-${created.id} trên Database thành công!`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Không thể tạo đơn hàng mới trên hệ thống';
       showToast(`Lỗi: ${msg}`);
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -472,7 +678,7 @@ export const AdminOrdersPage: React.FC = () => {
             variant="primary"
             size="md"
             leftIcon={<Plus className="w-4 h-4" />}
-            onClick={() => setIsCreateOpen(true)}
+            onClick={handleOpenCreateModal}
           >
             Tạo đơn hàng mới
           </Button>
@@ -802,7 +1008,7 @@ export const AdminOrdersPage: React.FC = () => {
       {/* ======================================================== */}
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4 font-sans">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4 font-sans max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <ShoppingCart className="w-5 h-5 text-blue-600" />
@@ -855,16 +1061,33 @@ export const AdminOrdersPage: React.FC = () => {
                 />
               </div>
 
+              {/* Box Select: Tên sản phẩm từ Database */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Tên sản phẩm</label>
-                  <input
-                    type="text"
-                    value={newOrderForm.productName}
-                    onChange={(e) => setNewOrderForm({ ...newOrderForm, productName: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                  />
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Sản phẩm đặt hàng *
+                  </label>
+                  <select
+                    required
+                    value={selectedProductId}
+                    disabled={isLoadingProducts}
+                    onChange={(e) => handleProductChange(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium truncate"
+                  >
+                    <option value="">-- Chọn sản phẩm có sẵn --</option>
+                    {availableProducts.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} {p.brand ? `(${p.brand})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {isLoadingProducts && (
+                    <p className="text-[11px] text-blue-600 mt-1 flex items-center gap-1">
+                      <RefreshCw className="w-3 h-3 animate-spin" /> Đang tải danh sách sản phẩm...
+                    </p>
+                  )}
                 </div>
+
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">Phương thức thanh toán</label>
                   <select
@@ -878,26 +1101,117 @@ export const AdminOrdersPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Biến thể sản phẩm (Dung lượng, Màu sắc...) */}
+              {isLoadingProductDetail && (
+                <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200/70 flex items-center gap-2 text-blue-700 text-xs">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Đang tải thông tin biến thể từ Database...</span>
+                </div>
+              )}
+
+              {!isLoadingProductDetail && selectedProductDetail && (
+                <>
+                  {selectedProductDetail.options && selectedProductDetail.options.length > 0 ? (
+                    <div className="p-3.5 bg-slate-50/90 rounded-xl border border-slate-200 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                          <Package className="w-3.5 h-3.5 text-blue-600" />
+                          Biến thể sản phẩm ({selectedProductDetail.options.length} tùy chọn)
+                        </span>
+                        {matchedVariant && (
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            SKU: <span className="font-mono font-bold text-slate-700">{matchedVariant.sku}</span>
+                            {matchedVariant.stock != null && ` • Còn ${matchedVariant.stock} trong kho`}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {selectedProductDetail.options.map((opt) => (
+                          <div key={opt.id || opt.name}>
+                            <label className="block text-slate-600 font-semibold mb-1">
+                              {opt.name} *
+                            </label>
+                            <select
+                              value={selectedOptions[opt.name] || ''}
+                              onChange={(e) => handleOptionChange(opt.name, e.target.value)}
+                              className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs font-semibold"
+                            >
+                              {opt.values.map((v) => (
+                                <option key={v.id || v.value} value={v.value}>
+                                  {v.value}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : selectedProductDetail.variants && selectedProductDetail.variants.length > 1 ? (
+                    <div className="p-3 bg-slate-50/90 rounded-xl border border-slate-200 space-y-1.5">
+                      <label className="block text-slate-700 font-semibold mb-1">
+                        Chọn biến thể *
+                      </label>
+                      <select
+                        value={matchedVariant?.id || ''}
+                        onChange={(e) => handleVariantSelect(Number(e.target.value))}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs"
+                      >
+                        {selectedProductDetail.variants.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.title || v.sku} - {formatPrice(v.price)} (Còn {v.stock})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-slate-600 text-xs flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 font-medium">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        Sản phẩm tiêu chuẩn (Không có biến thể phụ)
+                      </span>
+                      {matchedVariant?.stock != null && (
+                        <span className="text-slate-500 text-[11px]">
+                          Tồn kho: <strong>{matchedVariant.stock}</strong>
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Số lượng & Đơn giá (Tự động điền & Readonly/Disabled) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Số lượng</label>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Số lượng * {matchedVariant?.stock != null && (
+                      <span className="text-slate-400 font-normal text-[11px]">
+                        (Tối đa: {matchedVariant.stock})
+                      </span>
+                    )}
+                  </label>
                   <input
                     type="number"
                     min="1"
+                    max={matchedVariant?.stock && matchedVariant.stock > 0 ? matchedVariant.stock : undefined}
+                    required
                     value={newOrderForm.quantity}
-                    onChange={(e) => setNewOrderForm({ ...newOrderForm, quantity: Number(e.target.value) || 1 })}
+                    onChange={(e) =>
+                      setNewOrderForm({ ...newOrderForm, quantity: Math.max(1, Number(e.target.value) || 1) })
+                    }
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Đơn giá (VNĐ)</label>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Đơn giá (VNĐ) <span className="text-slate-400 font-normal text-[11px]">(Cố định từ Database)</span>
+                  </label>
                   <input
-                    type="number"
-                    min="0"
-                    step="10000"
-                    value={newOrderForm.price}
-                    onChange={(e) => setNewOrderForm({ ...newOrderForm, price: Number(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    type="text"
+                    readOnly
+                    disabled
+                    value={newOrderForm.price > 0 ? formatPrice(newOrderForm.price) : '0 ₫'}
+                    className="w-full px-3 py-2 border border-slate-200 bg-slate-100 text-slate-800 font-bold rounded-xl cursor-not-allowed outline-none select-none"
                   />
                 </div>
               </div>
@@ -916,7 +1230,7 @@ export const AdminOrdersPage: React.FC = () => {
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center font-bold">
                 <span className="text-slate-600">Tổng thanh toán:</span>
                 <span className="text-base text-blue-600">
-                  {formatPrice(newOrderForm.price * newOrderForm.quantity)}
+                  {selectedProductId ? formatPrice(newOrderForm.price * newOrderForm.quantity) : '0 ₫'}
                 </span>
               </div>
 
@@ -924,7 +1238,7 @@ export const AdminOrdersPage: React.FC = () => {
                 <Button type="button" variant="outline" size="sm" onClick={() => setIsCreateOpen(false)}>
                   Hủy
                 </Button>
-                <Button type="submit" variant="primary" size="sm">
+                <Button type="submit" variant="primary" size="sm" isLoading={isCreating}>
                   Lưu đơn hàng
                 </Button>
               </div>
