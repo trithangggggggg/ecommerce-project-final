@@ -23,6 +23,7 @@ export interface CheckoutRequest {
   shippingAddress: string;
   note?: string;
   couponCode?: string;
+  carrierId?: number;
   paymentMethod?: PaymentMethod;
   items: OrderItemRequest[];
 }
@@ -58,6 +59,11 @@ export interface OrderResponse {
   compensationCoupon?: string;
   couponCode?: string;
   discountAmount?: number;
+  shippingFee?: number;
+  carrierId?: number;
+  carrierName?: string;
+  carrierCode?: string;
+  trackingCode?: string;
   orderItems: OrderItemResponse[];
   items?: OrderItemResponse[];
   createdAt: string;
@@ -69,6 +75,8 @@ export type OrderItem = OrderItemResponse;
 
 export interface UpdateOrderStatusRequest {
   status: OrderStatus;
+  carrierId?: number;
+  trackingCode?: string;
 }
 
 export const ORDER_STATUS_CONFIG: Record<

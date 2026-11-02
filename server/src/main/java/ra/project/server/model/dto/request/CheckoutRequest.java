@@ -30,6 +30,8 @@ public class CheckoutRequest {
 
     private String couponCode;
 
+    private Long carrierId;
+
     @Builder.Default
     private PaymentMethod paymentMethod = PaymentMethod.COD;
 

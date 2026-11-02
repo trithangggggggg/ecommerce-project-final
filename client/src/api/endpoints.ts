@@ -21,6 +21,7 @@ export const ENDPOINTS = {
     DETAIL: (id: number | string) => `/orders/${id}`,
     CANCEL: (id: number | string) => `/orders/${id}/cancel`,
   },
+  SHIPPING_CARRIERS: '/shipping-carriers',
   PROMOTIONS: {
     CHECK: '/promotions/check',
     AVAILABLE: '/promotions/available',

@@ -27,6 +27,7 @@ import ra.project.server.repository.ProductRepository;
 import ra.project.server.repository.ProductVariantRepository;
 import ra.project.server.repository.PromotionRepository;
 import ra.project.server.repository.UserRepository;
+import ra.project.server.repository.ShippingCarrierRepository;
 import ra.project.server.service.impl.OrderServiceImpl;
 
 import java.math.BigDecimal;
@@ -55,6 +56,9 @@ class OrderServiceImplTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private ShippingCarrierRepository shippingCarrierRepository;
 
     @Mock
     private OrderMapper orderMapper;

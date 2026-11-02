@@ -16,13 +16,19 @@ import {
   Calendar,
   ArrowUpDown,
   RotateCcw,
+  Copy,
+  Check,
+  PackageCheck,
 } from 'lucide-react';
 import { orderService } from '../../api/services/order.service';
+import { shippingService } from '../../api/services/shipping.service';
+import type { ShippingCarrier } from './AdminShippingPage';
 import { formatPrice, formatDateTime } from '../../utils/format';
 import {
   type OrderResponse,
   type OrderStatus,
   type PaymentMethod,
+  type UpdateOrderStatusRequest,
 } from '../../models/order.model';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
@@ -53,6 +59,7 @@ const ITEMS_PER_PAGE = 10;
 // Đầy đủ thông tin sản phẩm thực tế, khách hàng, số điện thoại, thời gian
 export const AdminOrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<OrderResponse[]>([]);
+  const [carriers, setCarriers] = useState<ShippingCarrier[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,6 +73,13 @@ export const AdminOrdersPage: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<OrderResponse | null>(null);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  // Dispatch Modal state (Xuất kho & Gán đơn vị vận chuyển)
+  const [dispatchOrder, setDispatchOrder] = useState<OrderResponse | null>(null);
+  const [dispatchCarrierId, setDispatchCarrierId] = useState<number | ''>('');
+  const [dispatchTrackingCode, setDispatchTrackingCode] = useState<string>('');
+  const [isSubmittingDispatch, setIsSubmittingDispatch] = useState<boolean>(false);
 
   // Pagination state (10 items/page)
   const [currentPage, setCurrentPage] = useState(1);
@@ -102,6 +116,8 @@ export const AdminOrdersPage: React.FC = () => {
     shippingAddress: string;
     paymentMethod: PaymentMethod;
     status: OrderStatus;
+    carrierId?: number;
+    trackingCode?: string;
     note: string;
   }>({
     receiverName: '',
@@ -109,6 +125,8 @@ export const AdminOrdersPage: React.FC = () => {
     shippingAddress: '',
     paymentMethod: 'COD',
     status: 'PENDING',
+    carrierId: undefined,
+    trackingCode: '',
     note: '',
   });
 
@@ -129,24 +147,86 @@ export const AdminOrdersPage: React.FC = () => {
     }
   }, []);
 
+  const fetchCarriers = useCallback(async () => {
+    try {
+      const data = await shippingService.getCarriers();
+      if (Array.isArray(data)) {
+        setCarriers(data);
+      }
+    } catch {
+      // fallback
+    }
+  }, []);
+
   useEffect(() => {
     fetchOrders();
-  }, [fetchOrders]);
+    fetchCarriers();
+  }, [fetchOrders, fetchCarriers]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const handleStatusChange = async (orderId: number, newStatus: OrderStatus) => {
+  const handleCopyTrackingCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    showToast(`Đã sao chép mã vận đơn: ${code}`);
+    setTimeout(() => setCopiedCode(null), 2500);
+  };
+
+  const openDispatchModal = (order: OrderResponse) => {
+    setDispatchOrder(order);
+    const activeCarriers = carriers.filter((c) => c.status === 'ACTIVE');
+    const defaultCarrier = activeCarriers.length > 0 ? activeCarriers[0] : (carriers[0] || null);
+    const selectedId = order.carrierId || defaultCarrier?.id || '';
+    setDispatchCarrierId(selectedId);
+
+    if (order.trackingCode) {
+      setDispatchTrackingCode(order.trackingCode);
+    } else {
+      const carrierObj = carriers.find((c) => c.id === selectedId);
+      const codePrefix = carrierObj ? carrierObj.code.toUpperCase() : 'VN';
+      const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
+      setDispatchTrackingCode(`${codePrefix}${Date.now().toString().slice(-6)}${randomSuffix}`);
+    }
+  };
+
+  const handleCarrierSelectChange = (carrierId: number) => {
+    setDispatchCarrierId(carrierId);
+    const carrierObj = carriers.find((c) => c.id === carrierId);
+    const codePrefix = carrierObj ? carrierObj.code.toUpperCase() : 'VN';
+    const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
+    setDispatchTrackingCode(`${codePrefix}${Date.now().toString().slice(-6)}${randomSuffix}`);
+  };
+
+  const handleStatusChange = async (
+    orderId: number,
+    newStatus: OrderStatus,
+    extra?: { carrierId?: number; trackingCode?: string }
+  ) => {
+    // If switching to SHIPPING and not having carrier info yet, open dispatch modal!
+    if (newStatus === 'SHIPPING' && !extra?.carrierId) {
+      const order = orders.find((o) => o.id === orderId) || (selectedOrder?.id === orderId ? selectedOrder : null);
+      if (order) {
+        openDispatchModal(order);
+        return;
+      }
+    }
+
     setUpdatingId(orderId);
     try {
-      const updated = await orderService.updateOrderStatus(orderId, { status: newStatus });
+      const payload: UpdateOrderStatusRequest = {
+        status: newStatus,
+        carrierId: extra?.carrierId,
+        trackingCode: extra?.trackingCode,
+      };
+      const updated = await orderService.updateOrderStatus(orderId, payload);
       setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? (updated?.id ? updated : { ...o, status: newStatus }) : o))
+        prev.map((o) => (o.id === orderId ? (updated?.id ? updated : { ...o, ...payload }) : o))
       );
       if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder((prev) => (prev ? (updated?.id ? updated : { ...prev, status: newStatus }) : null));
+        setSelectedOrder((prev) => (prev ? (updated?.id ? updated : { ...prev, ...payload }) : null));
       }
       showToast(`Đã chuyển trạng thái đơn #ORD-${orderId} sang "${getStatusLabel(newStatus)}"`);
     } catch (err: unknown) {
@@ -154,6 +234,61 @@ export const AdminOrdersPage: React.FC = () => {
       showToast(`Lỗi: ${msg}`);
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  // Submit dispatch modal
+  const handleConfirmDispatch = async () => {
+    if (!dispatchOrder) return;
+    setIsSubmittingDispatch(true);
+    try {
+      const carrierId = typeof dispatchCarrierId === 'number' ? dispatchCarrierId : undefined;
+      const trackingCode = dispatchTrackingCode.trim() || undefined;
+      const carrierObj = carriers.find((c) => c.id === carrierId);
+
+      const updated = await orderService.updateOrderStatus(dispatchOrder.id, {
+        status: 'SHIPPING',
+        carrierId,
+        trackingCode,
+      });
+
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === dispatchOrder.id
+            ? {
+                ...o,
+                status: 'SHIPPING',
+                carrierId,
+                carrierName: carrierObj?.name || o.carrierName,
+                carrierCode: carrierObj?.code || o.carrierCode,
+                trackingCode: updated?.trackingCode || trackingCode || o.trackingCode,
+              }
+            : o
+        )
+      );
+
+      if (selectedOrder && selectedOrder.id === dispatchOrder.id) {
+        setSelectedOrder((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: 'SHIPPING',
+                carrierId,
+                carrierName: carrierObj?.name || prev.carrierName,
+                carrierCode: carrierObj?.code || prev.carrierCode,
+                trackingCode: updated?.trackingCode || trackingCode || prev.trackingCode,
+              }
+            : null
+        );
+      }
+
+      setDispatchOrder(null);
+      showToast(`Đã xuất kho & gán đơn vị vận chuyển cho đơn #ORD-${dispatchOrder.id} thành công!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Không thể xuất kho đơn hàng.';
+      showToast(`Lỗi: ${msg}`);
+    } finally {
+      setIsSubmittingDispatch(false);
     }
   };
 
@@ -226,6 +361,8 @@ export const AdminOrdersPage: React.FC = () => {
       shippingAddress: order.shippingAddress || '',
       paymentMethod: order.paymentMethod || 'COD',
       status: order.status,
+      carrierId: order.carrierId,
+      trackingCode: order.trackingCode || '',
       note: order.note || '',
     });
   };
@@ -236,23 +373,37 @@ export const AdminOrdersPage: React.FC = () => {
     if (!editingOrder) return;
 
     try {
-      if (editForm.status !== editingOrder.status) {
-        await orderService.updateOrderStatus(editingOrder.id, { status: editForm.status });
+      const carrierObj = carriers.find((c) => c.id === editForm.carrierId);
+      const isStatusOrShippingChanged =
+        editForm.status !== editingOrder.status ||
+        editForm.carrierId !== editingOrder.carrierId ||
+        editForm.trackingCode !== editingOrder.trackingCode;
+
+      if (isStatusOrShippingChanged) {
+        await orderService.updateOrderStatus(editingOrder.id, {
+          status: editForm.status,
+          carrierId: editForm.carrierId,
+          trackingCode: editForm.trackingCode?.trim() || undefined,
+        });
       }
 
       setOrders((prev) =>
         prev.map((o) =>
           o.id === editingOrder.id
             ? {
-              ...o,
-              receiverName: editForm.receiverName,
-              customerName: editForm.receiverName,
-              phoneNumber: editForm.phoneNumber,
-              shippingAddress: editForm.shippingAddress,
-              paymentMethod: editForm.paymentMethod,
-              status: editForm.status,
-              note: editForm.note,
-            }
+                ...o,
+                receiverName: editForm.receiverName,
+                customerName: editForm.receiverName,
+                phoneNumber: editForm.phoneNumber,
+                shippingAddress: editForm.shippingAddress,
+                paymentMethod: editForm.paymentMethod,
+                status: editForm.status,
+                carrierId: editForm.carrierId,
+                carrierName: carrierObj?.name || o.carrierName,
+                carrierCode: carrierObj?.code || o.carrierCode,
+                trackingCode: editForm.trackingCode?.trim() || o.trackingCode,
+                note: editForm.note,
+              }
             : o
         )
       );
@@ -261,15 +412,19 @@ export const AdminOrdersPage: React.FC = () => {
         setSelectedOrder((prev) =>
           prev
             ? {
-              ...prev,
-              receiverName: editForm.receiverName,
-              customerName: editForm.receiverName,
-              phoneNumber: editForm.phoneNumber,
-              shippingAddress: editForm.shippingAddress,
-              paymentMethod: editForm.paymentMethod,
-              status: editForm.status,
-              note: editForm.note,
-            }
+                ...prev,
+                receiverName: editForm.receiverName,
+                customerName: editForm.receiverName,
+                phoneNumber: editForm.phoneNumber,
+                shippingAddress: editForm.shippingAddress,
+                paymentMethod: editForm.paymentMethod,
+                status: editForm.status,
+                carrierId: editForm.carrierId,
+                carrierName: carrierObj?.name || prev.carrierName,
+                carrierCode: carrierObj?.code || prev.carrierCode,
+                trackingCode: editForm.trackingCode?.trim() || prev.trackingCode,
+                note: editForm.note,
+              }
             : null
         );
       }
@@ -283,7 +438,7 @@ export const AdminOrdersPage: React.FC = () => {
   };
 
 
-  // Đa dạng tìm kiếm cho mục Đơn hàng (mã đơn, tên khách, số điện thoại, tên sản phẩm, trạng thái, địa chỉ)
+  // Đa dạng tìm kiếm cho mục Đơn hàng (mã đơn, tên khách, số điện thoại, tên sản phẩm, trạng thái, địa chỉ, mã vận đơn, đơn vị vận chuyển)
   const filteredOrders = useMemo(() => {
     return orders
       .filter((order) => {
@@ -295,7 +450,7 @@ export const AdminOrdersPage: React.FC = () => {
         // Date filter
         if (dateFilter !== 'all') {
           const orderDate = new Date(order.createdAt).getTime();
-          const now = new Date('2025-06-11T00:00:00.000Z').getTime();
+          const now = Date.now();
           const oneDay = 24 * 60 * 60 * 1000;
           if (dateFilter === 'today' && now - orderDate > oneDay) return false;
           if (dateFilter === '7days' && now - orderDate > 7 * oneDay) return false;
@@ -317,6 +472,8 @@ export const AdminOrdersPage: React.FC = () => {
             ? order.shippingAddress.toLowerCase().includes(q)
             : false;
           const matchStatus = getStatusLabel(order.status).toLowerCase().includes(q);
+          const matchTracking = order.trackingCode ? order.trackingCode.toLowerCase().includes(q) : false;
+          const matchCarrier = order.carrierName ? order.carrierName.toLowerCase().includes(q) : false;
 
           // Search in product items
           const items = order.orderItems || order.items || [];
@@ -324,7 +481,7 @@ export const AdminOrdersPage: React.FC = () => {
             (item) => item.productName && item.productName.toLowerCase().includes(q)
           );
 
-          return matchCode || matchName || matchPhone || matchProduct || matchAddress || matchStatus;
+          return matchCode || matchName || matchPhone || matchProduct || matchAddress || matchStatus || matchTracking || matchCarrier;
         }
 
         return true;
@@ -727,25 +884,57 @@ export const AdminOrdersPage: React.FC = () => {
                         {formatPrice(order.totalAmount)}
                       </td>
 
-                      {/* 5. TRẠNG THÁI: Dot Badge phong cách Dashboard + Dropdown chỉnh nhanh */}
+                      {/* 5. TRẠNG THÁI: Dot Badge phong cách Dashboard + Dropdown chỉnh nhanh + Vận chuyển */}
                       <td className="py-2.5 px-4 whitespace-nowrap">
-                        <div className="relative inline-flex items-center">
-                          {renderStatusBadge(order)}
-                          <select
-                            value={order.status}
-                            disabled={isUpdating}
-                            onChange={(e) =>
-                              handleStatusChange(order.id, e.target.value as OrderStatus)
-                            }
-                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                            title="Bấm để đổi nhanh trạng thái đơn hàng"
-                          >
-                            {STATUS_OPTIONS.map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
+                        <div className="flex flex-col gap-1 items-start">
+                          <div className="relative inline-flex items-center">
+                            {renderStatusBadge(order)}
+                            <select
+                              value={order.status}
+                              disabled={isUpdating}
+                              onChange={(e) =>
+                                handleStatusChange(order.id, e.target.value as OrderStatus)
+                              }
+                              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                              title="Bấm để đổi nhanh trạng thái đơn hàng"
+                            >
+                              {STATUS_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Thông tin vận chuyển nếu có */}
+                          {(order.carrierName || order.trackingCode) && (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {order.carrierName && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                                  <Truck className="w-2.5 h-2.5 text-indigo-600 shrink-0" />
+                                  <span className="max-w-[95px] truncate">{order.carrierName}</span>
+                                </span>
+                              )}
+                              {order.trackingCode && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCopyTrackingCode(order.trackingCode!);
+                                  }}
+                                  className="inline-flex items-center gap-1 text-[10px] font-mono text-slate-600 bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded border border-slate-200 transition cursor-pointer"
+                                  title="Nhấn để sao chép mã vận đơn"
+                                >
+                                  <span>{order.trackingCode}</span>
+                                  {copiedCode === order.trackingCode ? (
+                                    <Check className="w-2.5 h-2.5 text-emerald-600" />
+                                  ) : (
+                                    <Copy className="w-2.5 h-2.5 text-slate-400" />
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </td>
 
@@ -1016,6 +1205,37 @@ export const AdminOrdersPage: React.FC = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Đối tác vận chuyển</label>
+                  <select
+                    value={editForm.carrierId || ''}
+                    onChange={(e) => {
+                      const val = e.target.value ? Number(e.target.value) : undefined;
+                      setEditForm({ ...editForm, carrierId: val });
+                    }}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  >
+                    <option value="">-- Chưa chỉ định đối tác --</option>
+                    {carriers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Mã vận đơn</label>
+                  <input
+                    type="text"
+                    value={editForm.trackingCode || ''}
+                    placeholder="VD: GHN839210..."
+                    onChange={(e) => setEditForm({ ...editForm, trackingCode: e.target.value.toUpperCase() })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-slate-700 font-semibold mb-1">Ghi chú</label>
                 <textarea
@@ -1135,6 +1355,114 @@ export const AdminOrdersPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Shipping Carrier & Tracking Section */}
+            <div className="p-4 rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/40 via-white to-blue-50/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+                    <Truck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                      Thông tin vận chuyển & Vận đơn
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Liên kết đối tác giao nhận hàng hóa
+                    </p>
+                  </div>
+                </div>
+
+                {/* Quick Dispatch / Update Carrier Button */}
+                {selectedOrder.status !== 'CANCELLED' && selectedOrder.status !== 'COMPLETED' && (
+                  <button
+                    type="button"
+                    onClick={() => openDispatchModal(selectedOrder)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-100/80 hover:bg-indigo-200 rounded-lg transition cursor-pointer"
+                  >
+                    <PackageCheck className="w-3.5 h-3.5" />
+                    <span>{selectedOrder.carrierId ? 'Đổi đơn vị / Mã vận đơn' : 'Xuất kho & Giao hàng'}</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Carrier details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
+                <div className="p-2.5 rounded-lg bg-white border border-slate-200">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
+                    Đối tác vận chuyển
+                  </span>
+                  {selectedOrder.carrierName ? (
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-indigo-900 text-sm">
+                        {selectedOrder.carrierName}
+                      </span>
+                      {selectedOrder.carrierCode && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700">
+                          {selectedOrder.carrierCode}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-slate-400 italic">Chưa chỉ định đơn vị vận chuyển</span>
+                  )}
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-white border border-slate-200">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
+                    Mã vận đơn (Tracking Code)
+                  </span>
+                  {selectedOrder.trackingCode ? (
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-slate-800 text-sm">
+                        {selectedOrder.trackingCode}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyTrackingCode(selectedOrder.trackingCode!)}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-medium transition cursor-pointer"
+                      >
+                        {copiedCode === selectedOrder.trackingCode ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span className="text-emerald-700">Đã sao chép</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span>Sao chép</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-slate-400 italic">Chưa phát hành mã vận đơn</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Order Shipping Progress Stepper */}
+              <div className="pt-2">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 mb-1.5">
+                  <span>Tiến trình giao hàng:</span>
+                  <span className="text-indigo-600 font-bold">{getStatusLabel(selectedOrder.status)}</span>
+                </div>
+                <div className="grid grid-cols-4 gap-2 text-center text-[10px]">
+                  <div className={`p-2 rounded-lg border ${selectedOrder.status === 'PENDING' ? 'bg-amber-50 border-amber-300 font-bold text-amber-800' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
+                    1. Tiếp nhận
+                  </div>
+                  <div className={`p-2 rounded-lg border ${selectedOrder.status === 'PROCESSING' ? 'bg-blue-50 border-blue-300 font-bold text-blue-800' : (['SHIPPING', 'COMPLETED'].includes(selectedOrder.status) ? 'bg-emerald-50 border-emerald-200 text-emerald-700 font-medium' : 'bg-slate-50 border-slate-200 text-slate-600')}`}>
+                    2. Đang đóng gói
+                  </div>
+                  <div className={`p-2 rounded-lg border ${selectedOrder.status === 'SHIPPING' ? 'bg-indigo-50 border-indigo-400 font-bold text-indigo-800 ring-2 ring-indigo-200' : (selectedOrder.status === 'COMPLETED' ? 'bg-emerald-50 border-emerald-200 text-emerald-700 font-medium' : 'bg-slate-50 border-slate-200 text-slate-600')}`}>
+                    3. Đang giao hàng
+                  </div>
+                  <div className={`p-2 rounded-lg border ${selectedOrder.status === 'COMPLETED' ? 'bg-emerald-100 border-emerald-400 font-bold text-emerald-900 ring-2 ring-emerald-200' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
+                    4. Hoàn tất giao
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Products Table in Modal */}
             <div>
               <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2.5">
@@ -1194,14 +1522,54 @@ export const AdminOrdersPage: React.FC = () => {
                     ))}
                   </tbody>
                   <tfoot className="bg-slate-50/75 border-t border-slate-200">
-                    <tr>
-                      <td colSpan={3} className="py-3 px-4 font-bold text-slate-700 text-right">
-                        Tổng thanh toán:
-                      </td>
-                      <td className="py-3 px-4 font-black text-slate-900 text-right text-sm">
-                        {formatPrice(selectedOrder.totalAmount)}
-                      </td>
-                    </tr>
+                    {(() => {
+                      const shippingFee = selectedOrder.shippingFee != null ? selectedOrder.shippingFee : 0;
+                      const discount = selectedOrder.discountAmount || 0;
+                      const subtotal = selectedOrder.totalAmount - shippingFee + discount;
+
+                      return (
+                        <>
+                          <tr>
+                            <td colSpan={3} className="py-1.5 px-4 text-slate-500 text-right">
+                              Tạm tính tiền hàng:
+                            </td>
+                            <td className="py-1.5 px-4 font-semibold text-slate-700 text-right">
+                              {formatPrice(subtotal)}
+                            </td>
+                          </tr>
+                          {discount > 0 && (
+                            <tr>
+                              <td colSpan={3} className="py-1.5 px-4 text-emerald-600 text-right">
+                                Giảm giá voucher {selectedOrder.couponCode ? `(${selectedOrder.couponCode})` : ''}:
+                              </td>
+                              <td className="py-1.5 px-4 font-semibold text-emerald-600 text-right">
+                                -{formatPrice(discount)}
+                              </td>
+                            </tr>
+                          )}
+                          <tr>
+                            <td colSpan={3} className="py-1.5 px-4 text-slate-500 text-right">
+                              Phí vận chuyển:
+                            </td>
+                            <td className="py-1.5 px-4 font-semibold text-right">
+                              {shippingFee === 0 ? (
+                                <span className="text-emerald-600 font-bold">Miễn phí (0₫)</span>
+                              ) : (
+                                <span className="text-slate-700">{formatPrice(shippingFee)}</span>
+                              )}
+                            </td>
+                          </tr>
+                          <tr className="border-t border-slate-200">
+                            <td colSpan={3} className="py-2.5 px-4 font-bold text-slate-900 text-right">
+                              Tổng thanh toán:
+                            </td>
+                            <td className="py-2.5 px-4 font-black text-rose-600 text-right text-sm">
+                              {formatPrice(selectedOrder.totalAmount)}
+                            </td>
+                          </tr>
+                        </>
+                      );
+                    })()}
                   </tfoot>
                 </table>
               </div>
@@ -1212,6 +1580,138 @@ export const AdminOrdersPage: React.FC = () => {
               <Button variant="outline" size="sm" onClick={() => setSelectedOrder(null)}>
                 Đóng
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 5: XUẤT KHO & GÁN ĐƠN VỊ VẬN CHUYỂN               */}
+      {/* ======================================================== */}
+      {dispatchOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4 font-sans">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100">
+                  <Truck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Xuất kho & Gán đơn vị vận chuyển
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Đơn hàng #ORD-{dispatchOrder.id} • {dispatchOrder.receiverName || dispatchOrder.customerName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDispatchOrder(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Order mini summary */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                <div className="flex justify-between text-slate-600">
+                  <span>Khách nhận:</span>
+                  <span className="font-semibold text-slate-900">{dispatchOrder.receiverName} ({dispatchOrder.phoneNumber})</span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span>Địa chỉ nhận:</span>
+                  <span className="font-medium text-slate-800 truncate max-w-[280px]" title={dispatchOrder.shippingAddress}>
+                    {dispatchOrder.shippingAddress}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span>Tổng tiền thu hộ (COD):</span>
+                  <span className="font-bold text-indigo-600">{formatPrice(dispatchOrder.totalAmount)}</span>
+                </div>
+              </div>
+
+              {/* Carrier select */}
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">
+                  Chọn đối tác vận chuyển <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={dispatchCarrierId}
+                  onChange={(e) => handleCarrierSelectChange(Number(e.target.value))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none font-semibold text-slate-800"
+                >
+                  {carriers.length === 0 ? (
+                    <option value="">Đang tải danh sách nhà vận chuyển...</option>
+                  ) : (
+                    carriers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.code}) - {c.serviceType} (Hotline: {c.hotline})
+                      </option>
+                    ))
+                  )}
+                </select>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Dữ liệu đồng bộ trực tiếp với danh mục Đối tác vận chuyển trong hệ thống.
+                </p>
+              </div>
+
+              {/* Tracking code input */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-700 font-semibold">
+                    Mã vận đơn (Waybill Tracking Code) <span className="text-rose-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const carrierObj = carriers.find((c) => c.id === dispatchCarrierId);
+                      const prefix = carrierObj ? carrierObj.code.toUpperCase() : 'VN';
+                      const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
+                      setDispatchTrackingCode(`${prefix}${Date.now().toString().slice(-6)}${rand}`);
+                    }}
+                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer"
+                  >
+                    🔄 Tạo mã ngẫu nhiên
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  required
+                  value={dispatchTrackingCode}
+                  onChange={(e) => setDispatchTrackingCode(e.target.value.toUpperCase())}
+                  placeholder="Ví dụ: GHN839210..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none font-mono font-bold text-slate-800"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Mã này sẽ hiển thị cho khách hàng và tài xế để tra cứu tiến độ bưu kiện.
+                </p>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDispatchOrder(null)}
+                  disabled={isSubmittingDispatch}
+                >
+                  Hủy bỏ
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={handleConfirmDispatch}
+                  disabled={isSubmittingDispatch || !dispatchCarrierId}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  {isSubmittingDispatch ? 'Đang xuất kho...' : 'Xác nhận xuất kho & Giao hàng'}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
