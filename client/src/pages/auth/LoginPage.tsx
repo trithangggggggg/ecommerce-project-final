@@ -171,6 +171,16 @@ export const LoginPage: React.FC = () => {
             <div className="flex-1">
               <span className="font-bold block mb-0.5">Đăng nhập thất bại</span>
               <span>{formError || error}</span>
+              {(formError || error)?.includes('chưa được kích hoạt') && (
+                <div className="mt-2 pt-2 border-t border-red-200/60">
+                  <Link
+                    to={ROUTES.REGISTER}
+                    className="font-bold text-blue-700 hover:text-blue-900 hover:underline inline-flex items-center gap-1"
+                  >
+                    <span>Kích hoạt tài khoản hoặc nhận lại mã OTP ngay &rarr;</span>
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         )}
