@@ -4,6 +4,18 @@ import type { ApiResponse } from '../../models/api.model';
 import type { ShippingCarrier } from '../../pages/admin/AdminShippingPage';
 
 export const shippingService = {
+  async getActiveCarriers(): Promise<ShippingCarrier[]> {
+    try {
+      const response = await axiosClient.get<ApiResponse<ShippingCarrier[]>>(
+        ENDPOINTS.SHIPPING_CARRIERS
+      );
+      const data = response.data?.data || response.data;
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  },
+
   async getCarriers(): Promise<ShippingCarrier[]> {
     const response = await axiosClient.get<ApiResponse<ShippingCarrier[]>>(
       ENDPOINTS.ADMIN_SHIPPING_CARRIERS.LIST

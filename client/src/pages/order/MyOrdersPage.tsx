@@ -374,6 +374,17 @@ export const MyOrdersPage: React.FC = () => {
                         {' — '}
                         <span>{order.phoneNumber}</span>
                         <p className="text-gray-500 truncate mt-0.5">{order.shippingAddress}</p>
+                        {order.carrierName && (
+                          <div className="flex items-center gap-1.5 mt-1 text-[11px] text-indigo-700 font-medium">
+                            <Truck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                            <span>{order.carrierName}</span>
+                            {order.trackingCode && (
+                              <span className="font-mono bg-indigo-50 border border-indigo-200 px-1 py-0.2 rounded text-[10px]">
+                                {order.trackingCode}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -386,6 +397,16 @@ export const MyOrdersPage: React.FC = () => {
                         <span className="text-base font-black text-red-600">
                           {formatPrice(order.totalAmount)}
                         </span>
+                        {order.shippingFee !== undefined && (
+                          <div className="text-[10px] text-gray-500 mt-0.5">
+                            Phí ship:{' '}
+                            {order.shippingFee === 0 ? (
+                              <strong className="text-emerald-600 font-bold">0₫ (Freeship)</strong>
+                            ) : (
+                              <strong className="text-gray-700 font-semibold">{formatPrice(order.shippingFee)}</strong>
+                            )}
+                          </div>
+                        )}
                         {order.discountAmount && order.discountAmount > 0 ? (
                           <div className="text-[10px] font-semibold text-emerald-700 flex items-center justify-start sm:justify-end gap-1 mt-0.5">
                             <Tag className="w-2.5 h-2.5" />
@@ -568,6 +589,43 @@ export const MyOrdersPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Shipping Carrier Info Box */}
+              {(selectedOrder.carrierName || selectedOrder.trackingCode) && (
+                <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100 text-xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-bold text-indigo-950">
+                      <Truck className="w-4 h-4 text-indigo-600" />
+                      <span>Thông tin bưu kiện & Vận chuyển</span>
+                    </div>
+                    {selectedOrder.carrierName && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800">
+                        {selectedOrder.carrierName}
+                      </span>
+                    )}
+                  </div>
+                  {selectedOrder.trackingCode && (
+                    <div className="flex items-center justify-between pt-1 border-t border-indigo-100">
+                      <span className="text-gray-600 text-[11px]">Mã vận đơn tra cứu:</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyCoupon(selectedOrder.trackingCode!)}
+                        className="inline-flex items-center gap-1 font-mono font-bold text-indigo-900 bg-white border border-indigo-200 px-2 py-0.5 rounded text-xs hover:bg-indigo-50 transition cursor-pointer"
+                        title="Bấm để sao chép mã vận đơn"
+                      >
+                        <span>{selectedOrder.trackingCode}</span>
+                        {copiedCoupon === selectedOrder.trackingCode ? (
+                          <span className="text-emerald-600 flex items-center gap-1 text-[11px]">
+                            <Check className="w-3 h-3 text-emerald-600" /> Đã chép
+                          </span>
+                        ) : (
+                          <Copy className="w-3 h-3 text-indigo-400" />
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Items Table */}
               <div className="space-y-2">
                 <h4 className="font-bold text-gray-900 uppercase tracking-wide text-[11px]">
@@ -617,29 +675,39 @@ export const MyOrdersPage: React.FC = () => {
 
               {/* Total Calculation */}
               <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 text-xs space-y-2">
-                {selectedOrder.discountAmount && selectedOrder.discountAmount > 0 ? (
-                  <>
-                    <div className="flex justify-between text-gray-600">
-                      <span>Tạm tính tiền hàng</span>
-                      <span className="font-semibold text-gray-900">
-                        {formatPrice(selectedOrder.totalAmount + selectedOrder.discountAmount)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-emerald-700">
-                      <span className="flex items-center gap-1">
-                        <Tag className="w-3.5 h-3.5" />
-                        Giảm giá voucher {selectedOrder.couponCode ? `(${selectedOrder.couponCode})` : ''}
-                      </span>
-                      <span className="font-semibold">
-                        -{formatPrice(selectedOrder.discountAmount)}
-                      </span>
-                    </div>
-                  </>
-                ) : null}
-                <div className="flex justify-between text-gray-600">
-                  <span>Phí vận chuyển</span>
-                  <span className="font-semibold text-emerald-600">Miễn phí</span>
-                </div>
+                {(() => {
+                  const shippingFee = selectedOrder.shippingFee != null ? selectedOrder.shippingFee : 0;
+                  const discount = selectedOrder.discountAmount || 0;
+                  const subtotal = selectedOrder.totalAmount - shippingFee + discount;
+
+                  return (
+                    <>
+                      <div className="flex justify-between text-gray-600">
+                        <span>Tạm tính tiền hàng</span>
+                        <span className="font-semibold text-gray-900">
+                          {formatPrice(subtotal)}
+                        </span>
+                      </div>
+                      {discount > 0 && (
+                        <div className="flex justify-between text-emerald-700">
+                          <span className="flex items-center gap-1">
+                            <Tag className="w-3.5 h-3.5" />
+                            Giảm giá voucher {selectedOrder.couponCode ? `(${selectedOrder.couponCode})` : ''}
+                          </span>
+                          <span className="font-semibold">
+                            -{formatPrice(discount)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-gray-600">
+                        <span>Phí vận chuyển</span>
+                        <span className={`font-semibold ${shippingFee === 0 ? 'text-emerald-600' : 'text-gray-900'}`}>
+                          {shippingFee === 0 ? 'Miễn phí (0₫)' : formatPrice(shippingFee)}
+                        </span>
+                      </div>
+                    </>
+                  );
+                })()}
                 <div className="flex justify-between items-baseline pt-2 border-t border-gray-200">
                   <span className="font-bold text-sm text-gray-900">
                     Tổng tiền {selectedOrder.paymentMethod === 'COD' ? 'cần thanh toán' : 'đã thanh toán'}

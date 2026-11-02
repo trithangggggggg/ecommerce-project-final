@@ -33,6 +33,11 @@ public class OrderResponse {
     private String compensationCoupon;
     private String couponCode;
     private BigDecimal discountAmount;
+    private BigDecimal shippingFee;
+    private Long carrierId;
+    private String carrierName;
+    private String carrierCode;
+    private String trackingCode;
     private List<OrderItemResponse> orderItems;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")

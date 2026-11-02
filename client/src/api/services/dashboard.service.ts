@@ -3,6 +3,7 @@ import { productService } from './product.service';
 import { orderService } from './order.service';
 import { userService } from './user.service';
 import type { Product, Category } from '../../models/product.model';
+import type { OrderResponse } from '../../models/order.model';
 
 export interface CategoryBreakdownItem {
   id: number;
@@ -46,15 +47,14 @@ export interface DashboardData {
   categoryBreakdown: CategoryBreakdownItem[];
   topProducts: TopProductItem[];
   recentOrders: RecentOrderItem[];
+  orders: OrderResponse[];
 }
 
-
-
-function formatVND(amount: number): string {
+export function formatVND(amount: number): string {
   return new Intl.NumberFormat('vi-VN').format(amount) + ' ₫';
 }
 
-function formatShortVND(amount: number): string {
+export function formatShortVND(amount: number): string {
   if (!amount || amount <= 0) {
     return '0 ₫';
   }
@@ -327,6 +327,7 @@ export const dashboardService = {
         categoryBreakdown,
         topProducts,
         recentOrders,
+        orders,
       };
   },
 };

@@ -36,6 +36,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import ra.project.server.model.entity.ShippingCarrier;
+import ra.project.server.repository.ShippingCarrierRepository;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -47,6 +50,7 @@ public class OrderServiceImpl implements OrderService {
     private final PromotionRepository promotionRepository;
     private final UserRepository userRepository;
     private final OrderMapper orderMapper;
+    private final ShippingCarrierRepository shippingCarrierRepository;
 
     private User getCurrentAuthenticatedUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -192,21 +196,52 @@ public class OrderServiceImpl implements OrderService {
             promotionRepository.save(promo);
         }
 
-        BigDecimal finalTotal = totalAmount.subtract(discountAmount);
-        if (finalTotal.compareTo(BigDecimal.ZERO) < 0) {
-            finalTotal = BigDecimal.ZERO;
+        BigDecimal subtotalAfterDiscount = totalAmount.subtract(discountAmount);
+        if (subtotalAfterDiscount.compareTo(BigDecimal.ZERO) < 0) {
+            subtotalAfterDiscount = BigDecimal.ZERO;
         }
+
+        ShippingCarrier selectedCarrier = null;
+        if (request.getCarrierId() != null) {
+            selectedCarrier = shippingCarrierRepository.findById(request.getCarrierId()).orElse(null);
+        }
+
+        // Tính cước vận chuyển theo chính sách ưu đãi:
+        // - Cước gốc theo Hãng vận chuyển được chọn (mặc định 30.000₫ nếu chưa có)
+        // - Đơn hàng >= 20.000.000₫: Miễn phí 100% cước vận chuyển (Freeship 0₫)
+        // - Đơn hàng >= 10.000.000₫: Giảm 50% cước vận chuyển
+        // - Đơn hàng < 10.000.000₫: Thu 100% cước hãng
+        BigDecimal baseShippingFee = BigDecimal.valueOf(30000);
+        if (selectedCarrier != null && selectedCarrier.getShippingFee() != null) {
+            baseShippingFee = selectedCarrier.getShippingFee();
+        }
+
+        BigDecimal actualShippingFee;
+        BigDecimal twentyMillion = BigDecimal.valueOf(20_000_000);
+        BigDecimal tenMillion = BigDecimal.valueOf(10_000_000);
+
+        if (subtotalAfterDiscount.compareTo(twentyMillion) >= 0) {
+            actualShippingFee = BigDecimal.ZERO;
+        } else if (subtotalAfterDiscount.compareTo(tenMillion) >= 0) {
+            actualShippingFee = baseShippingFee.divide(BigDecimal.valueOf(2), 0, RoundingMode.HALF_UP);
+        } else {
+            actualShippingFee = baseShippingFee;
+        }
+
+        BigDecimal finalTotal = subtotalAfterDiscount.add(actualShippingFee);
 
         Order order = Order.builder()
                 .user(user)
                 .receiverName(request.getReceiverName().trim())
                 .phoneNumber(request.getPhoneNumber().trim())
                 .shippingAddress(request.getShippingAddress().trim())
+                .shippingFee(actualShippingFee)
                 .totalAmount(finalTotal)
                 .couponCode(appliedCoupon)
                 .discountAmount(discountAmount)
                 .status(OrderStatus.PENDING)
                 .paymentMethod(paymentMethod)
+                .shippingCarrier(selectedCarrier)
                 .note(request.getNote() != null ? request.getNote().trim() : null)
                 .build();
 
@@ -302,12 +337,18 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public ApiResponse<OrderResponse> updateOrderStatus(Long orderId, OrderStatus newStatus) {
+        return updateOrderStatus(orderId, newStatus, null, null);
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<OrderResponse> updateOrderStatus(Long orderId, OrderStatus newStatus, Long carrierId, String trackingCode) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Đơn hàng", "id", orderId));
 
         OrderStatus currentStatus = order.getStatus();
 
-        if (currentStatus == newStatus) {
+        if (currentStatus == newStatus && carrierId == null && (trackingCode == null || trackingCode.trim().isEmpty())) {
             return ApiResponse.success("Trạng thái đơn hàng không thay đổi", orderMapper.toResponse(order));
         }
 
@@ -320,7 +361,8 @@ public class OrderServiceImpl implements OrderService {
                     || newStatus == OrderStatus.COMPLETED 
                     || newStatus == OrderStatus.CANCELLED;
             case SHIPPING -> newStatus == OrderStatus.COMPLETED 
-                    || newStatus == OrderStatus.CANCELLED;
+                    || newStatus == OrderStatus.CANCELLED
+                    || newStatus == OrderStatus.SHIPPING; // cho phép cập nhật lại thông tin vận đơn khi đang giao
             case COMPLETED, CANCELLED -> false;
         };
 
@@ -339,6 +381,21 @@ public class OrderServiceImpl implements OrderService {
         // Khi hủy đơn hàng, hoàn trả lại số lượng tồn kho (stock) cho biến thể
         if (newStatus == OrderStatus.CANCELLED) {
             restoreStockForOrder(order);
+        }
+
+        // Khi chuyển sang hoặc cập nhật SHIPPING: gán đơn vị vận chuyển và mã vận đơn
+        if (newStatus == OrderStatus.SHIPPING) {
+            if (carrierId != null && shippingCarrierRepository != null) {
+                ShippingCarrier carrier = shippingCarrierRepository.findById(carrierId).orElse(null);
+                if (carrier != null) {
+                    order.setShippingCarrier(carrier);
+                }
+            }
+            if (trackingCode != null && !trackingCode.trim().isEmpty()) {
+                order.setTrackingCode(trackingCode.trim().toUpperCase());
+            } else if (order.getShippingCarrier() != null && (order.getTrackingCode() == null || order.getTrackingCode().isEmpty())) {
+                order.setTrackingCode(order.getShippingCarrier().getCode() + "-" + (System.currentTimeMillis() % 100000000));
+            }
         }
 
         order.setStatus(newStatus);

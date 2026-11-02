@@ -36,6 +36,10 @@ public class ShippingCarrier extends BaseEntity {
     @Builder.Default
     private Double rating = 5.0;
 
+    @Column(name = "shipping_fee", precision = 12, scale = 2)
+    @Builder.Default
+    private java.math.BigDecimal shippingFee = java.math.BigDecimal.valueOf(30000);
+
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
     private String status = "ACTIVE";

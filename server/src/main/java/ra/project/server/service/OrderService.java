@@ -21,5 +21,7 @@ public interface OrderService {
 
     ApiResponse<OrderResponse> updateOrderStatus(Long orderId, OrderStatus status);
 
+    ApiResponse<OrderResponse> updateOrderStatus(Long orderId, OrderStatus status, Long carrierId, String trackingCode);
+
     ApiResponse<OrderResponse> cancelMyOrder(Long orderId);
 }
