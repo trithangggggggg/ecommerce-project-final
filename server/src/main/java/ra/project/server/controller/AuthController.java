@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.*;
 import ra.project.server.common.response.ApiResponse;
 import ra.project.server.model.dto.request.LoginRequest;
 import ra.project.server.model.dto.request.RegisterRequest;
+import ra.project.server.model.dto.request.ResendOtpRequest;
+import ra.project.server.model.dto.request.VerifyOtpRequest;
 import ra.project.server.model.dto.response.AuthResponse;
 import ra.project.server.model.dto.response.UserProfileResponse;
 import ra.project.server.service.AuthService;
@@ -25,6 +27,24 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @PostMapping("/login")
+    public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
+        ApiResponse<AuthResponse> response = authService.login(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/verify-otp")
+    public ResponseEntity<ApiResponse<AuthResponse>> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
+        ApiResponse<AuthResponse> response = authService.verifyOtp(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/resend-otp")
+    public ResponseEntity<ApiResponse<String>> resendOtp(@Valid @RequestBody ResendOtpRequest request) {
+        ApiResponse<String> response = authService.resendOtp(request);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/login")
     public ResponseEntity<ApiResponse<String>> loginGetInfo() {
         return ResponseEntity.ok(ApiResponse.success(
@@ -37,11 +57,5 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success(
                 "API Endpoint Đăng ký: Vui lòng gửi yêu cầu POST đến /api/auth/register kèm body JSON, hoặc truy cập giao diện web tại http://localhost:5173/register"
         ));
-    }
-
-    @PostMapping("/login")
-    public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
-        ApiResponse<AuthResponse> response = authService.login(request);
-        return ResponseEntity.ok(response);
     }
 }
