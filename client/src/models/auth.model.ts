@@ -29,6 +29,15 @@ export interface RegisterPayload {
   address?: string;
 }
 
+export interface VerifyOtpPayload {
+  email: string;
+  otp: string;
+}
+
+export interface ResendOtpPayload {
+  email: string;
+}
+
 export interface UpdateProfilePayload {
   fullName?: string;
   phone?: string;
