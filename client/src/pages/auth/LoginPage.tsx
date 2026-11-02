@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, ArrowRight, CheckCircle2, Eye, EyeOff, Lock, Mail, X } from 'lucide-react';
+import { AlertCircle, ArrowRight, CheckCircle2, Eye, EyeOff, Lock, Mail, ShieldCheck, X } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { ROLES } from '../../constants/roles';
 import { ROUTES } from '../../constants/routes';
@@ -111,7 +111,6 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md transition-all duration-300 animate-in fade-in"
@@ -174,9 +173,14 @@ export const LoginPage: React.FC = () => {
               {(formError || error)?.includes('chưa được kích hoạt') && (
                 <div className="mt-2 pt-2 border-t border-red-200/60">
                   <Link
-                    to={ROUTES.REGISTER}
+                    to={
+                      email.trim()
+                        ? `${ROUTES.REGISTER}?step=otp&email=${encodeURIComponent(email.trim())}`
+                        : ROUTES.REGISTER
+                    }
                     className="font-bold text-blue-700 hover:text-blue-900 hover:underline inline-flex items-center gap-1"
                   >
+                    <ShieldCheck className="w-3.5 h-3.5" />
                     <span>Kích hoạt tài khoản hoặc nhận lại mã OTP ngay &rarr;</span>
                   </Link>
                 </div>
@@ -265,7 +269,6 @@ export const LoginPage: React.FC = () => {
               Đăng nhập ngay
             </Button>
           </div>
-
         </form>
 
         {/* Switch to Register */}

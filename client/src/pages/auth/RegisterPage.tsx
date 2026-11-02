@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useRef } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
   ArrowLeft,
@@ -24,6 +24,7 @@ import Input from '../../components/common/Input/Input';
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { register, verifyOtp, resendOtp, isLoading, error, clearError } = useAuthStore();
 
   // Step: 'form' (Nhập thông tin) | 'otp' (Xác thực OTP 6 số)
@@ -40,8 +41,9 @@ export const RegisterPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(true);
 
-  // OTP Fields & State
-  const [otp, setOtp] = useState('');
+  // OTP Fields & 6-Box State
+  const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const [countdown, setCountdown] = useState(60);
   const [isResending, setIsResending] = useState(false);
 
@@ -50,6 +52,18 @@ export const RegisterPage: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Hỗ trợ truy cập trực tiếp từ URL: /register?step=otp&email=user@example.com
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const initialStep = params.get('step');
+    const initialEmail = params.get('email');
+    if (initialStep === 'otp' && initialEmail) {
+      setEmail(initialEmail);
+      setStep('otp');
+      setSuccessMessage(`Vui lòng nhập mã OTP 6 chữ số đã được gửi tới email ${initialEmail}`);
+    }
+  }, [location.search]);
 
   // Xóa sạch lỗi cũ khi vào trang
   useEffect(() => {
@@ -69,6 +83,59 @@ export const RegisterPage: React.FC = () => {
       if (timer) clearInterval(timer);
     };
   }, [step, countdown]);
+
+  // Tự động focus vào ô OTP đầu tiên khi chuyển sang step otp
+  useEffect(() => {
+    if (step === 'otp') {
+      setTimeout(() => {
+        otpInputRefs.current[0]?.focus();
+      }, 150);
+    }
+  }, [step]);
+
+  // Xử lý thay đổi từng ô trong 6 ô OTP
+  const handleDigitChange = (index: number, value: string) => {
+    const cleanChar = value.replace(/\D/g, '').slice(-1);
+    const newDigits = [...otpDigits];
+    newDigits[index] = cleanChar;
+    setOtpDigits(newDigits);
+
+    if (cleanChar && index < 5) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  // Xử lý phím Backspace và mũi tên trong các ô OTP
+  const handleDigitKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace') {
+      if (!otpDigits[index] && index > 0) {
+        const newDigits = [...otpDigits];
+        newDigits[index - 1] = '';
+        setOtpDigits(newDigits);
+        otpInputRefs.current[index - 1]?.focus();
+      }
+    } else if (e.key === 'ArrowLeft' && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+    } else if (e.key === 'ArrowRight' && index < 5) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  // Xử lý Paste cả mã 6 chữ số (Ctrl + V)
+  const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasteData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (!pasteData) return;
+
+    const newDigits = [...otpDigits];
+    for (let i = 0; i < 6; i++) {
+      newDigits[i] = pasteData[i] || '';
+    }
+    setOtpDigits(newDigits);
+
+    const nextIndex = Math.min(pasteData.length, 5);
+    otpInputRefs.current[nextIndex]?.focus();
+  };
 
   // Xử lý gửi form đăng ký (Step 1)
   const handleRegisterSubmit = async (e: React.FormEvent) => {
@@ -150,6 +217,7 @@ export const RegisterPage: React.FC = () => {
       // Thành công Step 1: Chuyển sang Step 2 (Nhập OTP)
       setStep('otp');
       setCountdown(60);
+      setOtpDigits(['', '', '', '', '', '']);
       setSuccessMessage(`Mã xác thực OTP gồm 6 chữ số đã được gửi tới email ${email.trim()}. Vui lòng kiểm tra hộp thư!`);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Đăng ký không thành công. Vui lòng thử lại!');
@@ -167,12 +235,12 @@ export const RegisterPage: React.FC = () => {
     setFormError(null);
     clearError();
 
-    const cleanOtp = otp.trim();
-    if (!cleanOtp) {
-      setFormError('Vui lòng nhập mã OTP gồm 6 chữ số');
+    const fullOtp = otpDigits.join('').trim();
+    if (fullOtp.length !== 6) {
+      setFormError('Vui lòng nhập đủ mã OTP gồm 6 chữ số');
       return;
     }
-    if (!/^[0-9]{6}$/.test(cleanOtp)) {
+    if (!/^[0-9]{6}$/.test(fullOtp)) {
       setFormError('Mã OTP phải gồm đúng 6 chữ số');
       return;
     }
@@ -182,7 +250,7 @@ export const RegisterPage: React.FC = () => {
     try {
       await verifyOtp({
         email: email.trim(),
-        otp: cleanOtp,
+        otp: fullOtp,
       });
 
       setToastMessage('Xác thực thành công! Tài khoản của bạn đã được kích hoạt.');
@@ -209,6 +277,8 @@ export const RegisterPage: React.FC = () => {
     try {
       const msg = await resendOtp({ email: email.trim() });
       setCountdown(60);
+      setOtpDigits(['', '', '', '', '', '']);
+      otpInputRefs.current[0]?.focus();
       setSuccessMessage(msg || 'Mã OTP mới đã được gửi tới email của bạn!');
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Không thể gửi lại mã OTP. Vui lòng thử lại sau!');
@@ -218,6 +288,7 @@ export const RegisterPage: React.FC = () => {
   };
 
   const isButtonBusy = isLoading || isSubmitting || !!toastMessage;
+  const isOtpComplete = otpDigits.every((d) => d !== '');
 
   return (
     <div className="w-full bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/60 p-4 sm:p-5 font-sans relative my-auto">
@@ -437,30 +508,38 @@ export const RegisterPage: React.FC = () => {
               className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:text-blue-800 hover:underline cursor-pointer"
             >
               <ArrowLeft className="w-3 h-3" />
-              <span>Đổi email</span>
+              <span>Đổi thông tin</span>
             </button>
           </div>
 
-          {/* Ô nhập mã OTP 6 số */}
+          {/* 6 Ô NHẬP MÃ OTP THÔNG MINH */}
           <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 text-center">
+            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2.5 text-center">
               Nhập mã OTP gồm 6 chữ số
             </label>
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              autoFocus
-              value={otp}
-              onChange={(e) => {
-                const val = e.target.value.replace(/\D/g, '').slice(0, 6);
-                setOtp(val);
-              }}
-              placeholder="••••••"
-              className="w-full text-center text-2xl sm:text-3xl font-black tracking-[0.4em] sm:tracking-[0.5em] py-3 px-4 bg-gray-50 border-2 border-gray-300 rounded-xl focus:bg-white focus:border-blue-600 focus:ring-4 focus:ring-blue-100 outline-none transition-all placeholder:text-gray-300 placeholder:tracking-widest"
-              required
-            />
-            <div className="flex items-center justify-center gap-1.5 text-[11px] text-amber-600 font-medium mt-2">
+            <div className="flex items-center justify-center gap-2 sm:gap-3">
+              {otpDigits.map((digit, idx) => (
+                <input
+                  key={idx}
+                  ref={(el) => {
+                    otpInputRefs.current[idx] = el;
+                  }}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleDigitChange(idx, e.target.value)}
+                  onKeyDown={(e) => handleDigitKeyDown(idx, e)}
+                  onPaste={handleOtpPaste}
+                  className={`w-11 h-14 sm:w-12 sm:h-14 text-center text-xl sm:text-2xl font-black rounded-xl border-2 outline-none transition-all shadow-xs ${
+                    digit
+                      ? 'border-blue-600 bg-blue-50/40 text-blue-700 shadow-blue-100 ring-2 ring-blue-100'
+                      : 'border-gray-300 bg-gray-50 text-gray-900 focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-100'
+                  }`}
+                />
+              ))}
+            </div>
+            <div className="flex items-center justify-center gap-1.5 text-[11px] text-amber-600 font-medium mt-3">
               <Clock className="w-3.5 h-3.5" />
               <span>Mã OTP có hiệu lực trong vòng 5 phút</span>
             </div>
@@ -474,7 +553,7 @@ export const RegisterPage: React.FC = () => {
               size="md"
               fullWidth
               isLoading={isButtonBusy}
-              disabled={isButtonBusy || otp.length !== 6}
+              disabled={isButtonBusy || !isOtpComplete}
               rightIcon={<ShieldCheck className="w-4 h-4" />}
               className="py-2.5 text-sm shadow-md cursor-pointer font-bold"
             >
@@ -500,7 +579,7 @@ export const RegisterPage: React.FC = () => {
                 className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${
                   countdown > 0 || isResending
                     ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
-                    : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 cursor-pointer'
+                    : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 cursor-pointer shadow-xs'
                 }`}
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isResending ? 'animate-spin' : ''}`} />
