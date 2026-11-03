@@ -33,6 +33,8 @@ public class OrderResponse {
     private String compensationCoupon;
     private String couponCode;
     private BigDecimal discountAmount;
+    private String shippingCouponCode;
+    private BigDecimal shippingDiscount;
     private BigDecimal shippingFee;
     private Long carrierId;
     private String carrierName;

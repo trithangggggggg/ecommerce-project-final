@@ -30,6 +30,8 @@ public class CheckoutRequest {
 
     private String couponCode;
 
+    private String shippingCouponCode;
+
     private Long carrierId;
 
     @Builder.Default

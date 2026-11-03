@@ -23,7 +23,13 @@ public class AdminPromotionController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<Promotion>>> getAllPromotions() {
-        List<Promotion> list = promotionRepository.findAll();
+        List<Promotion> list = promotionRepository.findAll().stream()
+                .peek(p -> {
+                    if (p.getType() == null) {
+                        p.setType(p.isShippingDiscount() ? "SHIPPING" : "ORDER");
+                    }
+                })
+                .toList();
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách mã khuyến mãi thành công", list));
     }
 
@@ -31,6 +37,9 @@ public class AdminPromotionController {
     public ResponseEntity<ApiResponse<Promotion>> getPromotionById(@PathVariable Long id) {
         Promotion promotion = promotionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Mã khuyến mãi", "id", id));
+        if (promotion.getType() == null) {
+            promotion.setType(promotion.isShippingDiscount() ? "SHIPPING" : "ORDER");
+        }
         return ResponseEntity.ok(ApiResponse.success("Lấy chi tiết mã khuyến mãi thành công", promotion));
     }
 
@@ -38,6 +47,9 @@ public class AdminPromotionController {
     public ResponseEntity<ApiResponse<Promotion>> createPromotion(@RequestBody Promotion request) {
         if (promotionRepository.existsByCodeIgnoreCase(request.getCode())) {
             throw new IllegalArgumentException("Mã khuyến mãi '" + request.getCode() + "' đã tồn tại!");
+        }
+        if (request.getType() == null) {
+            request.setType(request.isShippingDiscount() ? "SHIPPING" : "ORDER");
         }
         Promotion saved = promotionRepository.save(request);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -60,6 +72,7 @@ public class AdminPromotionController {
         existing.setUsedCount(request.getUsedCount());
         existing.setMaxUsage(request.getMaxUsage());
         existing.setStatus(request.getStatus());
+        existing.setType(request.getType() != null ? request.getType() : (existing.isShippingDiscount() ? "SHIPPING" : "ORDER"));
 
         Promotion updated = promotionRepository.save(existing);
         return ResponseEntity.ok(ApiResponse.success("Cập nhật mã khuyến mãi thành công", updated));

@@ -1839,6 +1839,7 @@ export const AdminOrdersPage: React.FC = () => {
                     {(() => {
                       const shippingFee = selectedOrder.shippingFee != null ? selectedOrder.shippingFee : 0;
                       const discount = selectedOrder.discountAmount || 0;
+                      const shippingDiscount = selectedOrder.shippingDiscount || 0;
                       const subtotal = selectedOrder.totalAmount - shippingFee + discount;
 
                       return (
@@ -1854,16 +1855,26 @@ export const AdminOrdersPage: React.FC = () => {
                           {discount > 0 && (
                             <tr>
                               <td colSpan={3} className="py-1.5 px-4 text-emerald-600 text-right">
-                                Giảm giá voucher {selectedOrder.couponCode ? `(${selectedOrder.couponCode})` : ''}:
+                                Giảm giá voucher đơn hàng {selectedOrder.couponCode ? `(${selectedOrder.couponCode})` : ''}:
                               </td>
                               <td className="py-1.5 px-4 font-semibold text-emerald-600 text-right">
                                 -{formatPrice(discount)}
                               </td>
                             </tr>
                           )}
+                          {shippingDiscount > 0 && (
+                            <tr>
+                              <td colSpan={3} className="py-1.5 px-4 text-indigo-600 text-right">
+                                Voucher Freeship {selectedOrder.shippingCouponCode ? `(${selectedOrder.shippingCouponCode})` : ''}:
+                              </td>
+                              <td className="py-1.5 px-4 font-semibold text-indigo-600 text-right">
+                                -{formatPrice(shippingDiscount)}
+                              </td>
+                            </tr>
+                          )}
                           <tr>
                             <td colSpan={3} className="py-1.5 px-4 text-slate-500 text-right">
-                              Phí vận chuyển:
+                              Phí vận chuyển thanh toán:
                             </td>
                             <td className="py-1.5 px-4 font-semibold text-right">
                               {shippingFee === 0 ? (

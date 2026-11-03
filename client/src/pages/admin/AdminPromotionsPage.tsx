@@ -12,6 +12,7 @@ import {
   Calendar,
   Tag,
   RefreshCw,
+  Truck,
 } from 'lucide-react';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
@@ -28,6 +29,7 @@ export interface PromoItem {
   usedCount: number;
   maxUsage: number;
   status: 'ACTIVE' | 'EXPIRED';
+  type?: 'ORDER' | 'SHIPPING';
   userId?: number | null;
 }
 
@@ -74,6 +76,7 @@ export const AdminPromotionsPage: React.FC = () => {
     expiry: '2026-12-31',
     maxUsage: 100,
     status: 'ACTIVE' as 'ACTIVE' | 'EXPIRED',
+    type: 'ORDER' as 'ORDER' | 'SHIPPING',
   });
 
   const [editForm, setEditForm] = useState({
@@ -84,6 +87,7 @@ export const AdminPromotionsPage: React.FC = () => {
     expiry: '',
     maxUsage: 100,
     status: 'ACTIVE' as 'ACTIVE' | 'EXPIRED',
+    type: 'ORDER' as 'ORDER' | 'SHIPPING',
   });
 
   const showToast = (msg: string) => {
@@ -116,6 +120,7 @@ export const AdminPromotionsPage: React.FC = () => {
         usedCount: 0,
         maxUsage: Number(addForm.maxUsage) || 100,
         status: addForm.status,
+        type: addForm.type,
       });
 
       setPromos((prev) => [newPromo, ...prev]);
@@ -128,6 +133,7 @@ export const AdminPromotionsPage: React.FC = () => {
         expiry: '2026-12-31',
         maxUsage: 100,
         status: 'ACTIVE',
+        type: 'ORDER',
       });
       showToast(`Đã thêm mã khuyến mãi "${newPromo.code}" vào Database thành công!`);
     } catch (err: unknown) {
@@ -139,6 +145,7 @@ export const AdminPromotionsPage: React.FC = () => {
   // Open Edit
   const handleOpenEdit = (p: PromoItem) => {
     setEditingPromo(p);
+    const defaultType = p.type || (p.code.toUpperCase().startsWith('FREESHIP') || p.code.toUpperCase().startsWith('SHIP') ? 'SHIPPING' : 'ORDER');
     setEditForm({
       code: p.code,
       title: p.title,
@@ -147,6 +154,7 @@ export const AdminPromotionsPage: React.FC = () => {
       expiry: p.expiry,
       maxUsage: p.maxUsage,
       status: p.status,
+      type: defaultType,
     });
   };
 
@@ -164,6 +172,7 @@ export const AdminPromotionsPage: React.FC = () => {
         expiry: editForm.expiry,
         maxUsage: Number(editForm.maxUsage) || 100,
         status: editForm.status,
+        type: editForm.type,
       });
 
       setPromos((prev) =>
@@ -398,11 +407,22 @@ export const AdminPromotionsPage: React.FC = () => {
                       </td>
 
                       {/* Title & Discount */}
-                      <td className="py-2 px-3 max-w-[200px]">
+                      <td className="py-2 px-3 max-w-[220px]">
                         <div className="font-bold text-slate-900 truncate" title={p.title}>{p.title}</div>
-                        <div className="text-[10px] font-semibold text-emerald-600 flex items-center gap-1">
-                          <Tag className="w-2.5 h-2.5" />
-                          <span>{p.discount}</span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {p.type === 'SHIPPING' || p.code.toUpperCase().startsWith('FREESHIP') || p.code.toUpperCase().startsWith('SHIP') ? (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-50 text-purple-700 border border-purple-200 inline-flex items-center gap-0.5 shrink-0">
+                              <Truck className="w-2.5 h-2.5" /> Vận chuyển
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
+                              Đơn hàng
+                            </span>
+                          )}
+                          <div className="text-[10px] font-semibold text-emerald-600 flex items-center gap-1">
+                            <Tag className="w-2.5 h-2.5" />
+                            <span>{p.discount}</span>
+                          </div>
                         </div>
                       </td>
 
@@ -576,7 +596,18 @@ export const AdminPromotionsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Loại ưu đãi</label>
+                  <select
+                    value={addForm.type}
+                    onChange={(e) => setAddForm({ ...addForm, type: e.target.value as 'ORDER' | 'SHIPPING' })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-bold text-blue-700"
+                  >
+                    <option value="ORDER">Giảm giá tiền hàng</option>
+                    <option value="SHIPPING">Miễn / Giảm phí ship</option>
+                  </select>
+                </div>
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">Giới hạn số lượt dùng</label>
                   <input
@@ -689,7 +720,18 @@ export const AdminPromotionsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Loại ưu đãi</label>
+                  <select
+                    value={editForm.type}
+                    onChange={(e) => setEditForm({ ...editForm, type: e.target.value as 'ORDER' | 'SHIPPING' })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-bold text-blue-700"
+                  >
+                    <option value="ORDER">Giảm giá tiền hàng</option>
+                    <option value="SHIPPING">Miễn / Giảm phí ship</option>
+                  </select>
+                </div>
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">Giới hạn số lượt dùng</label>
                   <input
