@@ -231,6 +231,22 @@ export const productService = {
   },
 
   /**
+   * [Admin] Cập nhật số lượng tồn kho biến thể sản phẩm (PUT /api/admin/products/variants/{variantId}/stock)
+   */
+  async updateVariantStock(variantId: number | string, quantity: number, isDelta = false): Promise<any> {
+    const res = await axiosClient.put(ENDPOINTS.ADMIN_VARIANT_STOCK(variantId), { quantity, isDelta });
+    return res.data?.data || res.data;
+  },
+
+  /**
+   * [Admin] Tạo biến thể mới cho sản phẩm (POST /api/admin/products/{productId}/variants)
+   */
+  async createVariant(productId: number | string, data: any): Promise<any> {
+    const res = await axiosClient.post(ENDPOINTS.ADMIN_CREATE_VARIANT(productId), data);
+    return res.data?.data || res.data;
+  },
+
+  /**
    * [Admin] Lấy danh sách các đơn hàng đang đặt chứa sản phẩm này (GET /api/admin/products/{id}/active-orders)
    */
   async getActiveOrders(id: number | string): Promise<OrderResponse[]> {
