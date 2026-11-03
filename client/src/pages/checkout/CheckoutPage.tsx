@@ -349,7 +349,7 @@ export const CheckoutPage: React.FC = () => {
       // Đặt hàng thành công:
       // - Nếu thanh toán giỏ hàng thông thường -> Xóa toàn bộ giỏ hàng
       // - Nếu là Mua ngay (buyNow) -> Chỉ xóa món đó khỏi giỏ nếu nó từng nằm trong giỏ, giữ lại các món khác
-      if (!isBuyNow) {
+      if (!isBuyNow || !buyNowItem) {
         clearCart();
       } else {
         const buyNowVariantId = buyNowItem.variantId || buyNowItem.variant?.id;
