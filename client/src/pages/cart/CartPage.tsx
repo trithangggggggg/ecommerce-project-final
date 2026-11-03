@@ -15,7 +15,9 @@ import {
   Check,
   Lock,
   LogIn,
+  Zap,
 } from 'lucide-react';
+import type { CartItem } from '../../models/product.model';
 import { useCartStore } from '../../store/useCartStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { ROUTES } from '../../constants/routes';
@@ -106,6 +108,19 @@ export const CartPage: React.FC = () => {
       return;
     }
     navigate(ROUTES.CHECKOUT);
+  };
+
+  /**
+   * Mua riêng 1 sản phẩm từ giỏ hàng mà không cần xóa các sản phẩm khác
+   */
+  const handleBuyNowSingleItem = (item: CartItem) => {
+    if (!isAuthenticated) {
+      navigate(`${ROUTES.LOGIN}?redirect=${ROUTES.CHECKOUT}`);
+      return;
+    }
+    navigate(ROUTES.CHECKOUT, {
+      state: { buyNowItem: item },
+    });
   };
 
   // ----------------------------------------------------------------
@@ -392,15 +407,27 @@ export const CartPage: React.FC = () => {
                           </span>
                         </div>
 
-                        {/* Delete single button */}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(itemKey, product.name)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
-                          title="Xóa khỏi giỏ hàng"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {/* Action buttons: Buy now single & Delete */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleBuyNowSingleItem(item)}
+                            className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 hover:border-blue-600 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 shadow-2xs"
+                            title="Mua riêng sản phẩm này ngay lập tức"
+                          >
+                            <Zap size={13} className="fill-current" />
+                            <span>Mua ngay</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(itemKey, product.name)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                            title="Xóa khỏi giỏ hàng"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );

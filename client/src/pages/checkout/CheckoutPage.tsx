@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   User,
   Phone,
@@ -19,6 +19,7 @@ import {
   X,
   Gift,
   Sparkles,
+  Zap,
 } from 'lucide-react';
 import { useCartStore } from '../../store/useCartStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -30,14 +31,28 @@ import type { PromoItem } from '../admin/AdminPromotionsPage';
 import { ROUTES } from '../../constants/routes';
 import { formatPrice } from '../../utils/format';
 import type { CheckoutRequest } from '../../models/order.model';
+import type { CartItem } from '../../models/product.model';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 
 export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const { items, totalItems, totalPrice, clearCart } = useCartStore();
   const { user, isAuthenticated } = useAuthStore();
+
+  // Nhận thông tin sản phẩm Mua Ngay (nếu đi từ nút Mua Ngay)
+  const buyNowItem = (location.state as { buyNowItem?: CartItem } | null)?.buyNowItem;
+  const isBuyNow = Boolean(buyNowItem);
+  const checkoutItems: CartItem[] = buyNowItem ? [buyNowItem] : items;
+  const checkoutTotalItems = buyNowItem ? buyNowItem.quantity : totalItems;
+  const checkoutUnitPrice = buyNowItem
+    ? (buyNowItem.variant?.price ?? buyNowItem.product.price ?? 0)
+    : 0;
+  const checkoutTotalPrice = buyNowItem
+    ? checkoutUnitPrice * buyNowItem.quantity
+    : totalPrice;
 
   // Form State
   const [receiverName, setReceiverName] = useState('');
@@ -111,7 +126,7 @@ export const CheckoutPage: React.FC = () => {
 
   // Tính số tiền giảm voucher đơn hàng và tiền hàng sau giảm
   const discountAmount = appliedPromotion ? appliedPromotion.discountAmount : 0;
-  const subtotalAfterDiscount = Math.max(0, totalPrice - discountAmount);
+  const subtotalAfterDiscount = Math.max(0, checkoutTotalPrice - discountAmount);
 
   // Đối tác vận chuyển được khách chọn
   const selectedCarrier = carriers.find((c) => c.id === selectedCarrierId) || carriers[0];
@@ -167,7 +182,7 @@ export const CheckoutPage: React.FC = () => {
     setIsCheckingCoupon(true);
 
     try {
-      const result = await promotionService.checkPromotion(rawCode, totalPrice, tierShippingFee);
+      const result = await promotionService.checkPromotion(rawCode, checkoutTotalPrice, tierShippingFee);
       // Jackson có thể serialize boolean thành isValid hoặc valid
       const isSuccess = Boolean(
         result &&
@@ -258,17 +273,17 @@ export const CheckoutPage: React.FC = () => {
     );
   }
 
-  // Nếu giỏ hàng rỗng
-  if (items.length === 0 && !orderSuccess) {
+  // Nếu không có sản phẩm nào để thanh toán (cả giỏ hàng lẫn mua ngay)
+  if (checkoutItems.length === 0 && !orderSuccess) {
     return (
       <div className="min-h-[70vh] bg-[#f5f6fa] py-12 px-4 sm:px-6 lg:px-8 font-sans flex items-center justify-center">
         <div className="max-w-md w-full bg-white rounded-2xl border border-gray-200 p-8 text-center shadow-xs">
           <div className="w-16 h-16 rounded-2xl bg-gray-100 text-gray-500 flex items-center justify-center mx-auto mb-4">
             <ShoppingBag className="w-8 h-8" />
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Giỏ hàng rỗng</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Chưa có sản phẩm thanh toán</h2>
           <p className="text-xs text-gray-500 mb-6 leading-relaxed">
-            Bạn chưa có sản phẩm nào trong giỏ để thực hiện thanh toán. Hãy chọn sản phẩm trước nhé!
+            Bạn chưa có sản phẩm nào để thực hiện thanh toán. Hãy chọn sản phẩm trước nhé!
           </p>
           <Button
             variant="dark"
@@ -306,8 +321,8 @@ export const CheckoutPage: React.FC = () => {
       return;
     }
 
-    if (items.length === 0) {
-      setErrorMessage('Giỏ hàng của bạn đang trống');
+    if (checkoutItems.length === 0) {
+      setErrorMessage('Không có sản phẩm nào để thanh toán');
       return;
     }
 
@@ -320,7 +335,7 @@ export const CheckoutPage: React.FC = () => {
       carrierId: selectedCarrierId || undefined,
       couponCode: appliedPromotion?.code || undefined,
       shippingCouponCode: appliedShippingPromotion?.code || undefined,
-      items: items.map((i) => ({
+      items: checkoutItems.map((i) => ({
         productId: i.product.id,
         variantId: i.variantId || i.variant?.id,
         quantity: i.quantity,
@@ -331,8 +346,17 @@ export const CheckoutPage: React.FC = () => {
     try {
       const createdOrder = await orderService.checkout(payload);
 
-      // Đặt hàng thành công -> Xóa giỏ hàng
-      clearCart();
+      // Đặt hàng thành công:
+      // - Nếu thanh toán giỏ hàng thông thường -> Xóa toàn bộ giỏ hàng
+      // - Nếu là Mua ngay (buyNow) -> Chỉ xóa món đó khỏi giỏ nếu nó từng nằm trong giỏ, giữ lại các món khác
+      if (!isBuyNow) {
+        clearCart();
+      } else {
+        const buyNowVariantId = buyNowItem.variantId || buyNowItem.variant?.id;
+        if (buyNowVariantId) {
+          useCartStore.getState().removeItem(buyNowVariantId, buyNowItem.product.id);
+        }
+      }
       setOrderSuccess(createdOrder.id);
 
       // Chuyển hướng sang trang lịch sử đơn hàng
@@ -384,22 +408,56 @@ export const CheckoutPage: React.FC = () => {
             Trang chủ
           </Link>
           <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-          <Link to={ROUTES.CART} className="hover:text-blue-600 transition">
-            Giỏ hàng
-          </Link>
-          <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-          <span className="font-semibold text-gray-900">Thanh toán (COD)</span>
+          {isBuyNow && buyNowItem?.product ? (
+            <>
+              <Link to={`/products/${buyNowItem.product.id}`} className="hover:text-blue-600 transition max-w-[200px] truncate">
+                {buyNowItem.product.name}
+              </Link>
+              <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+              <span className="font-semibold text-gray-900">Mua ngay & Thanh toán</span>
+            </>
+          ) : (
+            <>
+              <Link to={ROUTES.CART} className="hover:text-blue-600 transition">
+                Giỏ hàng
+              </Link>
+              <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+              <span className="font-semibold text-gray-900">Thanh toán đơn hàng</span>
+            </>
+          )}
         </nav>
 
         {/* Page Title */}
         <div className="pb-2 border-b border-gray-200">
           <h1 className="text-xl sm:text-2xl font-black text-gray-900">
-            Thanh toán đơn hàng
+            {isBuyNow ? 'Mua ngay - Thanh toán' : 'Thanh toán đơn hàng'}
           </h1>
           <p className="text-xs text-gray-500 mt-1">
-            Vui lòng nhập địa chỉ nhận hàng và xác nhận thông tin thanh toán
+            {isBuyNow
+              ? 'Xác nhận thông tin giao hàng và thanh toán cho sản phẩm bạn vừa chọn mua ngay'
+              : 'Vui lòng nhập địa chỉ nhận hàng và xác nhận thông tin thanh toán'}
           </p>
         </div>
+
+        {/* Buy Now Notification Banner */}
+        {isBuyNow && (
+          <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/80 text-blue-900 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs shadow-2xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Zap size={14} className="fill-white" />
+              </div>
+              <div>
+                <span className="font-bold">Đang ở chế độ Mua ngay:</span> Bạn đang đặt mua riêng sản phẩm này. Các sản phẩm khác trong giỏ hàng vẫn được lưu giữ nguyên vẹn!
+              </div>
+            </div>
+            <Link
+              to={ROUTES.CART}
+              className="text-blue-600 hover:text-blue-800 font-bold underline shrink-0 sm:self-center"
+            >
+              Xem giỏ hàng ({totalItems})
+            </Link>
+          </div>
+        )}
 
         {/* Success Modal / Banner */}
         {orderSuccess && (
@@ -712,19 +770,28 @@ export const CheckoutPage: React.FC = () => {
               <div className="bg-white rounded-2xl border border-gray-200/90 shadow-xs p-5 sm:p-6 space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                   <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
-                    Sản phẩm đặt mua ({totalItems})
+                    Sản phẩm đặt mua ({checkoutTotalItems})
                   </h3>
-                  <Link
-                    to={ROUTES.CART}
-                    className="text-xs text-blue-600 hover:underline font-semibold"
-                  >
-                    Sửa giỏ hàng
-                  </Link>
+                  {isBuyNow ? (
+                    <Link
+                      to={buyNowItem?.product?.id ? `/products/${buyNowItem.product.id}` : ROUTES.PRODUCTS}
+                      className="text-xs text-blue-600 hover:underline font-semibold"
+                    >
+                      Đổi sản phẩm
+                    </Link>
+                  ) : (
+                    <Link
+                      to={ROUTES.CART}
+                      className="text-xs text-blue-600 hover:underline font-semibold"
+                    >
+                      Sửa giỏ hàng
+                    </Link>
+                  )}
                 </div>
 
                 {/* Items scroll list */}
                 <div className="max-h-72 overflow-y-auto divide-y divide-gray-100 pr-1 space-y-2">
-                  {items.map((item) => {
+                  {checkoutItems.map((item) => {
                     const variant = item.variant;
                     const unitPrice = variant?.price ?? item.product.price ?? 0;
                     const itemImage = variant?.imageUrl || item.product.imageUrl || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100';
@@ -998,7 +1065,7 @@ export const CheckoutPage: React.FC = () => {
                 <div className="pt-3 border-t border-gray-100 space-y-2 text-xs">
                   <div className="flex justify-between text-gray-600">
                     <span>Tạm tính</span>
-                    <span className="font-semibold text-gray-900">{formatPrice(totalPrice)}</span>
+                    <span className="font-semibold text-gray-900">{formatPrice(checkoutTotalPrice)}</span>
                   </div>
 
                   {discountAmount > 0 && appliedPromotion && (
@@ -1097,14 +1164,14 @@ export const CheckoutPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Back to cart */}
+              {/* Back button */}
               <div>
                 <Link
-                  to={ROUTES.CART}
+                  to={isBuyNow ? (buyNowItem?.product?.id ? `/products/${buyNowItem.product.id}` : ROUTES.PRODUCTS) : ROUTES.CART}
                   className="inline-flex items-center gap-2 text-xs font-semibold text-gray-600 hover:text-blue-600 transition"
                 >
                   <ArrowLeft className="w-4 h-4" />
-                  <span>Quay lại chỉnh sửa giỏ hàng</span>
+                  <span>{isBuyNow ? 'Quay lại chi tiết sản phẩm' : 'Quay lại chỉnh sửa giỏ hàng'}</span>
                 </Link>
               </div>
             </div>

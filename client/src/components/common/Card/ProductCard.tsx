@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { ShoppingCart, Heart, Check } from 'lucide-react';
+import { ShoppingCart, Heart, Check, Zap } from 'lucide-react';
 import type { Product } from '../../../models/product.model';
 import { useCartStore } from '../../../store/useCartStore';
 import { useAuthStore } from '../../../store/useAuthStore';
+import { ROUTES } from '../../../constants/routes';
 import { formatPrice } from '../../../utils/format';
 
 interface ProductCardProps {
@@ -37,6 +38,34 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }
     setAdded(true);
     setTimeout(() => setAdded(false), 1500);
     onAddToCart?.(product);
+  };
+
+  const handleBuyNow = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isAuthenticated) {
+      const currentUrl = location.pathname + (location.search || '');
+      navigate(`/login?redirect=${encodeURIComponent(currentUrl)}`);
+      return;
+    }
+
+    // Nếu sản phẩm có nhiều biến thể (màu sắc, dung lượng...), điều hướng vào trang chi tiết để khách chọn đúng biến thể
+    if (product.variants && product.variants.length > 1) {
+      navigate(`/products/${product.id}`);
+      return;
+    }
+
+    const defaultVariant = product.variants && product.variants.length > 0 ? product.variants[0] : undefined;
+    navigate(ROUTES.CHECKOUT, {
+      state: {
+        buyNowItem: {
+          product,
+          variant: defaultVariant,
+          variantId: defaultVariant?.id,
+          quantity: 1,
+        },
+      },
+    });
   };
 
   const handleToggleLike = (e: React.MouseEvent) => {
@@ -115,28 +144,41 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }
         </div>
       </div>
 
-      {/* Add to cart CTA */}
-      <button
-        type="button"
-        onClick={handleAddToCart}
-        className={`w-full py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-xs ${
-          added
-            ? 'bg-emerald-600 text-white'
-            : 'bg-[#1c2029] hover:bg-black text-white hover:shadow-sm'
-        }`}
-      >
-        {added ? (
-          <>
-            <Check className="w-3.5 h-3.5" />
-            <span>Đã thêm</span>
-          </>
-        ) : (
-          <>
-            <ShoppingCart className="w-3.5 h-3.5" />
-            <span>Thêm vào giỏ</span>
-          </>
-        )}
-      </button>
+      {/* Action buttons: Thêm vào giỏ & Mua ngay */}
+      <div className="grid grid-cols-2 gap-2 mt-auto pt-2">
+        <button
+          type="button"
+          onClick={handleAddToCart}
+          className={`py-2 px-1.5 sm:px-2 rounded-lg text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1 transition-all shadow-2xs cursor-pointer ${
+            added
+              ? 'bg-emerald-600 text-white'
+              : 'bg-gray-100 hover:bg-gray-200 text-gray-800 border border-gray-200 hover:border-gray-300'
+          }`}
+          title="Thêm vào giỏ hàng"
+        >
+          {added ? (
+            <>
+              <Check className="w-3.5 h-3.5 text-white shrink-0" />
+              <span className="truncate">Đã thêm</span>
+            </>
+          ) : (
+            <>
+              <ShoppingCart className="w-3.5 h-3.5 text-gray-700 shrink-0" />
+              <span className="truncate">Thêm vào giỏ</span>
+            </>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleBuyNow}
+          className="py-2 px-1.5 sm:px-2 rounded-lg text-[11px] sm:text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer hover:shadow-sm"
+          title="Mua ngay lập tức"
+        >
+          <Zap className="w-3.5 h-3.5 fill-white shrink-0" />
+          <span className="truncate">Mua ngay</span>
+        </button>
+      </div>
     </div>
   );
 };
