@@ -21,7 +21,7 @@ import {
 import { useAuthStore } from '../../store/useAuthStore';
 import { ROUTES } from '../../constants/routes';
 import Button from '../../components/common/Button/Button';
-import nexorLogoBlack from '../../assets/images/nexor-logo-black.png';
+import nexorLogo from '../../assets/images/nexor_logo.png';
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -400,7 +400,10 @@ export const RegisterPage: React.FC = () => {
       <div className="text-center mb-4">
         <div className="flex items-center justify-center gap-2 mb-2">
           <img
-            src={nexorLogoBlack}
+            src={nexorLogo}
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = '/images/nexor_logo.png';
+            }}
             alt="Nexor"
             className="h-8 w-auto object-contain"
           />

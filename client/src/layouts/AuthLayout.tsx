@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, Outlet } from 'react-router-dom';
 import { Headphones, ShieldCheck, Sparkles, Truck } from 'lucide-react';
 import authBgImage from '../assets/images/auth-bg.jpg';
-import nexorLogoWhite from '../assets/images/nexor-logo-white.png';
+import nexorLogo from '../assets/images/nexor_logo.png';
 
 export const AuthLayout: React.FC = () => {
   return (
@@ -24,7 +24,10 @@ export const AuthLayout: React.FC = () => {
         {/* Mobile-only logo */}
         <Link to="/" className="flex lg:hidden items-center gap-2.5 group">
           <img
-            src={nexorLogoWhite}
+            src={nexorLogo}
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = '/images/nexor_logo.png';
+            }}
             alt="Nexor"
             className="h-9 w-auto object-contain drop-shadow-md"
           />
@@ -55,13 +58,16 @@ export const AuthLayout: React.FC = () => {
         <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-8 items-start lg:items-center">
           {/* CỘT TRÁI (Hero Text & Badges - ĐƯỢC ĐẨY LÊN CAO, KHÔNG CHE THIẾT BỊ NỀN) */}
           <div className="hidden lg:flex lg:col-span-7 xl:col-span-7 flex-col justify-start self-start pt-1 xl:pt-3 pr-4">
-            {/* Top Left Brand Logo - Đưa lên cao, đều màu trắng sáng, sắc nét */}
+            {/* Top Left Brand Logo - Đồng bộ nexor_logo.png cho toàn dự án */}
             <div>
               <Link to="/" className="inline-flex items-center gap-3 group">
                 <img
-                  src={nexorLogoWhite}
+                  src={nexorLogo}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = '/images/nexor_logo.png';
+                  }}
                   alt="Nexor Logo"
-                  className="h-10 sm:h-11 w-auto object-contain drop-shadow group-hover:scale-105 transition-transform"
+                  className="h-10 sm:h-11 w-auto object-contain drop-shadow-md group-hover:scale-105 transition-transform"
                 />
                 <div className="flex flex-col">
                   <span className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none group-hover:text-blue-100 transition-colors">

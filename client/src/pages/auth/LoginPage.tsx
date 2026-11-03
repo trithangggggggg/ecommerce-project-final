@@ -15,7 +15,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { ROLES } from '../../constants/roles';
 import { ROUTES } from '../../constants/routes';
 import Button from '../../components/common/Button/Button';
-import nexorLogoBlack from '../../assets/images/nexor-logo-black.png';
+import nexorLogo from '../../assets/images/nexor_logo.png';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -135,7 +135,10 @@ export const LoginPage: React.FC = () => {
       <div className="text-center mb-4">
         <div className="flex items-center justify-center gap-2 mb-2">
           <img
-            src={nexorLogoBlack}
+            src={nexorLogo}
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = '/images/nexor_logo.png';
+            }}
             alt="Nexor"
             className="h-8 w-auto object-contain"
           />
@@ -183,17 +186,17 @@ export const LoginPage: React.FC = () => {
             <span className="font-medium">{formError || error}</span>
             {(formError?.toLowerCase().includes('kích hoạt') ||
               error?.toLowerCase().includes('kích hoạt')) && (
-              <div className="mt-1.5 pt-1.5 border-t border-red-200/80">
-                <Link
-                  to={`${ROUTES.REGISTER}?step=otp&email=${encodeURIComponent(
-                    emailOrUsername.includes('@') ? emailOrUsername.trim() : ''
-                  )}`}
-                  className="font-bold underline text-red-800 hover:text-red-950 inline-flex items-center gap-1"
-                >
-                  Nhấp vào đây để xác thực mã OTP ngay →
-                </Link>
-              </div>
-            )}
+                <div className="mt-1.5 pt-1.5 border-t border-red-200/80">
+                  <Link
+                    to={`${ROUTES.REGISTER}?step=otp&email=${encodeURIComponent(
+                      emailOrUsername.includes('@') ? emailOrUsername.trim() : ''
+                    )}`}
+                    className="font-bold underline text-red-800 hover:text-red-950 inline-flex items-center gap-1"
+                  >
+                    Nhấp vào đây để xác thực mã OTP ngay →
+                  </Link>
+                </div>
+              )}
           </div>
         </div>
       )}
@@ -218,11 +221,10 @@ export const LoginPage: React.FC = () => {
               }}
               onBlur={() => handleBlur('emailOrUsername')}
               placeholder="Nhập email hoặc số điện thoại"
-              className={`w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-white rounded-xl border transition-all outline-none ${
-                touched.emailOrUsername && fieldErrors.emailOrUsername
+              className={`w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-white rounded-xl border transition-all outline-none ${touched.emailOrUsername && fieldErrors.emailOrUsername
                   ? 'border-red-400 focus:ring-2 focus:ring-red-100'
                   : 'border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5'
-              }`}
+                }`}
             />
           </div>
           {touched.emailOrUsername && fieldErrors.emailOrUsername && (
@@ -250,11 +252,10 @@ export const LoginPage: React.FC = () => {
               }}
               onBlur={() => handleBlur('password')}
               placeholder="Nhập mật khẩu"
-              className={`w-full pl-9 pr-9 py-2 text-xs sm:text-sm bg-white rounded-xl border transition-all outline-none ${
-                touched.password && fieldErrors.password
+              className={`w-full pl-9 pr-9 py-2 text-xs sm:text-sm bg-white rounded-xl border transition-all outline-none ${touched.password && fieldErrors.password
                   ? 'border-red-400 focus:ring-2 focus:ring-red-100'
                   : 'border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5'
-              }`}
+                }`}
             />
             <button
               type="button"
