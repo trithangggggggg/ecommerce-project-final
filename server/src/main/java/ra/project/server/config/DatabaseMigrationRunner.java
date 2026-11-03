@@ -234,6 +234,32 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
                 log.warn(">>> [Migration] Không thể backfill user_id cho promotions: {}", e.getMessage());
             }
         }
+        if (!promoColumns.contains("type")) {
+            log.info(">>> [Migration] Thêm cột 'type' vào bảng 'promotions'...");
+            jdbcTemplate.execute("ALTER TABLE promotions ADD COLUMN type VARCHAR(30) NOT NULL DEFAULT 'ORDER'");
+            try {
+                jdbcTemplate.update("""
+                    UPDATE promotions
+                    SET type = 'SHIPPING'
+                    WHERE (UPPER(code) LIKE 'FREESHIP%' OR UPPER(code) LIKE 'SHIP%')
+                """);
+            } catch (Exception e) {
+                log.warn(">>> [Migration] Không thể backfill type cho promotions: {}", e.getMessage());
+            }
+        }
+
+        if (!orderColumns.contains("shipping_coupon_code")) {
+            log.info(">>> [Migration] Thêm cột 'shipping_coupon_code' vào bảng 'orders'...");
+            jdbcTemplate.execute("ALTER TABLE orders ADD COLUMN shipping_coupon_code VARCHAR(50) NULL");
+        }
+        if (!orderColumns.contains("shipping_discount")) {
+            log.info(">>> [Migration] Thêm cột 'shipping_discount' vào bảng 'orders'...");
+            jdbcTemplate.execute("ALTER TABLE orders ADD COLUMN shipping_discount DECIMAL(12, 2) NOT NULL DEFAULT 0.00");
+        }
+        if (!orderColumns.contains("shipping_fee")) {
+            log.info(">>> [Migration] Thêm cột 'shipping_fee' vào bảng 'orders'...");
+            jdbcTemplate.execute("ALTER TABLE orders ADD COLUMN shipping_fee DECIMAL(12, 2) NOT NULL DEFAULT 0.00");
+        }
     }
 
     private Set<String> getTableColumns(String tableName) throws SQLException {

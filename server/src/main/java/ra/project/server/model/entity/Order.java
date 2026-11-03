@@ -76,6 +76,13 @@ public class Order extends BaseEntity {
     @Builder.Default
     private BigDecimal discountAmount = BigDecimal.ZERO;
 
+    @Column(name = "shipping_coupon_code", length = 50)
+    private String shippingCouponCode;
+
+    @Column(name = "shipping_discount", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal shippingDiscount = BigDecimal.ZERO;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     private List<OrderItem> orderItems = new ArrayList<>();

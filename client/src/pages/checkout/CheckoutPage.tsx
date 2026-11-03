@@ -66,13 +66,16 @@ export const CheckoutPage: React.FC = () => {
   const [selectedCarrierId, setSelectedCarrierId] = useState<number | null>(null);
   const [isLoadingCarriers, setIsLoadingCarriers] = useState(false);
 
-  // Coupon / Voucher State
+  // Coupon / Voucher State (Mã giảm giá đơn hàng)
   const [couponInput, setCouponInput] = useState('');
   const [appliedPromotion, setAppliedPromotion] = useState<PromotionCheckResult | null>(null);
   const [isCheckingCoupon, setIsCheckingCoupon] = useState(false);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [couponSuccess, setCouponSuccess] = useState<string | null>(null);
   const [availablePromotions, setAvailablePromotions] = useState<PromoItem[]>([]);
+
+  // Shipping Voucher State (Mã ưu đãi vận chuyển)
+  const [appliedShippingPromotion, setAppliedShippingPromotion] = useState<PromotionCheckResult | null>(null);
 
   // Status & Feedback State
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -121,7 +124,7 @@ export const CheckoutPage: React.FC = () => {
       });
   }, []);
 
-  // Tính số tiền giảm và tiền hàng sau giảm
+  // Tính số tiền giảm voucher đơn hàng và tiền hàng sau giảm
   const discountAmount = appliedPromotion ? appliedPromotion.discountAmount : 0;
   const subtotalAfterDiscount = Math.max(0, checkoutTotalPrice - discountAmount);
 
@@ -129,23 +132,43 @@ export const CheckoutPage: React.FC = () => {
   const selectedCarrier = carriers.find((c) => c.id === selectedCarrierId) || carriers[0];
   const baseShippingFee = selectedCarrier ? (selectedCarrier.shippingFee ?? 30000) : 30000;
 
-  // Tính phí vận chuyển thực tế theo chính sách:
+  // 1. Tính mức cước theo chính sách giá trị đơn hàng:
   // - Đơn hàng >= 20.000.000₫: Miễn phí 100% phí ship (Freeship 0₫)
   // - Đơn hàng >= 10.000.000₫: Giảm 50% phí ship
   // - Đơn hàng < 10.000.000₫: Phí cước gốc của hãng
-  let actualShippingFee = baseShippingFee;
+  let tierShippingFee = baseShippingFee;
   let shippingBadge = '';
   if (subtotalAfterDiscount >= 20000000) {
-    actualShippingFee = 0;
+    tierShippingFee = 0;
     shippingBadge = 'Freeship 100% (Đơn ≥ 20tr)';
   } else if (subtotalAfterDiscount >= 10000000) {
-    actualShippingFee = Math.round(baseShippingFee / 2);
+    tierShippingFee = Math.round(baseShippingFee / 2);
     shippingBadge = 'Giảm 50% ship (Đơn ≥ 10tr)';
   }
+  const shippingTierDiscount = baseShippingFee - tierShippingFee;
 
+  // 2. Tính mức giảm từ Voucher Vận chuyển (Freeship Voucher) nếu có:
+  let shippingVoucherDiscount = 0;
+  if (appliedShippingPromotion && tierShippingFee > 0) {
+    if (appliedShippingPromotion.discountAmount && appliedShippingPromotion.discountAmount > 0) {
+      shippingVoucherDiscount = Math.min(tierShippingFee, appliedShippingPromotion.discountAmount);
+    } else {
+      const rawDiscount = appliedShippingPromotion.discount || '';
+      if (rawDiscount.includes('%')) {
+        const pct = parseFloat(rawDiscount.replace('%', '')) || 0;
+        shippingVoucherDiscount = Math.round((tierShippingFee * pct) / 100);
+      } else {
+        const num = parseFloat(rawDiscount.replace(/\D/g, '')) || 0;
+        shippingVoucherDiscount = Math.min(tierShippingFee, num);
+      }
+    }
+  }
+
+  // Phí vận chuyển thực tế khách trả sau chính sách và voucher:
+  const actualShippingFee = Math.max(0, tierShippingFee - shippingVoucherDiscount);
   const finalTotal = subtotalAfterDiscount + actualShippingFee;
 
-  // Xử lý áp dụng mã giảm giá
+  // Xử lý áp dụng mã giảm giá (hỗ trợ cả mã đơn hàng và mã Freeship)
   const handleApplyCoupon = async (codeToApply?: string) => {
     const rawCode = (codeToApply !== undefined ? codeToApply : couponInput).trim();
     if (!rawCode) {
@@ -159,17 +182,38 @@ export const CheckoutPage: React.FC = () => {
     setIsCheckingCoupon(true);
 
     try {
-      const result = await promotionService.checkPromotion(rawCode, checkoutTotalPrice);
-      if (result && result.isValid) {
-        setAppliedPromotion(result);
-        setCouponInput(result.code);
-        setCouponSuccess(`Áp dụng thành công! Đã giảm ${result.discount}`);
+      const result = await promotionService.checkPromotion(rawCode, checkoutTotalPrice, tierShippingFee);
+      // Jackson có thể serialize boolean thành isValid hoặc valid
+      const isSuccess = Boolean(
+        result &&
+        (result.isValid === true ||
+         result.valid === true ||
+         (result.message && result.message.toLowerCase().includes('thành công')))
+      );
+
+      if (isSuccess) {
+        setCouponError(null);
+        // Tự động nhận diện mã Freeship hoặc mã giảm giá đơn hàng
+        const isShippingPromo =
+          result.type === 'SHIPPING' ||
+          result.code.toUpperCase().startsWith('FREESHIP') ||
+          result.code.toUpperCase().startsWith('SHIP') ||
+          (result.message && result.message.toLowerCase().includes('vận chuyển'));
+
+        if (isShippingPromo) {
+          setAppliedShippingPromotion(result);
+          setCouponInput('');
+          setCouponSuccess(`Áp dụng thành công mã Freeship "${result.code}" (-${result.discount} phí ship)!`);
+        } else {
+          setAppliedPromotion(result);
+          setCouponInput('');
+          setCouponSuccess(`Áp dụng thành công mã giảm giá "${result.code}" (-${result.discount})!`);
+        }
       } else {
-        setAppliedPromotion(null);
+        setCouponSuccess(null);
         setCouponError(result?.message || 'Mã giảm giá không hợp lệ hoặc đã hết hạn.');
       }
     } catch (err: unknown) {
-      setAppliedPromotion(null);
       const msg =
         err instanceof Error
           ? err.message
@@ -180,10 +224,16 @@ export const CheckoutPage: React.FC = () => {
     }
   };
 
-  // Gỡ mã giảm giá
+  // Gỡ mã giảm giá đơn hàng
   const handleRemoveCoupon = () => {
     setAppliedPromotion(null);
-    setCouponInput('');
+    setCouponError(null);
+    setCouponSuccess(null);
+  };
+
+  // Gỡ mã giảm giá vận chuyển
+  const handleRemoveShippingCoupon = () => {
+    setAppliedShippingPromotion(null);
     setCouponError(null);
     setCouponSuccess(null);
   };
@@ -284,6 +334,7 @@ export const CheckoutPage: React.FC = () => {
       paymentMethod,
       carrierId: selectedCarrierId || undefined,
       couponCode: appliedPromotion?.code || undefined,
+      shippingCouponCode: appliedShippingPromotion?.code || undefined,
       items: checkoutItems.map((i) => ({
         productId: i.product.id,
         variantId: i.variantId || i.variant?.id,
@@ -325,12 +376,27 @@ export const CheckoutPage: React.FC = () => {
     }
   };
 
-  // Phân loại mã giảm giá khả dụng: Mã đền bù cá nhân vs Mã công khai
+  // Phân loại mã giảm giá khả dụng: Mã freeship, Mã đền bù cá nhân, Mã công khai
+  const shippingVouchers = availablePromotions.filter(
+    (p) =>
+      p.type === 'SHIPPING' ||
+      p.code.toUpperCase().startsWith('FREESHIP') ||
+      p.code.toUpperCase().startsWith('SHIP')
+  );
   const compensationVouchers = availablePromotions.filter(
-    (p) => p.code.toUpperCase().startsWith('DENBU') || Boolean(p.userId)
+    (p) =>
+      (p.code.toUpperCase().startsWith('DENBU') || Boolean(p.userId)) &&
+      p.type !== 'SHIPPING' &&
+      !p.code.toUpperCase().startsWith('FREESHIP') &&
+      !p.code.toUpperCase().startsWith('SHIP')
   );
   const publicVouchers = availablePromotions.filter(
-    (p) => !p.code.toUpperCase().startsWith('DENBU') && !p.userId
+    (p) =>
+      !p.code.toUpperCase().startsWith('DENBU') &&
+      !p.userId &&
+      p.type !== 'SHIPPING' &&
+      !p.code.toUpperCase().startsWith('FREESHIP') &&
+      !p.code.toUpperCase().startsWith('SHIP')
   );
 
   return (
@@ -778,7 +844,7 @@ export const CheckoutPage: React.FC = () => {
                       <Tag className="w-3.5 h-3.5 text-blue-600" />
                       Mã giảm giá / Voucher
                     </span>
-                    {appliedPromotion && (
+                    {(appliedPromotion || appliedShippingPromotion) && (
                       <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
                         <Check className="w-3 h-3" />
                         Đã áp dụng
@@ -786,147 +852,213 @@ export const CheckoutPage: React.FC = () => {
                     )}
                   </div>
 
-                  {appliedPromotion ? (
-                    /* Thẻ hiển thị mã khi đã áp dụng thành công */
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-3 shadow-2xs">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                          <Gift className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-mono font-black text-xs text-emerald-900 tracking-wider">
-                              {appliedPromotion.code}
-                            </span>
-                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-200 text-emerald-800">
-                              -{appliedPromotion.discount}
-                            </span>
-                            {appliedPromotion.code.toUpperCase().startsWith('DENBU') && (
-                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                                Mã đền bù của bạn
+                  {/* Danh sách các mã đã áp dụng thành công */}
+                  {(appliedPromotion || appliedShippingPromotion) && (
+                    <div className="space-y-2">
+                      {appliedPromotion && (
+                        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-3 shadow-2xs">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                              <Gift className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono font-black text-xs text-emerald-900 tracking-wider">
+                                  {appliedPromotion.code}
+                                </span>
+                                <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-200 text-emerald-800">
+                                  -{appliedPromotion.discount}
+                                </span>
+                                {appliedPromotion.code.toUpperCase().startsWith('DENBU') && (
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                    Mã đền bù
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[11px] text-emerald-700 block truncate font-medium">
+                                Giảm {formatPrice(discountAmount)} cho đơn hàng này
                               </span>
-                            )}
+                            </div>
                           </div>
-                          <span className="text-[11px] text-emerald-700 block truncate font-medium">
-                            Giảm {formatPrice(discountAmount)} cho đơn hàng này
-                          </span>
-                        </div>
-                      </div>
 
-                      <button
+                          <button
+                            type="button"
+                            onClick={handleRemoveCoupon}
+                            className="px-2.5 py-1 text-[11px] font-semibold text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg border border-gray-200 hover:border-red-200 transition shrink-0 flex items-center gap-1 cursor-pointer"
+                            title="Gỡ mã giảm giá đơn hàng"
+                          >
+                            <X className="w-3 h-3" />
+                            <span>Gỡ</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {appliedShippingPromotion && (
+                        <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center justify-between gap-3 shadow-2xs">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                              <Truck className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono font-black text-xs text-indigo-900 tracking-wider">
+                                  {appliedShippingPromotion.code}
+                                </span>
+                                <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-indigo-200 text-indigo-800">
+                                  -{appliedShippingPromotion.discount}
+                                </span>
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-300">
+                                  Mã Freeship
+                                </span>
+                              </div>
+                              <span className="text-[11px] text-indigo-700 block truncate font-medium">
+                                Giảm {formatPrice(shippingVoucherDiscount)} phí vận chuyển
+                              </span>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleRemoveShippingCoupon}
+                            className="px-2.5 py-1 text-[11px] font-semibold text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg border border-gray-200 hover:border-red-200 transition shrink-0 flex items-center gap-1 cursor-pointer"
+                            title="Gỡ mã Freeship"
+                          >
+                            <X className="w-3 h-3" />
+                            <span>Gỡ</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Ô nhập mã giảm giá dùng chung */}
+                  <div className="space-y-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                          <Tag className="w-3.5 h-3.5" />
+                        </div>
+                        <input
+                          type="text"
+                          value={couponInput}
+                          onChange={(e) => {
+                            setCouponInput(e.target.value.toUpperCase());
+                            if (couponError) setCouponError(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleApplyCoupon();
+                            }
+                          }}
+                          placeholder="NHẬP MÃ GIẢM GIÁ..."
+                          className="w-full pl-9 pr-3 py-2 text-xs font-mono font-medium uppercase bg-white border border-gray-200 rounded-lg hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
+                        />
+                      </div>
+                      <Button
                         type="button"
-                        onClick={handleRemoveCoupon}
-                        className="px-2.5 py-1 text-[11px] font-semibold text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg border border-gray-200 hover:border-red-200 transition shrink-0 flex items-center gap-1 cursor-pointer"
-                        title="Gỡ mã giảm giá"
+                        variant="dark"
+                        size="sm"
+                        onClick={() => handleApplyCoupon()}
+                        isLoading={isCheckingCoupon}
+                        disabled={!couponInput.trim() || isCheckingCoupon}
+                        className="shrink-0 text-xs px-3.5 py-2 font-bold"
                       >
-                        <X className="w-3 h-3" />
-                        <span>Gỡ</span>
-                      </button>
+                        Áp dụng
+                      </Button>
                     </div>
-                  ) : (
-                    /* Ô nhập mã giảm giá khi chưa áp dụng */
-                    <div className="space-y-2.5">
-                      <div className="flex items-center gap-2">
-                        <div className="relative flex-1">
-                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                            <Tag className="w-3.5 h-3.5" />
-                          </div>
-                          <input
-                            type="text"
-                            value={couponInput}
-                            onChange={(e) => {
-                              setCouponInput(e.target.value.toUpperCase());
-                              if (couponError) setCouponError(null);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                handleApplyCoupon();
-                              }
-                            }}
-                            placeholder="Nhập mã giảm giá..."
-                            className="w-full pl-9 pr-3 py-2 text-xs font-mono font-medium uppercase bg-white border border-gray-200 rounded-lg hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
-                          />
+
+                    {/* Thông báo lỗi nếu có */}
+                    {couponError && (
+                      <p className="text-[11px] text-red-600 flex items-center gap-1 pl-1">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        <span>{couponError}</span>
+                      </p>
+                    )}
+
+                    {/* Thông báo thành công */}
+                    {couponSuccess && (
+                      <p className="text-[11px] text-emerald-600 flex items-center gap-1 pl-1">
+                        <Check className="w-3 h-3 shrink-0" />
+                        <span>{couponSuccess}</span>
+                      </p>
+                    )}
+
+                    {/* 1. Mã đền bù cá nhân (nếu có) */}
+                    {compensationVouchers.length > 0 && (
+                      <div className="p-2.5 rounded-xl bg-amber-50/90 border border-amber-200/90 space-y-1.5 shadow-2xs">
+                        <div className="flex items-center gap-1.5 text-amber-900 font-bold text-[11px]">
+                          <Gift className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          <span>Mã đền bù dành riêng cho bạn:</span>
                         </div>
-                        <Button
-                          type="button"
-                          variant="dark"
-                          size="sm"
-                          onClick={() => handleApplyCoupon()}
-                          isLoading={isCheckingCoupon}
-                          disabled={!couponInput.trim() || isCheckingCoupon}
-                          className="shrink-0 text-xs px-3.5 py-2 font-bold"
-                        >
-                          Áp dụng
-                        </Button>
+                        <div className="flex flex-wrap gap-1.5">
+                          {compensationVouchers.map((promo) => (
+                            <button
+                              key={promo.id || promo.code}
+                              type="button"
+                              onClick={() => handleApplyCoupon(promo.code)}
+                              className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 transition cursor-pointer shadow-2xs"
+                              title={promo.title || `Mã đền bù giảm ${promo.discount}`}
+                            >
+                              <span className="font-mono">{promo.code}</span>
+                              <span className="text-amber-400">|</span>
+                              <span className="text-emerald-700 font-bold">-{promo.discount}</span>
+                            </button>
+                          ))}
+                        </div>
                       </div>
+                    )}
 
-                      {/* Thông báo lỗi nếu có */}
-                      {couponError && (
-                        <p className="text-[11px] text-red-600 flex items-center gap-1 pl-1">
-                          <AlertCircle className="w-3 h-3 shrink-0" />
-                          <span>{couponError}</span>
-                        </p>
-                      )}
-
-                      {/* 1. Mã đền bù cá nhân (nếu tài khoản này có đơn hàng bị hủy được đền bù) */}
-                      {compensationVouchers.length > 0 && (
-                        <div className="p-2.5 rounded-xl bg-amber-50/90 border border-amber-200/90 space-y-1.5 shadow-2xs">
-                          <div className="flex items-center gap-1.5 text-amber-900 font-bold text-[11px]">
-                            <Gift className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                            <span>Mã đền bù dành riêng cho bạn:</span>
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {compensationVouchers.map((promo) => (
-                              <button
-                                key={promo.id || promo.code}
-                                type="button"
-                                onClick={() => handleApplyCoupon(promo.code)}
-                                className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 transition cursor-pointer shadow-2xs"
-                                title={promo.title || `Mã đền bù giảm ${promo.discount}`}
-                              >
-                                <span className="font-mono">{promo.code}</span>
-                                <span className="text-amber-400">|</span>
-                                <span className="text-emerald-700 font-bold">-{promo.discount}</span>
-                              </button>
-                            ))}
-                          </div>
+                    {/* 2. Mã Freeship vận chuyển */}
+                    {shippingVouchers.length > 0 && (
+                      <div className="pt-0.5">
+                        <span className="text-[10px] font-semibold text-gray-500 block mb-1">
+                          Mã Freeship vận chuyển:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {shippingVouchers.map((promo) => (
+                            <button
+                              key={promo.id || promo.code}
+                              type="button"
+                              onClick={() => handleApplyCoupon(promo.code)}
+                              className="group inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-semibold bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition cursor-pointer"
+                              title={promo.title || `Freeship: ${promo.discount}`}
+                            >
+                              <Truck className="w-2.5 h-2.5 text-indigo-500 group-hover:scale-110 transition-transform" />
+                              <span className="font-mono font-bold">{promo.code}</span>
+                              <span className="text-gray-300">|</span>
+                              <span className="text-emerald-700 font-bold">-{promo.discount}</span>
+                            </button>
+                          ))}
                         </div>
-                      )}
+                      </div>
+                    )}
 
-                      {/* 2. Mã ưu đãi công khai thông thường */}
-                      {publicVouchers.length > 0 && (
-                        <div className="pt-0.5">
-                          <span className="text-[10px] font-semibold text-gray-500 block mb-1">
-                            Mã ưu đãi công khai:
-                          </span>
-                          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
-                            {publicVouchers.slice(0, 4).map((promo) => (
-                              <button
-                                key={promo.id || promo.code}
-                                type="button"
-                                onClick={() => handleApplyCoupon(promo.code)}
-                                className="group inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-semibold bg-blue-50/80 hover:bg-blue-100 text-blue-700 border border-blue-200 transition cursor-pointer"
-                                title={promo.title || `Giảm ${promo.discount}`}
-                              >
-                                <Sparkles className="w-2.5 h-2.5 text-blue-500 group-hover:scale-110 transition-transform" />
-                                <span className="font-mono font-bold">{promo.code}</span>
-                                <span className="text-gray-300">|</span>
-                                <span className="text-emerald-700 font-bold">-{promo.discount}</span>
-                              </button>
-                            ))}
-                          </div>
+                    {/* 3. Mã ưu đãi đơn hàng */}
+                    {publicVouchers.length > 0 && (
+                      <div className="pt-0.5">
+                        <span className="text-[10px] font-semibold text-gray-500 block mb-1">
+                          Mã ưu đãi đơn hàng:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                          {publicVouchers.slice(0, 4).map((promo) => (
+                            <button
+                              key={promo.id || promo.code}
+                              type="button"
+                              onClick={() => handleApplyCoupon(promo.code)}
+                              className="group inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-semibold bg-blue-50/80 hover:bg-blue-100 text-blue-700 border border-blue-200 transition cursor-pointer"
+                              title={promo.title || `Giảm ${promo.discount}`}
+                            >
+                              <Sparkles className="w-2.5 h-2.5 text-blue-500 group-hover:scale-110 transition-transform" />
+                              <span className="font-mono font-bold">{promo.code}</span>
+                              <span className="text-gray-300">|</span>
+                              <span className="text-emerald-700 font-bold">-{promo.discount}</span>
+                            </button>
+                          ))}
                         </div>
-                      )}
-                    </div>
-                  )}
-
-                  {couponSuccess && !appliedPromotion && (
-                    <p className="text-[11px] text-emerald-600 flex items-center gap-1 pl-1">
-                      <Check className="w-3 h-3 shrink-0" />
-                      <span>{couponSuccess}</span>
-                    </p>
-                  )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Price Breakdown */}
@@ -957,34 +1089,45 @@ export const CheckoutPage: React.FC = () => {
                   )}
 
                   <div className="flex justify-between text-gray-600">
+                    <span>Phí vận chuyển gốc</span>
+                    <span className="font-semibold text-gray-900">{formatPrice(baseShippingFee)}</span>
+                  </div>
+
+                  {/* Ưu đãi phí ship theo giá trị đơn (nếu có) */}
+                  {shippingTierDiscount > 0 && (
+                    <div className="flex justify-between text-blue-700 font-medium">
+                      <span className="flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-blue-500" />
+                        Ưu đãi giá trị đơn ({subtotalAfterDiscount >= 20000000 ? 'Đơn ≥ 20tr' : 'Đơn ≥ 10tr'})
+                      </span>
+                      <span className="font-bold">
+                        -{formatPrice(shippingTierDiscount)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Voucher Freeship (nếu có) */}
+                  {shippingVoucherDiscount > 0 && appliedShippingPromotion && (
+                    <div className="flex justify-between text-emerald-700 font-medium">
+                      <span className="flex items-center gap-1">
+                        <Truck className="w-3 h-3 text-emerald-600" />
+                        Voucher Freeship ({appliedShippingPromotion.code})
+                      </span>
+                      <span className="font-bold">-{formatPrice(shippingVoucherDiscount)}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between text-gray-700 font-semibold pt-1 border-t border-dashed border-gray-200">
                     <span className="flex items-center gap-1.5">
-                      <span>Phí vận chuyển</span>
+                      <span>Phí vận chuyển thực thu</span>
                       {shippingBadge && (
                         <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded">
                           {shippingBadge}
                         </span>
                       )}
                     </span>
-                    <span className={`font-semibold ${actualShippingFee === 0 ? 'text-emerald-600' : 'text-gray-900'}`}>
-                      {actualShippingFee === 0 ? (
-                        <span className="flex items-center gap-1">
-                          <span>Miễn phí</span>
-                          {baseShippingFee > 0 && (
-                            <span className="line-through text-gray-400 font-normal text-[10px]">
-                              {formatPrice(baseShippingFee)}
-                            </span>
-                          )}
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1">
-                          <span>{formatPrice(actualShippingFee)}</span>
-                          {actualShippingFee < baseShippingFee && (
-                            <span className="line-through text-gray-400 font-normal text-[10px]">
-                              {formatPrice(baseShippingFee)}
-                            </span>
-                          )}
-                        </span>
-                      )}
+                    <span className={actualShippingFee === 0 ? 'text-emerald-700 font-bold' : 'text-gray-900 font-bold'}>
+                      {actualShippingFee === 0 ? '0₫ (Miễn phí)' : formatPrice(actualShippingFee)}
                     </span>
                   </div>
                   <div className="pt-2 border-t border-gray-100 flex items-baseline justify-between">
