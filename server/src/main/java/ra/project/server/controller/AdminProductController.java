@@ -94,4 +94,72 @@ public class AdminProductController {
         ProductResponse response = productService.updateProductStock(id, targetStock);
         return ResponseEntity.ok(ApiResponse.success("Cập nhật số lượng tồn kho thành công", response));
     }
+
+    @PutMapping("/variants/{variantId}/stock")
+    public ResponseEntity<ApiResponse<ra.project.server.model.dto.response.ProductVariantResponse>> updateVariantStock(
+            @PathVariable Long variantId,
+            @RequestBody(required = false) java.util.Map<String, Object> body,
+            @RequestParam(name = "quantity", required = false) Integer quantityParam,
+            @RequestParam(name = "isDelta", required = false) Boolean isDeltaParam
+    ) {
+        Integer targetQty = null;
+        Boolean isDelta = Boolean.FALSE;
+
+        if (body != null) {
+            if (body.containsKey("quantity")) {
+                Object val = body.get("quantity");
+                if (val instanceof Number) {
+                    targetQty = ((Number) val).intValue();
+                } else if (val != null) {
+                    try {
+                        targetQty = Integer.parseInt(val.toString().trim());
+                    } catch (NumberFormatException ignored) {}
+                }
+            } else if (body.containsKey("stock")) {
+                Object val = body.get("stock");
+                if (val instanceof Number) {
+                    targetQty = ((Number) val).intValue();
+                } else if (val != null) {
+                    try {
+                        targetQty = Integer.parseInt(val.toString().trim());
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+
+            if (body.containsKey("isDelta")) {
+                Object deltaVal = body.get("isDelta");
+                if (deltaVal instanceof Boolean) {
+                    isDelta = (Boolean) deltaVal;
+                } else if (deltaVal != null) {
+                    isDelta = Boolean.parseBoolean(deltaVal.toString());
+                }
+            }
+        }
+
+        if (targetQty == null && quantityParam != null) {
+            targetQty = quantityParam;
+        }
+        if (isDeltaParam != null) {
+            isDelta = isDeltaParam;
+        }
+
+        if (targetQty == null) {
+            throw new ra.project.server.exception.BadRequestException("Số lượng biến thể không hợp lệ");
+        }
+
+        ra.project.server.model.dto.response.ProductVariantResponse response =
+                productService.updateVariantStock(variantId, targetQty, isDelta);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật số lượng tồn kho biến thể thành công", response));
+    }
+
+    @PostMapping("/{productId}/variants")
+    public ResponseEntity<ApiResponse<ra.project.server.model.dto.response.ProductVariantResponse>> createProductVariant(
+            @PathVariable Long productId,
+            @RequestBody java.util.Map<String, Object> body
+    ) {
+        ra.project.server.model.dto.response.ProductVariantResponse response =
+                productService.createVariant(productId, body != null ? body : java.util.Collections.emptyMap());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Tạo biến thể mới thành công (Admin)", response));
+    }
 }

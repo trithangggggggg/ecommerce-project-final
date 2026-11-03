@@ -14,6 +14,8 @@ export const ENDPOINTS = {
   PRODUCTS: '/products',
   ADMIN_PRODUCTS: '/admin/products',
   ADMIN_PRODUCT_STOCK: (id: number | string) => `/admin/products/${id}/stock`,
+  ADMIN_VARIANT_STOCK: (variantId: number | string) => `/admin/products/variants/${variantId}/stock`,
+  ADMIN_CREATE_VARIANT: (productId: number | string) => `/admin/products/${productId}/variants`,
   ADMIN_PRODUCT_ACTIVE_ORDERS: (id: number | string) => `/admin/products/${id}/active-orders`,
   ORDERS: {
     CHECKOUT: '/orders/checkout',

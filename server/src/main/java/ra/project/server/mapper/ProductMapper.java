@@ -66,6 +66,9 @@ public class ProductMapper {
                 .categoryName(entity.getCategory() != null ? entity.getCategory().getName() : null)
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
+                .variants(entity.getVariants() != null && !entity.getVariants().isEmpty()
+                        ? entity.getVariants().stream().map(this::toVariantResponse).collect(Collectors.toList())
+                        : null)
                 .build();
     }
 

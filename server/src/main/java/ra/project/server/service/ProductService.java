@@ -42,6 +42,10 @@ public interface ProductService {
 
     ProductResponse updateProductStock(Long id, Integer stock);
 
+    ra.project.server.model.dto.response.ProductVariantResponse updateVariantStock(Long variantId, Integer quantity, Boolean isDelta);
+
+    ra.project.server.model.dto.response.ProductVariantResponse createVariant(Long productId, java.util.Map<String, Object> body);
+
     java.util.List<ra.project.server.model.dto.response.OrderResponse> getActiveOrdersForProduct(Long productId);
 
     void deleteProduct(Long id);

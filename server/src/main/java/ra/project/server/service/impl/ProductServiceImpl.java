@@ -540,4 +540,90 @@ public class ProductServiceImpl implements ProductService {
         Product saved = productRepository.save(product);
         return productMapper.toResponse(saved);
     }
+
+    @Override
+    @Transactional
+    public ra.project.server.model.dto.response.ProductVariantResponse updateVariantStock(Long variantId, Integer quantity, Boolean isDelta) {
+        ra.project.server.model.entity.ProductVariant variant = productVariantRepository.findById(variantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Biến thể sản phẩm", "id", variantId));
+
+        int newStock;
+        if (Boolean.TRUE.equals(isDelta)) {
+            int current = variant.getStock() != null ? variant.getStock() : 0;
+            newStock = Math.max(0, current + (quantity != null ? quantity : 0));
+        } else {
+            newStock = (quantity != null && quantity >= 0) ? quantity : 0;
+        }
+
+        variant.setStock(newStock);
+        ra.project.server.model.entity.ProductVariant savedVariant = productVariantRepository.save(variant);
+
+        if (variant.getProduct() != null) {
+            productRepository.syncProductTotalStock(variant.getProduct().getId());
+        }
+
+        return productMapper.toVariantResponse(savedVariant);
+    }
+
+    @Override
+    @Transactional
+    public ra.project.server.model.dto.response.ProductVariantResponse createVariant(Long productId, java.util.Map<String, Object> body) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Sản phẩm", "id", productId));
+
+        String title = body.get("title") != null ? body.get("title").toString().trim() : "Biến thể mới";
+        String sku = body.get("sku") != null ? body.get("sku").toString().trim().toUpperCase() : null;
+        if (sku == null || sku.isBlank()) {
+            sku = "SKU-" + productId + "-" + (System.currentTimeMillis() % 100000);
+        }
+
+        java.math.BigDecimal price = java.math.BigDecimal.ZERO;
+        if (body.get("price") != null) {
+            try {
+                price = new java.math.BigDecimal(body.get("price").toString().trim());
+            } catch (Exception ignored) {}
+        }
+        if (price.compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            price = product.getPrice() != null ? product.getPrice() : java.math.BigDecimal.ZERO;
+        }
+
+        java.math.BigDecimal originalPrice = null;
+        if (body.get("originalPrice") != null) {
+            try {
+                originalPrice = new java.math.BigDecimal(body.get("originalPrice").toString().trim());
+            } catch (Exception ignored) {}
+        }
+
+        int stock = 0;
+        if (body.get("stock") != null) {
+            try {
+                stock = Integer.parseInt(body.get("stock").toString().trim());
+            } catch (Exception ignored) {}
+        }
+
+        String imageUrl = body.get("imageUrl") != null ? body.get("imageUrl").toString().trim() : product.getImageUrl();
+
+        if (productVariantRepository.existsBySkuIgnoreCase(sku)) {
+            sku = sku + "-" + (System.currentTimeMillis() % 1000);
+        }
+
+        ra.project.server.model.entity.ProductVariant variant = ra.project.server.model.entity.ProductVariant.builder()
+                .product(product)
+                .sku(sku)
+                .price(price)
+                .originalPrice(originalPrice)
+                .stock(stock)
+                .imageUrl(imageUrl)
+                .status(true)
+                .build();
+
+        ra.project.server.model.entity.ProductVariant savedVariant = productVariantRepository.save(variant);
+        productRepository.syncProductTotalStock(productId);
+
+        ra.project.server.model.dto.response.ProductVariantResponse response = productMapper.toVariantResponse(savedVariant);
+        if (response != null && (response.getTitle() == null || response.getTitle().equals("Tiêu chuẩn"))) {
+            response.setTitle(title);
+        }
+        return response;
+    }
 }
