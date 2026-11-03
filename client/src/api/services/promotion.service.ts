@@ -12,7 +12,9 @@ export interface PromotionCheckResult {
   finalTotal: number;
   minOrder?: string;
   expiry?: string;
-  isValid: boolean;
+  type?: 'ORDER' | 'SHIPPING';
+  isValid?: boolean;
+  valid?: boolean;
   message?: string;
 }
 
@@ -25,10 +27,10 @@ export const promotionService = {
     return Array.isArray(data) ? data : [];
   },
 
-  async checkPromotion(code: string, subtotal: number): Promise<PromotionCheckResult> {
+  async checkPromotion(code: string, subtotal: number, shippingFee?: number): Promise<PromotionCheckResult> {
     const response = await axiosClient.get<ApiResponse<PromotionCheckResult>>(
       ENDPOINTS.PROMOTIONS.CHECK,
-      { params: { code, subtotal } }
+      { params: { code, subtotal, shippingFee } }
     );
     return response.data?.data || (response.data as unknown as PromotionCheckResult);
   },

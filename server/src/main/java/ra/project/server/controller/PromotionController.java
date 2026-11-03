@@ -47,7 +47,8 @@ public class PromotionController {
     @GetMapping("/check")
     public ResponseEntity<ApiResponse<PromotionCheckResponse>> checkPromotion(
             @RequestParam("code") String code,
-            @RequestParam(name = "subtotal", required = false, defaultValue = "0") BigDecimal subtotal
+            @RequestParam(name = "subtotal", required = false, defaultValue = "0") BigDecimal subtotal,
+            @RequestParam(name = "shippingFee", required = false) BigDecimal shippingFee
     ) {
         if (!StringUtils.hasText(code)) {
             throw new BadRequestException("Vui lòng nhập mã giảm giá cần kiểm tra");
@@ -93,10 +94,22 @@ public class PromotionController {
             }
         }
 
-        BigDecimal discountAmount = calculateDiscountAmount(subtotal, promo.getDiscount());
-        BigDecimal finalTotal = subtotal.subtract(discountAmount);
-        if (finalTotal.compareTo(BigDecimal.ZERO) < 0) {
-            finalTotal = BigDecimal.ZERO;
+        boolean isShipping = promo.isShippingDiscount();
+        BigDecimal effectiveShippingFee = shippingFee != null ? shippingFee : BigDecimal.valueOf(30000);
+        BigDecimal baseForDiscount = isShipping ? effectiveShippingFee : subtotal;
+
+        BigDecimal discountAmount = calculateDiscountAmount(baseForDiscount, promo.getDiscount());
+        BigDecimal finalTotal;
+        if (isShipping) {
+            finalTotal = effectiveShippingFee.subtract(discountAmount);
+            if (finalTotal.compareTo(BigDecimal.ZERO) < 0) {
+                finalTotal = BigDecimal.ZERO;
+            }
+        } else {
+            finalTotal = subtotal.subtract(discountAmount);
+            if (finalTotal.compareTo(BigDecimal.ZERO) < 0) {
+                finalTotal = BigDecimal.ZERO;
+            }
         }
 
         PromotionCheckResponse response = PromotionCheckResponse.builder()
@@ -108,15 +121,60 @@ public class PromotionController {
                 .finalTotal(finalTotal)
                 .minOrder(promo.getMinOrder())
                 .expiry(promo.getExpiry())
+                .type(isShipping ? "SHIPPING" : "ORDER")
                 .isValid(true)
-                .message("Áp dụng mã giảm giá thành công!")
+                .message(isShipping ? "Áp dụng mã miễn/giảm phí vận chuyển thành công!" : "Áp dụng mã giảm giá thành công!")
                 .build();
 
         return ResponseEntity.ok(ApiResponse.success("Áp dụng mã giảm giá thành công", response));
     }
 
+    private void seedDefaultShippingPromotionsIfNotExist() {
+        if (!promotionRepository.existsByCodeIgnoreCase("FREESHIP")) {
+            promotionRepository.save(Promotion.builder()
+                    .code("FREESHIP")
+                    .title("Mã miễn phí 100% vận chuyển toàn quốc")
+                    .discount("100%")
+                    .minOrder("Mọi đơn hàng")
+                    .expiry("2026-12-31")
+                    .usedCount(0)
+                    .maxUsage(1000)
+                    .status("ACTIVE")
+                    .type("SHIPPING")
+                    .build());
+        }
+        if (!promotionRepository.existsByCodeIgnoreCase("FREESHIP30K")) {
+            promotionRepository.save(Promotion.builder()
+                    .code("FREESHIP30K")
+                    .title("Voucher giảm 30.000₫ phí giao hàng")
+                    .discount("30.000")
+                    .minOrder("Mọi đơn hàng")
+                    .expiry("2026-12-31")
+                    .usedCount(0)
+                    .maxUsage(1000)
+                    .status("ACTIVE")
+                    .type("SHIPPING")
+                    .build());
+        }
+        if (!promotionRepository.existsByCodeIgnoreCase("SHIP20K")) {
+            promotionRepository.save(Promotion.builder()
+                    .code("SHIP20K")
+                    .title("Voucher giảm 20.000₫ phí giao hàng")
+                    .discount("20.000")
+                    .minOrder("Mọi đơn hàng")
+                    .expiry("2026-12-31")
+                    .usedCount(0)
+                    .maxUsage(1000)
+                    .status("ACTIVE")
+                    .type("SHIPPING")
+                    .build());
+        }
+    }
+
     @GetMapping("/available")
     public ResponseEntity<ApiResponse<List<Promotion>>> getAvailablePromotions() {
+        seedDefaultShippingPromotionsIfNotExist();
+
         User currentUser = getOptionalCurrentUser();
         Long currentUserId = currentUser != null ? currentUser.getId() : null;
 
@@ -138,7 +196,12 @@ public class PromotionController {
                     // Nếu là mã public chung của cửa hàng: mọi người đều thấy
                     return true;
                 })
-                .limit(8)
+                .peek(p -> {
+                    if (p.getType() == null) {
+                        p.setType(p.isShippingDiscount() ? "SHIPPING" : "ORDER");
+                    }
+                })
+                .limit(12)
                 .toList();
 
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách mã ưu đãi khả dụng thành công", activePromotions));
