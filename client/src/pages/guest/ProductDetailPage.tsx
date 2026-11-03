@@ -14,11 +14,15 @@ import {
   ShoppingCart,
   Layers,
   Sparkles,
+  Plus,
+  Minus,
+  Zap,
 } from 'lucide-react';
 import { productService } from '../../api/services/product.service';
 import type { Product, ProductVariant } from '../../models/product.model';
 import { useCartStore } from '../../store/useCartStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { ROUTES } from '../../constants/routes';
 import ProductCard from '../../components/common/Card/ProductCard';
 import { formatPrice } from '../../utils/format';
 
@@ -41,6 +45,7 @@ export default function ProductDetailPage() {
 
   // Dynamic selected options map: e.g. { "Dung lượng": "256GB", "Màu sắc": "Titan Trắng" }
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
+  const [quantity, setQuantity] = useState(1);
 
   useEffect(() => {
     if (!id) return;
@@ -140,6 +145,13 @@ export default function ProductDetailPage() {
   // ----------------------------------------------------------------
   // Add to cart & Buy Now handlers
   // ----------------------------------------------------------------
+  // Tự động điều chỉnh số lượng mua không vượt quá tồn kho
+  useEffect(() => {
+    if (currentStock > 0 && quantity > currentStock) {
+      setQuantity(currentStock);
+    }
+  }, [currentStock, quantity]);
+
   function handleBuyNow() {
     if (!product || isOutOfStock) return;
     if (!isAuthenticated) {
@@ -149,15 +161,18 @@ export default function ProductDetailPage() {
       }, 700);
       return;
     }
-    const result = addItem(product, matchedVariant || undefined, 1);
-    if (result.success || result.addedQty > 0) {
-      navigate('/cart');
-    } else if (result.maxStockReached) {
-      triggerToast(
-        `Sản phẩm đã đạt số lượng tối đa tồn kho (${result.maxStock}). Vui lòng vào giỏ hàng để kiểm tra.`,
-        'warning'
-      );
-    }
+
+    // Mua ngay trực tiếp: Chuyển thẳng sang trang thanh toán riêng sản phẩm này, không đưa vào giỏ hàng chung
+    navigate(ROUTES.CHECKOUT, {
+      state: {
+        buyNowItem: {
+          product,
+          variant: matchedVariant || undefined,
+          variantId: matchedVariant?.id,
+          quantity: Math.max(1, quantity),
+        },
+      },
+    });
   }
 
   function handleAddToCart() {
@@ -169,7 +184,7 @@ export default function ProductDetailPage() {
       }, 700);
       return;
     }
-    const result = addItem(product, matchedVariant || undefined, 1);
+    const result = addItem(product, matchedVariant || undefined, quantity);
     const variantLabel = matchedVariant?.title ? ` - ${matchedVariant.title}` : '';
 
     if (result.maxStockReached && result.addedQty === 0) {
@@ -182,12 +197,12 @@ export default function ProductDetailPage() {
       if (result.maxStockReached) {
         // Thêm được nhưng đã đạt giới hạn
         triggerToast(
-          `Đã thêm "${product.name}${variantLabel}" vào giỏ hàng. Đây là số lượng tối đa còn lại (${result.maxStock}).`,
+          `Đã thêm ${result.addedQty} "${product.name}${variantLabel}" vào giỏ hàng. Đã đạt tối đa tồn kho (${result.maxStock}).`,
           'warning'
         );
       } else {
         triggerToast(
-          `Đã thêm "${product.name}${variantLabel}" vào giỏ hàng thành công!`,
+          `Đã thêm ${result.addedQty} "${product.name}${variantLabel}" vào giỏ hàng thành công!`,
           'success'
         );
       }
@@ -486,19 +501,72 @@ export default function ProductDetailPage() {
               </div>
             </div>
 
+            {/* Quantity Selector */}
+            <div className="flex items-center gap-4 mb-5 p-3.5 bg-gray-50 border border-gray-200 rounded-xl">
+              <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                Số lượng:
+              </span>
+              <div className="flex items-center border border-gray-300 rounded-lg bg-white overflow-hidden shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
+                  disabled={quantity <= 1 || isOutOfStock}
+                  className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-black transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Giảm số lượng"
+                >
+                  <Minus size={14} />
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  max={currentStock || 1}
+                  value={quantity}
+                  disabled={isOutOfStock}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (!isNaN(val)) {
+                      if (val < 1) setQuantity(1);
+                      else if (currentStock > 0 && val > currentStock) setQuantity(currentStock);
+                      else setQuantity(val);
+                    }
+                  }}
+                  className="w-12 h-8 text-center text-xs font-bold text-gray-900 border-x border-gray-200 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setQuantity((prev) => Math.min(currentStock || 1, prev + 1))}
+                  disabled={quantity >= currentStock || isOutOfStock}
+                  className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-black transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Tăng số lượng"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+              {!isOutOfStock ? (
+                <span className="text-xs text-gray-500">
+                  (Còn <strong className="text-gray-800">{currentStock}</strong> sản phẩm trong kho)
+                </span>
+              ) : (
+                <span className="text-xs text-red-500 font-semibold">Tạm hết hàng</span>
+              )}
+            </div>
+
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-3 mb-6">
               <button
                 type="button"
                 onClick={handleBuyNow}
                 disabled={isOutOfStock}
-                className="flex-1 py-3.5 px-6 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-extrabold rounded-xl transition-all shadow-md hover:shadow-lg text-center cursor-pointer"
+                className="flex-1 py-3.5 px-6 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-extrabold rounded-xl transition-all shadow-md hover:shadow-lg text-center cursor-pointer flex items-center justify-center gap-2"
               >
-                <div className="text-sm">
-                  {!isOutOfStock ? 'MUA NGAY' : 'TẠM HẾT HÀNG'}
-                </div>
-                <div className="text-[11px] font-normal opacity-90">
-                  {!isOutOfStock ? 'Giao hàng tận nơi miễn phí' : 'Liên hệ đặt trước'}
+                <Zap size={18} className="fill-white shrink-0" />
+                <div className="text-left">
+                  <div className="text-sm">
+                    {!isOutOfStock ? 'MUA NGAY' : 'TẠM HẾT HÀNG'}
+                  </div>
+                  <div className="text-[11px] font-normal opacity-90">
+                    {!isOutOfStock ? 'Thanh toán ngay sản phẩm này' : 'Liên hệ đặt trước'}
+                  </div>
                 </div>
               </button>
 

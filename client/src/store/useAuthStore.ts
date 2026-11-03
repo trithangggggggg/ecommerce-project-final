@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { authService } from '../api/services/auth.service';
 import { STORAGE_KEYS } from '../constants/storageKeys';
+import { useCartStore } from './useCartStore';
 import type {
   ChangePasswordPayload,
   LoginPayload,
@@ -63,6 +64,9 @@ export const useAuthStore = create<AuthState>()(
             error: null,
           });
 
+          // Chuyển giỏ hàng sang tài khoản người dùng vừa đăng nhập
+          useCartStore.getState().switchUser(user.id || user.email);
+
           return user;
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : 'Đăng nhập thất bại!';
@@ -107,6 +111,9 @@ export const useAuthStore = create<AuthState>()(
             error: null,
           });
 
+          // Chuyển giỏ hàng sang tài khoản người dùng vừa đăng nhập
+          useCartStore.getState().switchUser(user.id || user.email);
+
           return user;
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : 'Xác thực OTP thất bại!';
@@ -142,6 +149,8 @@ export const useAuthStore = create<AuthState>()(
           isLoading: false,
           error: null,
         });
+        // Ẩn giỏ hàng khi đăng xuất
+        useCartStore.getState().switchUser(null);
       },
 
       updateProfile: async (payload: UpdateProfilePayload): Promise<User> => {
@@ -191,6 +200,7 @@ export const useAuthStore = create<AuthState>()(
           user,
           isAuthenticated: !!user,
         });
+        useCartStore.getState().switchUser(user ? (user.id || user.email) : null);
       },
 
       clearError: () => set({ error: null }),
@@ -206,3 +216,5 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+export default useAuthStore;
