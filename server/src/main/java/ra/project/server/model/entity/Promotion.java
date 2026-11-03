@@ -43,6 +43,15 @@ public class Promotion extends BaseEntity {
     @Builder.Default
     private String status = "ACTIVE";
 
+    @Column(name = "type", length = 30)
+    @Builder.Default
+    private String type = "ORDER";
+
     @Column(name = "user_id")
     private Long userId;
+
+    public boolean isShippingDiscount() {
+        return "SHIPPING".equalsIgnoreCase(this.type)
+                || (this.code != null && (this.code.toUpperCase().startsWith("FREESHIP") || this.code.toUpperCase().startsWith("SHIP")));
+    }
 }

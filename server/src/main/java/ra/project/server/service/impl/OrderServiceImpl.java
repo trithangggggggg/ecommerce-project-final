@@ -150,48 +150,32 @@ public class OrderServiceImpl implements OrderService {
         PaymentMethod paymentMethod = request.getPaymentMethod() != null ? request.getPaymentMethod() : PaymentMethod.COD;
 
         BigDecimal discountAmount = BigDecimal.ZERO;
-        String appliedCoupon = null;
+        String appliedOrderCoupon = null;
+        String appliedShippingCoupon = null;
+        BigDecimal shippingDiscount = BigDecimal.ZERO;
 
-        if (StringUtils.hasText(request.getCouponCode())) {
-            String code = request.getCouponCode().trim();
-            Promotion promo = promotionRepository.findByCodeIgnoreCase(code)
-                    .orElseThrow(() -> new BadRequestException("Mã giảm giá '" + code + "' không tồn tại trên hệ thống"));
+        String rawCouponCode = request.getCouponCode() != null ? request.getCouponCode().trim() : null;
+        String rawShippingCouponCode = request.getShippingCouponCode() != null ? request.getShippingCouponCode().trim() : null;
 
-            if (!"ACTIVE".equalsIgnoreCase(promo.getStatus())) {
-                throw new BadRequestException("Mã giảm giá '" + code + "' hiện không còn hiệu lực");
+        // Nếu khách hàng chỉ nhập 1 mã vào ô couponCode nhưng mã đó là mã Freeship/vận chuyển
+        if (StringUtils.hasText(rawCouponCode) && !StringUtils.hasText(rawShippingCouponCode)) {
+            Promotion checkPromo = promotionRepository.findByCodeIgnoreCase(rawCouponCode).orElse(null);
+            if (checkPromo != null && checkPromo.isShippingDiscount()) {
+                rawShippingCouponCode = rawCouponCode;
+                rawCouponCode = null;
             }
-            if (promo.getMaxUsage() != null && promo.getUsedCount() != null && promo.getUsedCount() >= promo.getMaxUsage()) {
-                throw new BadRequestException("Mã giảm giá '" + code + "' đã hết số lượt sử dụng");
-            }
+        }
 
-            // Kiểm tra quyền sở hữu đối với mã giảm giá đền bù / riêng tư
-            Long ownerUserId = promo.getUserId();
-            if (ownerUserId == null && (promo.getCode().toUpperCase().startsWith("DENBU") || orderRepository.findFirstByCompensationCoupon(promo.getCode()).isPresent())) {
-                ownerUserId = orderRepository.findFirstByCompensationCoupon(promo.getCode())
-                        .map(o -> o.getUser() != null ? o.getUser().getId() : null)
-                        .orElse(null);
-            }
-
-            if (ownerUserId != null && !ownerUserId.equals(user.getId())) {
-                throw new BadRequestException("Mã giảm giá này là mã đền bù dành riêng cho tài khoản được bồi thường đơn hàng. Bạn không thể sử dụng mã này.");
+        // 1. Áp dụng mã giảm giá tiền hàng
+        if (StringUtils.hasText(rawCouponCode)) {
+            Promotion promo = validatePromotion(rawCouponCode, user);
+            if (promo.isShippingDiscount()) {
+                throw new BadRequestException("Mã '" + promo.getCode() + "' là mã ưu đãi vận chuyển. Vui lòng nhập vào ô Mã giảm giá vận chuyển.");
             }
 
-            // Kiểm tra hạn sử dụng nếu có
-            if (StringUtils.hasText(promo.getExpiry())) {
-                try {
-                    LocalDate expiryDate = LocalDate.parse(promo.getExpiry().trim());
-                    if (expiryDate.isBefore(LocalDate.now())) {
-                        throw new BadRequestException("Mã giảm giá '" + code + "' đã hết hạn vào ngày " + promo.getExpiry());
-                    }
-                } catch (DateTimeParseException ignored) {
-                }
-            }
-
-            // Tính tiền giảm giá
             discountAmount = calculateDiscountAmount(totalAmount, promo.getDiscount());
-            appliedCoupon = promo.getCode();
+            appliedOrderCoupon = promo.getCode();
 
-            // Tăng số lượt sử dụng
             promo.setUsedCount((promo.getUsedCount() != null ? promo.getUsedCount() : 0) + 1);
             promotionRepository.save(promo);
         }
@@ -206,7 +190,7 @@ public class OrderServiceImpl implements OrderService {
             selectedCarrier = shippingCarrierRepository.findById(request.getCarrierId()).orElse(null);
         }
 
-        // Tính cước vận chuyển theo chính sách ưu đãi:
+        // Tính cước vận chuyển theo chính sách ưu đãi tự động:
         // - Cước gốc theo Hãng vận chuyển được chọn (mặc định 30.000₫ nếu chưa có)
         // - Đơn hàng >= 20.000.000₫: Miễn phí 100% cước vận chuyển (Freeship 0₫)
         // - Đơn hàng >= 10.000.000₫: Giảm 50% cước vận chuyển
@@ -228,6 +212,26 @@ public class OrderServiceImpl implements OrderService {
             actualShippingFee = baseShippingFee;
         }
 
+        // 2. Áp dụng mã giảm giá vận chuyển (Voucher Freeship)
+        if (StringUtils.hasText(rawShippingCouponCode)) {
+            Promotion shippingPromo = validatePromotion(rawShippingCouponCode, user);
+            if (!shippingPromo.isShippingDiscount()) {
+                throw new BadRequestException("Mã '" + shippingPromo.getCode() + "' là mã giảm giá đơn hàng, không áp dụng cho phí vận chuyển.");
+            }
+
+            if (actualShippingFee.compareTo(BigDecimal.ZERO) > 0) {
+                shippingDiscount = calculateDiscountAmount(actualShippingFee, shippingPromo.getDiscount());
+                actualShippingFee = actualShippingFee.subtract(shippingDiscount);
+                if (actualShippingFee.compareTo(BigDecimal.ZERO) < 0) {
+                    actualShippingFee = BigDecimal.ZERO;
+                }
+            }
+            appliedShippingCoupon = shippingPromo.getCode();
+
+            shippingPromo.setUsedCount((shippingPromo.getUsedCount() != null ? shippingPromo.getUsedCount() : 0) + 1);
+            promotionRepository.save(shippingPromo);
+        }
+
         BigDecimal finalTotal = subtotalAfterDiscount.add(actualShippingFee);
 
         Order order = Order.builder()
@@ -236,8 +240,10 @@ public class OrderServiceImpl implements OrderService {
                 .phoneNumber(request.getPhoneNumber().trim())
                 .shippingAddress(request.getShippingAddress().trim())
                 .shippingFee(actualShippingFee)
+                .shippingDiscount(shippingDiscount)
+                .shippingCouponCode(appliedShippingCoupon)
                 .totalAmount(finalTotal)
-                .couponCode(appliedCoupon)
+                .couponCode(appliedOrderCoupon)
                 .discountAmount(discountAmount)
                 .status(OrderStatus.PENDING)
                 .paymentMethod(paymentMethod)
@@ -447,5 +453,41 @@ public class OrderServiceImpl implements OrderService {
                 }
             }
         }
+    }
+
+    private Promotion validatePromotion(String code, User user) {
+        String trimmedCode = code.trim();
+        Promotion promo = promotionRepository.findByCodeIgnoreCase(trimmedCode)
+                .orElseThrow(() -> new BadRequestException("Mã giảm giá '" + trimmedCode + "' không tồn tại trên hệ thống"));
+
+        if (!"ACTIVE".equalsIgnoreCase(promo.getStatus())) {
+            throw new BadRequestException("Mã giảm giá '" + trimmedCode + "' hiện không còn hiệu lực");
+        }
+        if (promo.getMaxUsage() != null && promo.getUsedCount() != null && promo.getUsedCount() >= promo.getMaxUsage()) {
+            throw new BadRequestException("Mã giảm giá '" + trimmedCode + "' đã hết số lượt sử dụng");
+        }
+
+        // Kiểm tra quyền sở hữu đối với mã giảm giá đền bù / riêng tư
+        Long ownerUserId = promo.getUserId();
+        if (ownerUserId == null && (promo.getCode().toUpperCase().startsWith("DENBU") || orderRepository.findFirstByCompensationCoupon(promo.getCode()).isPresent())) {
+            ownerUserId = orderRepository.findFirstByCompensationCoupon(promo.getCode())
+                    .map(o -> o.getUser() != null ? o.getUser().getId() : null)
+                    .orElse(null);
+        }
+
+        if (ownerUserId != null && !ownerUserId.equals(user.getId())) {
+            throw new BadRequestException("Mã giảm giá này là mã đền bù dành riêng cho tài khoản được bồi thường đơn hàng. Bạn không thể sử dụng mã này.");
+        }
+
+        if (StringUtils.hasText(promo.getExpiry())) {
+            try {
+                LocalDate expiryDate = LocalDate.parse(promo.getExpiry().trim());
+                if (expiryDate.isBefore(LocalDate.now())) {
+                    throw new BadRequestException("Mã giảm giá '" + trimmedCode + "' đã hết hạn vào ngày " + promo.getExpiry());
+                }
+            } catch (DateTimeParseException ignored) {
+            }
+        }
+        return promo;
     }
 }

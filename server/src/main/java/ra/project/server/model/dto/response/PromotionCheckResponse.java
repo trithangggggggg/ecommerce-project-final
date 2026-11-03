@@ -1,5 +1,6 @@
 package ra.project.server.model.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,6 +21,15 @@ public class PromotionCheckResponse {
     private BigDecimal finalTotal;
     private String minOrder;
     private String expiry;
+    private String type; // "ORDER" or "SHIPPING"
+
+    @JsonProperty("isValid")
     private boolean isValid;
+
     private String message;
+
+    @JsonProperty("valid")
+    public boolean getValid() {
+        return isValid;
+    }
 }

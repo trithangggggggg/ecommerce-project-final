@@ -413,6 +413,12 @@ export const MyOrdersPage: React.FC = () => {
                             <span>Đã giảm {formatPrice(order.discountAmount)} {order.couponCode ? `(${order.couponCode})` : ''}</span>
                           </div>
                         ) : null}
+                        {order.shippingDiscount && order.shippingDiscount > 0 ? (
+                          <div className="text-[10px] font-semibold text-emerald-700 flex items-center justify-start sm:justify-end gap-1 mt-0.5">
+                            <Truck className="w-2.5 h-2.5" />
+                            <span>Freeship -{formatPrice(order.shippingDiscount)} {order.shippingCouponCode ? `(${order.shippingCouponCode})` : ''}</span>
+                          </div>
+                        ) : null}
                       </div>
 
                       {/* Hiển thị lý do hủy & mã giảm giá 5% đền bù bên cạnh nút Chi tiết */}
@@ -678,6 +684,7 @@ export const MyOrdersPage: React.FC = () => {
                 {(() => {
                   const shippingFee = selectedOrder.shippingFee != null ? selectedOrder.shippingFee : 0;
                   const discount = selectedOrder.discountAmount || 0;
+                  const shippingDiscount = selectedOrder.shippingDiscount || 0;
                   const subtotal = selectedOrder.totalAmount - shippingFee + discount;
 
                   return (
@@ -699,8 +706,19 @@ export const MyOrdersPage: React.FC = () => {
                           </span>
                         </div>
                       )}
+                      {shippingDiscount > 0 && (
+                        <div className="flex justify-between text-emerald-700">
+                          <span className="flex items-center gap-1">
+                            <Truck className="w-3.5 h-3.5" />
+                            Voucher Freeship {selectedOrder.shippingCouponCode ? `(${selectedOrder.shippingCouponCode})` : ''}
+                          </span>
+                          <span className="font-semibold">
+                            -{formatPrice(shippingDiscount)}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex justify-between text-gray-600">
-                        <span>Phí vận chuyển</span>
+                        <span>Phí vận chuyển thanh toán</span>
                         <span className={`font-semibold ${shippingFee === 0 ? 'text-emerald-600' : 'text-gray-900'}`}>
                           {shippingFee === 0 ? 'Miễn phí (0₫)' : formatPrice(shippingFee)}
                         </span>

@@ -23,6 +23,7 @@ export interface CheckoutRequest {
   shippingAddress: string;
   note?: string;
   couponCode?: string;
+  shippingCouponCode?: string;
   carrierId?: number;
   paymentMethod?: PaymentMethod;
   items: OrderItemRequest[];
@@ -59,6 +60,8 @@ export interface OrderResponse {
   compensationCoupon?: string;
   couponCode?: string;
   discountAmount?: number;
+  shippingCouponCode?: string;
+  shippingDiscount?: number;
   shippingFee?: number;
   carrierId?: number;
   carrierName?: string;

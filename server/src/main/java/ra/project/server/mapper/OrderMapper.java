@@ -40,6 +40,8 @@ public class OrderMapper {
                 .compensationCoupon(order.getCompensationCoupon())
                 .couponCode(order.getCouponCode())
                 .discountAmount(order.getDiscountAmount())
+                .shippingCouponCode(order.getShippingCouponCode())
+                .shippingDiscount(order.getShippingDiscount() != null ? order.getShippingDiscount() : BigDecimal.ZERO)
                 .shippingFee(order.getShippingFee() != null ? order.getShippingFee() : BigDecimal.ZERO)
                 .carrierId(order.getShippingCarrier() != null ? order.getShippingCarrier().getId() : null)
                 .carrierName(order.getShippingCarrier() != null ? order.getShippingCarrier().getName() : null)
