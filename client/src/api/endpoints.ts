@@ -26,6 +26,7 @@ export const ENDPOINTS = {
   SHIPPING_CARRIERS: '/shipping-carriers',
   PROMOTIONS: {
     CHECK: '/promotions/check',
+    APPLY: '/promotions/apply',
     AVAILABLE: '/promotions/available',
   },
   ADMIN_ORDERS: {

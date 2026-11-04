@@ -96,7 +96,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/ai/**").permitAll()
                         // Cho phép xem sản phẩm, danh mục, tra cứu mã giảm giá và đối tác vận chuyển công khai
-                        .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**", "/api/promotions/**", "/api/shipping-carriers/**").permitAll()
+                        .requestMatchers("/api/promotions/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**", "/api/shipping-carriers/**").permitAll()
                         // Phân quyền ADMIN cho các chức năng quản trị
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // Các API cá nhân và đơn hàng yêu cầu đã đăng nhập
