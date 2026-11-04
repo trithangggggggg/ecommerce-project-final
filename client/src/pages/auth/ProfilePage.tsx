@@ -21,6 +21,7 @@ import { ROLES } from '../../constants/roles';
 import { ROUTES } from '../../constants/routes';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
+import LogoutConfirmModal from '../../components/common/LogoutConfirmModal';
 
 export const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
@@ -28,6 +29,7 @@ export const ProfilePage: React.FC = () => {
     useAuthStore();
 
   const [activeTab, setActiveTab] = useState<'info' | 'password'>('info');
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Form State: Thông tin cá nhân
   const [fullName, setFullName] = useState(user?.fullName || '');
@@ -121,10 +123,7 @@ export const ProfilePage: React.FC = () => {
   };
 
   const handleLogout = () => {
-    if (window.confirm('Bạn có chắc chắn muốn đăng xuất khỏi hệ thống NEXOR?')) {
-      logout();
-      navigate(ROUTES.HOME, { replace: true });
-    }
+    setShowLogoutModal(true);
   };
 
   if (!user) {
@@ -438,6 +437,16 @@ export const ProfilePage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Modal xác nhận đăng xuất */}
+      <LogoutConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={() => {
+          logout();
+          navigate(ROUTES.HOME, { replace: true });
+        }}
+      />
     </div>
   );
 };
