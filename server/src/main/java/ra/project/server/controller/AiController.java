@@ -1,14 +1,19 @@
 package ra.project.server.controller;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import ra.project.server.common.response.ApiResponse;
 import ra.project.server.model.dto.request.AiChatRequest;
 import ra.project.server.model.dto.response.AiChatResponse;
 import ra.project.server.service.AiService;
+import ra.project.server.service.RateLimiterService;
+
+import java.util.Collections;
 
 @Slf4j
 @RestController
@@ -18,13 +23,41 @@ import ra.project.server.service.AiService;
 public class AiController {
 
     private final AiService aiService;
+    private final RateLimiterService rateLimiterService;
 
     @PostMapping("/chat")
     public ResponseEntity<ApiResponse<AiChatResponse>> chatWithCustomer(
-            @Valid @RequestBody AiChatRequest request
+            @Valid @RequestBody AiChatRequest request,
+            HttpServletRequest httpRequest
     ) {
-        log.info("Khách hàng gửi câu hỏi tư vấn AI: {}", request.getMessage());
+        String clientIp = getClientIp(httpRequest);
+
+        // Kiểm tra Rate Limit cơ bản (chống spam)
+        if (!rateLimiterService.allowChatRequest(clientIp)) {
+            long remaining = rateLimiterService.getRemainingSeconds(clientIp);
+            log.warn("Rate limit: IP [{}] đã vượt quá 15 tin nhắn/phút", clientIp);
+
+            AiChatResponse rateLimitResponse = AiChatResponse.builder()
+                    .reply(String.format("Bạn đang gửi tin nhắn quá nhanh. Vui lòng đợi %d giây rồi thử lại để NEXOR có thể hỗ trợ tốt nhất nhé! ⏳", remaining > 0 ? remaining : 5))
+                    .suggestedProducts(Collections.emptyList())
+                    .recommendedProducts(Collections.emptyList())
+                    .provider("NEXOR Rate Limiter")
+                    .build();
+
+            return ResponseEntity.ok(ApiResponse.success("Kiểm soát tần suất gửi tin nhắn", rateLimitResponse));
+        }
+
+        log.info("Khách hàng [{}] gửi câu hỏi tư vấn AI: {}", clientIp, request.getMessage());
         AiChatResponse response = aiService.chatWithCustomer(request);
         return ResponseEntity.ok(ApiResponse.success("Phản hồi từ NEXOR AI Assistant", response));
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        if (request == null) return "unknown";
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (StringUtils.hasText(xForwardedFor)) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 }
