@@ -19,6 +19,7 @@ import ra.project.server.model.dto.response.ProductResponse;
 import ra.project.server.model.entity.Product;
 import ra.project.server.repository.ProductRepository;
 import ra.project.server.service.AiService;
+import ra.project.server.service.KnowledgeBaseService;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -40,6 +41,7 @@ public class AiServiceImpl implements AiService {
 
     private final ProductRepository productRepository;
     private final ProductMapper productMapper;
+    private final KnowledgeBaseService knowledgeBaseService;
 
     @Value("${gemini.api-key:${GEMINI_API_KEY:}}")
     private String geminiApiKey;
@@ -58,7 +60,7 @@ public class AiServiceImpl implements AiService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
+            .connectTimeout(Duration.ofSeconds(4))
             .build();
 
     @Override
@@ -132,13 +134,25 @@ public class AiServiceImpl implements AiService {
                 .filter(p -> p.getStatus() == null || p.getStatus())
                 .collect(Collectors.toList());
 
-        // 2. Tạo Prompt nạp ngữ cảnh RAG (Retrieval Augmented Generation)
-        String prompt = buildChatPrompt(userMessage, request.getHistory(), allProducts);
+        // 2. RAG Context 1: Lọc nhanh sản phẩm liên quan (theo từ khóa, danh mục, ngân sách)
+        // Giới hạn số lượng (tối đa 8 sản phẩm) để tiết kiệm token và tăng tốc độ xử lý trong 2-3s
+        List<Product> relevantProducts = filterRelevantProducts(userMessage, allProducts);
+
+        // 3. RAG Context 2: Truy xuất tri thức từ Knowledge Base (Chính sách, FAQ, hướng dẫn)
+        List<String> relevantKnowledge = Collections.emptyList();
+        try {
+            relevantKnowledge = knowledgeBaseService.findRelevantChunks(userMessage, 3);
+        } catch (Exception ex) {
+            log.warn("Không thể truy xuất Knowledge Base: {}", ex.getMessage());
+        }
+
+        // 4. Tạo Prompt nạp ngữ cảnh RAG đầy đủ
+        String prompt = buildChatPrompt(userMessage, request.getHistory(), relevantProducts, relevantKnowledge);
 
         String replyText = null;
         String provider = "SMART_ASSISTANT (Local Engine)";
 
-        // 3. Thử gọi Google Gemini AI
+        // 5. Thử gọi Google Gemini AI (timeout 4s để đảm bảo cam kết trả lời 2-3 giây)
         if (StringUtils.hasText(geminiApiKey) && !geminiApiKey.equalsIgnoreCase("dummy") && !geminiApiKey.startsWith("placeholder")) {
             log.info("Đang gọi Google Gemini AI Model [{}] để tư vấn sản phẩm cho khách...", geminiModel);
             replyText = callGeminiApi(prompt);
@@ -147,7 +161,7 @@ public class AiServiceImpl implements AiService {
             }
         }
 
-        // 4. Thử gọi Spring AI (OpenAI) nếu Gemini không khả dụng
+        // 6. Thử gọi Spring AI (OpenAI) nếu Gemini không khả dụng
         if (!StringUtils.hasText(replyText) && StringUtils.hasText(openAiApiKey) && !openAiApiKey.equalsIgnoreCase("dummy")) {
             try {
                 log.info("Đang gọi Spring AI OpenAI Model [{}] để tư vấn sản phẩm...", openAiModel);
@@ -162,34 +176,118 @@ public class AiServiceImpl implements AiService {
             }
         }
 
-        // 5. Fallback thông minh nếu không có kết nối AI bên ngoài
+        // 7. Fallback thông minh nếu không có kết nối AI bên ngoài hoặc API timeout
         if (!StringUtils.hasText(replyText)) {
             log.info("Sử dụng Smart Fallback Assistant để trả lời khách hàng.");
-            AiChatResponse fallback = generateSmartChatFallback(userMessage, allProducts);
-            replyText = fallback.getReply();
-            return fallback;
+            return generateSmartChatFallback(userMessage, relevantProducts.isEmpty() ? allProducts : relevantProducts);
         }
 
-        // 6. Trích xuất danh sách sản phẩm được AI đề xuất để hiển thị Product Card
+        // 8. Trích xuất danh sách sản phẩm được AI đề xuất để hiển thị Product Card
         List<ProductResponse> recommended = extractRecommendedProducts(replyText, userMessage, allProducts);
+        if (recommended.isEmpty() && !relevantProducts.isEmpty()) {
+            recommended = relevantProducts.stream().limit(3).map(productMapper::toResponse).collect(Collectors.toList());
+        }
 
         return AiChatResponse.builder()
                 .reply(replyText.trim())
+                .suggestedProducts(recommended)
                 .recommendedProducts(recommended)
                 .provider(provider)
                 .build();
     }
 
-    private String buildChatPrompt(String userMessage, List<ChatMessageDto> history, List<Product> products) {
+    private List<Product> filterRelevantProducts(String userMessage, List<Product> products) {
+        if (products.isEmpty()) return Collections.emptyList();
+
+        String normQuery = normalizeText(userMessage);
+
+        boolean isMacBook = normQuery.contains("macbook") || normQuery.contains("mac book") || normQuery.contains("m3") || normQuery.contains("m2") || normQuery.contains("m1") || normQuery.contains("apple silicon");
+        boolean isLaptop = isMacBook || normQuery.contains("laptop") || normQuery.contains("dell") || normQuery.contains("xps") ||
+                normQuery.contains("asus") || normQuery.contains("zenbook") || normQuery.contains("legion") || normQuery.contains("lenovo") ||
+                normQuery.contains("thinkpad") || normQuery.contains("may tinh xach tay") || normQuery.contains("gaming") || normQuery.contains("do hoa");
+        boolean isPhone = normQuery.contains("dien thoai") || normQuery.contains("smartphone") || normQuery.contains("iphone") ||
+                normQuery.contains("samsung") || normQuery.contains("galaxy") || normQuery.contains("xiaomi") || normQuery.contains("phone");
+        boolean isTablet = normQuery.contains("ipad") || normQuery.contains("tablet") || normQuery.contains("may tinh bang");
+        boolean isAudio = normQuery.contains("tai nghe") || normQuery.contains("headphone") || normQuery.contains("airpods") ||
+                normQuery.contains("loa") || normQuery.contains("am thanh") || normQuery.contains("sony");
+
+        Long budgetMax = extractBudgetMax(normQuery);
+
+        Set<String> stopWords = Set.of("tu", "van", "cho", "minh", "toi", "can", "mua", "xem", "gia", "co", "khong", "re", "nao", "tot", "nhat", "a", "em", "anh", "chi", "shop", "dong", "loai");
+        List<String> keywords = Arrays.stream(normQuery.split("\\s+"))
+                .filter(w -> w.length() >= 2 && !stopWords.contains(w))
+                .collect(Collectors.toList());
+
+        Map<Product, Integer> scoreMap = new HashMap<>();
+        for (Product p : products) {
+            int score = 0;
+            String pNormName = normalizeText(p.getName());
+            String pNormDesc = normalizeText(p.getDescription());
+            String pNormCat = p.getCategory() != null ? normalizeText(p.getCategory().getName()) : "";
+
+            if (isMacBook && pNormName.contains("macbook")) score += 300;
+            else if (isLaptop && pNormCat.contains("laptop")) score += 150;
+            else if (isPhone && pNormCat.contains("dien thoai")) score += 150;
+            else if (isTablet && pNormCat.contains("may tinh bang")) score += 150;
+            else if (isAudio && pNormCat.contains("am thanh")) score += 150;
+
+            for (String kw : keywords) {
+                if (pNormName.contains(kw)) score += 40;
+                else if (pNormDesc.contains(kw)) score += 10;
+            }
+
+            if (budgetMax != null && p.getPrice() != null) {
+                if (p.getPrice().longValue() <= budgetMax) {
+                    score += 60;
+                }
+            }
+
+            if (score > 0) {
+                scoreMap.put(p, score);
+            }
+        }
+
+        if (!scoreMap.isEmpty()) {
+            return scoreMap.entrySet().stream()
+                    .sorted(Map.Entry.<Product, Integer>comparingByValue().reversed())
+                    .limit(8)
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toList());
+        }
+
+        return products.stream().limit(6).collect(Collectors.toList());
+    }
+
+    private Long extractBudgetMax(String normQuery) {
+        Pattern p = Pattern.compile("(?:duoi|tam|khoang|duoi\\s+tam)?\\s*(\\d+)(?:\\s*tr|\\s*trieu)");
+        Matcher m = p.matcher(normQuery);
+        if (m.find()) {
+            try {
+                long val = Long.parseLong(m.group(1));
+                return val * 1_000_000L;
+            } catch (NumberFormatException ignored) {}
+        }
+        return null;
+    }
+
+    private String buildChatPrompt(String userMessage, List<ChatMessageDto> history, List<Product> products, List<String> knowledge) {
         StringBuilder sb = new StringBuilder();
         sb.append("Bạn là 'NEXOR AI Assistant' - Chuyên viên tư vấn bán hàng công nghệ thông minh, nhiệt tình và am hiểu sản phẩm của website thương mại điện tử NEXOR.\n\n");
 
         sb.append("=== CHÍNH SÁCH BÁN HÀNG CỦA NEXOR ===\n");
         sb.append("- Miễn phí vận chuyển toàn quốc cho đơn hàng từ 500.000đ.\n");
-        sb.append("- Bảo hành chính hãng 12 đến 24 tháng theo từng sản phẩm, 1 đổi 1 trong 30 ngày nếu phát sinh lỗi.\n");
+        sb.append("- Bảo hành chính hãng 12 đến 24 tháng theo từng sản phẩm, 1 đổi 1 trong 30 ngày nếu phát sinh lỗi nhà sản xuất.\n");
         sb.append("- Hỗ trợ trả góp 0% lãi suất, giao hàng hỏa tốc trong 2 giờ tại nội thành.\n\n");
 
-        sb.append("=== DANH SÁCH SẢN PHẨM HIỆN CÓ CỦA CỬA HÀNG (DỮ LIỆU THỰC TẾ) ===\n");
+        if (knowledge != null && !knowledge.isEmpty()) {
+            sb.append("=== TÀI LIỆU TRI THỨC VÀ CHÍNH SÁCH CỬA HÀNG (KNOWLEDGE BASE) ===\n");
+            for (String k : knowledge) {
+                sb.append("- ").append(k).append("\n");
+            }
+            sb.append("\n");
+        }
+
+        sb.append("=== DANH SÁCH SẢN PHẨM PHÙ HỢP CỬA HÀNG ĐANG BÁN (DỮ LIỆU THỰC TẾ) ===\n");
         Locale vn = Locale.forLanguageTag("vi-VN");
         NumberFormat nf = NumberFormat.getInstance(vn);
 
@@ -197,8 +295,8 @@ public class AiServiceImpl implements AiService {
             String priceStr = p.getPrice() != null ? nf.format(p.getPrice()) + "đ" : "Liên hệ";
             String catName = p.getCategory() != null ? p.getCategory().getName() : "Thiết bị điện tử";
             String desc = p.getDescription() != null ? p.getDescription().replaceAll("\\s+", " ").trim() : "";
-            if (desc.length() > 150) {
-                desc = desc.substring(0, 150) + "...";
+            if (desc.length() > 120) {
+                desc = desc.substring(0, 120) + "...";
             }
             sb.append(String.format("- [ID: %d] %s | Giá: %s | Danh mục: %s | Tồn kho: %d | Đặc điểm: %s\n",
                     p.getId(), p.getName(), priceStr, catName, p.getStock() != null ? p.getStock() : 0, desc));
@@ -213,7 +311,6 @@ public class AiServiceImpl implements AiService {
 
         if (history != null && !history.isEmpty()) {
             sb.append("=== LỊCH SỬ HỘI THOẠI TRƯỚC ĐÓ ===\n");
-            // Lấy tối đa 6 lượt chat gần nhất để tránh tràn context
             int startIdx = Math.max(0, history.size() - 6);
             for (int i = startIdx; i < history.size(); i++) {
                 ChatMessageDto msg = history.get(i);
@@ -230,7 +327,6 @@ public class AiServiceImpl implements AiService {
     private List<ProductResponse> extractRecommendedProducts(String replyText, String userMessage, List<Product> products) {
         Set<Long> foundIds = new LinkedHashSet<>();
 
-        // Tìm kiếm các mã [ID: <number>] trong câu trả lời của AI
         Pattern pattern = Pattern.compile("\\[ID:\\s*(\\d+)\\]", Pattern.CASE_INSENSITIVE);
         Matcher matcher = pattern.matcher(replyText);
         while (matcher.find()) {
@@ -239,7 +335,6 @@ public class AiServiceImpl implements AiService {
             } catch (NumberFormatException ignored) {}
         }
 
-        // Nếu không có tag [ID: ...], tìm theo tên sản phẩm xuất hiện trong câu trả lời
         if (foundIds.isEmpty()) {
             for (Product p : products) {
                 if (replyText.toLowerCase().contains(p.getName().toLowerCase())) {
@@ -249,7 +344,6 @@ public class AiServiceImpl implements AiService {
             }
         }
 
-        // Nếu vẫn chưa có và khách có hỏi về loại sản phẩm, tìm theo từ khóa câu hỏi
         if (foundIds.isEmpty()) {
             String lowerQuery = userMessage.toLowerCase();
             for (Product p : products) {
@@ -304,9 +398,11 @@ public class AiServiceImpl implements AiService {
                     "- 🎧 **Âm thanh & Phụ kiện**: Tai nghe chống ồn, loa Bluetooth cao cấp\n" +
                     "- 🛡️ **Chính sách**: 100% chính hãng, bảo hành 12-24 tháng, miễn phí vận chuyển toàn quốc.\n\n" +
                     "Dưới đây là một số mẫu máy tiêu biểu đang được yêu thích nhất tại cửa hàng:";
+            List<ProductResponse> featuredResp = topFeatured.stream().map(productMapper::toResponse).collect(Collectors.toList());
             return AiChatResponse.builder()
                     .reply(greetingReply)
-                    .recommendedProducts(topFeatured.stream().map(productMapper::toResponse).collect(Collectors.toList()))
+                    .suggestedProducts(featuredResp)
+                    .recommendedProducts(featuredResp)
                     .provider("NEXOR AI Assistant")
                     .build();
         }
@@ -319,9 +415,11 @@ public class AiServiceImpl implements AiService {
                     "- **Thời hạn bảo hành**: Từ 12 đến 24 tháng theo đúng tiêu chuẩn khắt khe của hãng (Apple, Samsung, Asus, Dell, Sony).\n" +
                     "- **Trung tâm bảo hành toàn quốc**: Quý khách có thể mang máy trực tiếp tới các trung tâm bảo hành ủy quyền của hãng trên cả nước hoặc gửi qua shop hỗ trợ miễn phí!\n" +
                     "- **Hỗ trợ trọn đời**: Miễn phí cài đặt phần mềm bản quyền, vệ sinh máy và hỗ trợ kỹ thuật 24/7.";
+            List<ProductResponse> wResp = products.stream().limit(2).map(productMapper::toResponse).collect(Collectors.toList());
             return AiChatResponse.builder()
                     .reply(warrantyReply)
-                    .recommendedProducts(products.stream().limit(2).map(productMapper::toResponse).collect(Collectors.toList()))
+                    .suggestedProducts(wResp)
+                    .recommendedProducts(wResp)
                     .provider("NEXOR AI Assistant")
                     .build();
         }
@@ -333,9 +431,11 @@ public class AiServiceImpl implements AiService {
                     "- **Giao hỏa tốc 2 giờ**: Khu vực nội thành Hà Nội & TP. Hồ Chí Minh nhận hàng ngay trong ngày.\n" +
                     "- **Đồng kiểm khi nhận (COD)**: Quý khách được quyền mở hộp kiểm tra đúng model, ngoại quan nguyên vẹn trước khi thanh toán.\n" +
                     "- **Đóng gói chuẩn công nghệ**: Thùng carton 5 lớp kèm túi khí chống sốc và dán niêm phong an toàn tuyệt đối.";
+            List<ProductResponse> sResp = products.stream().limit(2).map(productMapper::toResponse).collect(Collectors.toList());
             return AiChatResponse.builder()
                     .reply(shipReply)
-                    .recommendedProducts(products.stream().limit(2).map(productMapper::toResponse).collect(Collectors.toList()))
+                    .suggestedProducts(sResp)
+                    .recommendedProducts(sResp)
                     .provider("NEXOR AI Assistant")
                     .build();
         }
@@ -347,109 +447,23 @@ public class AiServiceImpl implements AiService {
                     "- **Flash Sale mỗi ngày**: Giảm sâu đến 30% cho các sản phẩm công nghệ hot nhất.\n" +
                     "- **Ưu đãi Học sinh - Sinh viên**: Tặng thêm voucher giảm giá 500.000đ khi mua laptop hoặc máy tính bảng.\n" +
                     "- **Thu cũ đổi mới (Trade-in)**: Trợ giá thu mua máy cũ lên đến 2.000.000đ để quý khách lên đời máy mới tiết kiệm nhất!";
+            List<ProductResponse> pResp = products.stream().limit(3).map(productMapper::toResponse).collect(Collectors.toList());
             return AiChatResponse.builder()
                     .reply(promoReply)
-                    .recommendedProducts(products.stream().limit(3).map(productMapper::toResponse).collect(Collectors.toList()))
+                    .suggestedProducts(pResp)
+                    .recommendedProducts(pResp)
                     .provider("NEXOR AI Assistant")
                     .build();
         }
 
-        // 5. Phân tích loại sản phẩm và từ khóa truy vấn
-        boolean isMacBook = normQuery.contains("macbook") || normQuery.contains("mac book") || normQuery.contains("m3") || normQuery.contains("m2") || normQuery.contains("m1") || normQuery.contains("apple silicon");
-        boolean isLaptop = isMacBook || normQuery.contains("laptop") || normQuery.contains("dell") || normQuery.contains("xps") ||
-                normQuery.contains("asus") || normQuery.contains("zenbook") || normQuery.contains("legion") || normQuery.contains("lenovo") ||
-                normQuery.contains("thinkpad") || normQuery.contains("may tinh xach tay") || normQuery.contains("may tinh") ||
-                normQuery.contains("gaming") || normQuery.contains("do hoa") || normQuery.contains("van phong");
-
-        boolean isPhone = normQuery.contains("dien thoai") || normQuery.contains("smartphone") || normQuery.contains("iphone") ||
-                normQuery.contains("samsung") || normQuery.contains("galaxy") || normQuery.contains("xiaomi") ||
-                normQuery.contains("pixel") || normQuery.contains("rog phone") || normQuery.contains("phone");
-
-        boolean isTablet = normQuery.contains("ipad") || normQuery.contains("tablet") || normQuery.contains("may tinh bang") || normQuery.contains("tab");
-
-        boolean isAudio = normQuery.contains("tai nghe") || normQuery.contains("headphone") || normQuery.contains("earphone") ||
-                normQuery.contains("airpods") || normQuery.contains("loa") || normQuery.contains("am thanh") ||
-                normQuery.contains("sony") || normQuery.contains("marshall") || normQuery.contains("jbl") || normQuery.contains("chong on");
-
-        boolean isWatch = normQuery.contains("dong ho") || normQuery.contains("smartwatch") || normQuery.contains("watch") || normQuery.contains("garmin");
-
-        // Tách từ khóa và chấm điểm tương đồng (Relevance Scoring)
-        Set<String> stopWords = Set.of("tu", "van", "cho", "minh", "toi", "can", "mua", "xem", "gia", "co", "khong", "re", "nao", "tot", "nhat", "a", "em", "anh", "chi", "shop", "dong", "loai");
-        List<String> keywords = Arrays.stream(normQuery.split("\\s+"))
-                .filter(w -> w.length() >= 2 && !stopWords.contains(w))
-                .collect(Collectors.toList());
-
-        Map<Product, Integer> scoreMap = new HashMap<>();
-
-        for (Product p : products) {
-            int score = 0;
-            String pNormName = normalizeText(p.getName());
-            String pNormDesc = normalizeText(p.getDescription());
-            String pNormCat = p.getCategory() != null ? normalizeText(p.getCategory().getName()) : "";
-
-            // Phân loại danh mục nghiêm ngặt (Strict Category Isolation)
-            if (isMacBook) {
-                if (pNormName.contains("macbook")) score += 300;
-                else if (pNormCat.contains("laptop")) score += 50;
-                else continue; // Bỏ qua hoàn toàn nếu không phải laptop
-            } else if (isLaptop) {
-                if (pNormCat.contains("laptop")) score += 150;
-                else continue;
-            } else if (isPhone) {
-                if (pNormCat.contains("dien thoai")) score += 150;
-                else continue;
-                if (normQuery.contains("iphone") && pNormName.contains("iphone")) score += 100;
-                if (normQuery.contains("samsung") && (pNormName.contains("samsung") || pNormName.contains("galaxy"))) score += 100;
-            } else if (isTablet) {
-                if (pNormCat.contains("may tinh bang")) score += 150;
-                else continue;
-                if (normQuery.contains("ipad") && pNormName.contains("ipad")) score += 100;
-            } else if (isAudio) {
-                if (pNormCat.contains("am thanh")) score += 150;
-                else continue;
-                if (normQuery.contains("airpods") && pNormName.contains("airpods")) score += 100;
-                if (normQuery.contains("sony") && pNormName.contains("sony")) score += 100;
-            } else if (isWatch) {
-                if (pNormCat.contains("dong ho")) score += 150;
-                else continue;
-            }
-
-            // Khớp các từ khóa cụ thể trong tên hoặc mô tả
-            for (String kw : keywords) {
-                if (pNormName.contains(kw)) score += 40;
-                else if (pNormDesc.contains(kw)) score += 10;
-            }
-
-            if (score > 0) {
-                scoreMap.put(p, score);
-            }
-        }
-
-        List<Product> matched;
-        boolean hasExactMatch = !scoreMap.isEmpty();
-        if (hasExactMatch) {
-            matched = scoreMap.entrySet().stream()
-                    .sorted(Map.Entry.<Product, Integer>comparingByValue().reversed())
-                    .map(Map.Entry::getKey)
-                    .limit(4)
-                    .collect(Collectors.toList());
-        } else {
-            matched = products.stream().limit(3).collect(Collectors.toList());
-        }
+        // 5. Tìm kiếm theo danh mục và từ khóa
+        List<Product> matched = filterRelevantProducts(rawQuery, products);
 
         StringBuilder reply = new StringBuilder();
         reply.append("Dạ chào anh/chị! 👋 NEXOR rất vui được hỗ trợ.\n\n");
 
-        if (hasExactMatch) {
-            String topic = "Sản phẩm công nghệ";
-            if (isMacBook) topic = "Apple MacBook";
-            else if (isLaptop) topic = "Laptop & Máy tính xách tay";
-            else if (isPhone) topic = "Điện thoại thông minh";
-            else if (isTablet) topic = "Máy tính bảng & iPad";
-            else if (isAudio) topic = "Tai nghe & Thiết bị Âm thanh";
-            else if (isWatch) topic = "Đồng hồ thông minh & Phụ kiện";
-
-            reply.append(String.format("Dưới đây là các mẫu **%s** chính hãng phù hợp nhất với nhu cầu của anh/chị:\n\n", topic));
+        if (!matched.isEmpty()) {
+            reply.append("Dưới đây là các mẫu sản phẩm chính hãng phù hợp nhất với nhu cầu của anh/chị:\n\n");
             for (Product p : matched) {
                 String priceStr = p.getPrice() != null ? nf.format(p.getPrice()) + "đ" : "Liên hệ";
                 reply.append(String.format("🔹 **%s [ID: %d]**\n", p.getName(), p.getId()));
@@ -465,7 +479,7 @@ public class AiServiceImpl implements AiService {
             reply.append("Anh/chị hãy bấm vào thẻ sản phẩm bên dưới để xem chi tiết thông số hoặc nhắn thêm nếu cần em tư vấn thêm nhé! 😊");
         } else {
             reply.append("Hiện tại NEXOR chưa tìm thấy sản phẩm khớp hoàn toàn với từ khóa của anh/chị. Dưới đây là các dòng sản phẩm tiêu biểu đang bán chạy nhất tại cửa hàng:\n\n");
-            for (Product p : matched) {
+            for (Product p : products.stream().limit(3).collect(Collectors.toList())) {
                 String priceStr = p.getPrice() != null ? nf.format(p.getPrice()) + "đ" : "Liên hệ";
                 reply.append(String.format("🔹 **%s [ID: %d]** (Giá: %s)\n", p.getName(), p.getId(), priceStr));
             }
@@ -479,13 +493,13 @@ public class AiServiceImpl implements AiService {
 
         return AiChatResponse.builder()
                 .reply(reply.toString())
+                .suggestedProducts(recommended)
                 .recommendedProducts(recommended)
                 .provider("NEXOR AI Assistant")
                 .build();
     }
 
     private String callGeminiApi(String prompt) {
-        // Thử model được cấu hình, nếu thất bại thử fallback sang gemini-1.5-flash
         String[] candidateModels = new String[]{
                 geminiModel,
                 "gemini-1.5-flash",
@@ -505,7 +519,7 @@ public class AiServiceImpl implements AiService {
 
                 HttpRequest httpRequest = HttpRequest.newBuilder()
                         .uri(URI.create(url))
-                        .timeout(Duration.ofSeconds(20))
+                        .timeout(Duration.ofSeconds(4)) // 4s timeout để phản hồi người dùng không vượt quá 2-3s
                         .header("Content-Type", "application/json; charset=utf-8")
                         .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
                         .build();
