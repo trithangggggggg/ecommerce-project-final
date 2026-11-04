@@ -8,6 +8,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import ra.project.server.common.response.ApiResponse;
 import ra.project.server.exception.BadRequestException;
+import ra.project.server.model.dto.request.PromotionApplyRequest;
 import ra.project.server.model.dto.response.PromotionCheckResponse;
 import ra.project.server.model.entity.Promotion;
 import ra.project.server.model.entity.User;
@@ -42,6 +43,19 @@ public class PromotionController {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    @PostMapping("/apply")
+    public ResponseEntity<ApiResponse<PromotionCheckResponse>> applyPromotion(
+            @RequestBody(required = false) PromotionApplyRequest request,
+            @RequestParam(name = "code", required = false) String paramCode,
+            @RequestParam(name = "subtotal", required = false) BigDecimal paramSubtotal,
+            @RequestParam(name = "shippingFee", required = false) BigDecimal paramShippingFee
+    ) {
+        String code = request != null && StringUtils.hasText(request.getCode()) ? request.getCode() : paramCode;
+        BigDecimal subtotal = request != null && request.getSubtotal() != null ? request.getSubtotal() : (paramSubtotal != null ? paramSubtotal : BigDecimal.ZERO);
+        BigDecimal shippingFee = request != null && request.getShippingFee() != null ? request.getShippingFee() : paramShippingFee;
+        return checkPromotion(code, subtotal, shippingFee);
     }
 
     @GetMapping("/check")

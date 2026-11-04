@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   User,
@@ -20,6 +20,12 @@ import {
   Gift,
   Sparkles,
   Zap,
+  Clock,
+  Copy,
+  QrCode,
+  AlertTriangle,
+  RefreshCw,
+  ExternalLink,
 } from 'lucide-react';
 import { useCartStore } from '../../store/useCartStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -30,10 +36,36 @@ import { promotionService, type PromotionCheckResult } from '../../api/services/
 import type { PromoItem } from '../admin/AdminPromotionsPage';
 import { ROUTES } from '../../constants/routes';
 import { formatPrice } from '../../utils/format';
-import type { CheckoutRequest } from '../../models/order.model';
+import type { CheckoutRequest, OrderResponse, PaymentMethod } from '../../models/order.model';
 import type { CartItem } from '../../models/product.model';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
+
+// Helper: Tính thời gian giao hàng dự kiến theo đơn vị vận chuyển
+const getEstimatedDeliveryTime = (carrier?: ShippingCarrier | null): string => {
+  if (!carrier) return '2 - 3 ngày làm việc';
+  const code = (carrier.code || '').toUpperCase();
+  const service = (carrier.serviceType || '').toLowerCase();
+  if (
+    code.includes('EXPRESS') ||
+    code.includes('FAST') ||
+    code.includes('HOATOC') ||
+    service.includes('hỏa tốc') ||
+    service.includes('nhanh')
+  ) {
+    return '1 - 2 ngày làm việc (Nhanh)';
+  }
+  if (code.includes('GHN') || code.includes('GHTK') || code.includes('JNT')) {
+    return '1 - 3 ngày làm việc';
+  }
+  if (code.includes('VNPOST') || code.includes('VIETTEL') || service.includes('tiết kiệm')) {
+    return '2 - 4 ngày làm việc';
+  }
+  return '2 - 3 ngày làm việc';
+};
+
+// Regex chuẩn số điện thoại di động Việt Nam (10 chữ số bắt đầu bằng 03, 05, 07, 08, 09 hoặc tiền tố +84 / 84)
+const VIETNAMESE_PHONE_REGEX = /^(?:(?:\+84|84)|0)[35789][0-9]{8}$/;
 
 export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
@@ -59,7 +91,14 @@ export const CheckoutPage: React.FC = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [shippingAddress, setShippingAddress] = useState('');
   const [note, setNote] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE'>('COD');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('COD');
+
+  // Form Field Errors
+  const [fieldErrors, setFieldErrors] = useState<{
+    receiverName?: string;
+    phoneNumber?: string;
+    shippingAddress?: string;
+  }>({});
 
   // Shipping Carrier State
   const [carriers, setCarriers] = useState<ShippingCarrier[]>([]);
@@ -80,12 +119,18 @@ export const CheckoutPage: React.FC = () => {
   // Status & Feedback State
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [orderSuccess, setOrderSuccess] = useState<number | null>(null);
+  const [outOfStockError, setOutOfStockError] = useState<string | null>(null);
+  const [orderSuccessData, setOrderSuccessData] = useState<OrderResponse | null>(null);
+  const [copiedBankInfo, setCopiedBankInfo] = useState<string | null>(null);
+
+  const receiverNameRef = useRef<HTMLInputElement>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
+  const addressRef = useRef<HTMLTextAreaElement>(null);
 
   // Tự động điền dữ liệu từ thông tin tài khoản đang đăng nhập
   useEffect(() => {
     if (user) {
-      setReceiverName((prev) => prev || user.fullName || '');
+      setReceiverName((prev) => prev || user.fullName || user.username || '');
       setPhoneNumber((prev) => prev || user.phone || user.phoneNumber || '');
       setShippingAddress((prev) => prev || user.address || '');
     }
@@ -168,7 +213,49 @@ export const CheckoutPage: React.FC = () => {
   const actualShippingFee = Math.max(0, tierShippingFee - shippingVoucherDiscount);
   const finalTotal = subtotalAfterDiscount + actualShippingFee;
 
-  // Xử lý áp dụng mã giảm giá (hỗ trợ cả mã đơn hàng và mã Freeship)
+  // Validate inputs
+  const validateForm = (): boolean => {
+    const errors: {
+      receiverName?: string;
+      phoneNumber?: string;
+      shippingAddress?: string;
+    } = {};
+
+    const cleanName = receiverName.trim();
+    if (!cleanName) {
+      errors.receiverName = 'Vui lòng nhập họ và tên người nhận hàng';
+    } else if (cleanName.length < 2) {
+      errors.receiverName = 'Họ và tên người nhận quá ngắn (tối thiểu 2 ký tự)';
+    }
+
+    const cleanPhone = phoneNumber.trim().replace(/\s+/g, '');
+    if (!cleanPhone) {
+      errors.phoneNumber = 'Vui lòng nhập số điện thoại người nhận';
+    } else if (!VIETNAMESE_PHONE_REGEX.test(cleanPhone)) {
+      errors.phoneNumber = 'Số điện thoại không đúng định dạng VN (10 số, VD: 0912345678)';
+    }
+
+    const cleanAddress = shippingAddress.trim();
+    if (!cleanAddress) {
+      errors.shippingAddress = 'Vui lòng nhập địa chỉ nhận hàng chi tiết';
+    } else if (cleanAddress.length < 5) {
+      errors.shippingAddress = 'Địa chỉ nhận hàng quá ngắn (tối thiểu 5 ký tự)';
+    }
+
+    setFieldErrors(errors);
+
+    if (errors.receiverName && receiverNameRef.current) {
+      receiverNameRef.current.focus();
+    } else if (errors.phoneNumber && phoneRef.current) {
+      phoneRef.current.focus();
+    } else if (errors.shippingAddress && addressRef.current) {
+      addressRef.current.focus();
+    }
+
+    return Object.keys(errors).length === 0;
+  };
+
+  // Xử lý áp dụng mã giảm giá (hỗ trợ cả mã đơn hàng và mã Freeship) qua POST /api/promotions/apply
   const handleApplyCoupon = async (codeToApply?: string) => {
     const rawCode = (codeToApply !== undefined ? codeToApply : couponInput).trim();
     if (!rawCode) {
@@ -182,7 +269,7 @@ export const CheckoutPage: React.FC = () => {
     setIsCheckingCoupon(true);
 
     try {
-      const result = await promotionService.checkPromotion(rawCode, checkoutTotalPrice, tierShippingFee);
+      const result = await promotionService.applyPromotion(rawCode, checkoutTotalPrice, tierShippingFee);
       // Jackson có thể serialize boolean thành isValid hoặc valid
       const isSuccess = Boolean(
         result &&
@@ -217,7 +304,7 @@ export const CheckoutPage: React.FC = () => {
       const msg =
         err instanceof Error
           ? err.message
-          : 'Không thể kiểm tra mã giảm giá lúc này.';
+          : 'Không thể kiểm tra mã giảm giá lúc này. Vui lòng thử lại!';
       setCouponError(msg);
     } finally {
       setIsCheckingCoupon(false);
@@ -238,7 +325,370 @@ export const CheckoutPage: React.FC = () => {
     setCouponSuccess(null);
   };
 
-  // Kiểm tra nếu chưa đăng nhập, chuyển hướng hoặc cảnh báo
+  // Copy helper
+  const handleCopyText = (text: string, label: string) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedBankInfo(label);
+      setTimeout(() => setCopiedBankInfo(null), 2500);
+    }
+  };
+
+  // Xử lý gửi đơn hàng (Checkout)
+  const handleCheckoutSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Chống submit 2 lần khi đang xử lý
+    if (isSubmitting) return;
+
+    setErrorMessage(null);
+    setOutOfStockError(null);
+
+    // Validate form inputs
+    if (!validateForm()) {
+      return;
+    }
+
+    if (checkoutItems.length === 0) {
+      setErrorMessage('Không có sản phẩm nào để thanh toán');
+      return;
+    }
+
+    const payload: CheckoutRequest = {
+      receiverName: receiverName.trim(),
+      phoneNumber: phoneNumber.trim().replace(/\s+/g, ''),
+      shippingAddress: shippingAddress.trim(),
+      note: note.trim() || undefined,
+      paymentMethod,
+      carrierId: selectedCarrierId || undefined,
+      couponCode: appliedPromotion?.code || undefined,
+      shippingCouponCode: appliedShippingPromotion?.code || undefined,
+      items: checkoutItems.map((i) => ({
+        productId: i.product.id,
+        variantId: i.variantId || i.variant?.id,
+        quantity: i.quantity,
+      })),
+    };
+
+    setIsSubmitting(true);
+    try {
+      const createdOrder = await orderService.checkout(payload);
+
+      // Đặt hàng thành công:
+      // - Nếu thanh toán giỏ hàng thông thường -> Xóa toàn bộ giỏ hàng
+      // - Nếu là Mua ngay (buyNow) -> Chỉ xóa món đó khỏi giỏ nếu nó từng nằm trong giỏ, giữ lại các món khác
+      if (!isBuyNow || !buyNowItem) {
+        clearCart();
+      } else {
+        const buyNowVariantId = buyNowItem.variantId || buyNowItem.variant?.id;
+        if (buyNowVariantId) {
+          useCartStore.getState().removeItem(buyNowVariantId, buyNowItem.product.id);
+        }
+      }
+
+      // Lưu chi tiết đơn hàng thành công và chuyển sang màn hình "Đặt hàng thành công"
+      setOrderSuccessData(createdOrder);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'Không thể xử lý đơn hàng lúc này. Vui lòng thử lại!';
+
+      // Xử lý lỗi hết hàng / không đủ số lượng tồn kho
+      const isOutOfStock =
+        msg.toLowerCase().includes('không đủ số lượng tồn kho') ||
+        msg.toLowerCase().includes('tồn kho') ||
+        msg.toLowerCase().includes('hết hàng') ||
+        msg.toLowerCase().includes('ngừng kinh doanh');
+
+      if (isOutOfStock) {
+        setOutOfStockError(msg);
+        try {
+          useCartStore.getState().syncCart();
+        } catch {
+          // ignore
+        }
+      } else {
+        setErrorMessage(msg);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // ============================================================
+  // MÀN HÌNH 1: ĐẶT HÀNG THÀNH CÔNG (Dedicated Success View)
+  // ============================================================
+  if (orderSuccessData) {
+    const isBankTransfer = orderSuccessData.paymentMethod === 'BANK_TRANSFER';
+    const bankTransferContent = `DH${orderSuccessData.id}`;
+    const bankNumber = '0987654321';
+    const bankOwner = 'CỬA HÀNG THƯƠNG MẠI ĐIỆN TỬ';
+    const bankName = 'MB Bank (Ngân hàng TMCP Quân Đội)';
+    const qrUrl = `https://img.vietqr.io/image/MB-${bankNumber}-compact2.png?amount=${orderSuccessData.finalAmount}&addInfo=${bankTransferContent}&accountName=${encodeURIComponent(
+      bankOwner
+    )}`;
+
+    return (
+      <div className="min-h-screen bg-[#f5f6fa] py-10 px-4 sm:px-6 lg:px-8 font-sans">
+        <div className="max-w-3xl mx-auto space-y-6">
+          {/* Breadcrumb */}
+          <nav className="flex items-center gap-2 text-xs text-gray-500">
+            <Link to={ROUTES.HOME} className="hover:text-blue-600 transition">
+              Trang chủ
+            </Link>
+            <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+            <Link to={ROUTES.CHECKOUT} className="hover:text-blue-600 transition">
+              Thanh toán
+            </Link>
+            <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+            <span className="font-semibold text-gray-900">Đặt hàng thành công</span>
+          </nav>
+
+          {/* Banner Thông báo thành công */}
+          <div className="bg-white rounded-3xl border border-emerald-100 shadow-sm p-6 sm:p-8 text-center space-y-4">
+            <div className="w-20 h-20 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto shadow-inner ring-8 ring-emerald-50/50">
+              <CheckCircle2 className="w-12 h-12" />
+            </div>
+
+            <div className="space-y-1">
+              <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 uppercase tracking-wider mb-1">
+                Giao dịch thành công
+              </span>
+              <h1 className="text-2xl sm:text-3xl font-black text-gray-900">
+                Đặt hàng thành công!
+              </h1>
+              <p className="text-xs sm:text-sm text-gray-500 max-w-lg mx-auto">
+                Cảm ơn bạn đã mua sắm tại cửa hàng. Đơn hàng của bạn đã được ghi nhận trên hệ thống và đang được xử lý để giao đến bạn sớm nhất.
+              </p>
+            </div>
+
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs">
+              <span className="text-gray-500 font-medium">Mã đơn hàng:</span>
+              <span className="font-mono font-black text-blue-600 text-sm">
+                #{orderSuccessData.id}
+              </span>
+            </div>
+          </div>
+
+          {/* Hướng dẫn Chuyển khoản nếu chọn BANK_TRANSFER */}
+          {isBankTransfer && (
+            <div className="bg-white rounded-2xl border-2 border-indigo-200 shadow-sm p-6 space-y-4">
+              <div className="flex items-center gap-3 pb-3 border-b border-indigo-100">
+                <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <QrCode className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">
+                    Hướng dẫn thanh toán Chuyển khoản qua Ngân hàng
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    Vui lòng chuyển khoản đúng số tiền và nội dung để đơn hàng được tự động kích hoạt
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                {/* VietQR Image */}
+                <div className="md:col-span-5 flex flex-col items-center justify-center p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
+                  <img
+                    src={qrUrl}
+                    alt="VietQR Chuyển khoản"
+                    className="w-48 h-auto rounded-lg shadow-sm bg-white p-2 border border-gray-100"
+                  />
+                  <span className="text-[11px] text-indigo-700 font-semibold mt-2">
+                    Quét mã QR bằng App Ngân hàng
+                  </span>
+                </div>
+
+                {/* Bank Account Details */}
+                <div className="md:col-span-7 space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg">
+                    <span className="text-gray-500">Ngân hàng thụ hưởng:</span>
+                    <span className="font-bold text-gray-900">{bankName}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg">
+                    <span className="text-gray-500">Số tài khoản:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-gray-900 text-sm">{bankNumber}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyText(bankNumber, 'stk')}
+                        className="p-1 text-gray-400 hover:text-indigo-600 transition"
+                        title="Copy số tài khoản"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg">
+                    <span className="text-gray-500">Chủ tài khoản:</span>
+                    <span className="font-bold text-gray-900">{bankOwner}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg">
+                    <span className="text-gray-500">Số tiền thanh toán:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-red-600 text-sm">
+                        {formatPrice(orderSuccessData.finalAmount)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyText(orderSuccessData.finalAmount.toString(), 'amount')}
+                        className="p-1 text-gray-400 hover:text-indigo-600 transition"
+                        title="Copy số tiền"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-2.5 bg-indigo-50/80 border border-indigo-200 rounded-lg">
+                    <div>
+                      <span className="text-indigo-900 font-semibold block">Nội dung chuyển khoản:</span>
+                      <span className="font-mono font-black text-indigo-700 text-sm">
+                        {bankTransferContent}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyText(bankTransferContent, 'memo')}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-indigo-600 text-white text-[11px] font-bold hover:bg-indigo-700 transition"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>{copiedBankInfo === 'memo' ? 'Đã sao chép' : 'Sao chép'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Chi tiết đơn hàng */}
+          <div className="bg-white rounded-2xl border border-gray-200/90 shadow-sm p-6 space-y-4">
+            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide pb-3 border-b border-gray-100 flex items-center justify-between">
+              <span>Thông tin chi tiết đơn hàng #{orderSuccessData.id}</span>
+              <span className="text-xs font-normal normal-case text-gray-500">
+                {new Date(orderSuccessData.createdAt).toLocaleString('vi-VN')}
+              </span>
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              <div className="p-3.5 bg-gray-50 rounded-xl space-y-1.5">
+                <span className="font-bold text-gray-800 flex items-center gap-1.5 uppercase text-[11px]">
+                  <User className="w-3.5 h-3.5 text-blue-600" />
+                  Người nhận hàng
+                </span>
+                <p className="font-semibold text-gray-900">{orderSuccessData.receiverName}</p>
+                <p className="text-gray-600 flex items-center gap-1">
+                  <Phone className="w-3 h-3 text-gray-400" />
+                  {orderSuccessData.phoneNumber}
+                </p>
+                <p className="text-gray-600 flex items-start gap-1">
+                  <MapPin className="w-3 h-3 text-gray-400 mt-0.5 shrink-0" />
+                  <span>{orderSuccessData.shippingAddress}</span>
+                </p>
+                {orderSuccessData.note && (
+                  <p className="text-gray-500 italic pt-1 border-t border-gray-200">
+                    Ghi chú: {orderSuccessData.note}
+                  </p>
+                )}
+              </div>
+
+              <div className="p-3.5 bg-gray-50 rounded-xl space-y-1.5">
+                <span className="font-bold text-gray-800 flex items-center gap-1.5 uppercase text-[11px]">
+                  <Truck className="w-3.5 h-3.5 text-indigo-600" />
+                  Vận chuyển & Thanh toán
+                </span>
+                <p className="text-gray-900">
+                  <span className="text-gray-500">Đối tác vận chuyển: </span>
+                  <span className="font-semibold">
+                    {orderSuccessData.shippingCarrierName || selectedCarrier?.name || 'Giao hàng tiêu chuẩn'}
+                  </span>
+                </p>
+                <p className="text-indigo-700 flex items-center gap-1 font-medium">
+                  <Clock className="w-3 h-3" />
+                  <span>Dự kiến giao: {getEstimatedDeliveryTime(selectedCarrier)}</span>
+                </p>
+                <p className="text-gray-900 pt-1 border-t border-gray-200">
+                  <span className="text-gray-500">Phương thức thanh toán: </span>
+                  <span className="font-bold text-gray-900">
+                    {orderSuccessData.paymentMethod === 'BANK_TRANSFER'
+                      ? 'Chuyển khoản ngân hàng'
+                      : 'Thanh toán khi nhận hàng (COD)'}
+                  </span>
+                </p>
+                <p className="text-gray-900">
+                  <span className="text-gray-500">Tổng thanh toán: </span>
+                  <span className="font-black text-red-600 text-sm">
+                    {formatPrice(orderSuccessData.finalAmount)}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            {/* Danh sách sản phẩm trong đơn hàng */}
+            {orderSuccessData.items && orderSuccessData.items.length > 0 && (
+              <div className="pt-2">
+                <span className="text-xs font-bold text-gray-700 block mb-2">
+                  Danh sách sản phẩm ({orderSuccessData.items.length}):
+                </span>
+                <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden">
+                  {orderSuccessData.items.map((item) => (
+                    <div key={item.id} className="p-3 flex items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <img
+                          src={item.productImageUrl || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100'}
+                          alt={item.productName}
+                          className="w-10 h-10 object-contain rounded-lg border border-gray-100 p-0.5"
+                        />
+                        <div className="min-w-0">
+                          <h4 className="font-semibold text-gray-900 truncate">{item.productName}</h4>
+                          <span className="text-[11px] text-gray-500">
+                            {item.variantName ? `${item.variantName} • ` : ''}SL: {item.quantity} × {formatPrice(item.price)}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="font-bold text-gray-900 shrink-0">
+                        {formatPrice(item.totalPrice)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-gray-100">
+              <Link
+                to={ROUTES.PRODUCTS}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-50 transition"
+              >
+                <ShoppingBag className="w-4 h-4" />
+                <span>Tiếp tục mua hàng</span>
+              </Link>
+
+              <Link
+                to={ROUTES.MY_ORDERS}
+                state={{ newOrderId: orderSuccessData.id }}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 shadow-sm transition"
+              >
+                <span>Xem đơn hàng trong Lịch sử</span>
+                <ExternalLink className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================================
+  // MÀN HÌNH 2: CHƯA ĐĂNG NHẬP
+  // ============================================================
   if (!isAuthenticated) {
     return (
       <div className="min-h-[70vh] bg-[#f5f6fa] py-12 px-4 sm:px-6 lg:px-8 font-sans flex items-center justify-center">
@@ -273,8 +723,10 @@ export const CheckoutPage: React.FC = () => {
     );
   }
 
-  // Nếu không có sản phẩm nào để thanh toán (cả giỏ hàng lẫn mua ngay)
-  if (checkoutItems.length === 0 && !orderSuccess) {
+  // ============================================================
+  // MÀN HÌNH 3: KHÔNG CÓ SẢN PHẨM THANH TOÁN
+  // ============================================================
+  if (checkoutItems.length === 0) {
     return (
       <div className="min-h-[70vh] bg-[#f5f6fa] py-12 px-4 sm:px-6 lg:px-8 font-sans flex items-center justify-center">
         <div className="max-w-md w-full bg-white rounded-2xl border border-gray-200 p-8 text-center shadow-xs">
@@ -297,84 +749,6 @@ export const CheckoutPage: React.FC = () => {
       </div>
     );
   }
-
-  const handleCheckoutSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
-
-    // Validate form inputs
-    if (!receiverName.trim()) {
-      setErrorMessage('Vui lòng nhập họ và tên người nhận hàng');
-      return;
-    }
-    if (!phoneNumber.trim()) {
-      setErrorMessage('Vui lòng nhập số điện thoại người nhận');
-      return;
-    }
-    const phoneRegex = /(84|0[3|5|7|8|9])+([0-9]{8})\b/;
-    if (!phoneRegex.test(phoneNumber.trim().replace(/\s+/g, ''))) {
-      setErrorMessage('Số điện thoại không đúng định dạng (VD: 0912345678)');
-      return;
-    }
-    if (!shippingAddress.trim()) {
-      setErrorMessage('Vui lòng nhập địa chỉ nhận hàng chi tiết');
-      return;
-    }
-
-    if (checkoutItems.length === 0) {
-      setErrorMessage('Không có sản phẩm nào để thanh toán');
-      return;
-    }
-
-    const payload: CheckoutRequest = {
-      receiverName: receiverName.trim(),
-      phoneNumber: phoneNumber.trim(),
-      shippingAddress: shippingAddress.trim(),
-      note: note.trim() || undefined,
-      paymentMethod,
-      carrierId: selectedCarrierId || undefined,
-      couponCode: appliedPromotion?.code || undefined,
-      shippingCouponCode: appliedShippingPromotion?.code || undefined,
-      items: checkoutItems.map((i) => ({
-        productId: i.product.id,
-        variantId: i.variantId || i.variant?.id,
-        quantity: i.quantity,
-      })),
-    };
-
-    setIsSubmitting(true);
-    try {
-      const createdOrder = await orderService.checkout(payload);
-
-      // Đặt hàng thành công:
-      // - Nếu thanh toán giỏ hàng thông thường -> Xóa toàn bộ giỏ hàng
-      // - Nếu là Mua ngay (buyNow) -> Chỉ xóa món đó khỏi giỏ nếu nó từng nằm trong giỏ, giữ lại các món khác
-      if (!isBuyNow || !buyNowItem) {
-        clearCart();
-      } else {
-        const buyNowVariantId = buyNowItem.variantId || buyNowItem.variant?.id;
-        if (buyNowVariantId) {
-          useCartStore.getState().removeItem(buyNowVariantId, buyNowItem.product.id);
-        }
-      }
-      setOrderSuccess(createdOrder.id);
-
-      // Chuyển hướng sang trang lịch sử đơn hàng
-      setTimeout(() => {
-        navigate(ROUTES.MY_ORDERS, {
-          replace: true,
-          state: { newOrderId: createdOrder.id },
-        });
-      }, 1200);
-    } catch (err: unknown) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : 'Không thể xử lý đơn hàng lúc này. Vui lòng thử lại!';
-      setErrorMessage(msg);
-      setIsSubmitting(false);
-    }
-  };
 
   // Phân loại mã giảm giá khả dụng: Mã freeship, Mã đền bù cá nhân, Mã công khai
   const shippingVouchers = availablePromotions.filter(
@@ -459,27 +833,60 @@ export const CheckoutPage: React.FC = () => {
           </div>
         )}
 
-        {/* Success Modal / Banner */}
-        {orderSuccess && (
-          <div className="p-4 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-800 flex items-center gap-3 text-xs animate-fade-in shadow-xs">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-            <div className="flex-1">
-              <span className="font-bold block text-sm">
-                Đặt hàng thành công! Mã đơn: #{orderSuccess}
-              </span>
-              <span>Hệ thống đang chuyển hướng bạn đến trang Lịch sử đơn hàng...</span>
+        {/* Cảnh báo Hết hàng / Không đủ tồn kho */}
+        {outOfStockError && (
+          <div className="p-4 rounded-2xl border-2 border-red-300 bg-red-50 text-red-900 space-y-3 animate-fade-in shadow-xs">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+              <div className="flex-1 text-xs">
+                <span className="font-bold text-sm block text-red-900 mb-1">
+                  Sản phẩm đã hết hàng hoặc không đủ số lượng tồn kho!
+                </span>
+                <p className="text-red-700 leading-relaxed font-medium">
+                  {outOfStockError}
+                </p>
+                <p className="text-red-600 mt-1">
+                  Hệ thống đã tự động đồng bộ lại giỏ hàng của bạn. Vui lòng quay lại giỏ hàng để cập nhật số lượng hoặc chọn sản phẩm khác.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 pt-1">
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => navigate(ROUTES.CART)}
+                className="text-xs font-bold"
+              >
+                Quay lại giỏ hàng để chỉnh sửa
+              </Button>
+              <button
+                type="button"
+                onClick={() => setOutOfStockError(null)}
+                className="text-xs text-gray-500 hover:text-gray-800 underline font-medium"
+              >
+                Đóng thông báo
+              </button>
             </div>
           </div>
         )}
 
-        {/* Error Alert */}
+        {/* Error Alert chung */}
         {errorMessage && (
-          <div className="p-4 rounded-xl border border-red-300 bg-red-50 text-red-800 flex items-start gap-3 text-xs animate-fade-in shadow-xs">
-            <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <span className="font-bold block mb-0.5">Không thể tạo đơn hàng</span>
-              <span>{errorMessage}</span>
+          <div className="p-4 rounded-xl border border-red-300 bg-red-50 text-red-800 flex items-start justify-between gap-3 text-xs animate-fade-in shadow-xs">
+            <div className="flex items-start gap-3 flex-1">
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold block mb-0.5">Không thể tạo đơn hàng</span>
+                <span>{errorMessage}</span>
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setErrorMessage(null)}
+              className="text-red-500 hover:text-red-700"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
 
@@ -491,7 +898,7 @@ export const CheckoutPage: React.FC = () => {
               <div className="bg-white rounded-2xl border border-gray-200/90 shadow-xs p-5 sm:p-6 space-y-4">
                 <div className="flex items-center gap-2.5 pb-3 border-b border-gray-100">
                   <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-                    <Truck className="w-4 h-4" />
+                    <User className="w-4 h-4" />
                   </div>
                   <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
                     1. Thông tin giao hàng
@@ -500,26 +907,44 @@ export const CheckoutPage: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Receiver Name */}
-                  <Input
-                    label="Họ và tên người nhận"
-                    type="text"
-                    value={receiverName}
-                    onChange={(e) => setReceiverName(e.target.value)}
-                    placeholder="Nguyễn Văn A"
-                    leftIcon={<User className="w-4 h-4" />}
-                    required
-                  />
+                  <div>
+                    <Input
+                      ref={receiverNameRef}
+                      label="Họ và tên người nhận"
+                      type="text"
+                      value={receiverName}
+                      onChange={(e) => {
+                        setReceiverName(e.target.value);
+                        if (fieldErrors.receiverName) {
+                          setFieldErrors((prev) => ({ ...prev, receiverName: undefined }));
+                        }
+                      }}
+                      placeholder="Nguyễn Văn A"
+                      leftIcon={<User className="w-4 h-4" />}
+                      required
+                      error={fieldErrors.receiverName}
+                    />
+                  </div>
 
                   {/* Phone Number */}
-                  <Input
-                    label="Số điện thoại nhận hàng"
-                    type="tel"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    placeholder="0912 345 678"
-                    leftIcon={<Phone className="w-4 h-4" />}
-                    required
-                  />
+                  <div>
+                    <Input
+                      ref={phoneRef}
+                      label="Số điện thoại nhận hàng"
+                      type="tel"
+                      value={phoneNumber}
+                      onChange={(e) => {
+                        setPhoneNumber(e.target.value);
+                        if (fieldErrors.phoneNumber) {
+                          setFieldErrors((prev) => ({ ...prev, phoneNumber: undefined }));
+                        }
+                      }}
+                      placeholder="0912 345 678"
+                      leftIcon={<Phone className="w-4 h-4" />}
+                      required
+                      error={fieldErrors.phoneNumber}
+                    />
+                  </div>
                 </div>
 
                 {/* Shipping Address */}
@@ -532,14 +957,30 @@ export const CheckoutPage: React.FC = () => {
                       <MapPin className="w-4 h-4" />
                     </div>
                     <textarea
+                      ref={addressRef}
                       rows={3}
                       value={shippingAddress}
-                      onChange={(e) => setShippingAddress(e.target.value)}
+                      onChange={(e) => {
+                        setShippingAddress(e.target.value);
+                        if (fieldErrors.shippingAddress) {
+                          setFieldErrors((prev) => ({ ...prev, shippingAddress: undefined }));
+                        }
+                      }}
                       placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành phố..."
                       required
-                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 hover:border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/15 focus:border-blue-600 transition resize-none"
+                      className={`w-full pl-10 pr-4 py-2.5 bg-white border rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 transition resize-none ${
+                        fieldErrors.shippingAddress
+                          ? 'border-red-400 focus:ring-red-500/20 focus:border-red-600'
+                          : 'border-gray-200 hover:border-gray-300 focus:ring-blue-500/15 focus:border-blue-600'
+                      }`}
                     />
                   </div>
+                  {fieldErrors.shippingAddress && (
+                    <p className="text-[11px] text-red-600 mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      <span>{fieldErrors.shippingAddress}</span>
+                    </p>
+                  )}
                 </div>
 
                 {/* Note */}
@@ -628,6 +1069,7 @@ export const CheckoutPage: React.FC = () => {
                       } else if (subtotalAfterDiscount >= 10000000) {
                         carrierActualFee = Math.round(cFee / 2);
                       }
+                      const estTime = getEstimatedDeliveryTime(c);
 
                       return (
                         <div
@@ -659,9 +1101,16 @@ export const CheckoutPage: React.FC = () => {
                             </div>
                           </div>
 
-                          <p className="text-[11px] text-gray-500 line-clamp-1">
-                            {c.serviceType || 'Chuyển phát nhanh tiêu chuẩn'}
-                          </p>
+                          {/* Thời gian dự kiến và loại hình dịch vụ */}
+                          <div className="space-y-1">
+                            <p className="text-[11px] text-gray-500 line-clamp-1">
+                              {c.serviceType || 'Chuyển phát nhanh tiêu chuẩn'}
+                            </p>
+                            <div className="flex items-center gap-1 text-[11px] text-indigo-700 font-medium">
+                              <Clock className="w-3 h-3 text-indigo-500 shrink-0" />
+                              <span>Dự kiến: {estTime}</span>
+                            </div>
+                          </div>
 
                           <div className="flex items-center justify-between pt-1 border-t border-gray-100/80 text-[10px]">
                             {subtotalAfterDiscount >= 20000000 ? (
@@ -695,7 +1144,7 @@ export const CheckoutPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Card 3: Payment Method */}
+              {/* Card 3: Payment Method (COD vs Chuyển khoản) */}
               <div className="bg-white rounded-2xl border border-gray-200/90 shadow-xs p-5 sm:p-6 space-y-4">
                 <div className="flex items-center gap-2.5 pb-3 border-b border-gray-100">
                   <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -711,7 +1160,7 @@ export const CheckoutPage: React.FC = () => {
                   <label
                     className={`flex items-start gap-3.5 p-3.5 rounded-xl border-2 transition cursor-pointer ${
                       paymentMethod === 'COD'
-                        ? 'border-blue-600 bg-blue-50/40'
+                        ? 'border-blue-600 bg-blue-50/40 shadow-2xs'
                         : 'border-gray-200 hover:border-gray-300 bg-white'
                     }`}
                   >
@@ -738,29 +1187,67 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                   </label>
 
-                  {/* VNPAY / Banking (Demo only) */}
-                  <label className="flex items-start gap-3.5 p-3.5 rounded-xl border border-gray-200 bg-gray-50/70 opacity-70 cursor-not-allowed">
+                  {/* Chuyển khoản ngân hàng (BANK_TRANSFER) */}
+                  <label
+                    className={`flex items-start gap-3.5 p-3.5 rounded-xl border-2 transition cursor-pointer ${
+                      paymentMethod === 'BANK_TRANSFER'
+                        ? 'border-indigo-600 bg-indigo-50/40 shadow-2xs'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
                     <input
                       type="radio"
                       name="paymentMethod"
-                      value="ONLINE"
-                      disabled
-                      className="mt-1"
+                      value="BANK_TRANSFER"
+                      checked={paymentMethod === 'BANK_TRANSFER'}
+                      onChange={() => setPaymentMethod('BANK_TRANSFER')}
+                      className="mt-1 text-indigo-600 focus:ring-indigo-500"
                     />
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-gray-700">
-                          Thanh toán online qua VNPAY / QR Ngân hàng
+                        <span className="text-xs font-bold text-gray-900">
+                          Chuyển khoản ngân hàng (VietQR / Internet Banking)
                         </span>
-                        <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-gray-200 text-gray-600">
-                          Sắp hỗ trợ
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                          Xác nhận tức thì
                         </span>
                       </div>
                       <p className="text-[11px] text-gray-500 mt-0.5">
-                        Cổng thanh toán điện tử đang được nâng cấp hệ thống.
+                        Quét mã VietQR hoặc chuyển khoản qua Mobile Banking 24/7 không mất phí.
                       </p>
                     </div>
                   </label>
+
+                  {/* Hướng dẫn chuyển khoản ngân hàng nếu chọn BANK_TRANSFER */}
+                  {paymentMethod === 'BANK_TRANSFER' && (
+                    <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-3 animate-fade-in text-xs">
+                      <div className="flex items-center gap-2 text-indigo-900 font-bold">
+                        <QrCode className="w-4 h-4 text-indigo-600" />
+                        <span>Thông tin tài khoản nhận chuyển khoản:</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                        <div className="p-2 bg-white rounded-lg border border-indigo-100">
+                          <span className="text-gray-500 block">Ngân hàng:</span>
+                          <span className="font-bold text-gray-900">MB Bank (Quân Đội)</span>
+                        </div>
+                        <div className="p-2 bg-white rounded-lg border border-indigo-100">
+                          <span className="text-gray-500 block">Số tài khoản:</span>
+                          <span className="font-mono font-bold text-indigo-700">0987654321</span>
+                        </div>
+                        <div className="p-2 bg-white rounded-lg border border-indigo-100">
+                          <span className="text-gray-500 block">Chủ tài khoản:</span>
+                          <span className="font-bold text-gray-900">CỬA HÀNG THƯƠNG MẠI ĐIỆN TỬ</span>
+                        </div>
+                        <div className="p-2 bg-white rounded-lg border border-indigo-100">
+                          <span className="text-gray-500 block">Số tiền cần chuyển:</span>
+                          <span className="font-black text-red-600">{formatPrice(finalTotal)}</span>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-indigo-700 italic">
+                        * Sau khi ấn <strong>Xác nhận đặt hàng</strong>, hệ thống sẽ hiển thị mã đơn và QR Code để bạn quét mã thanh toán tiện lợi.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1130,6 +1617,7 @@ export const CheckoutPage: React.FC = () => {
                       {actualShippingFee === 0 ? '0₫ (Miễn phí)' : formatPrice(actualShippingFee)}
                     </span>
                   </div>
+
                   <div className="pt-2 border-t border-gray-100 flex items-baseline justify-between">
                     <div>
                       <span className="text-sm font-bold text-gray-900 block">Tổng thanh toán</span>
@@ -1141,7 +1629,7 @@ export const CheckoutPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Submit Button */}
+                {/* Submit Button (Chống click 2 lần bằng disabled + isLoading) */}
                 <div className="pt-3">
                   <Button
                     type="submit"
@@ -1149,11 +1637,13 @@ export const CheckoutPage: React.FC = () => {
                     size="lg"
                     fullWidth
                     isLoading={isSubmitting}
-                    disabled={Boolean(orderSuccess)}
+                    disabled={isSubmitting}
                     className="font-bold shadow-md hover:shadow-lg"
                   >
                     {isSubmitting
-                      ? 'Đang tạo đơn hàng...'
+                      ? 'Đang xử lý đơn hàng...'
+                      : paymentMethod === 'BANK_TRANSFER'
+                      ? `Xác nhận & Nhận mã thanh toán (${formatPrice(finalTotal)})`
                       : `Xác nhận đặt hàng (${formatPrice(finalTotal)})`}
                   </Button>
                 </div>
