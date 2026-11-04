@@ -8,6 +8,7 @@ import {
   Bot,
   ArrowRight,
   CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { aiService, type ChatMessage } from '../../../api/services/ai.service';
 import { formatPrice } from '../../../utils/format';
@@ -17,25 +18,50 @@ const QUICK_PROMPTS = [
   '🔥 iPhone 16 Pro Max',
   '🎧 Tai nghe chống ồn',
   '🚚 Chính sách bảo hành',
+  '💳 Hỗ trợ trả góp 0%',
 ];
 
-export default function AiChatbot() {
+const INITIAL_MESSAGE: ChatMessage = {
+  id: 'welcome',
+  role: 'assistant',
+  content:
+    'Dạ xin chào bạn! 👋 Mình là **Trợ lý AI của NEXOR**.\n\nMình có thể giúp bạn tìm kiếm thiết bị công nghệ phù hợp với ngân sách, so sánh cấu hình hoặc giải đáp chính sách bảo hành. Bạn đang quan tâm đến sản phẩm nào ạ?',
+  timestamp: new Date(),
+};
+
+export function AiChatbot() {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content:
-        'Dạ xin chào bạn! 👋 Mình là **Trợ lý AI của NEXOR**.\n\nMình có thể giúp bạn tìm kiếm thiết bị công nghệ phù hợp với ngân sách, so sánh cấu hình hoặc giải đáp chính sách bảo hành. Bạn đang quan tâm đến sản phẩm nào ạ?',
-      timestamp: new Date(),
-    },
-  ]);
+
+  // 1. Lưu lịch sử hội thoại trong phiên (State + Session Storage)
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const saved = sessionStorage.getItem('nexor_ai_chat_session');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((m: any) => ({
+            ...m,
+            timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
+          }));
+        }
+      }
+    } catch {}
+    return [INITIAL_MESSAGE];
+  });
+
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Đồng bộ lịch sử chat vào Session Storage
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('nexor_ai_chat_session', JSON.stringify(messages));
+    } catch {}
+  }, [messages]);
 
   // Tự động cuộn xuống tin nhắn mới nhất
   const scrollToBottom = () => {
@@ -75,22 +101,28 @@ export default function AiChatbot() {
       const history = messages.map((m) => ({ role: m.role, content: m.content }));
       const response = await aiService.chat(text, history);
 
+      const products = response.suggestedProducts || response.recommendedProducts;
+
       const botMsg: ChatMessage = {
         id: `bot-${Date.now()}`,
         role: 'assistant',
         content: response.reply,
-        recommendedProducts: response.recommendedProducts,
+        suggestedProducts: products,
+        recommendedProducts: products,
         timestamp: new Date(),
       };
 
       setMessages((prev) => [...prev, botMsg]);
     } catch {
+      // Xử lý lỗi kết nối thân thiện kèm nút gửi lại (Retry)
       setMessages((prev) => [
         ...prev,
         {
           id: `bot-err-${Date.now()}`,
           role: 'assistant',
-          content: 'Xin lỗi bạn, kết nối máy chủ AI tạm thời gián đoạn. Bạn thử lại giúp mình nhé! 🙏',
+          content: 'Xin lỗi bạn, kết nối máy chủ AI tạm thời gián đoạn. Bạn vui lòng thử lại nhé! 🙏',
+          isError: true,
+          failedText: text,
           timestamp: new Date(),
         },
       ]);
@@ -100,23 +132,35 @@ export default function AiChatbot() {
   };
 
   const handleResetChat = () => {
-    setMessages([
-      {
-        id: 'welcome-reset',
-        role: 'assistant',
-        content:
-          'Đoạn hội thoại đã được làm mới! ✨ Bạn cần mình hỗ trợ tìm kiếm hay tư vấn thông số sản phẩm nào không ạ?',
-        timestamp: new Date(),
-      },
-    ]);
+    const resetMsg: ChatMessage = {
+      id: `welcome-${Date.now()}`,
+      role: 'assistant',
+      content:
+        'Đoạn hội thoại đã được làm mới! ✨ Bạn cần mình hỗ trợ tìm kiếm hay tư vấn thông số sản phẩm nào không ạ?',
+      timestamp: new Date(),
+    };
+    setMessages([resetMsg]);
+    try {
+      sessionStorage.removeItem('nexor_ai_chat_session');
+    } catch {}
   };
 
-  // Helper format Markdown đơn giản (bold, bullet points, line breaks)
+  // Helper format Markdown sạch sẽ (Bold, Headings, Bullets, Inline Code)
   const renderFormattedText = (content: string, isUser: boolean = false) => {
     const lines = content.split('\n');
     return lines.map((line, idx) => {
-      // In đậm cú pháp **text**
-      const parts = line.split(/(\*\*.*?\*\*)/g);
+      // Tiêu đề Markdown ###
+      if (line.trim().startsWith('### ') || line.trim().startsWith('#### ')) {
+        const titleText = line.replace(/^#{3,4}\s+/, '');
+        return (
+          <h4 key={idx} className="font-extrabold text-gray-900 mt-2 mb-1 text-xs tracking-tight">
+            {titleText}
+          </h4>
+        );
+      }
+
+      // Xử lý các token inline (In đậm **text**, Code `text`)
+      const parts = line.split(/(\*\*.*?\*\*|`.*?`)/g);
       const formattedParts = parts.map((part, pIdx) => {
         if (part.startsWith('**') && part.endsWith('**')) {
           return (
@@ -128,25 +172,56 @@ export default function AiChatbot() {
             </strong>
           );
         }
+        if (part.startsWith('`') && part.endsWith('`')) {
+          return (
+            <code
+              key={pIdx}
+              className="bg-gray-100 text-blue-700 font-mono text-[11px] px-1 py-0.5 rounded border border-gray-200"
+            >
+              {part.slice(1, -1)}
+            </code>
+          );
+        }
         return part;
       });
 
-      if (line.trim().startsWith('- ') || line.trim().startsWith('* ') || line.trim().startsWith('• ')) {
+      // Danh sách gạch đầu dòng (- / * / • / 🔹)
+      const trimmed = line.trim();
+      if (
+        trimmed.startsWith('- ') ||
+        trimmed.startsWith('* ') ||
+        trimmed.startsWith('• ') ||
+        trimmed.startsWith('🔹 ')
+      ) {
+        const bulletIcon = trimmed.startsWith('🔹 ') ? '🔹' : '•';
+        const cleanLine = trimmed.replace(/^[-*•🔹]\s+/, '');
+        const cleanParts = cleanLine.split(/(\*\*.*?\*\*|`.*?`)/g).map((part, pIdx) => {
+          if (part.startsWith('**') && part.endsWith('**')) {
+            return (
+              <strong key={pIdx} className="font-bold text-gray-950">
+                {part.slice(2, -2)}
+              </strong>
+            );
+          }
+          return part;
+        });
+
         return (
           <div
             key={idx}
-            className={`flex items-start gap-1.5 my-1 ml-1 ${isUser ? 'text-white' : 'text-gray-800'}`}
+            className={`flex items-start gap-1.5 my-1 ml-0.5 ${isUser ? 'text-white' : 'text-gray-800'}`}
           >
-            <span className={`${isUser ? 'text-white font-bold' : 'text-blue-600 font-bold'} leading-5`}>
-              •
+            <span className={`${isUser ? 'text-white font-bold' : 'text-blue-600 font-bold'} leading-5 shrink-0`}>
+              {bulletIcon}
             </span>
-            <span className="flex-1">{formattedParts}</span>
+            <span className="flex-1">{cleanParts}</span>
           </div>
         );
       }
 
-      if (!line.trim()) {
-        return <div key={idx} className="h-2" />;
+      // Dòng trống cách đoạn
+      if (!trimmed) {
+        return <div key={idx} className="h-1.5" />;
       }
 
       return (
@@ -179,7 +254,7 @@ export default function AiChatbot() {
               e.stopPropagation();
               setShowTooltip(false);
             }}
-            className="text-gray-400 hover:text-gray-600 p-0.5"
+            className="text-gray-400 hover:text-gray-600 p-0.5 cursor-pointer"
             aria-label="Đóng gợi ý"
           >
             <X size={13} />
@@ -187,7 +262,7 @@ export default function AiChatbot() {
         </div>
       )}
 
-      {/* 2. Nút tròn bong bóng Chat nổi */}
+      {/* 2. AiAssistantWidget: Nút bong bóng chat tròn nổi góc phải dưới */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
@@ -195,7 +270,7 @@ export default function AiChatbot() {
           title="Mở NEXOR AI Chatbot"
           aria-label="Mở NEXOR AI Chatbot"
         >
-          {/* Vòng sáng radar ping */}
+          {/* Radar ping animation */}
           <span className="absolute -top-1 -right-1 flex h-4 w-4">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-4 w-4 bg-amber-500 border-2 border-white"></span>
@@ -256,6 +331,8 @@ export default function AiChatbot() {
           <div className="flex-1 p-4 overflow-y-auto space-y-3.5 bg-[#f8fafc] text-xs">
             {messages.map((msg) => {
               const isUser = msg.role === 'user';
+              const displayProducts = msg.suggestedProducts || msg.recommendedProducts;
+
               return (
                 <div
                   key={msg.id}
@@ -271,22 +348,44 @@ export default function AiChatbot() {
                       className={`p-3.5 rounded-2xl shadow-xs ${
                         isUser
                           ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-br-xs shadow-md shadow-blue-500/20'
+                          : msg.isError
+                          ? 'bg-rose-50 border border-rose-200 text-rose-900 rounded-bl-xs'
                           : 'bg-white border border-gray-200/80 text-gray-800 rounded-bl-xs'
                       }`}
                     >
+                      {msg.isError && (
+                        <div className="flex items-center gap-1.5 font-bold text-rose-700 mb-1">
+                          <AlertCircle size={14} />
+                          <span>Lỗi kết nối</span>
+                        </div>
+                      )}
+
                       {renderFormattedText(msg.content, isUser)}
+
+                      {/* Nút gửi lại (Retry) khi có lỗi */}
+                      {msg.isError && msg.failedText && (
+                        <button
+                          type="button"
+                          onClick={() => handleSendMessage(msg.failedText)}
+                          disabled={isLoading}
+                          className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold transition cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+                        >
+                          <RotateCcw size={12} />
+                          <span>Thử lại câu này</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Hiển thị thẻ sản phẩm đề xuất (nếu có) */}
-                  {msg.recommendedProducts && msg.recommendedProducts.length > 0 && (
+                  {/* Hiển thị thẻ sản phẩm đề xuất (click mở /products/{id}) */}
+                  {displayProducts && displayProducts.length > 0 && (
                     <div className="mt-2.5 ml-9 space-y-2 w-[calc(100%-2.25rem)]">
                       <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
                         <Sparkles size={12} className="text-blue-600" />
                         <span>Sản phẩm gợi ý cho bạn:</span>
                       </div>
                       <div className="grid grid-cols-1 gap-2">
-                        {msg.recommendedProducts.map((p) => (
+                        {displayProducts.map((p) => (
                           <Link
                             key={p.id}
                             to={`/products/${p.id}`}
@@ -347,7 +446,7 @@ export default function AiChatbot() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Quick Prompts */}
+          {/* Quick Prompts (Câu hỏi mẫu) */}
           <div className="px-3 py-2 bg-slate-50/90 border-t border-gray-100 flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {QUICK_PROMPTS.map((prompt) => (
               <button
@@ -376,6 +475,7 @@ export default function AiChatbot() {
               onChange={(e) => setInput(e.target.value)}
               placeholder="Nhập câu hỏi tìm kiếm sản phẩm..."
               disabled={isLoading}
+              maxLength={500}
               className="flex-1 bg-gray-50 border border-gray-200 focus:border-blue-500 focus:bg-white text-xs rounded-xl px-3.5 py-2.5 text-gray-900 outline-none transition-all"
             />
             <button
@@ -393,3 +493,7 @@ export default function AiChatbot() {
     </div>
   );
 }
+
+// Export cả AiAssistantWidget và AiChatbot để tương thích với mọi quy ước đặt tên
+export const AiAssistantWidget = AiChatbot;
+export default AiChatbot;

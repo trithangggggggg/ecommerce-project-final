@@ -9,6 +9,9 @@ export interface ChatMessage {
   content: string;
   timestamp?: Date;
   recommendedProducts?: Product[];
+  suggestedProducts?: Product[];
+  isError?: boolean;
+  failedText?: string;
 }
 
 export interface AiChatApiResponse {
@@ -16,6 +19,7 @@ export interface AiChatApiResponse {
   message: string;
   data: {
     reply: string;
+    suggestedProducts?: any[];
     recommendedProducts?: any[];
     provider?: string;
   };
@@ -26,11 +30,14 @@ export interface AiChatApiResponse {
  * Đảm bảo trợ lý AI luôn phản hồi linh hoạt, chuẩn xác theo từng câu hỏi của khách hàng
  * kể cả khi kết nối mạng chập chờn hoặc máy chủ đang khởi động.
  */
-function generateSmartClientFallback(userQuery: string): {
+export interface AiChatResult {
   reply: string;
   recommendedProducts: Product[];
+  suggestedProducts?: Product[];
   provider: string;
-} {
+}
+
+function generateSmartClientFallback(userQuery: string): AiChatResult {
   const q = userQuery.toLowerCase().trim();
 
   // 1. Chào hỏi thân thiện
@@ -260,12 +267,13 @@ export const aiService = {
   async chat(
     message: string,
     history: { role: string; content: string }[] = []
-  ): Promise<{ reply: string; recommendedProducts: Product[]; provider: string }> {
+  ): Promise<AiChatResult> {
     const cleanMessage = message.trim();
     if (!cleanMessage) {
       return {
         reply: 'Dạ bạn cần em hỗ trợ tư vấn sản phẩm hay thông tin bảo hành nào ạ?',
         recommendedProducts: [],
+        suggestedProducts: [],
         provider: 'NEXOR AI Assistant',
       };
     }
@@ -277,7 +285,7 @@ export const aiService = {
       });
 
       const data = response.data?.data || (response.data as any);
-      const rawProducts = data?.recommendedProducts || [];
+      const rawProducts = data?.suggestedProducts || data?.recommendedProducts || [];
 
       const formattedProducts: Product[] = rawProducts.map((item: any) => ({
         id: item.id,
@@ -296,6 +304,7 @@ export const aiService = {
       return {
         reply: data?.reply || 'Dạ NEXOR luôn sẵn sàng hỗ trợ quý khách!',
         recommendedProducts: formattedProducts,
+        suggestedProducts: formattedProducts,
         provider: data?.provider || 'NEXOR AI Assistant',
       };
     } catch {
