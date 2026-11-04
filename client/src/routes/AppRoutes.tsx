@@ -33,6 +33,7 @@ const AdminInventoryPage = React.lazy(() => import('../pages/admin/AdminInventor
 const AdminSuppliersPage = React.lazy(() => import('../pages/admin/AdminSuppliersPage'));
 const AdminReportsPage = React.lazy(() => import('../pages/admin/AdminReportsPage'));
 const AdminSettingsPage = React.lazy(() => import('../pages/admin/AdminSettingsPage'));
+const AdminAiPage = React.lazy(() => import('../pages/admin/AdminAiPage'));
 
 // Route Guards
 import ProtectedRoute from './ProtectedRoute';
@@ -114,6 +115,8 @@ export const AppRoutes: React.FC = () => {
             <Route path="suppliers" element={<AdminSuppliersPage />} />
             <Route path="reports" element={<AdminReportsPage />} />
             <Route path="settings" element={<AdminSettingsPage />} />
+            <Route path="ai" element={<AdminAiPage />} />
+            <Route path="knowledge" element={<AdminAiPage />} />
           </Route>
         </Route>
 

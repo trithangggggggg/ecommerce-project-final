@@ -54,4 +54,15 @@ export const ENDPOINTS = {
     CHAT: '/ai/chat',
     GENERATE_DESCRIPTION: '/admin/ai/generate-description',
   },
+  ADMIN_AI: {
+    KNOWLEDGE: '/admin/ai/knowledge',
+    KNOWLEDGE_STATS: '/admin/ai/knowledge/stats',
+    KNOWLEDGE_UPLOAD: '/admin/ai/knowledge/upload',
+    KNOWLEDGE_MANUAL: '/admin/ai/knowledge/manual',
+    KNOWLEDGE_DETAIL: (id: number | string) => `/admin/ai/knowledge/${id}`,
+    KNOWLEDGE_REINDEX: (id: number | string) => `/admin/ai/knowledge/${id}/reindex`,
+    KNOWLEDGE_CHUNKS: (id: number | string) => `/admin/ai/knowledge/${id}/chunks`,
+    CONFIG: '/admin/ai/config',
+    CONFIG_TEST: '/admin/ai/config/test',
+  },
 } as const;
