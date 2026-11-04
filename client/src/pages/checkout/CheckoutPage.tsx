@@ -25,6 +25,8 @@ import {
   QrCode,
   AlertTriangle,
   ExternalLink,
+  Search,
+  Ticket,
 } from 'lucide-react';
 import { useCartStore } from '../../store/useCartStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -114,6 +116,12 @@ export const CheckoutPage: React.FC = () => {
 
   // Shipping Voucher State (Mã ưu đãi vận chuyển)
   const [appliedShippingPromotion, setAppliedShippingPromotion] = useState<PromotionCheckResult | null>(null);
+
+  // Modal Chọn mã giảm giá (bảng hiển thị tất cả voucher có hiệu lực giống nhập kho)
+  const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
+  const [selectedVoucherCode, setSelectedVoucherCode] = useState<string>('');
+  const [voucherSearchQuery, setVoucherSearchQuery] = useState('');
+  const [voucherTypeTab, setVoucherTypeTab] = useState<'ALL' | 'ORDER' | 'SHIPPING' | 'COMPENSATION'>('ALL');
 
   // Status & Feedback State
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -324,6 +332,34 @@ export const CheckoutPage: React.FC = () => {
     setCouponSuccess(null);
   };
 
+  // Mở modal chọn mã giảm giá
+  const handleOpenVoucherModal = () => {
+    promotionService
+      .getAvailablePromotions()
+      .then((data) => {
+        if (Array.isArray(data)) setAvailablePromotions(data);
+      })
+      .catch(() => {});
+    if (appliedPromotion) {
+      setSelectedVoucherCode(appliedPromotion.code);
+    } else if (appliedShippingPromotion) {
+      setSelectedVoucherCode(appliedShippingPromotion.code);
+    } else if (couponInput.trim()) {
+      setSelectedVoucherCode(couponInput.trim());
+    } else {
+      setSelectedVoucherCode('');
+    }
+    setVoucherSearchQuery('');
+    setVoucherTypeTab('ALL');
+    setIsVoucherModalOpen(true);
+  };
+
+  const parseMinOrder = (minOrderStr?: string): number => {
+    if (!minOrderStr) return 0;
+    if (minOrderStr.toLowerCase().includes('mọi')) return 0;
+    const num = parseInt(minOrderStr.replace(/\D/g, ''), 10);
+    return isNaN(num) ? 0 : num;
+  };
   // Copy helper
   const handleCopyText = (text: string, label: string) => {
     if (navigator.clipboard) {
@@ -689,6 +725,7 @@ export const CheckoutPage: React.FC = () => {
   // ============================================================
   // MÀN HÌNH 2: CHƯA ĐĂNG NHẬP
   // ============================================================
+  // Kiểm tra nếu chưa đăng nhập, chuyển hướng hoặc cảnh báo
   if (!isAuthenticated) {
     return (
       <div className="min-h-[70vh] bg-[#f5f6fa] py-12 px-4 sm:px-6 lg:px-8 font-sans flex items-center justify-center">
@@ -772,6 +809,37 @@ export const CheckoutPage: React.FC = () => {
       !p.code.toUpperCase().startsWith('FREESHIP') &&
       !p.code.toUpperCase().startsWith('SHIP')
   );
+
+  // Danh sách voucher lọc cho modal bảng mã giảm giá
+  const filteredVouchers = availablePromotions.filter((p) => {
+    if (voucherTypeTab === 'ORDER') {
+      const isOrder =
+        p.type !== 'SHIPPING' &&
+        !p.code.toUpperCase().startsWith('FREESHIP') &&
+        !p.code.toUpperCase().startsWith('SHIP') &&
+        !p.code.toUpperCase().startsWith('DENBU') &&
+        !p.userId;
+      if (!isOrder) return false;
+    } else if (voucherTypeTab === 'SHIPPING') {
+      const isShip =
+        p.type === 'SHIPPING' ||
+        p.code.toUpperCase().startsWith('FREESHIP') ||
+        p.code.toUpperCase().startsWith('SHIP');
+      if (!isShip) return false;
+    } else if (voucherTypeTab === 'COMPENSATION') {
+      const isComp = p.code.toUpperCase().startsWith('DENBU') || Boolean(p.userId);
+      if (!isComp) return false;
+    }
+
+    if (voucherSearchQuery.trim()) {
+      const q = voucherSearchQuery.toLowerCase();
+      const matchCode = p.code.toLowerCase().includes(q);
+      const matchTitle = (p.title || '').toLowerCase().includes(q);
+      const matchDiscount = (p.discount || '').toLowerCase().includes(q);
+      return matchCode || matchTitle || matchDiscount;
+    }
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-[#f5f6fa] py-6 px-4 sm:px-6 lg:px-8 font-sans">
@@ -1442,17 +1510,14 @@ export const CheckoutPage: React.FC = () => {
                           className="w-full pl-9 pr-3 py-2 text-xs font-mono font-medium uppercase bg-white border border-gray-200 rounded-lg hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
                         />
                       </div>
-                      <Button
+                      <button
                         type="button"
-                        variant="dark"
-                        size="sm"
-                        onClick={() => handleApplyCoupon()}
-                        isLoading={isCheckingCoupon}
-                        disabled={!couponInput.trim() || isCheckingCoupon}
-                        className="shrink-0 text-xs px-3.5 py-2 font-bold"
+                        onClick={handleOpenVoucherModal}
+                        className="shrink-0 text-xs px-3.5 py-2 font-bold bg-slate-800 hover:bg-slate-900 text-white rounded-lg shadow-2xs flex items-center gap-1.5 cursor-pointer transition active:scale-[0.98]"
                       >
-                        Áp dụng
-                      </Button>
+                        <Ticket className="w-3.5 h-3.5 text-amber-300" />
+                        <span>Chọn mã giảm giá</span>
+                      </button>
                     </div>
 
                     {/* Thông báo lỗi nếu có */}
@@ -1489,56 +1554,6 @@ export const CheckoutPage: React.FC = () => {
                             >
                               <span className="font-mono">{promo.code}</span>
                               <span className="text-amber-400">|</span>
-                              <span className="text-emerald-700 font-bold">-{promo.discount}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 2. Mã Freeship vận chuyển */}
-                    {shippingVouchers.length > 0 && (
-                      <div className="pt-0.5">
-                        <span className="text-[10px] font-semibold text-gray-500 block mb-1">
-                          Mã Freeship vận chuyển:
-                        </span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {shippingVouchers.map((promo) => (
-                            <button
-                              key={promo.id || promo.code}
-                              type="button"
-                              onClick={() => handleApplyCoupon(promo.code)}
-                              className="group inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-semibold bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition cursor-pointer"
-                              title={promo.title || `Freeship: ${promo.discount}`}
-                            >
-                              <Truck className="w-2.5 h-2.5 text-indigo-500 group-hover:scale-110 transition-transform" />
-                              <span className="font-mono font-bold">{promo.code}</span>
-                              <span className="text-gray-300">|</span>
-                              <span className="text-emerald-700 font-bold">-{promo.discount}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 3. Mã ưu đãi đơn hàng */}
-                    {publicVouchers.length > 0 && (
-                      <div className="pt-0.5">
-                        <span className="text-[10px] font-semibold text-gray-500 block mb-1">
-                          Mã ưu đãi đơn hàng:
-                        </span>
-                        <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
-                          {publicVouchers.slice(0, 4).map((promo) => (
-                            <button
-                              key={promo.id || promo.code}
-                              type="button"
-                              onClick={() => handleApplyCoupon(promo.code)}
-                              className="group inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-semibold bg-blue-50/80 hover:bg-blue-100 text-blue-700 border border-blue-200 transition cursor-pointer"
-                              title={promo.title || `Giảm ${promo.discount}`}
-                            >
-                              <Sparkles className="w-2.5 h-2.5 text-blue-500 group-hover:scale-110 transition-transform" />
-                              <span className="font-mono font-bold">{promo.code}</span>
-                              <span className="text-gray-300">|</span>
                               <span className="text-emerald-700 font-bold">-{promo.discount}</span>
                             </button>
                           ))}
@@ -1667,6 +1682,315 @@ export const CheckoutPage: React.FC = () => {
             </div>
           </div>
         </form>
+
+        {/* ======================================================== */}
+        {/* MODAL: BẢNG CHỌN MÃ GIẢM GIÁ (GIỐNG BẢNG NHẬP KHO)       */}
+        {/* ======================================================== */}
+        {isVoucherModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+            <div className="bg-white rounded-2xl border border-slate-200 max-w-4xl sm:max-w-5xl w-full p-4 sm:p-5 shadow-2xl font-sans max-h-[92vh] flex flex-col overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 shrink-0">
+                <h3 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-xs">
+                    <Ticket className="w-4 h-4" />
+                  </div>
+                  <span>Chọn mã giảm giá & Voucher ưu đãi</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsVoucherModalOpen(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Top Toolbar: Search + Tabs */}
+              <div className="shrink-0 space-y-2.5 py-2.5 border-b border-slate-100">
+                {/* Search */}
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Search className="w-3.5 h-3.5" />
+                  </div>
+                  <input
+                    type="text"
+                    value={voucherSearchQuery}
+                    onChange={(e) => setVoucherSearchQuery(e.target.value)}
+                    placeholder="Tìm theo mã voucher, tên ưu đãi, mức giảm..."
+                    className="w-full pl-9 pr-8 py-2 border border-slate-300 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                  />
+                  {voucherSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setVoucherSearchQuery('')}
+                      className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Tabs */}
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-0.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setVoucherTypeTab('ALL')}
+                    className={`px-3 py-1 rounded-lg font-semibold whitespace-nowrap transition cursor-pointer ${
+                      voucherTypeTab === 'ALL'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Tất cả ({availablePromotions.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVoucherTypeTab('ORDER')}
+                    className={`px-3 py-1 rounded-lg font-semibold whitespace-nowrap transition cursor-pointer ${
+                      voucherTypeTab === 'ORDER'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Mã đơn hàng ({publicVouchers.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVoucherTypeTab('SHIPPING')}
+                    className={`px-3 py-1 rounded-lg font-semibold whitespace-nowrap transition cursor-pointer ${
+                      voucherTypeTab === 'SHIPPING'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Freeship vận chuyển ({shippingVouchers.length})
+                  </button>
+                  {compensationVouchers.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setVoucherTypeTab('COMPENSATION')}
+                      className={`px-3 py-1 rounded-lg font-semibold whitespace-nowrap transition cursor-pointer ${
+                        voucherTypeTab === 'COMPENSATION'
+                          ? 'bg-amber-600 text-white shadow-2xs'
+                          : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
+                      }`}
+                    >
+                      Mã đền bù của bạn ({compensationVouchers.length})
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* BẢNG DANH SÁCH MÃ GIẢM GIÁ (GIỐNG BẢNG NHẬP KHO) */}
+              <div className="flex-1 min-h-[180px] max-h-[400px] border border-slate-200 rounded-xl overflow-x-auto overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-2xs my-2">
+                <table className="w-full text-left text-xs border-collapse min-w-[760px]">
+                  <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200 text-slate-600 text-[11px] font-bold shadow-2xs">
+                    <tr>
+                      <th className="py-2.5 px-2 text-center w-10 bg-slate-50">STT</th>
+                      <th className="py-2.5 px-2 text-center w-12 bg-slate-50">Chọn</th>
+                      <th className="py-2.5 px-3 min-w-[130px] bg-slate-50">Mã Voucher</th>
+                      <th className="py-2.5 px-3 min-w-[210px] bg-slate-50">Tên chương trình & Mô tả</th>
+                      <th className="py-2.5 px-3 min-w-[130px] bg-slate-50">Loại ưu đãi</th>
+                      <th className="py-2.5 px-3 text-right min-w-[100px] bg-slate-50">Mức giảm</th>
+                      <th className="py-2.5 px-3 min-w-[130px] bg-slate-50">Đơn tối thiểu</th>
+                      <th className="py-2.5 px-3 min-w-[100px] bg-slate-50">Hạn sử dụng</th>
+                      <th className="py-2.5 px-2 text-center w-24 bg-slate-50">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {filteredVouchers.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="py-10 text-center text-slate-400">
+                          <div className="flex flex-col items-center justify-center">
+                            <Tag className="w-8 h-8 text-slate-300 stroke-[1.5] mb-2" />
+                            <p className="text-xs font-semibold text-slate-600">
+                              Không tìm thấy mã giảm giá nào phù hợp
+                            </p>
+                            <p className="text-[11px] text-slate-400 mt-1">
+                              Vui lòng thử tìm kiếm với từ khóa khác hoặc chuyển danh mục tab
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredVouchers.map((promo, idx) => {
+                        const isShipping =
+                          promo.type === 'SHIPPING' ||
+                          promo.code.toUpperCase().startsWith('FREESHIP') ||
+                          promo.code.toUpperCase().startsWith('SHIP');
+                        const isCompensation =
+                          promo.code.toUpperCase().startsWith('DENBU') || Boolean(promo.userId);
+                        const isApplied =
+                          (appliedPromotion && appliedPromotion.code === promo.code) ||
+                          (appliedShippingPromotion && appliedShippingPromotion.code === promo.code);
+                        const isSelected = selectedVoucherCode === promo.code;
+                        const minReq = parseMinOrder(promo.minOrder);
+                        const isEligible = checkoutTotalPrice >= minReq;
+
+                        return (
+                          <tr
+                            key={promo.id || promo.code}
+                            onClick={() => setSelectedVoucherCode(promo.code)}
+                            className={`hover:bg-slate-50/70 transition cursor-pointer ${
+                              isSelected ? 'bg-blue-50/40' : ''
+                            }`}
+                          >
+                            {/* STT */}
+                            <td className="py-2.5 px-2 text-center font-bold text-slate-600">
+                              {idx + 1}
+                            </td>
+
+                            {/* Chọn (Radio) */}
+                            <td className="py-2.5 px-2 text-center">
+                              <input
+                                type="radio"
+                                name="voucherRadio"
+                                checked={isSelected}
+                                onChange={() => setSelectedVoucherCode(promo.code)}
+                                className="w-3.5 h-3.5 text-blue-600 accent-blue-600 cursor-pointer"
+                              />
+                            </td>
+
+                            {/* Mã voucher */}
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 text-xs">
+                                {promo.code}
+                              </span>
+                              {isApplied && (
+                                <span className="ml-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                                  Đang dùng
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Tên & Mô tả */}
+                            <td className="py-2.5 px-3">
+                              <span className="font-bold text-slate-800 block text-xs">
+                                {promo.title || promo.code}
+                              </span>
+                            </td>
+
+                            {/* Loại ưu đãi */}
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              {isShipping ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                                  <Truck className="w-2.5 h-2.5" /> Giảm ship
+                                </span>
+                              ) : isCompensation ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                  <Gift className="w-2.5 h-2.5" /> Mã đền bù
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                                  <Tag className="w-2.5 h-2.5" /> Giảm đơn hàng
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Mức giảm */}
+                            <td className="py-2.5 px-3 text-right font-black text-emerald-600 whitespace-nowrap text-xs sm:text-[13px]">
+                              -{promo.discount}
+                            </td>
+
+                            {/* Đơn tối thiểu */}
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <span className="text-slate-700 font-medium block text-xs">
+                                {promo.minOrder || 'Mọi đơn hàng'}
+                              </span>
+                              {isEligible ? (
+                                <span className="text-[10px] font-bold text-emerald-600 inline-flex items-center gap-0.5">
+                                  <Check className="w-2.5 h-2.5" /> Đủ điều kiện
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-amber-600 font-medium">
+                                  Chưa đạt giá trị
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Hạn sử dụng */}
+                            <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap text-[11px]">
+                              {promo.expiry || 'Vô thời hạn'}
+                            </td>
+
+                            {/* Thao tác */}
+                            <td className="py-2.5 px-2 text-center whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  setSelectedVoucherCode(promo.code);
+                                  await handleApplyCoupon(promo.code);
+                                  setIsVoucherModalOpen(false);
+                                }}
+                                disabled={isApplied || isCheckingCoupon}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                                  isApplied
+                                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-2xs'
+                                }`}
+                              >
+                                {isApplied ? 'Đang dùng' : 'Áp dụng'}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Footer Modal: Hiển thị mã đang chọn + Nút Áp dụng */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2.5 border-t border-slate-100 shrink-0">
+                <div className="text-xs">
+                  {selectedVoucherCode ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500 font-medium">Mã đã chọn:</span>
+                      <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                        {selectedVoucherCode}
+                      </span>
+                      {availablePromotions.find((p) => p.code === selectedVoucherCode) && (
+                        <span className="text-emerald-600 font-bold">
+                          (Giảm {availablePromotions.find((p) => p.code === selectedVoucherCode)?.discount})
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-slate-400 italic">
+                      * Nhấp vào một mã trong bảng để chọn, sau đó bấm "Áp dụng"
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsVoucherModalOpen(false)}
+                    className="px-4 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (selectedVoucherCode) {
+                        await handleApplyCoupon(selectedVoucherCode);
+                        setIsVoucherModalOpen(false);
+                      }
+                    }}
+                    disabled={!selectedVoucherCode || isCheckingCoupon}
+                    className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>{isCheckingCoupon ? 'Đang kiểm tra...' : 'Áp dụng'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
