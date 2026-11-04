@@ -40,6 +40,14 @@ export interface ImportReceiptRow {
   currentStock: number;
 }
 
+export interface EditVariantStock {
+  id: number;
+  sku: string;
+  title: string;
+  stock: number;
+  price?: number;
+}
+
 export interface InventoryItem {
   id: number;
   sku: string;
@@ -556,9 +564,22 @@ export const AdminInventoryPage: React.FC = () => {
     unit: 'Chiếc',
   });
 
+  const [editVariantRows, setEditVariantRows] = useState<EditVariantStock[]>([]);
+
   // Open Edit
   const handleOpenEdit = (item: InventoryItem) => {
     setEditingItem(item);
+    const variantsList: EditVariantStock[] = (item.variants && item.variants.length > 0)
+      ? item.variants.map((v) => ({
+        id: v.id,
+        sku: v.sku,
+        title: v.title || v.sku || 'Tiêu chuẩn',
+        stock: typeof v.stock === 'number' ? v.stock : 0,
+        price: v.price,
+      }))
+      : [];
+    setEditVariantRows(variantsList);
+
     setEditForm({
       sku: item.sku,
       productName: item.productName,
@@ -570,43 +591,67 @@ export const AdminInventoryPage: React.FC = () => {
     });
   };
 
-  // Edit Submit
+  const handleEditVariantStockChange = (varId: number, newStock: number) => {
+    setEditVariantRows((prev) => {
+      const updated = prev.map((v) => (v.id === varId ? { ...v, stock: Math.max(0, newStock) } : v));
+      const totalStock = updated.reduce((sum, v) => sum + v.stock, 0);
+      setEditForm((f) => ({ ...f, quantity: totalStock }));
+      return updated;
+    });
+  };
+
+  // Edit Submit (Hướng 2: Cập nhật chi tiết theo từng biến thể)
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem) return;
 
-    const qty = Number(editForm.quantity) || 0;
-    const minS = Number(editForm.minStock) || 5;
-    const status: 'IN_STOCK' | 'OUT_OF_STOCK' = qty > 0 ? 'IN_STOCK' : 'OUT_OF_STOCK';
-
+    setIsLoading(true);
     try {
-      // Gọi API cập nhật tồn kho trực tiếp vào MySQL Database
-      await productService.updateProductStock(editingItem.id, qty);
+      let finalQty = Number(editForm.quantity) || 0;
+
+      // 1. Nếu sản phẩm có biến thể, gọi API cập nhật tồn kho từng biến thể
+      if (editVariantRows.length > 0) {
+        await Promise.all(
+          editVariantRows.map((v) =>
+            productService.updateVariantStock(v.id, v.stock, false)
+          )
+        );
+        finalQty = editVariantRows.reduce((sum, v) => sum + v.stock, 0);
+      } else {
+        // 2. Nếu là sản phẩm đơn bản không có biến thể con
+        await productService.updateProductStock(editingItem.id, finalQty);
+      }
+
+      const status: 'IN_STOCK' | 'OUT_OF_STOCK' = finalQty > 0 ? 'IN_STOCK' : 'OUT_OF_STOCK';
 
       setItems((prev) =>
-        prev.map((item) =>
-          item.id === editingItem.id
-            ? {
-              ...item,
-              sku: editForm.sku.trim().toUpperCase(),
-              productName: editForm.productName.trim(),
-              warehouse: editForm.warehouse,
-              shelfLocation: editForm.shelfLocation.trim(),
-              quantity: qty,
-              minStock: minS,
-              unit: editForm.unit,
-              status,
-              lastUpdated: new Date().toISOString().replace('T', ' ').substring(0, 16),
-            }
-            : item
-        )
+        prev.map((item) => {
+          if (item.id !== editingItem.id) return item;
+
+          const updatedVariants = item.variants?.map((v) => {
+            const found = editVariantRows.find((ev) => ev.id === v.id);
+            return found ? { ...v, stock: found.stock } : v;
+          });
+
+          return {
+            ...item,
+            warehouse: editForm.warehouse,
+            shelfLocation: editForm.shelfLocation.trim(),
+            quantity: finalQty,
+            status,
+            variants: updatedVariants || item.variants,
+            lastUpdated: new Date().toISOString().replace('T', ' ').substring(0, 16),
+          };
+        })
       );
 
-      showToast(`Đã cập nhật số lượng tồn kho "${editForm.productName}" (${qty} chiếc) thành công!`);
+      showToast(`Đã cập nhật tồn kho "${editingItem.productName}" (${finalQty} chiếc) thành công!`);
       setEditingItem(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Không thể cập nhật số lượng tồn kho';
       showToast(`Lỗi: ${msg}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -946,9 +991,9 @@ export const AdminInventoryPage: React.FC = () => {
       {/* ======================================================== */}
       {isAddOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-4xl sm:max-w-5xl w-full p-5 sm:p-6 shadow-2xl space-y-4 font-sans max-h-[92vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-4xl sm:max-w-5xl w-full p-4 sm:p-5 shadow-2xl font-sans max-h-[92vh] flex flex-col overflow-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 shrink-0">
               <h3 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-xs">
                   <Package className="w-4 h-4" />
@@ -964,140 +1009,143 @@ export const AdminInventoryPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleReceiptSubmit} className="space-y-4 text-xs">
-              {/* Row 1: Mã phiếu nhập & Ngày nhập */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <form onSubmit={handleReceiptSubmit} className="flex-1 min-h-0 flex flex-col text-xs pt-2">
+              {/* Form Info Cố định phía trên (Không bị cuộn) */}
+              <div className="shrink-0 space-y-2 mb-2">
+                {/* Row 1: Mã phiếu nhập & Ngày nhập */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-0.5 text-[11px]">
+                      Mã phiếu nhập <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                        <FileText className="w-3.5 h-3.5" />
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={receiptForm.receiptCode}
+                        onChange={(e) => setReceiptForm({ ...receiptForm, receiptCode: e.target.value })}
+                        placeholder="VD: PN20250614-001"
+                        className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded-xl font-mono focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-0.5 text-[11px]">
+                      Ngày nhập <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                        <Calendar className="w-3.5 h-3.5" />
+                      </div>
+                      <input
+                        type="date"
+                        required
+                        value={receiptForm.importDate}
+                        onChange={(e) => setReceiptForm({ ...receiptForm, importDate: e.target.value })}
+                        className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 2: Nhà cung cấp & Người nhập */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-0.5 text-[11px]">
+                      Nhà cung cấp <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                        <Building2 className="w-3.5 h-3.5" />
+                      </div>
+                      <select
+                        value={receiptForm.supplierName}
+                        onChange={(e) => setReceiptForm({ ...receiptForm, supplierName: e.target.value })}
+                        className="w-full pl-9 pr-8 py-1.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs cursor-pointer"
+                      >
+                        <option value="">-- Chọn nhà cung cấp --</option>
+                        {supplierOptions.map((sup) => (
+                          <option key={sup} value={sup}>
+                            {sup}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-0.5 text-[11px]">
+                      Người nhập <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                        <User className="w-3.5 h-3.5" />
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={receiptForm.importerName}
+                        onChange={(e) => setReceiptForm({ ...receiptForm, importerName: e.target.value })}
+                        placeholder={user?.fullName || 'Quản trị viên Hệ thống'}
+                        className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 3: Ghi chú */}
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">
-                    Mã phiếu nhập <span className="text-rose-500">*</span>
-                  </label>
+                  <label className="block text-slate-700 font-semibold mb-0.5 text-[11px]">Ghi chú</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                      <FileText className="w-4 h-4" />
+                      <FileText className="w-3.5 h-3.5" />
                     </div>
                     <input
                       type="text"
-                      required
-                      value={receiptForm.receiptCode}
-                      onChange={(e) => setReceiptForm({ ...receiptForm, receiptCode: e.target.value })}
-                      placeholder="VD: PN20250614-001"
-                      className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl font-mono focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">
-                    Ngày nhập <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                      <Calendar className="w-4 h-4" />
-                    </div>
-                    <input
-                      type="date"
-                      required
-                      value={receiptForm.importDate}
-                      onChange={(e) => setReceiptForm({ ...receiptForm, importDate: e.target.value })}
-                      className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs"
+                      value={receiptForm.note}
+                      onChange={(e) => setReceiptForm({ ...receiptForm, note: e.target.value })}
+                      placeholder="Nhập hàng theo đơn đặt hàng số #DH123"
+                      className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Row 2: Nhà cung cấp & Người nhập */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">
-                    Nhà cung cấp <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                      <Building2 className="w-4 h-4" />
-                    </div>
-                    <select
-                      value={receiptForm.supplierName}
-                      onChange={(e) => setReceiptForm({ ...receiptForm, supplierName: e.target.value })}
-                      className="w-full pl-9 pr-8 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs cursor-pointer"
-                    >
-                      <option value="">-- Chọn nhà cung cấp --</option>
-                      {supplierOptions.map((sup) => (
-                        <option key={sup} value={sup}>
-                          {sup}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">
-                    Người nhập <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                      <User className="w-4 h-4" />
-                    </div>
-                    <input
-                      type="text"
-                      required
-                      value={receiptForm.importerName}
-                      onChange={(e) => setReceiptForm({ ...receiptForm, importerName: e.target.value })}
-                      placeholder={user?.fullName || 'Quản trị viên Hệ thống'}
-                      className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Row 3: Ghi chú */}
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">Ghi chú</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                    <FileText className="w-4 h-4" />
-                  </div>
-                  <input
-                    type="text"
-                    value={receiptForm.note}
-                    onChange={(e) => setReceiptForm({ ...receiptForm, note: e.target.value })}
-                    placeholder="Nhập hàng theo đơn đặt hàng số #DH123"
-                    className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs"
-                  />
-                </div>
-              </div>
-
-              {/* Section: Danh sách sản phẩm nhập */}
-              <div className="pt-2">
-                <div className="flex items-center justify-between mb-2">
+              {/* Section: Danh sách sản phẩm nhập (Chỉ cuộn ở phần table này) */}
+              <div className="flex-1 min-h-0 flex flex-col pt-1">
+                <div className="flex items-center justify-between mb-1.5 shrink-0">
                   <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 rounded bg-blue-600 flex items-center justify-center text-white shadow-2xs">
-                      <Package className="w-3 h-3" />
+                    <div className="w-4 h-4 rounded bg-blue-600 flex items-center justify-center text-white shadow-2xs">
+                      <Package className="w-2.5 h-2.5" />
                     </div>
                     <h4 className="text-xs font-bold text-slate-800 tracking-wide">
                       Danh sách sản phẩm nhập
                     </h4>
                   </div>
-                  <span className="text-[11px] text-slate-500 font-medium">
+                  <span className="text-[10px] text-slate-400 font-medium">
                     Hỗ trợ chọn chi tiết phân loại (Dung lượng, Màu sắc, ...)
                   </span>
                 </div>
 
-                {/* Table: Danh sách sản phẩm nhập (Phương án 1: Tách 2 cột Sản phẩm + Biến thể) */}
-                <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-2xs">
+                {/* Table Container - CUỘN DUY NHẤT TRONG TABLE NÀY (ĐÃ ẨN THANH SCROLL) */}
+                <div className="flex-1 min-h-[140px] max-h-[350px] sm:max-h-[410px] border border-slate-200 rounded-xl overflow-x-auto overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-2xs">
                   <table className="w-full text-left text-xs border-collapse min-w-[760px]">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-[11px] font-bold">
-                        <th className="py-2.5 px-2 text-center w-10">STT</th>
-                        <th className="py-2.5 px-3 min-w-[190px]">Sản phẩm *</th>
-                        <th className="py-2.5 px-3 min-w-[220px]">Biến thể / Phân loại *</th>
-                        <th className="py-2.5 px-2 text-center w-24">Số lượng *</th>
-                        <th className="py-2.5 px-3 text-right w-32">Đơn giá (VNĐ)</th>
-                        <th className="py-2.5 px-3 text-right w-32">Thành tiền (VNĐ)</th>
-                        <th className="py-2.5 px-2 text-center w-12">Thao tác</th>
+                    <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200 text-slate-600 text-[11px] font-bold shadow-2xs">
+                      <tr>
+                        <th className="py-2.5 px-2 text-center w-10 bg-slate-50">STT</th>
+                        <th className="py-2.5 px-3 min-w-[190px] bg-slate-50">Sản phẩm *</th>
+                        <th className="py-2.5 px-3 min-w-[220px] bg-slate-50">Biến thể / Phân loại *</th>
+                        <th className="py-2.5 px-2 text-center w-24 bg-slate-50">Số lượng *</th>
+                        <th className="py-2.5 px-3 text-right w-32 bg-slate-50">Đơn giá (VNĐ)</th>
+                        <th className="py-2.5 px-3 text-right w-32 bg-slate-50">Thành tiền (VNĐ)</th>
+                        <th className="py-2.5 px-2 text-center w-12 bg-slate-50">Thao tác</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 bg-white">
                       {importRows.length === 0 ? (
                         <tr>
                           <td colSpan={7} className="py-8 text-center text-slate-400">
@@ -1304,7 +1352,7 @@ export const AdminInventoryPage: React.FC = () => {
                 </div>
 
                 {/* Below table: Add product button + Total price */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2.5">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2 shrink-0">
                   <button
                     type="button"
                     onClick={handleAddImportRow}
@@ -1324,7 +1372,7 @@ export const AdminInventoryPage: React.FC = () => {
               </div>
 
               {/* Footer Buttons */}
-              <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <div className="flex justify-end gap-2.5 pt-2.5 border-t border-slate-100 shrink-0 mt-1">
                 <button
                   type="button"
                   onClick={() => setIsAddOpen(false)}
@@ -1444,16 +1492,26 @@ export const AdminInventoryPage: React.FC = () => {
       )}
 
       {/* ======================================================== */}
-      {/* MODAL 2: CẬP NHẬT TỒN KHO & ĐIỀU CHUYỂN (SỬA)            */}
+      {/* MODAL 2: CẬP NHẬT TỒN KHO & ĐIỀU CHUYỂN (HƯỚNG 2)         */}
       {/* ======================================================== */}
       {editingItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4 font-sans">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Edit className="w-5 h-5 text-amber-600" />
-                <span>Cập nhật tồn kho SKU {editingItem.sku}</span>
-              </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 font-sans max-h-[92vh] flex flex-col overflow-hidden">
+            {/* Header: Sửa lỗi lặp từ SKU */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-xs">
+                  <Edit className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 leading-tight">
+                    Cập nhật tồn kho
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-mono mt-0.5">
+                    Mã SKU: <span className="text-blue-700 font-bold">{editingItem.sku}</span>
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setEditingItem(null)}
@@ -1463,25 +1521,23 @@ export const AdminInventoryPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleEditSubmit} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">Tên sản phẩm thiết bị</label>
-                <input
-                  type="text"
-                  required
-                  value={editForm.productName}
-                  onChange={(e) => setEditForm({ ...editForm, productName: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
-                />
+            <form onSubmit={handleEditSubmit} className="flex-1 min-h-0 flex flex-col space-y-3 text-xs overflow-hidden">
+              {/* Thông tin sản phẩm (Dạng cố định, tránh hiểu nhầm là sửa tên) */}
+              <div className="bg-slate-50 rounded-xl p-3 border border-slate-200/80 shrink-0">
+                <span className="text-[11px] font-semibold text-slate-500 block mb-0.5">Sản phẩm thiết bị</span>
+                <span className="text-xs font-bold text-slate-900 block truncate" title={editingItem.productName}>
+                  {editingItem.productName}
+                </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Kho lưu trữ & Vị trí kệ */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 shrink-0">
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">Kho lưu trữ</label>
                   <select
                     value={editForm.warehouse}
                     onChange={(e) => setEditForm({ ...editForm, warehouse: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs cursor-pointer font-medium"
                   >
                     {WAREHOUSE_OPTIONS.map((w) => (
                       <option key={w} value={w}>
@@ -1496,35 +1552,105 @@ export const AdminInventoryPage: React.FC = () => {
                     type="text"
                     value={editForm.shelfLocation}
                     onChange={(e) => setEditForm({ ...editForm, shelfLocation: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs font-medium"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">Số lượng tồn kho thực tế *</label>
-                <input
-                  type="number"
-                  min="0"
-                  required
-                  value={editForm.quantity}
-                  onChange={(e) => setEditForm({ ...editForm, quantity: Number(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none font-bold text-sm"
-                />
-              </div>
+              {/* HƯỚNG 2: Nếu sản phẩm có nhiều biến thể con (Dung lượng, Màu sắc...) */}
+              {editVariantRows.length > 1 ? (
+                <div className="flex-1 min-h-0 flex flex-col space-y-2 pt-1">
+                  <div className="flex items-center justify-between shrink-0">
+                    <label className="text-slate-700 font-bold text-xs flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Số lượng theo từng phân loại ({editVariantRows.length} biến thể)</span>
+                    </label>
+                    <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                      Tổng tồn: {editForm.quantity} chiếc
+                    </span>
+                  </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                <Button type="button" variant="outline" size="sm" onClick={() => setEditingItem(null)}>
-                  Hủy
-                </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="sm"
-                  className="bg-purple-600 hover:bg-purple-700 text-white border-transparent"
+                  <div className="flex-1 min-h-[120px] max-h-56 overflow-y-auto no-scrollbar space-y-2 border border-slate-200 rounded-xl p-2.5 bg-slate-50/50">
+                    {editVariantRows.map((v) => (
+                      <div
+                        key={v.id}
+                        className="bg-white p-2.5 rounded-lg border border-slate-200/90 shadow-2xs flex items-center justify-between gap-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <span className="text-xs font-bold text-slate-800 block truncate" title={v.title}>
+                            {v.title}
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400 block truncate">
+                            SKU: {v.sku}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <label className="text-[11px] text-slate-500 font-semibold">Tồn kho:</label>
+                          <input
+                            type="number"
+                            min="0"
+                            required
+                            value={v.stock}
+                            onChange={(e) => handleEditVariantStockChange(v.id, Number(e.target.value) || 0)}
+                            className="w-20 px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs text-center font-bold text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                /* Sản phẩm đơn bản */
+                <div className="shrink-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-slate-700 font-semibold">
+                      Số lượng tồn kho thực tế <span className="text-rose-500">*</span>
+                    </label>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${Number(editForm.quantity) > 0
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-rose-50 text-rose-700 border-rose-200'
+                        }`}
+                    >
+                      {Number(editForm.quantity) > 0 ? 'Còn hàng' : 'Hết hàng'}
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={editForm.quantity}
+                    onChange={(e) => {
+                      const val = Math.max(0, Number(e.target.value) || 0);
+                      setEditForm({ ...editForm, quantity: val });
+                      if (editVariantRows.length === 1) {
+                        setEditVariantRows([{ ...editVariantRows[0], stock: val }]);
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-bold text-sm text-slate-800"
+                  />
+                </div>
+              )}
+
+              {/* Footer Buttons: Đồng bộ màu xanh dương */}
+              <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setEditingItem(null)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition cursor-pointer flex items-center gap-1.5"
                 >
-                  Lưu thay đổi
-                </Button>
+                  <X className="w-3.5 h-3.5" />
+                  <span>Hủy</span>
+                </button>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition cursor-pointer shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{isLoading ? 'Đang lưu...' : 'Lưu thay đổi'}</span>
+                </button>
               </div>
             </form>
           </div>
