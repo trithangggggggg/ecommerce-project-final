@@ -215,7 +215,7 @@ public class PromotionController {
                         p.setType(p.isShippingDiscount() ? "SHIPPING" : "ORDER");
                     }
                 })
-                .limit(12)
+                .limit(100)
                 .toList();
 
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách mã ưu đãi khả dụng thành công", activePromotions));
