@@ -27,6 +27,7 @@ import { useCartStore } from '../../../store/useCartStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { ROUTES } from '../../../constants/routes';
 import { PetMascot } from '../Mascot/PetMascot';
+import { LogoutConfirmModal } from '../LogoutConfirmModal';
 
 export const Header: React.FC = () => {
   const navigate = useNavigate();
@@ -40,6 +41,7 @@ export const Header: React.FC = () => {
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const userMenuRef = useRef<HTMLDivElement>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -373,8 +375,7 @@ export const Header: React.FC = () => {
                     onClick={() => {
                       if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
                       setUserDropdownOpen(false);
-                      logout();
-                      navigate(ROUTES.HOME, { replace: true });
+                      setShowLogoutModal(true);
                     }}
                     className="w-full text-left px-3.5 py-2 text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2.5 cursor-pointer transition font-medium"
                   >
@@ -575,6 +576,16 @@ export const Header: React.FC = () => {
           })}
         </div>
       )}
+
+      {/* Modal xác nhận đăng xuất */}
+      <LogoutConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={() => {
+          logout();
+          navigate(ROUTES.HOME, { replace: true });
+        }}
+      />
     </header>
   );
 };

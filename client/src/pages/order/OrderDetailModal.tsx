@@ -297,9 +297,8 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           <div className="flex justify-between text-gray-600">
             <span>Phí vận chuyển</span>
             <span
-              className={`font-semibold ${
-                shippingFee === 0 ? 'text-emerald-600' : 'text-gray-900'
-              }`}
+              className={`font-semibold ${shippingFee === 0 ? 'text-emerald-600' : 'text-gray-900'
+                }`}
             >
               {shippingFee === 0 ? 'Miễn phí (0₫)' : formatPrice(shippingFee)}
             </span>
@@ -339,4 +338,3 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 };
 
 export default OrderDetailModal;
-
