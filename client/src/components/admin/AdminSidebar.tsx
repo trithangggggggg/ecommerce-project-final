@@ -15,6 +15,7 @@ import {
   LogOut,
   X,
   Image as ImageIcon,
+  Sparkles,
 } from 'lucide-react';
 import { ROUTES } from '../../constants/routes';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -215,6 +216,25 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                 Hệ thống
               </div>
               <div className="space-y-1">
+                <NavLink
+                  to={ROUTES.ADMIN_AI}
+                  onClick={onClose}
+                  className={({ isActive }) =>
+                    `flex items-center justify-between px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all ${isActive
+                      ? 'bg-blue-50 text-blue-600 font-bold shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    }`
+                  }
+                >
+                  <div className="flex items-center gap-3">
+                    <Sparkles className="w-[18px] h-[18px] shrink-0 text-blue-600" />
+                    <span>Quản lý AI & Tri thức</span>
+                  </div>
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-100 text-blue-700">
+                    RAG
+                  </span>
+                </NavLink>
+
                 <NavLink
                   to={ROUTES.ADMIN_SETTINGS}
                   onClick={onClose}

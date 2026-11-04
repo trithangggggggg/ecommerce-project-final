@@ -12,11 +12,14 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import ra.project.server.exception.GlobalExceptionHandler;
+import ra.project.server.model.dto.request.AiConfigRequest;
 import ra.project.server.model.dto.request.AiGenerateDescriptionRequest;
 import ra.project.server.model.dto.request.ManualKnowledgeRequest;
+import ra.project.server.model.dto.response.AiConfigResponse;
 import ra.project.server.model.dto.response.AiGenerateDescriptionResponse;
 import ra.project.server.model.dto.response.KnowledgeDocumentResponse;
 import ra.project.server.model.dto.response.KnowledgeStatsResponse;
+import ra.project.server.service.AiConfigService;
 import ra.project.server.service.AiService;
 import ra.project.server.service.KnowledgeBaseService;
 
@@ -40,6 +43,9 @@ class AdminAiControllerTest {
 
     @Mock
     private KnowledgeBaseService knowledgeBaseService;
+
+    @Mock
+    private AiConfigService aiConfigService;
 
     @InjectMocks
     private AdminAiController adminAiController;
@@ -174,5 +180,76 @@ class AdminAiControllerTest {
                 .andExpect(jsonPath("$.success").value(true));
 
         verify(knowledgeBaseService).deleteDocument(1L);
+    }
+
+    @Test
+    @DisplayName("Lấy cấu hình trí tuệ & giới hạn AI")
+    void testGetAiConfig() throws Exception {
+        AiConfigResponse config = AiConfigResponse.builder()
+                .provider("GOOGLE_GEMINI")
+                .modelName("gemini-1.5-flash")
+                .rateLimitPerMinute(15)
+                .maxInputLength(500)
+                .temperature(0.7)
+                .build();
+
+        when(aiConfigService.getConfig()).thenReturn(config);
+
+        mockMvc.perform(get("/api/admin/ai/config"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.provider").value("GOOGLE_GEMINI"))
+                .andExpect(jsonPath("$.data.rateLimitPerMinute").value(15));
+    }
+
+    @Test
+    @DisplayName("Cập nhật cấu hình trí tuệ & giới hạn AI")
+    void testUpdateAiConfig() throws Exception {
+        AiConfigRequest req = AiConfigRequest.builder()
+                .provider("GOOGLE_GEMINI")
+                .modelName("gemini-1.5-pro")
+                .rateLimitPerMinute(20)
+                .maxInputLength(600)
+                .temperature(0.5)
+                .build();
+
+        AiConfigResponse updated = AiConfigResponse.builder()
+                .provider("GOOGLE_GEMINI")
+                .modelName("gemini-1.5-pro")
+                .rateLimitPerMinute(20)
+                .maxInputLength(600)
+                .temperature(0.5)
+                .build();
+
+        when(aiConfigService.updateConfig(any(AiConfigRequest.class))).thenReturn(updated);
+
+        mockMvc.perform(put("/api/admin/ai/config")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.modelName").value("gemini-1.5-pro"))
+                .andExpect(jsonPath("$.data.rateLimitPerMinute").value(20));
+    }
+
+    @Test
+    @DisplayName("Kiểm tra kết nối AI ping test")
+    void testTestAiConnection() throws Exception {
+        Map<String, Object> testRes = Map.of(
+                "success", true,
+                "provider", "GOOGLE_GEMINI (gemini-1.5-flash)",
+                "latencyMs", 150,
+                "status", "HEALTHY"
+        );
+
+        when(aiConfigService.testConnection(any(), any())).thenReturn(testRes);
+
+        mockMvc.perform(post("/api/admin/ai/config/test")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("HEALTHY"))
+                .andExpect(jsonPath("$.data.latencyMs").value(150));
     }
 }

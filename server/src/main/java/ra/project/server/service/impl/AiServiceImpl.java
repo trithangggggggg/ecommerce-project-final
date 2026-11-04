@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.api.OpenAiApi;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -18,6 +19,7 @@ import ra.project.server.model.dto.response.AiGenerateDescriptionResponse;
 import ra.project.server.model.dto.response.ProductResponse;
 import ra.project.server.model.entity.Product;
 import ra.project.server.repository.ProductRepository;
+import ra.project.server.service.AiConfigService;
 import ra.project.server.service.AiService;
 import ra.project.server.service.KnowledgeBaseService;
 
@@ -43,6 +45,9 @@ public class AiServiceImpl implements AiService {
     private final ProductMapper productMapper;
     private final KnowledgeBaseService knowledgeBaseService;
 
+    @Autowired(required = false)
+    private AiConfigService aiConfigService;
+
     @Value("${gemini.api-key:${GEMINI_API_KEY:}}")
     private String geminiApiKey;
 
@@ -57,6 +62,26 @@ public class AiServiceImpl implements AiService {
 
     @Value("${spring.ai.openai.chat.options.model:gpt-4o-mini}")
     private String openAiModel;
+
+    private String getEffectiveGeminiApiKey() {
+        if (aiConfigService != null) return aiConfigService.getEffectiveGeminiApiKey();
+        return geminiApiKey;
+    }
+
+    private String getEffectiveGeminiModel() {
+        if (aiConfigService != null) return aiConfigService.getEffectiveGeminiModel();
+        return geminiModel;
+    }
+
+    private String getEffectiveOpenAiApiKey() {
+        if (aiConfigService != null) return aiConfigService.getEffectiveOpenAiApiKey();
+        return openAiApiKey;
+    }
+
+    private String getEffectiveOpenAiModel() {
+        if (aiConfigService != null) return aiConfigService.getEffectiveOpenAiModel();
+        return openAiModel;
+    }
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newBuilder()
@@ -140,10 +165,14 @@ public class AiServiceImpl implements AiService {
 
         // 3. RAG Context 2: Truy xuất tri thức từ Knowledge Base (Chính sách, FAQ, hướng dẫn)
         List<String> relevantKnowledge = Collections.emptyList();
-        try {
-            relevantKnowledge = knowledgeBaseService.findRelevantChunks(userMessage, 3);
-        } catch (Exception ex) {
-            log.warn("Không thể truy xuất Knowledge Base: {}", ex.getMessage());
+        boolean kbEnabled = aiConfigService == null || aiConfigService.isKnowledgeBaseEnabled();
+        int topK = aiConfigService != null ? aiConfigService.getTopKChunks() : 3;
+        if (kbEnabled) {
+            try {
+                relevantKnowledge = knowledgeBaseService.findRelevantChunks(userMessage, topK);
+            } catch (Exception ex) {
+                log.warn("Không thể truy xuất Knowledge Base: {}", ex.getMessage());
+            }
         }
 
         // 4. Tạo Prompt nạp ngữ cảnh RAG đầy đủ
@@ -152,24 +181,29 @@ public class AiServiceImpl implements AiService {
         String replyText = null;
         String provider = "SMART_ASSISTANT (Local Engine)";
 
+        String activeGeminiKey = getEffectiveGeminiApiKey();
+        String activeGeminiModel = getEffectiveGeminiModel();
+        String activeOpenAiKey = getEffectiveOpenAiApiKey();
+        String activeOpenAiModel = getEffectiveOpenAiModel();
+
         // 5. Thử gọi Google Gemini AI (timeout 4s để đảm bảo cam kết trả lời 2-3 giây)
-        if (StringUtils.hasText(geminiApiKey) && !geminiApiKey.equalsIgnoreCase("dummy") && !geminiApiKey.startsWith("placeholder")) {
-            log.info("Đang gọi Google Gemini AI Model [{}] để tư vấn sản phẩm cho khách...", geminiModel);
+        if (StringUtils.hasText(activeGeminiKey) && !activeGeminiKey.equalsIgnoreCase("dummy") && !activeGeminiKey.startsWith("placeholder")) {
+            log.info("Đang gọi Google Gemini AI Model [{}] để tư vấn sản phẩm cho khách...", activeGeminiModel);
             replyText = callGeminiApi(prompt);
             if (StringUtils.hasText(replyText)) {
-                provider = "GOOGLE_GEMINI (" + geminiModel + ")";
+                provider = "GOOGLE_GEMINI (" + activeGeminiModel + ")";
             }
         }
 
         // 6. Thử gọi Spring AI (OpenAI) nếu Gemini không khả dụng
-        if (!StringUtils.hasText(replyText) && StringUtils.hasText(openAiApiKey) && !openAiApiKey.equalsIgnoreCase("dummy")) {
+        if (!StringUtils.hasText(replyText) && StringUtils.hasText(activeOpenAiKey) && !activeOpenAiKey.equalsIgnoreCase("dummy")) {
             try {
-                log.info("Đang gọi Spring AI OpenAI Model [{}] để tư vấn sản phẩm...", openAiModel);
-                OpenAiApi openAiApi = new OpenAiApi(openAiApiKey);
+                log.info("Đang gọi Spring AI OpenAI Model [{}] để tư vấn sản phẩm...", activeOpenAiModel);
+                OpenAiApi openAiApi = new OpenAiApi(activeOpenAiKey);
                 OpenAiChatModel chatModel = new OpenAiChatModel(openAiApi);
                 replyText = chatModel.call(prompt);
                 if (StringUtils.hasText(replyText)) {
-                    provider = "SPRING_AI (" + openAiModel + ")";
+                    provider = "SPRING_AI (" + activeOpenAiModel + ")";
                 }
             } catch (Exception ex) {
                 log.warn("Gọi Spring AI thất bại: {}", ex.getMessage());
@@ -183,9 +217,17 @@ public class AiServiceImpl implements AiService {
         }
 
         // 8. Trích xuất danh sách sản phẩm được AI đề xuất để hiển thị Product Card
-        List<ProductResponse> recommended = extractRecommendedProducts(replyText, userMessage, allProducts);
-        if (recommended.isEmpty() && !relevantProducts.isEmpty()) {
-            recommended = relevantProducts.stream().limit(3).map(productMapper::toResponse).collect(Collectors.toList());
+        boolean suggestEnabled = aiConfigService == null || aiConfigService.isSuggestProductsEnabled();
+        int maxProducts = aiConfigService != null ? aiConfigService.getMaxSuggestedProducts() : 3;
+
+        List<ProductResponse> recommended = Collections.emptyList();
+        if (suggestEnabled) {
+            recommended = extractRecommendedProducts(replyText, userMessage, allProducts);
+            if (recommended.isEmpty() && !relevantProducts.isEmpty()) {
+                recommended = relevantProducts.stream().limit(maxProducts).map(productMapper::toResponse).collect(Collectors.toList());
+            } else if (recommended.size() > maxProducts) {
+                recommended = recommended.subList(0, maxProducts);
+            }
         }
 
         return AiChatResponse.builder()
@@ -272,7 +314,11 @@ public class AiServiceImpl implements AiService {
 
     private String buildChatPrompt(String userMessage, List<ChatMessageDto> history, List<Product> products, List<String> knowledge) {
         StringBuilder sb = new StringBuilder();
-        sb.append("Bạn là 'NEXOR AI Assistant' - Chuyên viên tư vấn bán hàng công nghệ thông minh, nhiệt tình và am hiểu sản phẩm của website thương mại điện tử NEXOR.\n\n");
+        if (aiConfigService != null && StringUtils.hasText(aiConfigService.getSystemPrompt())) {
+            sb.append(aiConfigService.getSystemPrompt()).append("\n\n");
+        } else {
+            sb.append("Bạn là 'NEXOR AI Assistant' - Chuyên viên tư vấn bán hàng công nghệ thông minh, nhiệt tình và am hiểu sản phẩm của website thương mại điện tử NEXOR.\n\n");
+        }
 
         sb.append("=== CHÍNH SÁCH BÁN HÀNG CỦA NEXOR ===\n");
         sb.append("- Miễn phí vận chuyển toàn quốc cho đơn hàng từ 500.000đ.\n");
@@ -500,8 +546,12 @@ public class AiServiceImpl implements AiService {
     }
 
     private String callGeminiApi(String prompt) {
+        String effectiveKey = getEffectiveGeminiApiKey();
+        String effectiveModel = getEffectiveGeminiModel();
+        if (!StringUtils.hasText(effectiveKey)) return null;
+
         String[] candidateModels = new String[]{
-                geminiModel,
+                effectiveModel,
                 "gemini-1.5-flash",
                 "gemini-2.0-flash",
                 "gemini-2.5-flash"
@@ -510,7 +560,7 @@ public class AiServiceImpl implements AiService {
         for (String model : candidateModels) {
             if (!StringUtils.hasText(model)) continue;
             try {
-                String url = String.format("%s/%s:generateContent?key=%s", geminiApiUrl, model.trim(), geminiApiKey.trim());
+                String url = String.format("%s/%s:generateContent?key=%s", geminiApiUrl, model.trim(), effectiveKey.trim());
                 Map<String, Object> part = Map.of("text", prompt);
                 Map<String, Object> content = Map.of("parts", List.of(part));
                 Map<String, Object> requestPayload = Map.of("contents", List.of(content));

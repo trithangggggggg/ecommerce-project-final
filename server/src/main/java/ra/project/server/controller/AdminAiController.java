@@ -7,16 +7,20 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import ra.project.server.common.response.ApiResponse;
+import ra.project.server.model.dto.request.AiConfigRequest;
 import ra.project.server.model.dto.request.AiGenerateDescriptionRequest;
 import ra.project.server.model.dto.request.ManualKnowledgeRequest;
+import ra.project.server.model.dto.response.AiConfigResponse;
 import ra.project.server.model.dto.response.AiGenerateDescriptionResponse;
 import ra.project.server.model.dto.response.KnowledgeChunkResponse;
 import ra.project.server.model.dto.response.KnowledgeDocumentResponse;
 import ra.project.server.model.dto.response.KnowledgeStatsResponse;
+import ra.project.server.service.AiConfigService;
 import ra.project.server.service.AiService;
 import ra.project.server.service.KnowledgeBaseService;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin/ai")
@@ -27,6 +31,7 @@ public class AdminAiController {
 
     private final AiService aiService;
     private final KnowledgeBaseService knowledgeBaseService;
+    private final AiConfigService aiConfigService;
 
     @PostMapping("/generate-description")
     public ResponseEntity<ApiResponse<AiGenerateDescriptionResponse>> generateDescription(
@@ -95,5 +100,33 @@ public class AdminAiController {
     public ResponseEntity<ApiResponse<List<KnowledgeChunkResponse>>> getDocumentChunks(@PathVariable Long id) {
         List<KnowledgeChunkResponse> chunks = knowledgeBaseService.getChunksByDocumentId(id);
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách chunks của tài liệu thành công", chunks));
+    }
+
+    // ========================================================
+    // CẤU HÌNH TRÍ TUỆ & GIỚI HẠN AI (AI INTELLIGENCE & LIMITS)
+    // ========================================================
+
+    @GetMapping("/config")
+    public ResponseEntity<ApiResponse<AiConfigResponse>> getAiConfig() {
+        AiConfigResponse config = aiConfigService.getConfig();
+        return ResponseEntity.ok(ApiResponse.success("Lấy cấu hình trí tuệ và giới hạn AI thành công", config));
+    }
+
+    @PutMapping("/config")
+    public ResponseEntity<ApiResponse<AiConfigResponse>> updateAiConfig(
+            @Valid @RequestBody AiConfigRequest request
+    ) {
+        AiConfigResponse updated = aiConfigService.updateConfig(request);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật cấu hình AI thành công", updated));
+    }
+
+    @PostMapping("/config/test")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> testAiConnection(
+            @RequestBody(required = false) Map<String, String> body
+    ) {
+        String provider = body != null ? body.get("provider") : null;
+        String model = body != null ? body.get("model") : null;
+        Map<String, Object> testResult = aiConfigService.testConnection(provider, model);
+        return ResponseEntity.ok(ApiResponse.success("Kiểm tra kết nối AI thành công", testResult));
     }
 }

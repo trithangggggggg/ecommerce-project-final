@@ -1,7 +1,9 @@
 package ra.project.server.service.impl;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import ra.project.server.service.AiConfigService;
 import ra.project.server.service.RateLimiterService;
 
 import java.util.ArrayDeque;
@@ -13,11 +15,21 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class RateLimiterServiceImpl implements RateLimiterService {
 
-    // Cho phép tối đa 15 requests trong cửa sổ 60 giây (1 phút) cho mỗi IP
-    private static final int MAX_REQUESTS_PER_WINDOW = 15;
+    // Cho phép tối đa 15 requests trong cửa sổ 60 giây (1 phút) cho mỗi IP mặc định
+    private static final int DEFAULT_MAX_REQUESTS_PER_WINDOW = 15;
     private static final long WINDOW_DURATION_MILLIS = 60_000L; // 60s
 
     private final Map<String, Deque<Long>> clientRequestLog = new ConcurrentHashMap<>();
+
+    @Autowired(required = false)
+    private AiConfigService aiConfigService;
+
+    private int getMaxRequestsPerWindow() {
+        if (aiConfigService != null) {
+            return aiConfigService.getRateLimitPerMinute();
+        }
+        return DEFAULT_MAX_REQUESTS_PER_WINDOW;
+    }
 
     @Override
     public boolean allowChatRequest(String clientIp) {
@@ -25,6 +37,7 @@ public class RateLimiterServiceImpl implements RateLimiterService {
             clientIp = "unknown-client";
         }
 
+        int maxLimit = getMaxRequestsPerWindow();
         long now = System.currentTimeMillis();
         long windowStart = now - WINDOW_DURATION_MILLIS;
 
@@ -36,11 +49,11 @@ public class RateLimiterServiceImpl implements RateLimiterService {
                 timestamps.pollFirst();
             }
 
-            if (timestamps.size() < MAX_REQUESTS_PER_WINDOW) {
+            if (timestamps.size() < maxLimit) {
                 timestamps.addLast(now);
                 return true;
             } else {
-                log.warn("Rate limit kích hoạt đối với IP [{}]: {} requests trong 60s", clientIp, timestamps.size());
+                log.warn("Rate limit kích hoạt đối với IP [{}]: {} requests trong 60s (Giới hạn: {})", clientIp, timestamps.size(), maxLimit);
                 return false;
             }
         }
