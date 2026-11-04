@@ -53,6 +53,8 @@ export interface OrderResponse {
   phoneNumber: string;
   shippingAddress: string;
   totalAmount: number;
+  finalAmount?: number;
+  shippingCarrierName?: string;
   status: OrderStatus;
   paymentMethod: PaymentMethod;
   note?: string;

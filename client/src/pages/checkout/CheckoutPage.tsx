@@ -24,7 +24,6 @@ import {
   Copy,
   QrCode,
   AlertTriangle,
-  RefreshCw,
   ExternalLink,
 } from 'lucide-react';
 import { useCartStore } from '../../store/useCartStore';
@@ -421,12 +420,13 @@ export const CheckoutPage: React.FC = () => {
   // MÀN HÌNH 1: ĐẶT HÀNG THÀNH CÔNG (Dedicated Success View)
   // ============================================================
   if (orderSuccessData) {
+    const finalPaidAmount = orderSuccessData.finalAmount ?? orderSuccessData.totalAmount ?? finalTotal;
     const isBankTransfer = orderSuccessData.paymentMethod === 'BANK_TRANSFER';
     const bankTransferContent = `DH${orderSuccessData.id}`;
     const bankNumber = '0987654321';
     const bankOwner = 'CỬA HÀNG THƯƠNG MẠI ĐIỆN TỬ';
     const bankName = 'MB Bank (Ngân hàng TMCP Quân Đội)';
-    const qrUrl = `https://img.vietqr.io/image/MB-${bankNumber}-compact2.png?amount=${orderSuccessData.finalAmount}&addInfo=${bankTransferContent}&accountName=${encodeURIComponent(
+    const qrUrl = `https://img.vietqr.io/image/MB-${bankNumber}-compact2.png?amount=${finalPaidAmount}&addInfo=${bankTransferContent}&accountName=${encodeURIComponent(
       bankOwner
     )}`;
 
@@ -533,11 +533,11 @@ export const CheckoutPage: React.FC = () => {
                     <span className="text-gray-500">Số tiền thanh toán:</span>
                     <div className="flex items-center gap-2">
                       <span className="font-black text-red-600 text-sm">
-                        {formatPrice(orderSuccessData.finalAmount)}
+                        {formatPrice(finalPaidAmount)}
                       </span>
                       <button
                         type="button"
-                        onClick={() => handleCopyText(orderSuccessData.finalAmount.toString(), 'amount')}
+                        onClick={() => handleCopyText(finalPaidAmount.toString(), 'amount')}
                         className="p-1 text-gray-400 hover:text-indigo-600 transition"
                         title="Copy số tiền"
                       >
@@ -606,7 +606,7 @@ export const CheckoutPage: React.FC = () => {
                 <p className="text-gray-900">
                   <span className="text-gray-500">Đối tác vận chuyển: </span>
                   <span className="font-semibold">
-                    {orderSuccessData.shippingCarrierName || selectedCarrier?.name || 'Giao hàng tiêu chuẩn'}
+                    {orderSuccessData.carrierName || orderSuccessData.shippingCarrierName || selectedCarrier?.name || 'Giao hàng tiêu chuẩn'}
                   </span>
                 </p>
                 <p className="text-indigo-700 flex items-center gap-1 font-medium">
@@ -624,20 +624,20 @@ export const CheckoutPage: React.FC = () => {
                 <p className="text-gray-900">
                   <span className="text-gray-500">Tổng thanh toán: </span>
                   <span className="font-black text-red-600 text-sm">
-                    {formatPrice(orderSuccessData.finalAmount)}
+                    {formatPrice(finalPaidAmount)}
                   </span>
                 </p>
               </div>
             </div>
 
             {/* Danh sách sản phẩm trong đơn hàng */}
-            {orderSuccessData.items && orderSuccessData.items.length > 0 && (
+            {(orderSuccessData.orderItems || orderSuccessData.items || []).length > 0 && (
               <div className="pt-2">
                 <span className="text-xs font-bold text-gray-700 block mb-2">
-                  Danh sách sản phẩm ({orderSuccessData.items.length}):
+                  Danh sách sản phẩm ({(orderSuccessData.orderItems || orderSuccessData.items || []).length}):
                 </span>
                 <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden">
-                  {orderSuccessData.items.map((item) => (
+                  {(orderSuccessData.orderItems || orderSuccessData.items || []).map((item) => (
                     <div key={item.id} className="p-3 flex items-center justify-between gap-3 text-xs">
                       <div className="flex items-center gap-2.5 min-w-0">
                         <img
