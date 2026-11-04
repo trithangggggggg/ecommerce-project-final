@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 import { ROUTES } from '../../constants/routes';
 import { useAuthStore } from '../../store/useAuthStore';
+import LogoutConfirmModal from '../common/LogoutConfirmModal';
 
 interface AdminSidebarProps {
   isOpen: boolean;
@@ -33,6 +35,7 @@ interface MenuItem {
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const salesMenu: MenuItem[] = [
     { title: 'Đơn hàng', path: ROUTES.ADMIN_ORDERS, icon: ShoppingCart },
@@ -258,10 +261,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             </div>
             <button
               type="button"
-              onClick={() => {
-                logout();
-                navigate(ROUTES.LOGIN);
-              }}
+              onClick={() => setShowLogoutModal(true)}
               className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
               title="Đăng xuất"
             >
@@ -270,6 +270,16 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
           </div>
         </div>
       </aside>
+
+      {/* Modal xác nhận đăng xuất cho Admin */}
+      <LogoutConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={() => {
+          logout();
+          navigate(ROUTES.LOGIN);
+        }}
+      />
     </>
   );
 };
