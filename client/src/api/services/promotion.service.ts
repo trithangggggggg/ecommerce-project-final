@@ -27,12 +27,16 @@ export const promotionService = {
     return Array.isArray(data) ? data : [];
   },
 
-  async checkPromotion(code: string, subtotal: number, shippingFee?: number): Promise<PromotionCheckResult> {
-    const response = await axiosClient.get<ApiResponse<PromotionCheckResult>>(
-      ENDPOINTS.PROMOTIONS.CHECK,
-      { params: { code, subtotal, shippingFee } }
+  async applyPromotion(code: string, subtotal: number, shippingFee?: number): Promise<PromotionCheckResult> {
+    const response = await axiosClient.post<ApiResponse<PromotionCheckResult>>(
+      ENDPOINTS.PROMOTIONS.APPLY,
+      { code, subtotal, shippingFee }
     );
     return response.data?.data || (response.data as unknown as PromotionCheckResult);
+  },
+
+  async checkPromotion(code: string, subtotal: number, shippingFee?: number): Promise<PromotionCheckResult> {
+    return this.applyPromotion(code, subtotal, shippingFee);
   },
 
   async getAvailablePromotions(): Promise<PromoItem[]> {
