@@ -183,6 +183,44 @@ class AuthServiceImplTest {
         verify(userRepository, never()).save(any(User.class));
     }
 
+    @Test
+    @DisplayName("TC_AUTH_03B: Đăng ký thành công kể cả khi dịch vụ gửi email thất bại (Mock lỗi gửi mail không sập app)")
+    void register_emailSendingFails_stillSucceedsWithoutCrashing() {
+        when(userRepository.findByUsernameIgnoreCase("newuser")).thenReturn(Optional.empty());
+        when(userRepository.findByEmailIgnoreCase("newuser@gmail.com")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode("Password123")).thenReturn("encodedSecretPassword");
+
+        User savedUser = User.builder()
+                .id(2L)
+                .username("newuser")
+                .email("newuser@gmail.com")
+                .password("encodedSecretPassword")
+                .fullName("Trần Thị Mới")
+                .role(Role.CUSTOMER)
+                .status(false)
+                .build();
+
+        when(userRepository.save(any(User.class))).thenReturn(savedUser);
+        when(emailOtpRepository.findAllByEmailIgnoreCaseOrderByCreatedAtDesc("newuser@gmail.com"))
+                .thenReturn(Collections.emptyList());
+        // Giả lập dịch vụ gửi email thất bại
+        when(emailService.sendOtpEmail(eq("newuser@gmail.com"), eq("Trần Thị Mới"), anyString()))
+                .thenReturn(false);
+
+        ApiResponse<UserProfileResponse> response = authService.register(registerRequest);
+
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED.value(), response.getStatus());
+        assertTrue(response.getMessage().contains("Mã OTP đã được tạo"));
+        assertNotNull(response.getData());
+        assertEquals("newuser", response.getData().getUsername());
+
+        // Kiểm tra tài khoản vẫn được tạo với status = false
+        verify(userRepository).save(argThat(user -> Boolean.FALSE.equals(user.getStatus())));
+        // Kiểm tra OTP vẫn được lưu an toàn
+        verify(emailOtpRepository).save(argThat(otp -> otp.getOtp().length() == 6 && !otp.getUsed()));
+    }
+
     // ==========================================
     // 2. TEST CASES: ĐĂNG NHẬP (LOGIN)
     // ==========================================
@@ -490,5 +528,29 @@ class AuthServiceImplTest {
 
         BadRequestException ex = assertThrows(BadRequestException.class, () -> authService.resendOtp(request));
         assertEquals("Tài khoản này đã được kích hoạt, không cần gửi lại mã OTP!", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("TC_AUTH_19B: Gửi lại OTP xử lý ổn thỏa kể cả khi email service trả về false (không sập app)")
+    void resendOtp_emailSendingFails_stillSucceedsWithoutCrashing() {
+        ResendOtpRequest request = ResendOtpRequest.builder()
+                .email("unverified@gmail.com")
+                .build();
+
+        validOtp.setCreatedAt(LocalDateTime.now().minusSeconds(70));
+
+        when(userRepository.findByEmailIgnoreCase("unverified@gmail.com")).thenReturn(Optional.of(unverifiedUser));
+        when(emailOtpRepository.findTopByEmailIgnoreCaseOrderByCreatedAtDesc("unverified@gmail.com"))
+                .thenReturn(Optional.of(validOtp));
+        when(emailOtpRepository.findAllByEmailIgnoreCaseOrderByCreatedAtDesc("unverified@gmail.com"))
+                .thenReturn(List.of(validOtp));
+        // Giả lập dịch vụ gửi email thất bại
+        when(emailService.sendOtpEmail(eq("unverified@gmail.com"), anyString(), anyString())).thenReturn(false);
+
+        ApiResponse<String> response = authService.resendOtp(request);
+
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK.value(), response.getStatus());
+        assertTrue(response.getMessage().contains("Mã OTP mới đã được gửi"));
     }
 }
