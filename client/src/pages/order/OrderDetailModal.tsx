@@ -2,11 +2,8 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   X,
-  MapPin,
-  Phone,
   User,
   Truck,
-  FileText,
   AlertCircle,
   Gift,
   Copy,
