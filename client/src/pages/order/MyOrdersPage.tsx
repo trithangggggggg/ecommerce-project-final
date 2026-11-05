@@ -17,6 +17,8 @@ import {
   Check,
   Tag,
   AlertTriangle,
+  X,
+  Info,
 } from 'lucide-react';
 import { orderService } from '../../api/services/order.service';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -30,7 +32,7 @@ import Button from '../../components/common/Button/Button';
 import OrderDetailModal from './OrderDetailModal';
 import CancelOrderModal from './CancelOrderModal';
 
-// 5 Tabs đúng theo yêu cầu [FE_10]: Tất cả / Chờ xử lý / Đang giao / Hoàn thành / Đã hủy
+// 5 Tabs đúng theo yêu cầu: Tất cả / Chờ xử lý / Đang giao / Hoàn thành / Đã hủy
 type FilterTab = 'ALL' | 'PENDING' | 'SHIPPING' | 'COMPLETED' | 'CANCELLED';
 
 const TABS: { key: FilterTab; label: string }[] = [
@@ -40,6 +42,11 @@ const TABS: { key: FilterTab; label: string }[] = [
   { key: 'COMPLETED', label: 'Hoàn thành' },
   { key: 'CANCELLED', label: 'Đã hủy' },
 ];
+
+interface ToastState {
+  type: 'success' | 'error' | 'info';
+  message: string;
+}
 
 export const MyOrdersPage: React.FC = () => {
   const navigate = useNavigate();
@@ -56,31 +63,38 @@ export const MyOrdersPage: React.FC = () => {
   const [orderToCancel, setOrderToCancel] = useState<OrderResponse | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [copiedCoupon, setCopiedCoupon] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast((prev) => (prev?.message === message ? null : prev));
+    }, 3500);
   };
 
   const handleCopyCoupon = (code: string) => {
     navigator.clipboard?.writeText(code);
     setCopiedCoupon(code);
-    showToast(`Đã sao chép mã voucher: ${code}`);
+    showToast(`Đã sao chép mã voucher: ${code}`, 'success');
     setTimeout(() => setCopiedCoupon(null), 2500);
   };
 
   // Nhận newOrderId từ state nếu vừa checkout thành công
   const newOrderId = (location.state as { newOrderId?: number })?.newOrderId;
 
+  // Lấy dữ liệu danh sách đơn hàng đã đặt thành công của người dùng hiện tại
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // Chỉ hiện đúng đơn của user đang đăng nhập
       const data = await orderService.getMyOrders();
       const userOrders = Array.isArray(data)
-        ? data.filter((o) => !o.userId || !user?.id || o.userId === user.id)
+        ? data
+            .filter((o) => !o.userId || !user?.id || String(o.userId) === String(user.id))
+            .sort(
+              (a, b) =>
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            )
         : [];
       setOrders(userOrders);
 
@@ -105,35 +119,38 @@ export const MyOrdersPage: React.FC = () => {
     fetchOrders();
   }, [isAuthenticated, navigate, fetchOrders]);
 
-  // Xử lý xác nhận hủy đơn (Có modal xác nhận & cập nhật ngay lập tức trên danh sách)
+  // Xử lý xác nhận hủy đơn (Có modal xác nhận + Cập nhật tại chỗ + Toast)
   const handleConfirmCancelOrder = async (orderId: number) => {
     setIsCancelling(true);
 
-    // Cập nhật ngay lập tức trên UI (Optimistic update)
-    setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status: 'CANCELLED' } : o))
-    );
-    if (selectedOrder && selectedOrder.id === orderId) {
-      setSelectedOrder((prev) => (prev ? { ...prev, status: 'CANCELLED' } : null));
-    }
-    setOrderToCancel(null);
-
     try {
       const updated = await orderService.cancelMyOrder(orderId);
-      if (updated) {
-        setOrders((prev) =>
-          prev.map((o) => (o.id === orderId ? { ...o, ...updated, status: 'CANCELLED' } : o))
+
+      // Cập nhật trạng thái tại chỗ (in-place) trong state orders
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === orderId
+            ? { ...o, ...(updated || {}), status: 'CANCELLED' }
+            : o
+        )
+      );
+
+      // Cập nhật modal chi tiết nếu đang mở
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder((prev) =>
+          prev ? { ...prev, ...(updated || {}), status: 'CANCELLED' } : null
         );
-        if (selectedOrder && selectedOrder.id === orderId) {
-          setSelectedOrder((prev) => (prev ? { ...prev, ...updated, status: 'CANCELLED' } : null));
-        }
       }
-      showToast(`Đã hủy đơn hàng #${orderId} thành công.`);
+
+      // Đóng modal xác nhận
+      setOrderToCancel(null);
+      showToast(`Đã hủy đơn hàng #${orderId} thành công. Tồn kho đã được hoàn lại!`, 'success');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Hủy đơn hàng thất bại';
-      showToast(`Lỗi: ${msg}`);
-      // Revert lại trạng thái nếu API lỗi
-      fetchOrders();
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'Hủy đơn hàng thất bại. Vui lòng kiểm tra lại!';
+      showToast(msg, 'error');
     } finally {
       setIsCancelling(false);
     }
@@ -159,11 +176,36 @@ export const MyOrdersPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#f5f6fa] py-6 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-[1360px] mx-auto space-y-5">
-        {/* Toast thông báo */}
-        {toastMessage && (
-          <div className="fixed top-5 right-5 z-50 bg-[#181a20] text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-xl border border-gray-700 animate-fade-in flex items-center gap-2">
-            <CheckCircle className="w-4 h-4 text-emerald-400" />
-            <span>{toastMessage}</span>
+        {/* Toast Thông Báo */}
+        {toast && (
+          <div
+            className={`fixed top-5 right-5 z-[70] text-xs font-semibold px-4 py-3 rounded-xl shadow-2xl border animate-fade-in flex items-center justify-between gap-3 min-w-[280px] max-w-md ${
+              toast.type === 'success'
+                ? 'bg-emerald-950 text-white border-emerald-700'
+                : toast.type === 'error'
+                ? 'bg-red-950 text-white border-red-700'
+                : 'bg-gray-900 text-white border-gray-700'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              {toast.type === 'success' && (
+                <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+              )}
+              {toast.type === 'error' && (
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+              )}
+              {toast.type === 'info' && (
+                <Info className="w-4 h-4 text-blue-400 shrink-0" />
+              )}
+              <span className="leading-snug">{toast.message}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setToast(null)}
+              className="p-1 text-gray-400 hover:text-white transition"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
 
@@ -338,7 +380,11 @@ export const MyOrdersPage: React.FC = () => {
                       <span className="text-gray-400">•</span>
                       <span className="text-gray-600 font-semibold flex items-center gap-1">
                         <CreditCard className="w-3.5 h-3.5 text-blue-600" />
-                        {order.paymentMethod === 'COD' ? 'Thanh toán COD' : order.paymentMethod}
+                        {order.paymentMethod === 'COD'
+                          ? 'Thanh toán COD'
+                          : order.paymentMethod === 'BANK_TRANSFER'
+                          ? 'Chuyển khoản ngân hàng'
+                          : order.paymentMethod}
                       </span>
                     </div>
 
@@ -478,12 +524,12 @@ export const MyOrdersPage: React.FC = () => {
                         </div>
                       )}
 
-                      {/* Nút "Hủy đơn" chỉ hiện khi trạng thái = PENDING, bấm mở modal xác nhận */}
+                      {/* NÚT "HỦY ĐƠN": CHỈ HIỆN VỚI PENDING */}
                       {order.status === 'PENDING' && (
                         <button
                           type="button"
                           onClick={() => setOrderToCancel(order)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition cursor-pointer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition cursor-pointer"
                         >
                           <AlertTriangle className="w-3.5 h-3.5" />
                           <span>Hủy đơn</span>
