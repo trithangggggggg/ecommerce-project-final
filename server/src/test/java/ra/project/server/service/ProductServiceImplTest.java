@@ -73,7 +73,7 @@ class ProductServiceImplTest {
                 .stock(25)
                 .imageUrl("https://example.com/ipad.jpg")
                 .category(testCategory)
-                .status(true)
+                .status("ACTIVE")
                 .options(new ArrayList<>())
                 .variants(new ArrayList<>())
                 .specs(new ArrayList<>())
@@ -464,7 +464,7 @@ class ProductServiceImplTest {
         ProductResponse response = productService.toggleProductStatus(10L, false);
 
         assertNotNull(response);
-        assertFalse(testProduct.getStatus());
+        assertEquals("INACTIVE", testProduct.getStatus());
     }
 
     @Test
@@ -476,7 +476,7 @@ class ProductServiceImplTest {
         when(productRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(mockPage);
 
         PageResponse<ProductResponse> response = productService.getAllAdminProducts(
-                "iPad", 1L, "Apple", null, false, pageable
+                "iPad", 1L, "Apple", (String) null, false, pageable
         );
 
         assertNotNull(response);
