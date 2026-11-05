@@ -1,5 +1,5 @@
-import React from 'react';
-import { AlertTriangle, X, ShoppingBag } from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertTriangle, X, ShoppingBag, Check } from 'lucide-react';
 import { type OrderResponse } from '../../models/order.model';
 import { formatPrice } from '../../utils/format';
 import Button from '../../components/common/Button/Button';
@@ -9,8 +9,17 @@ export interface CancelOrderModalProps {
   isOpen: boolean;
   isCancelling: boolean;
   onClose: () => void;
-  onConfirm: (orderId: number) => void;
+  onConfirm: (orderId: number, reason?: string) => void;
 }
+
+const CANCEL_REASONS = [
+  'Tôi muốn thay đổi địa chỉ nhận hàng',
+  'Tôi muốn thay đổi sản phẩm hoặc số lượng',
+  'Tôi tìm thấy giá tốt hơn ở nơi khác',
+  'Thời gian giao hàng dự kiến quá lâu',
+  'Tôi đổi ý, không có nhu cầu mua nữa',
+  'Lý do khác',
+];
 
 export const CancelOrderModal: React.FC<CancelOrderModalProps> = ({
   order,
@@ -19,13 +28,23 @@ export const CancelOrderModal: React.FC<CancelOrderModalProps> = ({
   onClose,
   onConfirm,
 }) => {
+  const [selectedReason, setSelectedReason] = useState<string>(CANCEL_REASONS[0]);
+  const [customReason, setCustomReason] = useState<string>('');
+
   if (!isOpen || !order) return null;
 
   const items = order.orderItems || order.items || [];
   const totalItemsCount = items.reduce((s, i) => s + i.quantity, 0);
 
+  const handleConfirmClick = () => {
+    const finalReason = selectedReason === 'Lý do khác' && customReason.trim()
+      ? customReason.trim()
+      : selectedReason;
+    onConfirm(order.id, finalReason);
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in font-sans">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in font-sans">
       <div className="bg-white rounded-2xl border border-gray-200 max-w-md w-full shadow-2xl p-6 space-y-4">
         {/* Header Icon & Title */}
         <div className="flex items-start justify-between">
@@ -38,7 +57,7 @@ export const CancelOrderModal: React.FC<CancelOrderModalProps> = ({
                 Xác nhận hủy đơn hàng
               </h3>
               <p className="text-xs text-gray-500 font-mono">
-                Mã đơn: #ORD-{order.id}
+                Mã đơn: #{order.id}
               </p>
             </div>
           </div>
@@ -56,7 +75,8 @@ export const CancelOrderModal: React.FC<CancelOrderModalProps> = ({
 
         {/* Warning text */}
         <p className="text-xs text-gray-600 leading-relaxed">
-          Bạn có chắc chắn muốn hủy đơn hàng này không? Sau khi xác nhận, đơn hàng sẽ chuyển sang trạng thái <strong className="text-red-600 font-bold">Đã hủy</strong> và không thể hoàn tác.
+          Bạn có chắc chắn muốn hủy đơn hàng này không? Sau khi xác nhận, đơn hàng sẽ chuyển sang trạng thái{' '}
+          <strong className="text-red-600 font-bold">Đã hủy</strong> và các sản phẩm sẽ được tự động hoàn lại vào kho.
         </p>
 
         {/* Order mini summary */}
@@ -64,7 +84,7 @@ export const CancelOrderModal: React.FC<CancelOrderModalProps> = ({
           <div className="flex justify-between items-center">
             <span className="text-gray-500 flex items-center gap-1.5">
               <ShoppingBag className="w-3.5 h-3.5" />
-              Số lượng món:
+              Số lượng sản phẩm:
             </span>
             <span className="font-semibold text-gray-900">{totalItemsCount} món</span>
           </div>
@@ -75,11 +95,58 @@ export const CancelOrderModal: React.FC<CancelOrderModalProps> = ({
             </span>
           </div>
           <div className="flex justify-between items-center pt-1.5 border-t border-gray-200">
-            <span className="text-gray-600 font-medium">Tổng tiền:</span>
+            <span className="text-gray-600 font-medium">Tổng tiền thanh toán:</span>
             <span className="font-extrabold text-sm text-red-600">
               {formatPrice(order.totalAmount)}
             </span>
           </div>
+        </div>
+
+        {/* Lý do hủy đơn (Tùy chọn) */}
+        <div className="space-y-2">
+          <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide">
+            Lý do hủy đơn hàng:
+          </label>
+          <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+            {CANCEL_REASONS.map((reason) => {
+              const isSelected = selectedReason === reason;
+              return (
+                <label
+                  key={reason}
+                  className={`flex items-center justify-between p-2 rounded-lg text-xs border transition cursor-pointer ${
+                    isSelected
+                      ? 'border-red-300 bg-red-50/50 text-red-900 font-semibold'
+                      : 'border-gray-200 hover:border-gray-300 bg-white text-gray-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="cancelReason"
+                      value={reason}
+                      checked={isSelected}
+                      onChange={() => setSelectedReason(reason)}
+                      disabled={isCancelling}
+                      className="text-red-600 focus:ring-red-500"
+                    />
+                    <span>{reason}</span>
+                  </div>
+                  {isSelected && <Check className="w-3.5 h-3.5 text-red-600 shrink-0" />}
+                </label>
+              );
+            })}
+          </div>
+
+          {selectedReason === 'Lý do khác' && (
+            <textarea
+              rows={2}
+              value={customReason}
+              onChange={(e) => setCustomReason(e.target.value)}
+              placeholder="Vui lòng nhập lý do cụ thể..."
+              disabled={isCancelling}
+              className="w-full mt-1.5 p-2 bg-white border border-gray-200 rounded-lg text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500 resize-none"
+            />
+          )}
         </div>
 
         {/* Action Buttons */}
@@ -96,11 +163,11 @@ export const CancelOrderModal: React.FC<CancelOrderModalProps> = ({
           <Button
             variant="danger"
             size="sm"
-            onClick={() => onConfirm(order.id)}
+            onClick={handleConfirmClick}
             disabled={isCancelling}
             isLoading={isCancelling}
           >
-            {isCancelling ? 'Đang hủy...' : 'Xác nhận hủy'}
+            {isCancelling ? 'Đang hủy đơn...' : 'Xác nhận hủy'}
           </Button>
         </div>
       </div>
@@ -109,4 +176,3 @@ export const CancelOrderModal: React.FC<CancelOrderModalProps> = ({
 };
 
 export default CancelOrderModal;
-

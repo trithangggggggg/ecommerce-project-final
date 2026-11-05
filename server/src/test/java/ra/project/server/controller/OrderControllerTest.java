@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -116,5 +117,24 @@ class OrderControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data[0].id").value(1))
                 .andExpect(jsonPath("$.data[0].status").value("PENDING"));
+    }
+    @Test
+    void whenCancelMyOrder_thenReturn200WithCancelledStatus() throws Exception {
+        OrderResponse response = OrderResponse.builder()
+                .id(1L)
+                .receiverName("Tran Van B")
+                .status(OrderStatus.CANCELLED)
+                .paymentMethod(PaymentMethod.COD)
+                .totalAmount(BigDecimal.valueOf(250000))
+                .build();
+
+        when(orderService.cancelMyOrder(1L))
+                .thenReturn(ApiResponse.success("Đã hủy đơn hàng #1 thành công", response));
+
+        mockMvc.perform(put("/api/orders/1/cancel"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(1))
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"));
     }
 }
