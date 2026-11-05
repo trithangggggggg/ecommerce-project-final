@@ -62,7 +62,7 @@ class AdminProductControllerTest {
                 .minPrice(new BigDecimal("34990000"))
                 .maxPrice(new BigDecimal("46990000"))
                 .stock(50)
-                .status(true)
+                .status("ACTIVE")
                 .categoryId(1L)
                 .categoryName("Điện thoại")
                 .variants(List.of(
@@ -89,7 +89,7 @@ class AdminProductControllerTest {
                 .last(true)
                 .build();
 
-        when(productService.getAllAdminProducts(any(), any(), any(), any(), any(), any(Pageable.class)))
+        when(productService.getAllAdminProducts(any(), any(), any(), nullable(String.class), any(), any(Pageable.class)))
                 .thenReturn(pageResponse);
 
         mockMvc.perform(get("/api/admin/products")
@@ -171,7 +171,7 @@ class AdminProductControllerTest {
     @Test
     @DisplayName("Admin bật/tắt trạng thái kinh doanh (status toggle)")
     void testToggleProductStatus_Success() throws Exception {
-        mockProductResponse.setStatus(false);
+        mockProductResponse.setStatus("INACTIVE");
         when(productService.toggleProductStatus(eq(1L), eq(false))).thenReturn(mockProductResponse);
 
         mockMvc.perform(patch("/api/admin/products/1/status")
@@ -179,7 +179,7 @@ class AdminProductControllerTest {
                         .content("{\"status\": false}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.status").value(false));
+                .andExpect(jsonPath("$.data.status").value("INACTIVE"));
     }
 
     @Test
@@ -203,7 +203,7 @@ class AdminProductControllerTest {
                 .stock(45)
                 .build();
 
-        when(productService.updateVariantStock(eq(101L), eq(45), eq(false))).thenReturn(variantResponse);
+        when(productService.updateVariantStock(eq(101L), eq(45), eq(false), any(), any())).thenReturn(variantResponse);
 
         mockMvc.perform(put("/api/admin/products/variants/101/stock")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -213,4 +213,3 @@ class AdminProductControllerTest {
                 .andExpect(jsonPath("$.data.stock").value(45));
     }
 }
-

@@ -91,7 +91,7 @@ class OrderServiceImplTest {
                 .name("Tai nghe Bluetooth")
                 .price(BigDecimal.valueOf(500000))
                 .stock(15)
-                .status(true)
+                .status("ACTIVE")
                 .build();
 
         variant1 = ProductVariant.builder()
