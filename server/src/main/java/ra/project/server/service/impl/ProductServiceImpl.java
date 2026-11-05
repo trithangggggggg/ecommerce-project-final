@@ -54,9 +54,27 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional(readOnly = true)
+    public PageResponse<ProductResponse> getAllAdminProducts(
+            String keyword,
+            Long categoryId,
+            String brand,
+            Boolean status,
+            Boolean includeDeleted,
+            Pageable pageable
+    ) {
+        Specification<Product> spec = ProductSpecification.filter(keyword, categoryId, brand, null, null, status, includeDeleted);
+        Page<Product> productPage = productRepository.findAll(spec, pageable);
+        return PageResponse.from(productPage.map(productMapper::toResponse));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public ProductResponse getProductById(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + id));
+        if (Boolean.TRUE.equals(product.getIsDeleted())) {
+            throw new ResourceNotFoundException("Sản phẩm không tồn tại hoặc đã ngừng kinh doanh!");
+        }
         return productMapper.toDetailResponse(product);
     }
 
@@ -67,7 +85,8 @@ public class ProductServiceImpl implements ProductService {
             throw new ResourceNotFoundException("Không tìm thấy danh mục với ID: " + categoryId);
         }
 
-        Page<Product> productPage = productRepository.findByCategoryId(categoryId, pageable);
+        Specification<Product> spec = ProductSpecification.filter(null, categoryId, null, null, null, null, false);
+        Page<Product> productPage = productRepository.findAll(spec, pageable);
         return PageResponse.from(productPage.map(productMapper::toResponse));
     }
 
@@ -105,6 +124,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public ProductResponse createProduct(ProductRequest request) {
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy danh mục với ID: " + request.getCategoryId()));
@@ -128,6 +148,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public ProductResponse updateProduct(Long id, ProductRequest request) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + id));
@@ -149,6 +170,25 @@ public class ProductServiceImpl implements ProductService {
         Product updatedProduct = productRepository.save(product);
 
         return productMapper.toDetailResponse(updatedProduct);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ProductResponse toggleProductStatus(Long id, Boolean status) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + id));
+        if (Boolean.TRUE.equals(product.getIsDeleted())) {
+            throw new BadRequestException("Không thể thay đổi trạng thái sản phẩm đã bị xóa mềm!");
+        }
+        boolean newStatus = status != null ? status : !Boolean.TRUE.equals(product.getStatus());
+        product.setStatus(newStatus);
+        if (product.getVariants() != null) {
+            for (ProductVariant v : product.getVariants()) {
+                v.setStatus(newStatus);
+            }
+        }
+        Product saved = productRepository.save(product);
+        return productMapper.toDetailResponse(saved);
     }
 
     @Override
@@ -261,7 +301,9 @@ public class ProductServiceImpl implements ProductService {
                     throw new BadRequestException("Giá biến thể (" + sku + ") phải lớn hơn 0!");
                 }
 
-                if (v.getStock() != null && v.getStock() < 0) {
+                if (v.getStock() == null) {
+                    v.setStock(0);
+                } else if (v.getStock() < 0) {
                     throw new BadRequestException("Số lượng tồn kho biến thể (" + sku + ") không được âm!");
                 }
 

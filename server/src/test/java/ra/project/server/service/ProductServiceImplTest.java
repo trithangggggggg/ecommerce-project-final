@@ -442,4 +442,67 @@ class ProductServiceImplTest {
         assertTrue(ex.getMessage().contains("Giá tối thiểu (minPrice) không được lớn hơn giá tối đa (maxPrice)"));
         verify(productRepository, never()).findAll(any(Specification.class), any(Pageable.class));
     }
+
+    @Test
+    @DisplayName("TC_PROD_06: getProductById khi sản phẩm đã bị xóa mềm (isDeleted=true) -> Ném ResourceNotFoundException (Ẩn khỏi public)")
+    void whenGetProductById_whenSoftDeleted_thenThrowsResourceNotFoundException() {
+        testProduct.setIsDeleted(true);
+        when(productRepository.findById(10L)).thenReturn(Optional.of(testProduct));
+
+        ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class,
+                () -> productService.getProductById(10L));
+
+        assertTrue(ex.getMessage().contains("ngừng kinh doanh") || ex.getMessage().contains("đã bị xóa"));
+    }
+
+    @Test
+    @DisplayName("TC_PROD_07: toggleProductStatus cập nhật bật/tắt trạng thái kinh doanh của sản phẩm và biến thể")
+    void whenToggleProductStatus_success() {
+        when(productRepository.findById(10L)).thenReturn(Optional.of(testProduct));
+        when(productRepository.save(any(Product.class))).thenAnswer(i -> i.getArgument(0));
+
+        ProductResponse response = productService.toggleProductStatus(10L, false);
+
+        assertNotNull(response);
+        assertFalse(testProduct.getStatus());
+    }
+
+    @Test
+    @DisplayName("TC_PROD_08: getAllAdminProducts phân trang danh sách cho Admin hỗ trợ hiện cả sản phẩm tạm ngừng")
+    void whenGetAllAdminProducts_thenReturnsPage() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Product> mockPage = new PageImpl<>(List.of(testProduct), pageable, 1);
+
+        when(productRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(mockPage);
+
+        PageResponse<ProductResponse> response = productService.getAllAdminProducts(
+                "iPad", 1L, "Apple", null, false, pageable
+        );
+
+        assertNotNull(response);
+        assertEquals(1, response.getContent().size());
+        assertEquals("iPad Pro 11 inch M4", response.getContent().get(0).getName());
+    }
+
+    @Test
+    @DisplayName("TC_PROD_09: createProduct với stock biến thể âm -> Ném BadRequestException")
+    void whenCreateProduct_withNegativeVariantStock_thenThrowsBadRequestException() {
+        ProductRequest request = ProductRequest.builder()
+                .name("MacBook Pro M3 Max")
+                .categoryId(1L)
+                .variants(List.of(
+                        VariantRequest.builder()
+                                .sku("MBP-M3-MAX")
+                                .price(new BigDecimal("79990000"))
+                                .stock(-5)
+                                .build()
+                ))
+                .build();
+
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(testCategory));
+        when(productRepository.existsByNameIgnoreCase("MacBook Pro M3 Max")).thenReturn(false);
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () -> productService.createProduct(request));
+        assertTrue(ex.getMessage().contains("không được âm") || ex.getMessage().contains("không được để trống"));
+    }
 }
