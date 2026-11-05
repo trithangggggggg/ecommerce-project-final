@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { ShoppingCart, Heart, Check, Zap } from 'lucide-react';
+import { ShoppingCart, Heart, Check, Zap, Clock } from 'lucide-react';
 import type { Product } from '../../../models/product.model';
 import { useCartStore } from '../../../store/useCartStore';
 import { useAuthStore } from '../../../store/useAuthStore';
@@ -145,40 +145,63 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }
       </div>
 
       {/* Action buttons: Thêm vào giỏ & Mua ngay */}
-      <div className="grid grid-cols-2 gap-2 mt-auto pt-2">
-        <button
-          type="button"
-          onClick={handleAddToCart}
-          className={`py-2 px-1.5 sm:px-2 rounded-lg text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1 transition-all shadow-2xs cursor-pointer ${
-            added
-              ? 'bg-emerald-600 text-white'
-              : 'bg-gray-100 hover:bg-gray-200 text-gray-800 border border-gray-200 hover:border-gray-300'
-          }`}
-          title="Thêm vào giỏ hàng"
-        >
-          {added ? (
-            <>
-              <Check className="w-3.5 h-3.5 text-white shrink-0" />
-              <span className="truncate">Đã thêm</span>
-            </>
-          ) : (
-            <>
-              <ShoppingCart className="w-3.5 h-3.5 text-gray-700 shrink-0" />
-              <span className="truncate">Thêm vào giỏ</span>
-            </>
-          )}
-        </button>
+      {product.status === 'COMING_SOON' ? (
+        <div className="mt-auto pt-2">
+          <button
+            type="button"
+            disabled
+            className="w-full py-2 px-2 rounded-lg text-xs font-bold bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center gap-1.5 cursor-not-allowed opacity-90"
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>Sắp ra mắt</span>
+          </button>
+        </div>
+      ) : product.status === 'INACTIVE' || product.status === false ? (
+        <div className="mt-auto pt-2">
+          <button
+            type="button"
+            disabled
+            className="w-full py-2 px-2 rounded-lg text-xs font-bold bg-slate-100 border border-slate-200 text-slate-500 flex items-center justify-center gap-1.5 cursor-not-allowed"
+          >
+            <span>Tạm ngừng bán</span>
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2 mt-auto pt-2">
+          <button
+            type="button"
+            onClick={handleAddToCart}
+            className={`py-2 px-1.5 sm:px-2 rounded-lg text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1 transition-all shadow-2xs cursor-pointer ${
+              added
+                ? 'bg-emerald-600 text-white'
+                : 'bg-gray-100 hover:bg-gray-200 text-gray-800 border border-gray-200 hover:border-gray-300'
+            }`}
+            title="Thêm vào giỏ hàng"
+          >
+            {added ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-white shrink-0" />
+                <span className="truncate">Đã thêm</span>
+              </>
+            ) : (
+              <>
+                <ShoppingCart className="w-3.5 h-3.5 text-gray-700 shrink-0" />
+                <span className="truncate">Thêm vào giỏ</span>
+              </>
+            )}
+          </button>
 
-        <button
-          type="button"
-          onClick={handleBuyNow}
-          className="py-2 px-1.5 sm:px-2 rounded-lg text-[11px] sm:text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer hover:shadow-sm"
-          title="Mua ngay lập tức"
-        >
-          <Zap className="w-3.5 h-3.5 fill-white shrink-0" />
-          <span className="truncate">Mua ngay</span>
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={handleBuyNow}
+            className="py-2 px-1.5 sm:px-2 rounded-lg text-[11px] sm:text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer hover:shadow-sm"
+            title="Mua ngay lập tức"
+          >
+            <Zap className="w-3.5 h-3.5 fill-white shrink-0" />
+            <span className="truncate">Mua ngay</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 };

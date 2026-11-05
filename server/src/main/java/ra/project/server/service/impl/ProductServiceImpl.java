@@ -54,6 +54,35 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional(readOnly = true)
+    public PageResponse<ProductResponse> getAllProducts(String keyword, Long categoryId, String status, Pageable pageable) {
+        return getAllProducts(keyword, categoryId, null, status, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ProductResponse> getAllProducts(String keyword, Long categoryId, String brand, String status, Pageable pageable) {
+        Specification<Product> spec = ProductSpecification.filter(keyword, categoryId, brand, null, null, status);
+        Page<Product> productPage = productRepository.findAll(spec, pageable);
+        return PageResponse.from(productPage.map(productMapper::toResponse));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ProductResponse> getAllAdminProducts(
+            String keyword,
+            Long categoryId,
+            String brand,
+            String status,
+            Boolean includeDeleted,
+            Pageable pageable
+    ) {
+        Specification<Product> spec = ProductSpecification.filter(keyword, categoryId, brand, null, null, status, includeDeleted);
+        Page<Product> productPage = productRepository.findAll(spec, pageable);
+        return PageResponse.from(productPage.map(productMapper::toResponse));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public PageResponse<ProductResponse> getAllAdminProducts(
             String keyword,
             Long categoryId,
@@ -62,9 +91,8 @@ public class ProductServiceImpl implements ProductService {
             Boolean includeDeleted,
             Pageable pageable
     ) {
-        Specification<Product> spec = ProductSpecification.filter(keyword, categoryId, brand, null, null, status, includeDeleted);
-        Page<Product> productPage = productRepository.findAll(spec, pageable);
-        return PageResponse.from(productPage.map(productMapper::toResponse));
+        String statusStr = status == null ? null : (status ? "ACTIVE" : "INACTIVE");
+        return getAllAdminProducts(keyword, categoryId, brand, statusStr, includeDeleted, pageable);
     }
 
     @Override
@@ -85,7 +113,7 @@ public class ProductServiceImpl implements ProductService {
             throw new ResourceNotFoundException("Không tìm thấy danh mục với ID: " + categoryId);
         }
 
-        Specification<Product> spec = ProductSpecification.filter(null, categoryId, null, null, null, null, false);
+        Specification<Product> spec = ProductSpecification.filter(null, categoryId, null, null, null, (String) null, false);
         Page<Product> productPage = productRepository.findAll(spec, pageable);
         return PageResponse.from(productPage.map(productMapper::toResponse));
     }
@@ -180,11 +208,16 @@ public class ProductServiceImpl implements ProductService {
         if (Boolean.TRUE.equals(product.getIsDeleted())) {
             throw new BadRequestException("Không thể thay đổi trạng thái sản phẩm đã bị xóa mềm!");
         }
-        boolean newStatus = status != null ? status : !Boolean.TRUE.equals(product.getStatus());
-        product.setStatus(newStatus);
+        boolean active;
+        if (status != null) {
+            active = status;
+        } else {
+            active = !"ACTIVE".equalsIgnoreCase(product.getStatus());
+        }
+        product.setStatus(active ? "ACTIVE" : "INACTIVE");
         if (product.getVariants() != null) {
             for (ProductVariant v : product.getVariants()) {
-                v.setStatus(newStatus);
+                v.setStatus(active);
             }
         }
         Product saved = productRepository.save(product);
@@ -257,7 +290,7 @@ public class ProductServiceImpl implements ProductService {
 
         // 3. Xóa mềm sản phẩm (ẩn khỏi toàn bộ danh sách Admin & Khách hàng, ngừng kinh doanh biến thể)
         product.setIsDeleted(true);
-        product.setStatus(false);
+        product.setStatus("INACTIVE");
         if (product.getVariants() != null) {
             for (ProductVariant v : product.getVariants()) {
                 v.setStatus(false);
@@ -566,16 +599,28 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public ProductResponse updateProductStock(Long id, Integer stock) {
+        return updateProductStock(id, stock, null);
+    }
+
+    @Override
+    @Transactional
+    public ProductResponse updateProductStock(Long id, Integer stock, java.math.BigDecimal price) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sản phẩm", "id", id));
 
         int newStock = (stock != null && stock >= 0) ? stock : 0;
         product.setStock(newStock);
+        if (price != null && price.compareTo(java.math.BigDecimal.ZERO) >= 0) {
+            product.setPrice(price);
+        }
 
         List<ra.project.server.model.entity.ProductVariant> variants = productVariantRepository.findByProductId(id);
         if (!variants.isEmpty()) {
             ra.project.server.model.entity.ProductVariant first = variants.get(0);
             first.setStock(newStock);
+            if (price != null && price.compareTo(java.math.BigDecimal.ZERO) >= 0) {
+                first.setPrice(price);
+            }
             productVariantRepository.save(first);
         }
 
@@ -586,6 +631,12 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public ra.project.server.model.dto.response.ProductVariantResponse updateVariantStock(Long variantId, Integer quantity, Boolean isDelta) {
+        return updateVariantStock(variantId, quantity, isDelta, null, null);
+    }
+
+    @Override
+    @Transactional
+    public ra.project.server.model.dto.response.ProductVariantResponse updateVariantStock(Long variantId, Integer quantity, Boolean isDelta, java.math.BigDecimal price, java.math.BigDecimal originalPrice) {
         ra.project.server.model.entity.ProductVariant variant = productVariantRepository.findById(variantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Biến thể sản phẩm", "id", variantId));
 
@@ -598,6 +649,12 @@ public class ProductServiceImpl implements ProductService {
         }
 
         variant.setStock(newStock);
+        if (price != null && price.compareTo(java.math.BigDecimal.ZERO) >= 0) {
+            variant.setPrice(price);
+        }
+        if (originalPrice != null && originalPrice.compareTo(java.math.BigDecimal.ZERO) >= 0) {
+            variant.setOriginalPrice(originalPrice);
+        }
         ra.project.server.model.entity.ProductVariant savedVariant = productVariantRepository.save(variant);
 
         if (variant.getProduct() != null) {

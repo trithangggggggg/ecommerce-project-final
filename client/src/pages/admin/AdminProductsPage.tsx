@@ -31,7 +31,8 @@ import {
 import { productService } from '../../api/services/product.service';
 import { aiService } from '../../api/services/ai.service';
 import { formatPrice } from '../../utils/format';
-import type { OrderResponse } from '../../models/order.model';
+import type {
+  OrderResponse } from '../../models/order.model';
 import {
   LAPTOP_REQUIRED_SPECS,
   LAPTOP_FULL_SPECS,
@@ -43,6 +44,7 @@ import {
 } from '../../constants';
 import type {
   Product,
+  ProductStatus,
   Category,
   ProductPayload,
   OptionPayload,
@@ -64,7 +66,7 @@ interface FormState {
   stock: string;
   imageUrl: string;
   description: string;
-  status: boolean;
+  status: ProductStatus;
   galleryImages: string[];
 }
 
@@ -102,9 +104,18 @@ const INITIAL_FORM_STATE: FormState = {
   stock: '20',
   imageUrl: '',
   description: '',
-  status: true,
+  status: 'ACTIVE',
   galleryImages: [],
 };
+
+// Normalize status string helper
+function normalizeProductStatus(raw: any): ProductStatus {
+  if (!raw) return 'ACTIVE';
+  const str = raw.toString().toUpperCase();
+  if (str === 'COMING_SOON') return 'COMING_SOON';
+  if (str === 'INACTIVE' || str === 'FALSE') return 'INACTIVE';
+  return 'ACTIVE';
+}
 
 // Helper to normalize string for SKU tokens
 function toSkuToken(str: string): string {
@@ -309,7 +320,7 @@ export const AdminProductsPage: React.FC = () => {
       stock: (p.stock ?? 0).toString(),
       imageUrl: p.imageUrl || '',
       description: p.description || '',
-      status: p.status !== false,
+      status: normalizeProductStatus(p.status),
       galleryImages: [],
     });
     setBulkPrice('');
@@ -337,7 +348,7 @@ export const AdminProductsPage: React.FC = () => {
         stock: (detail.stock ?? 0).toString(),
         imageUrl: detail.imageUrl || '',
         description: detail.description || '',
-        status: detail.status !== false,
+        status: normalizeProductStatus(detail.status),
         galleryImages: galleryUrls,
       });
 
@@ -1588,19 +1599,60 @@ export const AdminProductsPage: React.FC = () => {
                       />
                     </div>
 
-                    {/* Status Checkbox */}
-                    <div className="pt-1">
-                      <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={formData.status}
-                          onChange={(e) => setFormData({ ...formData, status: e.target.checked })}
-                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
-                        />
-                        <span className="text-xs font-semibold text-slate-700">
-                          Kích hoạt hiển thị và cho phép đặt mua (Status = Active)
-                        </span>
+                    {/* Trạng thái sản phẩm (Đang bán / Ngừng bán / Sắp ra mắt) */}
+                    <div className="pt-2 border-t border-slate-100">
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                        Trạng thái sản phẩm *
                       </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, status: 'ACTIVE' })}
+                          className={`p-2.5 rounded-xl border text-left transition cursor-pointer flex items-start gap-2 ${
+                            formData.status === 'ACTIVE'
+                              ? 'bg-emerald-50/90 border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/20 shadow-xs'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 mt-1 shrink-0" />
+                          <div>
+                            <span className="block text-xs font-bold text-slate-900">Đang bán</span>
+                            <span className="block text-[10px] text-slate-500 mt-0.5">Kinh doanh bình thường</span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, status: 'INACTIVE' })}
+                          className={`p-2.5 rounded-xl border text-left transition cursor-pointer flex items-start gap-2 ${
+                            formData.status === 'INACTIVE'
+                              ? 'bg-rose-50/90 border-rose-500 text-rose-950 ring-2 ring-rose-500/20 shadow-xs'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 mt-1 shrink-0" />
+                          <div>
+                            <span className="block text-xs font-bold text-slate-900">Ngừng bán</span>
+                            <span className="block text-[10px] text-slate-500 mt-0.5">Tạm dừng bán hàng</span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, status: 'COMING_SOON' })}
+                          className={`p-2.5 rounded-xl border text-left transition cursor-pointer flex items-start gap-2 ${
+                            formData.status === 'COMING_SOON'
+                              ? 'bg-amber-50/90 border-amber-500 text-amber-950 ring-2 ring-amber-500/20 shadow-xs'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="w-2.5 h-2.5 rounded-full bg-amber-500 mt-1 shrink-0" />
+                          <div>
+                            <span className="block text-xs font-bold text-slate-900">Sắp ra mắt</span>
+                            <span className="block text-[10px] text-slate-500 mt-0.5">Chưa mở bán chính thức</span>
+                          </div>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}

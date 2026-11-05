@@ -50,6 +50,10 @@ export const ENDPOINTS = {
     LIST: '/admin/suppliers',
     DETAIL: (id: number | string) => `/admin/suppliers/${id}`,
   },
+  ADMIN_INVENTORY_RECEIPTS: {
+    LIST: '/admin/inventory/receipts',
+    DETAIL: (id: number | string) => `/admin/inventory/receipts/${id}`,
+  },
   AI: {
     CHAT: '/ai/chat',
     GENERATE_DESCRIPTION: '/admin/ai/generate-description',

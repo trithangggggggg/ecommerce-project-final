@@ -24,7 +24,7 @@ public class ProductMapper {
                 .price(request.getPrice() != null ? request.getPrice() : BigDecimal.ZERO)
                 .stock(request.getStock() != null ? request.getStock() : 0)
                 .imageUrl(request.getImageUrl())
-                .status(request.getStatus() != null ? request.getStatus() : true)
+                .status(request.getStatus() != null ? request.getStatus() : "ACTIVE")
                 .category(category)
                 .build();
     }
