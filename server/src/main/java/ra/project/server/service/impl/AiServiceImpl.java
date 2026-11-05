@@ -156,7 +156,7 @@ public class AiServiceImpl implements AiService {
 
         // 1. Lấy danh sách sản phẩm thực tế đang kinh doanh từ cơ sở dữ liệu
         List<Product> allProducts = productRepository.findAll().stream()
-                .filter(p -> p.getStatus() == null || p.getStatus())
+                .filter(p -> p.getStatus() == null || !"INACTIVE".equalsIgnoreCase(p.getStatus()))
                 .collect(Collectors.toList());
 
         // 2. RAG Context 1: Lọc nhanh sản phẩm liên quan (theo từ khóa, danh mục, ngân sách)

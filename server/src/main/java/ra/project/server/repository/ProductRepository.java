@@ -35,6 +35,6 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     long countActiveProducts();
 
     @Modifying
-    @Query("UPDATE Product p SET p.stock = (SELECT COALESCE(SUM(v.stock), 0) FROM ProductVariant v WHERE v.product.id = p.id AND v.status = true) WHERE p.id = :productId")
+    @Query("UPDATE Product p SET p.stock = (SELECT COALESCE(SUM(v.stock), 0) FROM ProductVariant v WHERE v.product.id = p.id AND v.status = true), p.updatedAt = CURRENT_TIMESTAMP WHERE p.id = :productId")
     void syncProductTotalStock(@Param("productId") Long productId);
 }

@@ -40,7 +40,20 @@ public class ProductRequest {
     private Long categoryId;
 
     @Builder.Default
-    private Boolean status = true;
+    private String status = "ACTIVE";
+
+    public void setStatus(Object status) {
+        if (status instanceof Boolean) {
+            this.status = (Boolean) status ? "ACTIVE" : "INACTIVE";
+        } else if (status != null) {
+            String s = status.toString().trim().toUpperCase();
+            if ("TRUE".equals(s)) this.status = "ACTIVE";
+            else if ("FALSE".equals(s)) this.status = "INACTIVE";
+            else this.status = s;
+        } else {
+            this.status = "ACTIVE";
+        }
+    }
 
     @Valid
     @Builder.Default

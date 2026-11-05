@@ -17,6 +17,12 @@ public interface ProductService {
 
     PageResponse<ProductResponse> getAllProducts(String keyword, Long categoryId, String brand, Boolean status, Pageable pageable);
 
+    PageResponse<ProductResponse> getAllProducts(String keyword, Long categoryId, String status, Pageable pageable);
+
+    PageResponse<ProductResponse> getAllProducts(String keyword, Long categoryId, String brand, String status, Pageable pageable);
+
+    PageResponse<ProductResponse> getAllAdminProducts(String keyword, Long categoryId, String brand, String status, Boolean includeDeleted, Pageable pageable);
+
     PageResponse<ProductResponse> getAllAdminProducts(String keyword, Long categoryId, String brand, Boolean status, Boolean includeDeleted, Pageable pageable);
 
     ProductResponse getProductById(Long id);
@@ -50,7 +56,11 @@ public interface ProductService {
 
     ProductResponse updateProductStock(Long id, Integer stock);
 
+    ProductResponse updateProductStock(Long id, Integer stock, BigDecimal price);
+
     ProductVariantResponse updateVariantStock(Long variantId, Integer quantity, Boolean isDelta);
+
+    ProductVariantResponse updateVariantStock(Long variantId, Integer quantity, Boolean isDelta, BigDecimal price, BigDecimal originalPrice);
 
     ProductVariantResponse createVariant(Long productId, Map<String, Object> body);
 

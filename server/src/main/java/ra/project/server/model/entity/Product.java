@@ -39,9 +39,9 @@ public class Product extends BaseEntity {
     private BigDecimal price;
 
     /**
-     * @deprecated Cột stock ở bảng products chỉ còn lưu tổng tồn kho (total_stock)
-     * phục vụ denormalization / sorting. Mọi logic trừ kho, hoàn kho và quản lý kho
-     * phải thực hiện trên {@link ProductVariant#getStock()}.
+     * @deprecated Cá»™t stock á»Ÿ báº£ng products chá»‰ cÃ²n lÆ°u tá»•ng tá»“n kho (total_stock)
+     * phá»¥c vá»¥ denormalization / sorting. Má»i logic trá»« kho, hoÃ n kho vÃ  quáº£n lÃ½ kho
+     * pháº£i thá»±c hiá»‡n trÃªn {@link ProductVariant#getStock()}.
      */
     @Deprecated
     @Column(name = "stock", nullable = false)
@@ -51,9 +51,9 @@ public class Product extends BaseEntity {
     @Column(name = "image_url", length = 500)
     private String imageUrl;
 
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", length = 30, nullable = false)
     @Builder.Default
-    private Boolean status = true;
+    private String status = "ACTIVE";
 
     @Column(name = "is_deleted", nullable = false)
     @Builder.Default
@@ -114,3 +114,4 @@ public class Product extends BaseEntity {
                 .sum();
     }
 }
+

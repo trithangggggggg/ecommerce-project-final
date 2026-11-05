@@ -99,7 +99,7 @@ public class OrderServiceImpl implements OrderService {
                 throw new BadRequestException("Vui lòng chọn biến thể sản phẩm (variantId) hoặc sản phẩm (productId)");
             }
 
-            if (Boolean.FALSE.equals(product.getStatus()) || Boolean.FALSE.equals(variant.getStatus())) {
+            if ("INACTIVE".equalsIgnoreCase(product.getStatus()) || "COMING_SOON".equalsIgnoreCase(product.getStatus()) || Boolean.FALSE.equals(variant.getStatus())) {
                 throw new BadRequestException("Sản phẩm '" + product.getName() + "' (" + variant.getSku() + ") hiện đang ngừng kinh doanh");
             }
 

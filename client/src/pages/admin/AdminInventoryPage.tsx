@@ -19,12 +19,17 @@ import {
   ChevronDown,
   ChevronRight,
   Layers,
+  History,
+  Eye,
+  Printer,
+  AlertTriangle,
 } from 'lucide-react';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import AdminPagination from '../../components/admin/AdminPagination';
 import { productService } from '../../api/services/product.service';
 import { supplierService } from '../../api/services/supplier.service';
+import { inventoryService, type ImportReceiptDto } from '../../api/services/inventory.service';
 import { useAuthStore } from '../../store';
 import { toSlug } from '../../utils/format';
 import type { ProductVariant } from '../../models/product.model';
@@ -36,7 +41,8 @@ export interface ImportReceiptRow {
   variantTitle: string;
   sku: string;
   quantity: number;
-  unitPrice: number;
+  unitPrice: number;    // Giá nhập từ nhà cung cấp (giá vốn đợt này)
+  sellingPrice: number; // Giá bán lẻ niêm yết cho khách hàng
   currentStock: number;
 }
 
@@ -48,6 +54,8 @@ export interface EditVariantStock {
   price?: number;
 }
 
+export type InventoryStatus = 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK';
+
 export interface InventoryItem {
   id: number;
   sku: string;
@@ -57,7 +65,7 @@ export interface InventoryItem {
   quantity: number;
   minStock: number;
   unit: string;
-  status: 'IN_STOCK' | 'OUT_OF_STOCK';
+  status: InventoryStatus;
   lastUpdated: string;
   price?: number;
   variants?: ProductVariant[];
@@ -88,81 +96,51 @@ const saveLocationMap = (map: Record<number, { warehouse: string; shelfLocation?
   } catch {}
 };
 
+const formatDateTime = (dateStr?: string): string => {
+  if (!dateStr) return 'Vừa xong';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr.replace('T', ' ').substring(0, 16);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+  } catch {
+    return dateStr.replace('T', ' ').substring(0, 16);
+  }
+};
+
+const calculateStatus = (qty: number, minStock = 5): InventoryStatus => {
+  if (qty <= 0) return 'OUT_OF_STOCK';
+  if (qty <= minStock) return 'LOW_STOCK';
+  return 'IN_STOCK';
+};
+
 export const AdminInventoryPage: React.FC = () => {
+  // Tabs: INVENTORY = Danh sách tồn kho, RECEIPTS = Lịch sử phiếu nhập
+  const [activeTab, setActiveTab] = useState<'INVENTORY' | 'RECEIPTS'>('INVENTORY');
+
+  // Inventory State
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState<string>('ALL');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'IN_STOCK' | 'OUT_OF_STOCK'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK'>('ALL');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [expandedProductIds, setExpandedProductIds] = useState<Record<number, boolean>>({});
-
-  const toggleExpand = (id: number) => {
-    setExpandedProductIds((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
-  };
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
-  };
-
-  const loadRealInventory = async (isManual = false) => {
-    setIsLoading(true);
-    try {
-      const res = await productService.getProducts({ limit: 100 });
-      if (res.data && res.data.length > 0) {
-        const locMap = getSavedLocationMap();
-        const mapped: InventoryItem[] = res.data.map((p, idx) => {
-          const savedLoc = locMap[p.id];
-          const wh = savedLoc?.warehouse || WAREHOUSE_OPTIONS[idx % WAREHOUSE_OPTIONS.length];
-          const shelf = savedLoc?.shelfLocation || `Kệ ${String.fromCharCode(65 + (idx % 4))}${Math.floor(idx / 4) + 1}-0${(idx % 9) + 1}`;
-          const qty = typeof p.stock === 'number' ? p.stock : 0;
-          const minStock = 5;
-          const status: 'IN_STOCK' | 'OUT_OF_STOCK' = qty > 0 ? 'IN_STOCK' : 'OUT_OF_STOCK';
-          const sku = `SKU-${toSlug(p.name).toUpperCase().substring(0, 10)}-${p.id}`;
-
-          return {
-            id: p.id,
-            sku,
-            productName: p.name,
-            warehouse: wh,
-            shelfLocation: shelf,
-            quantity: qty,
-            minStock,
-            unit: 'Chiếc',
-            status,
-            lastUpdated: p.createdAt ? p.createdAt.replace('T', ' ').substring(0, 16) : 'Vừa xong',
-            price: typeof p.price === 'number' ? p.price : 0,
-            variants: p.variants || [],
-          };
-        });
-        setItems(mapped);
-        if (isManual) {
-          showToast(`Đã đồng bộ ${mapped.length} mặt hàng từ cơ sở dữ liệu!`);
-        }
-      } else {
-        setItems([]);
-        if (isManual) {
-          showToast('Chưa có sản phẩm nào trong cơ sở dữ liệu');
-        }
-      }
-    } catch (err: unknown) {
-      console.error('Lỗi khi tải kho hàng:', err);
-      showToast('Không thể kết nối đến máy chủ Backend');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadRealInventory();
-  }, []);
-
-  // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
+
+  // Receipts State
+  const [receipts, setReceipts] = useState<ImportReceiptDto[]>([]);
+  const [isReceiptsLoading, setIsReceiptsLoading] = useState<boolean>(false);
+  const [receiptSearchQuery, setReceiptSearchQuery] = useState('');
+  const [receiptCurrentPage, setReceiptCurrentPage] = useState<number>(1);
+  const [receiptTotalItems, setReceiptTotalItems] = useState<number>(0);
+  const [receiptTotalPages, setReceiptTotalPages] = useState<number>(1);
+  const [selectedReceipt, setSelectedReceipt] = useState<ImportReceiptDto | null>(null);
+  const [isReceiptDetailOpen, setIsReceiptDetailOpen] = useState(false);
 
   // Modals state
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -193,7 +171,6 @@ export const AdminInventoryPage: React.FC = () => {
     note: 'Nhập hàng theo đơn đặt hàng số #DH123',
   });
 
-  // Mặc định danh sách sản phẩm nhập có 1 dòng trống
   const [importRows, setImportRows] = useState<ImportReceiptRow[]>([
     {
       productId: 0,
@@ -203,9 +180,101 @@ export const AdminInventoryPage: React.FC = () => {
       sku: '',
       quantity: 1,
       unitPrice: 0,
+      sellingPrice: 0,
       currentStock: 0,
     },
   ]);
+
+  const toggleExpand = (id: number) => {
+    setExpandedProductIds((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Load Inventory from Database
+  const loadRealInventory = async (isManual = false) => {
+    setIsLoading(true);
+    try {
+      const res = await productService.getProducts({ limit: 100 });
+      if (res.data && res.data.length > 0) {
+        const locMap = getSavedLocationMap();
+        const mapped: InventoryItem[] = res.data.map((p, idx) => {
+          const savedLoc = locMap[p.id];
+          const wh = savedLoc?.warehouse || WAREHOUSE_OPTIONS[idx % WAREHOUSE_OPTIONS.length];
+          const shelf = savedLoc?.shelfLocation || `Kệ ${String.fromCharCode(65 + (idx % 4))}${Math.floor(idx / 4) + 1}-0${(idx % 9) + 1}`;
+          const qty = typeof p.stock === 'number' ? p.stock : 0;
+          const minStock = 5;
+          const status = calculateStatus(qty, minStock);
+          const sku = `SKU-${toSlug(p.name).toUpperCase().substring(0, 10)}-${p.id}`;
+
+          return {
+            id: p.id,
+            sku,
+            productName: p.name,
+            warehouse: wh,
+            shelfLocation: shelf,
+            quantity: qty,
+            minStock,
+            unit: 'Chiếc',
+            status,
+            lastUpdated: formatDateTime(p.updatedAt || p.createdAt),
+            price: typeof p.price === 'number' ? p.price : 0,
+            variants: p.variants || [],
+          };
+        });
+        setItems(mapped);
+        if (isManual) {
+          showToast(`Đã đồng bộ ${mapped.length} mặt hàng từ cơ sở dữ liệu!`);
+        }
+      } else {
+        setItems([]);
+        if (isManual) {
+          showToast('Chưa có sản phẩm nào trong cơ sở dữ liệu');
+        }
+      }
+    } catch (err: unknown) {
+      console.error('Lỗi khi tải kho hàng:', err);
+      showToast('Không thể kết nối đến máy chủ Backend');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Load Receipts from Database
+  const loadReceipts = async (keyword = receiptSearchQuery, page = receiptCurrentPage) => {
+    setIsReceiptsLoading(true);
+    try {
+      const res = await inventoryService.getReceipts({
+        page,
+        limit: ITEMS_PER_PAGE,
+        keyword,
+      });
+      setReceipts(res.data || []);
+      setReceiptTotalItems(res.total || 0);
+      setReceiptTotalPages(res.totalPages || 1);
+    } catch (err) {
+      console.error('Lỗi khi tải danh sách phiếu nhập:', err);
+    } finally {
+      setIsReceiptsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRealInventory();
+    loadReceipts();
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'RECEIPTS') {
+      loadReceipts(receiptSearchQuery, receiptCurrentPage);
+    }
+  }, [activeTab, receiptCurrentPage]);
 
   useEffect(() => {
     supplierService
@@ -218,9 +287,10 @@ export const AdminInventoryPage: React.FC = () => {
           }
         }
       })
-      .catch(() => { });
+      .catch(() => {});
   }, []);
 
+  // Open Create Receipt
   const handleOpenAdd = () => {
     const d = new Date();
     const yyyy = d.getFullYear();
@@ -233,7 +303,7 @@ export const AdminInventoryPage: React.FC = () => {
       receiptCode: code,
       importDate: new Date().toISOString().split('T')[0],
       supplierName: '',
-      importerName: '',
+      importerName: user?.fullName || 'Quản trị viên Hệ thống',
       warehouse: '',
       note: 'Nhập hàng theo đơn đặt hàng số #DH123',
     });
@@ -247,6 +317,7 @@ export const AdminInventoryPage: React.FC = () => {
         sku: '',
         quantity: 1,
         unitPrice: 0,
+        sellingPrice: 0,
         currentStock: 0,
       },
     ]);
@@ -265,6 +336,7 @@ export const AdminInventoryPage: React.FC = () => {
         sku: '',
         quantity: 1,
         unitPrice: 0,
+        sellingPrice: 0,
         currentStock: 0,
       },
     ]);
@@ -281,6 +353,7 @@ export const AdminInventoryPage: React.FC = () => {
           sku: '',
           quantity: 1,
           unitPrice: 0,
+          sellingPrice: 0,
           currentStock: 0,
         },
       ]);
@@ -295,7 +368,7 @@ export const AdminInventoryPage: React.FC = () => {
     );
   };
 
-  // Chọn sản phẩm cho dòng nhập (Không tự động chọn biến thể)
+  // Chọn sản phẩm cho dòng nhập
   const handleProductSelect = (rowIdx: number, productIdStr: string) => {
     const prodId = Number(productIdStr);
     const prod = items.find((p) => p.id === prodId);
@@ -308,21 +381,21 @@ export const AdminInventoryPage: React.FC = () => {
         variantTitle: '',
         sku: '',
         unitPrice: 0,
+        sellingPrice: 0,
         currentStock: 0,
       });
       return;
     }
 
-    // Khi chọn sản phẩm, KHÔNG TỰ ĐỘNG CHỌN BIẾN THỂ
-    // Để trống variantId = 0 để người dùng chủ động chọn biến thể mong muốn
     handleImportRowChange(rowIdx, {
       productId: prod.id,
       productName: prod.productName,
       variantId: 0,
       variantTitle: '',
       sku: '',
-      unitPrice: 0,
-      currentStock: 0,
+      unitPrice: prod.price || 0,
+      sellingPrice: prod.price || 0,
+      currentStock: prod.quantity,
     });
   };
 
@@ -338,8 +411,9 @@ export const AdminInventoryPage: React.FC = () => {
         variantId: 0,
         variantTitle: '',
         sku: '',
-        unitPrice: 0,
-        currentStock: 0,
+        unitPrice: prod.price || 0,
+        sellingPrice: prod.price || 0,
+        currentStock: prod.quantity,
       });
       return;
     }
@@ -351,6 +425,7 @@ export const AdminInventoryPage: React.FC = () => {
         variantTitle: foundVar.title || foundVar.sku || 'Tiêu chuẩn',
         sku: foundVar.sku,
         unitPrice: foundVar.originalPrice || foundVar.price || 0,
+        sellingPrice: foundVar.price || 0,
         currentStock: foundVar.stock ?? 0,
       });
     }
@@ -370,6 +445,7 @@ export const AdminInventoryPage: React.FC = () => {
       sku: '',
       quantity: 1,
       unitPrice: 0,
+      sellingPrice: prod.price || 0,
       currentStock: 0,
     };
 
@@ -382,7 +458,7 @@ export const AdminInventoryPage: React.FC = () => {
     showToast(`Đã thêm dòng chọn biến thể cho "${prod.productName}"`);
   };
 
-  // State & Handler tạo biến thể mới cho sản phẩm trực tiếp từ popup nhập kho
+  // Modal tạo biến thể mới
   const [isNewVariantOpen, setIsNewVariantOpen] = useState(false);
   const [targetProductForVariant, setTargetProductForVariant] = useState<InventoryItem | null>(null);
   const [targetRowIdxForVariant, setTargetRowIdxForVariant] = useState<number | null>(null);
@@ -440,7 +516,6 @@ export const AdminInventoryPage: React.FC = () => {
         status: true,
       };
 
-      // Cập nhật danh sách biến thể của sản phẩm trong state items
       setItems((prev) =>
         prev.map((item) => {
           if (item.id === targetProductForVariant.id) {
@@ -454,12 +529,12 @@ export const AdminInventoryPage: React.FC = () => {
         })
       );
 
-      // Tự động chọn biến thể mới tạo cho dòng này
       handleImportRowChange(targetRowIdxForVariant, {
         variantId: newVar.id,
         variantTitle: newVar.title || newVar.sku,
         sku: newVar.sku,
         unitPrice: newVar.originalPrice || newVar.price || 0,
+        sellingPrice: newVar.price || 0,
         currentStock: 0,
       });
 
@@ -473,7 +548,6 @@ export const AdminInventoryPage: React.FC = () => {
     }
   };
 
-  // Tiện ích: Thêm nhanh toàn bộ các biến thể của sản phẩm đang chọn
   const handleAddAllVariantsForProduct = (rowIdx: number) => {
     const row = importRows[rowIdx];
     const prod = items.find((p) => p.id === row.productId);
@@ -487,6 +561,7 @@ export const AdminInventoryPage: React.FC = () => {
       sku: v.sku,
       quantity: 1,
       unitPrice: v.originalPrice || v.price || 0,
+      sellingPrice: v.price || 0,
       currentStock: v.stock ?? 0,
     }));
 
@@ -508,6 +583,7 @@ export const AdminInventoryPage: React.FC = () => {
     0
   );
 
+  // Submit Lưu Phiếu Nhập Kho: Lưu phiếu, tăng tồn kho, cập nhật giá nhập và giá bán mới
   const handleReceiptSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!receiptForm.receiptCode.trim()) {
@@ -533,7 +609,6 @@ export const AdminInventoryPage: React.FC = () => {
       return;
     }
 
-    // Kiểm tra: nếu sản phẩm có biến thể thì bắt buộc phải chọn biến thể cụ thể
     for (let i = 0; i < importRows.length; i++) {
       const r = importRows[i];
       if (r.productId > 0) {
@@ -549,24 +624,29 @@ export const AdminInventoryPage: React.FC = () => {
     try {
       setIsLoading(true);
 
-      // Cập nhật tồn kho từng biến thể trực tiếp vào Database backend (isDelta = true: tăng thêm tồn kho)
-      for (const row of validRows) {
-        if (row.variantId > 0) {
-          try {
-            await productService.updateVariantStock(row.variantId, row.quantity, true);
-          } catch {
-            if (row.productId > 0) {
-              const currentProd = items.find((it) => it.id === row.productId);
-              await productService.updateProductStock(row.productId, (currentProd?.quantity || 0) + row.quantity);
-            }
-          }
-        } else if (row.productId > 0) {
-          const currentProd = items.find((it) => it.id === row.productId);
-          await productService.updateProductStock(row.productId, (currentProd?.quantity || 0) + row.quantity);
-        }
-      }
+      const payloadItems = validRows.map((r) => ({
+        productId: r.productId,
+        productName: r.productName,
+        variantId: r.variantId > 0 ? r.variantId : undefined,
+        variantTitle: r.variantTitle || undefined,
+        sku: r.sku || undefined,
+        quantity: r.quantity,
+        unitPrice: r.unitPrice || 0,
+        sellingPrice: r.sellingPrice > 0 ? r.sellingPrice : undefined,
+      }));
 
-      // Lưu thông tin kho tiếp nhận cho các sản phẩm vừa nhập
+      // Gọi API lưu phiếu nhập kho chính thức vào MySQL
+      const createdReceipt = await inventoryService.createReceipt({
+        receiptCode: receiptForm.receiptCode.trim(),
+        importDate: receiptForm.importDate,
+        supplierName: receiptForm.supplierName,
+        importerName: receiptForm.importerName || user?.fullName || 'Quản trị viên Hệ thống',
+        warehouse: receiptForm.warehouse,
+        note: receiptForm.note,
+        items: payloadItems,
+      });
+
+      // Lưu vị trí kho tiếp nhận vào local persistence
       const locMap = getSavedLocationMap();
       validRows.forEach((r) => {
         if (r.productId > 0) {
@@ -578,10 +658,13 @@ export const AdminInventoryPage: React.FC = () => {
       });
       saveLocationMap(locMap);
 
+      // Đồng bộ lại danh sách tồn kho và phiếu nhập
       await loadRealInventory();
+      await loadReceipts();
+
       setIsAddOpen(false);
       showToast(
-        `Đã lưu phiếu nhập kho "${receiptForm.receiptCode}" thành công! (${totalReceiptQuantity} chiếc, ${totalReceiptAmount.toLocaleString('vi-VN')} VNĐ)`
+        `Đã lưu phiếu "${createdReceipt.receiptCode}" thành công! (${totalReceiptQuantity} chiếc, ${totalReceiptAmount.toLocaleString('vi-VN')} VNĐ) - Đã cập nhật tồn kho và giá bán mới.`
       );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Có lỗi xảy ra khi lưu phiếu nhập';
@@ -591,19 +674,20 @@ export const AdminInventoryPage: React.FC = () => {
     }
   };
 
+  // Open Edit Stock Modal (Cho phép sửa cả Tồn kho lẫn Giá bán)
   const [editForm, setEditForm] = useState({
     sku: '',
     productName: '',
     warehouse: '',
     shelfLocation: '',
     quantity: 0,
+    price: 0,
     minStock: 0,
     unit: 'Chiếc',
   });
 
   const [editVariantRows, setEditVariantRows] = useState<EditVariantStock[]>([]);
 
-  // Open Edit
   const handleOpenEdit = (item: InventoryItem) => {
     setEditingItem(item);
     const variantsList: EditVariantStock[] = (item.variants && item.variants.length > 0)
@@ -612,7 +696,7 @@ export const AdminInventoryPage: React.FC = () => {
         sku: v.sku,
         title: v.title || v.sku || 'Tiêu chuẩn',
         stock: typeof v.stock === 'number' ? v.stock : 0,
-        price: v.price,
+        price: v.price || item.price || 0,
       }))
       : [];
     setEditVariantRows(variantsList);
@@ -623,6 +707,7 @@ export const AdminInventoryPage: React.FC = () => {
       warehouse: item.warehouse,
       shelfLocation: item.shelfLocation,
       quantity: item.quantity,
+      price: item.price || 0,
       minStock: item.minStock,
       unit: item.unit,
     });
@@ -637,7 +722,13 @@ export const AdminInventoryPage: React.FC = () => {
     });
   };
 
-  // Edit Submit (Hướng 2: Cập nhật chi tiết theo từng biến thể)
+  const handleEditVariantPriceChange = (varId: number, newPrice: number) => {
+    setEditVariantRows((prev) => {
+      const updated = prev.map((v) => (v.id === varId ? { ...v, price: Math.max(0, newPrice) } : v));
+      return updated;
+    });
+  };
+
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem) return;
@@ -646,22 +737,19 @@ export const AdminInventoryPage: React.FC = () => {
     try {
       let finalQty = Number(editForm.quantity) || 0;
 
-      // 1. Nếu sản phẩm có biến thể, gọi API cập nhật tồn kho từng biến thể
       if (editVariantRows.length > 0) {
         await Promise.all(
           editVariantRows.map((v) =>
-            productService.updateVariantStock(v.id, v.stock, false)
+            productService.updateVariantStock(v.id, v.stock, false, v.price)
           )
         );
         finalQty = editVariantRows.reduce((sum, v) => sum + v.stock, 0);
       } else {
-        // 2. Nếu là sản phẩm đơn bản không có biến thể con
-        await productService.updateProductStock(editingItem.id, finalQty);
+        await productService.updateProductStock(editingItem.id, finalQty, editForm.price);
       }
 
-      const status: 'IN_STOCK' | 'OUT_OF_STOCK' = finalQty > 0 ? 'IN_STOCK' : 'OUT_OF_STOCK';
+      const status = calculateStatus(finalQty, editingItem.minStock);
 
-      // Lưu thông tin vị trí kho và kệ hàng vào local persistence
       const locMap = getSavedLocationMap();
       locMap[editingItem.id] = {
         warehouse: editForm.warehouse,
@@ -675,22 +763,27 @@ export const AdminInventoryPage: React.FC = () => {
 
           const updatedVariants = item.variants?.map((v) => {
             const found = editVariantRows.find((ev) => ev.id === v.id);
-            return found ? { ...v, stock: found.stock } : v;
+            return found ? { ...v, stock: found.stock, price: found.price ?? v.price ?? 0 } : v;
           });
+
+          const representativePrice = updatedVariants && updatedVariants.length > 0
+            ? (updatedVariants[0].price || item.price)
+            : (editForm.price || item.price);
 
           return {
             ...item,
             warehouse: editForm.warehouse,
             shelfLocation: editForm.shelfLocation.trim(),
             quantity: finalQty,
+            price: representativePrice,
             status,
             variants: updatedVariants || item.variants,
-            lastUpdated: new Date().toISOString().replace('T', ' ').substring(0, 16),
+            lastUpdated: formatDateTime(new Date().toISOString()),
           };
         })
       );
 
-      showToast(`Đã cập nhật tồn kho "${editingItem.productName}" (${finalQty} chiếc) thành công!`);
+      showToast(`Đã cập nhật tồn kho & giá bán "${editingItem.productName}" thành công!`);
       setEditingItem(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Không thể cập nhật số lượng tồn kho';
@@ -700,7 +793,17 @@ export const AdminInventoryPage: React.FC = () => {
     }
   };
 
-  // Filter
+  // View Receipt Detail
+  const handleOpenReceiptDetail = (receipt: ImportReceiptDto) => {
+    setSelectedReceipt(receipt);
+    setIsReceiptDetailOpen(true);
+  };
+
+  const handlePrintReceipt = () => {
+    window.print();
+  };
+
+  // Filtering Inventory Items
   const filteredItems = items.filter((item) => {
     if (warehouseFilter !== 'ALL' && item.warehouse !== warehouseFilter) return false;
     if (statusFilter !== 'ALL' && item.status !== statusFilter) return false;
@@ -716,15 +819,20 @@ export const AdminInventoryPage: React.FC = () => {
   });
 
   const inStockCount = items.filter((i) => i.status === 'IN_STOCK').length;
+  const lowStockCount = items.filter((i) => i.status === 'LOW_STOCK').length;
   const outOfStockCount = items.filter((i) => i.status === 'OUT_OF_STOCK').length;
   const totalQuantity = items.reduce((sum, i) => sum + i.quantity, 0);
 
-  // Pagination calculation
+  // Pagination calculation for Inventory
   const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE) || 1;
   const paginatedItems = filteredItems.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
+
+  // Stats for Receipts
+  const totalReceiptItemsSum = receipts.reduce((sum, r) => sum + (r.totalQuantity || 0), 0);
+  const totalReceiptAmountSum = receipts.reduce((sum, r) => sum + (Number(r.totalAmount) || 0), 0);
 
   return (
     <div className="h-full flex flex-col min-h-0 space-y-2.5 font-sans select-none overflow-hidden">
@@ -747,18 +855,25 @@ export const AdminInventoryPage: React.FC = () => {
             </span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Theo dõi và quản lý hàng hóa trong kho
+            Theo dõi tồn kho hàng hóa, điều chỉnh giá bán và xem lịch sử các phiếu nhập
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => loadRealInventory(true)}
-            disabled={isLoading}
+            onClick={() => {
+              if (activeTab === 'INVENTORY') {
+                loadRealInventory(true);
+              } else {
+                loadReceipts();
+                showToast('Đã làm mới danh sách phiếu nhập kho!');
+              }
+            }}
+            disabled={isLoading || isReceiptsLoading}
             className="p-2 sm:p-2.5 bg-white border border-slate-200/90 rounded-xl text-slate-600 hover:text-blue-600 hover:bg-slate-50 transition cursor-pointer shadow-2xs flex items-center gap-2 text-xs font-semibold"
             title="Đồng bộ từ Database"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${(isLoading || isReceiptsLoading) ? 'animate-spin text-blue-600' : ''}`} />
             <span>Đồng bộ DB</span>
           </button>
           <Button
@@ -773,270 +888,520 @@ export const AdminInventoryPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 shrink-0">
-        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Tổng thiết bị lưu kho</span>
-          <span className="text-lg font-bold text-slate-900">{totalQuantity} chiếc</span>
-        </div>
-        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Còn hàng</span>
-          <span className="text-lg font-bold text-emerald-600">{inStockCount} SKU</span>
-        </div>
-        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Hết hàng</span>
-          <span className="text-lg font-bold text-rose-600">{outOfStockCount} SKU</span>
-        </div>
+      {/* Tabs Navigation */}
+      <div className="flex items-center gap-2 border-b border-slate-200 shrink-0 pb-1">
+        <button
+          type="button"
+          onClick={() => setActiveTab('INVENTORY')}
+          className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
+            activeTab === 'INVENTORY'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <Archive className="w-4 h-4" />
+          <span>Danh sách tồn kho</span>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+            activeTab === 'INVENTORY' ? 'bg-blue-700/80 text-white' : 'bg-slate-200 text-slate-700'
+          }`}>
+            {items.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('RECEIPTS');
+            loadReceipts();
+          }}
+          className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
+            activeTab === 'RECEIPTS'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <History className="w-4 h-4" />
+          <span>Lịch sử phiếu nhập kho</span>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+            activeTab === 'RECEIPTS' ? 'bg-blue-700/80 text-white' : 'bg-slate-200 text-slate-700'
+          }`}>
+            {receiptTotalItems}
+          </span>
+        </button>
       </div>
 
-      {/* Main Table Card (Dạng bảng) */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden flex-1 min-h-0 flex flex-col">
-        {/* Search & Filter Toolbar */}
-        <div className="p-3 sm:p-3.5 border-b border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
-          <div className="flex flex-col sm:flex-row items-center gap-3 flex-1 max-w-2xl">
-            <div className="w-full sm:w-64">
-              <Input
-                type="text"
-                placeholder="Tìm mã SKU, tên thiết bị, kệ..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setCurrentPage(1);
-                }}
-                leftIcon={<Search className="w-4 h-4 text-slate-400" />}
-              />
+      {/* ======================================================== */}
+      {/* TAB 1: DANH SÁCH TỒN KHO                                */}
+      {/* ======================================================== */}
+      {activeTab === 'INVENTORY' && (
+        <>
+          {/* Stats Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 shrink-0">
+            <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
+              <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Tổng thiết bị lưu kho</span>
+              <span className="text-lg font-bold text-slate-900">{totalQuantity} chiếc</span>
+            </div>
+            <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
+              <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Còn hàng</span>
+              <span className="text-lg font-bold text-emerald-600">{inStockCount} SKU</span>
+            </div>
+            <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
+              <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Sắp hết hàng (&le; 5)</span>
+              <span className="text-lg font-bold text-amber-600">{lowStockCount} SKU</span>
+            </div>
+            <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
+              <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Hết hàng</span>
+              <span className="text-lg font-bold text-rose-600">{outOfStockCount} SKU</span>
+            </div>
+          </div>
+
+          {/* Main Table Card */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden flex-1 min-h-0 flex flex-col">
+            {/* Search & Filter Toolbar */}
+            <div className="p-3 sm:p-3.5 border-b border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
+              <div className="flex flex-col sm:flex-row items-center gap-3 flex-1 max-w-2xl">
+                <div className="w-full sm:w-64">
+                  <Input
+                    type="text"
+                    placeholder="Tìm mã SKU, tên thiết bị, kệ..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    leftIcon={<Search className="w-4 h-4 text-slate-400" />}
+                  />
+                </div>
+
+                {/* Warehouse select */}
+                <select
+                  value={warehouseFilter}
+                  onChange={(e) => {
+                    setWarehouseFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full sm:w-auto bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-semibold text-slate-700 py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+                >
+                  <option value="ALL">Tất cả kho ({items.length})</option>
+                  {WAREHOUSE_OPTIONS.map((w) => (
+                    <option key={w} value={w}>
+                      {w}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Status filter */}
+                <select
+                  value={statusFilter}
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value as 'ALL' | 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK');
+                    setCurrentPage(1);
+                  }}
+                  className="w-full sm:w-auto bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-semibold text-slate-700 py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+                >
+                  <option value="ALL">Tất cả trạng thái</option>
+                  <option value="IN_STOCK">Còn hàng</option>
+                  <option value="LOW_STOCK">Sắp hết hàng</option>
+                  <option value="OUT_OF_STOCK">Hết hàng</option>
+                </select>
+              </div>
+
+              <div className="text-xs text-slate-500 font-medium self-end sm:self-center">
+                Hiển thị <strong>{filteredItems.length}</strong> / {items.length} mặt hàng
+              </div>
             </div>
 
-            {/* Warehouse select */}
-            <select
-              value={warehouseFilter}
-              onChange={(e) => {
-                setWarehouseFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full sm:w-auto bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-semibold text-slate-700 py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-purple-500/20 cursor-pointer"
-            >
-              <option value="ALL">Tất cả kho ({items.length})</option>
-              {WAREHOUSE_OPTIONS.map((w) => (
-                <option key={w} value={w}>
-                  {w}
-                </option>
-              ))}
-            </select>
-
-            {/* Status filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value as 'ALL' | 'IN_STOCK' | 'OUT_OF_STOCK');
-                setCurrentPage(1);
-              }}
-              className="w-full sm:w-auto bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-semibold text-slate-700 py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-purple-500/20 cursor-pointer"
-            >
-              <option value="ALL">Tất cả trạng thái</option>
-              <option value="IN_STOCK">Còn hàng</option>
-              <option value="OUT_OF_STOCK">Hết hàng</option>
-            </select>
-          </div>
-
-          <div className="text-xs text-slate-500 font-medium self-end sm:self-center">
-            Hiển thị <strong>{filteredItems.length}</strong> / {items.length} mặt hàng
-          </div>
-        </div>
-
-        {/* Table View */}
-        <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto no-scrollbar">
-          <table className="w-full text-left text-xs text-slate-600 border-collapse">
-            <thead>
-              <tr className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 backdrop-blur-xs text-[11px] font-bold text-slate-500 uppercase tracking-wider shadow-2xs">
-                <th className="py-2.5 px-3.5 bg-slate-50/95">Mã SKU</th>
-                <th className="py-2.5 px-3.5 bg-slate-50/95">Tên thiết bị</th>
-                <th className="py-2.5 px-3.5 bg-slate-50/95">Kho & Vị trí kệ</th>
-                <th className="py-2.5 px-3.5 bg-slate-50/95 text-center">Tồn kho</th>
-                <th className="py-2.5 px-3.5 bg-slate-50/95">Trạng thái kho</th>
-                <th className="py-2.5 px-3.5 bg-slate-50/95">Cập nhật</th>
-                <th className="py-2.5 px-3.5 bg-slate-50/95 text-center">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredItems.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-400">
-                    Không tìm thấy mặt hàng kho nào phù hợp.
-                  </td>
-                </tr>
-              ) : (
-                paginatedItems.map((item) => (
-                  <React.Fragment key={item.id}>
-                    <tr className="hover:bg-slate-50/70 transition group">
-                      {/* SKU */}
-                      <td className="py-2.5 px-3.5 whitespace-nowrap">
-                        <span className="font-mono font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 text-xs">
-                          {item.sku}
-                        </span>
+            {/* Table View */}
+            <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto no-scrollbar">
+              <table className="w-full text-left text-xs text-slate-600 border-collapse">
+                <thead>
+                  <tr className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 backdrop-blur-xs text-[11px] font-bold text-slate-500 uppercase tracking-wider shadow-2xs">
+                    <th className="py-2.5 px-3 bg-slate-50/95">Mã SKU</th>
+                    <th className="py-2.5 px-3.5 bg-slate-50/95">Tên thiết bị</th>
+                    <th className="py-2.5 px-3.5 bg-slate-50/95 text-right">Giá bán niêm yết</th>
+                    <th className="py-2.5 px-3.5 bg-slate-50/95">Kho & Vị trí kệ</th>
+                    <th className="py-2.5 px-3.5 bg-slate-50/95 text-center">Tồn kho</th>
+                    <th className="py-2.5 px-3.5 bg-slate-50/95">Trạng thái kho</th>
+                    <th className="py-2.5 px-3.5 bg-slate-50/95">Cập nhật</th>
+                    <th className="py-2.5 px-3.5 bg-slate-50/95 text-center">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-slate-400">
+                        Không tìm thấy mặt hàng kho nào phù hợp.
                       </td>
-
-                      {/* Name & Variants Toggle */}
-                      <td className="py-2.5 px-3.5 max-w-[260px]">
-                        <div className="flex items-center gap-1.5">
-                          {item.variants && item.variants.length > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => toggleExpand(item.id)}
-                              className="p-1 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition cursor-pointer shrink-0"
-                              title={expandedProductIds[item.id] ? "Thu gọn biến thể" : "Xem chi tiết biến thể"}
-                            >
-                              {expandedProductIds[item.id] ? (
-                                <ChevronDown className="w-3.5 h-3.5 text-purple-600" />
-                              ) : (
-                                <ChevronRight className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <span className="font-bold text-slate-900 group-hover:text-purple-600 transition truncate block text-xs sm:text-[13px]" title={item.productName}>
-                              {item.productName}
+                    </tr>
+                  ) : (
+                    paginatedItems.map((item) => (
+                      <React.Fragment key={item.id}>
+                        <tr className="hover:bg-slate-50/70 transition group">
+                          {/* SKU */}
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 text-xs">
+                              {item.sku}
                             </span>
-                            {item.variants && item.variants.length > 0 && (
-                              <span className="text-[10px] text-purple-600 font-semibold inline-flex items-center gap-0.5 mt-0.5">
-                                <Layers className="w-2.5 h-2.5" /> {item.variants.length} phân loại
+                          </td>
+
+                          {/* Name & Variants Toggle */}
+                          <td className="py-2.5 px-3.5 max-w-[240px]">
+                            <div className="flex items-center gap-1.5">
+                              {item.variants && item.variants.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleExpand(item.id)}
+                                  className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer shrink-0"
+                                  title={expandedProductIds[item.id] ? 'Thu gọn biến thể' : 'Xem chi tiết biến thể'}
+                                >
+                                  {expandedProductIds[item.id] ? (
+                                    <ChevronDown className="w-3.5 h-3.5 text-blue-600" />
+                                  ) : (
+                                    <ChevronRight className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <span className="font-bold text-slate-900 group-hover:text-blue-600 transition truncate block text-xs sm:text-[13px]" title={item.productName}>
+                                  {item.productName}
+                                </span>
+                                {item.variants && item.variants.length > 0 && (
+                                  <span className="text-[10px] text-blue-600 font-semibold inline-flex items-center gap-0.5 mt-0.5">
+                                    <Layers className="w-2.5 h-2.5" /> {item.variants.length} phân loại
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Giá bán niêm yết */}
+                          <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
+                            <span className="font-bold text-slate-900 text-xs">
+                              {item.price ? `${item.price.toLocaleString('vi-VN')} đ` : 'Chưa đặt giá'}
+                            </span>
+                          </td>
+
+                          {/* Warehouse & Shelf */}
+                          <td className="py-2.5 px-3.5 whitespace-nowrap">
+                            <div className="text-slate-800 font-semibold flex items-center gap-1 text-xs">
+                              <MapPin className="w-3 h-3 text-blue-500 shrink-0" />
+                              <span>{item.warehouse}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 block ml-4 mt-0.5">
+                              Kệ: <strong>{item.shelfLocation}</strong>
+                            </span>
+                          </td>
+
+                          {/* Quantity */}
+                          <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
+                            <span
+                              className={`text-xs font-extrabold ${
+                                item.quantity > 5
+                                  ? 'text-emerald-700'
+                                  : item.quantity > 0
+                                  ? 'text-amber-700'
+                                  : 'text-rose-700'
+                              }`}
+                            >
+                              {item.quantity}
+                            </span>
+                            <span className="text-[10px] text-slate-400 ml-1">{item.unit}</span>
+                          </td>
+
+                          {/* Status */}
+                          <td className="py-2.5 px-3.5 whitespace-nowrap">
+                            {item.status === 'IN_STOCK' ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                <span>Còn hàng</span>
+                              </span>
+                            ) : item.status === 'LOW_STOCK' ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-amber-50 text-amber-700 border-amber-200">
+                                <AlertTriangle className="w-3 h-3 text-amber-500" />
+                                <span>Sắp hết hàng</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-rose-50 text-rose-700 border-rose-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                <span>Hết hàng</span>
                               </span>
                             )}
-                          </div>
-                        </div>
-                      </td>
+                          </td>
 
-                      {/* Warehouse & Shelf */}
-                      <td className="py-2.5 px-3.5 whitespace-nowrap">
-                        <div className="text-slate-800 font-semibold flex items-center gap-1 text-xs">
-                          <MapPin className="w-3 h-3 text-purple-500 shrink-0" />
-                          <span>{item.warehouse}</span>
-                        </div>
-                        <span className="text-[10px] text-slate-400 block ml-4 mt-0.5">
-                          Kệ: <strong>{item.shelfLocation}</strong>
-                        </span>
-                      </td>
+                          {/* Last updated */}
+                          <td className="py-2.5 px-3.5 whitespace-nowrap text-[11px] text-slate-500">
+                            <div className="flex items-center gap-1.5">
+                              <Clock className="w-3 h-3 text-slate-400" />
+                              <span className="font-mono">{item.lastUpdated}</span>
+                            </div>
+                          </td>
 
-                      {/* Quantity */}
-                      <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
-                        <span
-                          className={`text-xs font-extrabold ${item.quantity > 0 ? 'text-emerald-700' : 'text-rose-700'
-                            }`}
-                        >
-                          {item.quantity}
-                        </span>
-                        <span className="text-[10px] text-slate-400 ml-1">{item.unit}</span>
-                      </td>
+                          {/* Actions */}
+                          <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEdit(item)}
+                                className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer flex items-center gap-1 text-[11px] font-semibold border border-slate-200/80 shadow-2xs"
+                                title="Sửa số lượng tồn kho & Giá bán"
+                              >
+                                <Edit className="w-3 h-3 text-blue-600" />
+                                <span>Sửa kho & giá</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
 
-                      {/* Status */}
-                      <td className="py-2.5 px-3.5 whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${item.status === 'IN_STOCK'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-rose-50 text-rose-700 border-rose-200'
-                            }`}
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                          <span>{item.status === 'IN_STOCK' ? 'Còn hàng' : 'Hết hàng'}</span>
-                        </span>
-                      </td>
+                        {/* Sub-row: Variant detail list if expanded */}
+                        {expandedProductIds[item.id] && item.variants && item.variants.length > 0 && (
+                          <tr className="bg-blue-50/20 border-b border-slate-200/60">
+                            <td colSpan={8} className="py-2.5 px-4">
+                              <div className="pl-6 border-l-2 border-blue-400 space-y-1.5">
+                                <div className="text-[11px] font-bold text-slate-700 flex items-center justify-between">
+                                  <span className="flex items-center gap-1.5">
+                                    <Layers className="w-3.5 h-3.5 text-blue-600" />
+                                    <span>Phân loại chi tiết của {item.productName} ({item.variants.length} biến thể):</span>
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 font-medium">
+                                    Tổng kho: <strong className="text-blue-700 font-mono">{item.quantity}</strong> chiếc
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+                                  {item.variants.map((v) => (
+                                    <div
+                                      key={v.id}
+                                      className="bg-white p-2.5 rounded-xl border border-slate-200/90 shadow-2xs flex items-center justify-between gap-2"
+                                    >
+                                      <div className="min-w-0">
+                                        <span className="font-bold text-slate-800 block text-xs truncate">
+                                          {v.title || v.sku}
+                                        </span>
+                                        <span className="text-[10px] font-mono text-slate-400 block truncate">
+                                          SKU: {v.sku}
+                                        </span>
+                                      </div>
+                                      <div className="text-right shrink-0">
+                                        <span
+                                          className={`text-xs font-black block ${
+                                            (v.stock ?? 0) > 5
+                                              ? 'text-emerald-600'
+                                              : (v.stock ?? 0) > 0
+                                              ? 'text-amber-600'
+                                              : 'text-rose-600'
+                                          }`}
+                                        >
+                                          {v.stock ?? 0} chiếc
+                                        </span>
+                                        <span className="text-[11px] text-blue-700 font-bold block">
+                                          {v.price ? `${v.price.toLocaleString('vi-VN')} đ` : '0 đ'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-                      {/* Last updated */}
-                      <td className="py-2.5 px-3.5 whitespace-nowrap text-[10px] text-slate-400">
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          <span>{item.lastUpdated}</span>
-                        </div>
-                      </td>
+            {/* Pagination Controls */}
+            {filteredItems.length > 0 && (
+              <div className="shrink-0 border-t border-slate-100 bg-white">
+                <AdminPagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={filteredItems.length}
+                  itemsPerPage={ITEMS_PER_PAGE}
+                  onPageChange={setCurrentPage}
+                />
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
-                      {/* Actions */}
-                      <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(item)}
-                            className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition cursor-pointer"
-                            title="Cập nhật số lượng / kho"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </button>
+      {/* ======================================================== */}
+      {/* TAB 2: LỊCH SỬ PHIẾU NHẬP KHO (XEM LẠI PHIẾU NHẬP)        */}
+      {/* ======================================================== */}
+      {activeTab === 'RECEIPTS' && (
+        <>
+          {/* Stats Summary Cards for Receipts */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 shrink-0">
+            <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
+              <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Tổng số phiếu nhập đã lưu</span>
+              <span className="text-lg font-bold text-slate-900">{receiptTotalItems} phiếu</span>
+            </div>
+            <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
+              <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Tổng thiết bị nhập (trang hiện tại)</span>
+              <span className="text-lg font-bold text-blue-600">{totalReceiptItemsSum} chiếc</span>
+            </div>
+            <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
+              <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Tổng giá trị nhập (trang hiện tại)</span>
+              <span className="text-lg font-bold text-emerald-600">{totalReceiptAmountSum.toLocaleString('vi-VN')} VNĐ</span>
+            </div>
+          </div>
+
+          {/* Receipts Table Card */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden flex-1 min-h-0 flex flex-col">
+            {/* Search Toolbar */}
+            <div className="p-3 sm:p-3.5 border-b border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
+              <div className="w-full sm:w-80">
+                <Input
+                  type="text"
+                  placeholder="Tìm mã phiếu, NCC, người nhập..."
+                  value={receiptSearchQuery}
+                  onChange={(e) => {
+                    setReceiptSearchQuery(e.target.value);
+                    setReceiptCurrentPage(1);
+                    loadReceipts(e.target.value, 1);
+                  }}
+                  leftIcon={<Search className="w-4 h-4 text-slate-400" />}
+                />
+              </div>
+
+              <div className="text-xs text-slate-500 font-medium">
+                Tìm thấy <strong>{receiptTotalItems}</strong> phiếu nhập kho
+              </div>
+            </div>
+
+            {/* Table View */}
+            <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto no-scrollbar">
+              <table className="w-full text-left text-xs text-slate-600 border-collapse">
+                <thead>
+                  <tr className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 backdrop-blur-xs text-[11px] font-bold text-slate-500 uppercase tracking-wider shadow-2xs">
+                    <th className="py-2.5 px-3.5 bg-slate-50/95">Mã phiếu</th>
+                    <th className="py-2.5 px-3.5 bg-slate-50/95">Ngày nhập</th>
+                    <th className="py-2.5 px-3.5 bg-slate-50/95">Nhà cung cấp</th>
+                    <th className="py-2.5 px-3.5 bg-slate-50/95">Kho nhận hàng</th>
+                    <th className="py-2.5 px-3.5 bg-slate-50/95">Người lập</th>
+                    <th className="py-2.5 px-3.5 bg-slate-50/95 text-center">Số lượng</th>
+                    <th className="py-2.5 px-3.5 bg-slate-50/95 text-right">Tổng tiền nhập</th>
+                    <th className="py-2.5 px-3.5 bg-slate-50/95 text-center">Chi tiết</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {receipts.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-12 text-center text-slate-400">
+                        <div className="flex flex-col items-center justify-center">
+                          <History className="w-10 h-10 text-slate-300 stroke-[1.5] mb-2" />
+                          <p className="text-xs font-semibold text-slate-600">
+                            Chưa có phiếu nhập kho nào được lưu
+                          </p>
+                          <p className="text-[11px] text-slate-400 mt-1">
+                            Nhấn nút "Nhập kho" phía trên để tạo phiếu nhập đầu tiên
+                          </p>
                         </div>
                       </td>
                     </tr>
+                  ) : (
+                    receipts.map((rc) => (
+                      <tr key={rc.id} className="hover:bg-slate-50/70 transition group">
+                        {/* Receipt Code */}
+                        <td className="py-2.5 px-3.5 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenReceiptDetail(rc)}
+                            className="font-mono font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md border border-blue-200 text-xs transition cursor-pointer text-left"
+                            title="Bấm để xem lại chi tiết phiếu nhập này"
+                          >
+                            {rc.receiptCode}
+                          </button>
+                        </td>
 
-                    {/* Sub-row: Variant detail list if expanded */}
-                    {expandedProductIds[item.id] && item.variants && item.variants.length > 0 && (
-                      <tr className="bg-purple-50/25 border-b border-slate-200/60">
-                        <td colSpan={7} className="py-2.5 px-4">
-                          <div className="pl-6 border-l-2 border-purple-400 space-y-1.5">
-                            <div className="text-[11px] font-bold text-slate-700 flex items-center justify-between">
-                              <span className="flex items-center gap-1.5">
-                                <Layers className="w-3.5 h-3.5 text-purple-600" />
-                                <span>Phân loại chi tiết của {item.productName} ({item.variants.length} biến thể):</span>
-                              </span>
-                              <span className="text-[10px] text-slate-500 font-medium">
-                                Tổng kho: <strong className="text-purple-700 font-mono">{item.quantity}</strong> chiếc
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
-                              {item.variants.map((v) => (
-                                <div
-                                  key={v.id}
-                                  className="bg-white p-2.5 rounded-xl border border-slate-200/90 shadow-2xs flex items-center justify-between gap-2"
-                                >
-                                  <div className="min-w-0">
-                                    <span className="font-bold text-slate-800 block text-xs truncate">
-                                      {v.title || v.sku}
-                                    </span>
-                                    <span className="text-[10px] font-mono text-slate-400 block truncate">
-                                      SKU: {v.sku}
-                                    </span>
-                                  </div>
-                                  <div className="text-right shrink-0">
-                                    <span
-                                      className={`text-xs font-black block ${(v.stock ?? 0) > 0 ? 'text-emerald-600' : 'text-rose-600'
-                                        }`}
-                                    >
-                                      {v.stock ?? 0} chiếc
-                                    </span>
-                                    <span className="text-[10px] text-slate-500 font-semibold">
-                                      {v.price ? `${v.price.toLocaleString('vi-VN')} đ` : ''}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
+                        {/* Import Date */}
+                        <td className="py-2.5 px-3.5 whitespace-nowrap text-slate-800 font-medium">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{rc.importDate}</span>
                           </div>
                         </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
 
-        {/* Pagination Controls - 10 rows per page - Pinned to bottom */}
-        {filteredItems.length > 0 && (
-          <div className="shrink-0 border-t border-slate-100 bg-white">
-            <AdminPagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={filteredItems.length}
-              itemsPerPage={ITEMS_PER_PAGE}
-              onPageChange={setCurrentPage}
-            />
+                        {/* Supplier */}
+                        <td className="py-2.5 px-3.5 max-w-[200px]">
+                          <span className="font-semibold text-slate-800 block truncate" title={rc.supplierName}>
+                            {rc.supplierName || 'Chưa xác định'}
+                          </span>
+                        </td>
+
+                        {/* Warehouse */}
+                        <td className="py-2.5 px-3.5 whitespace-nowrap">
+                          <div className="flex items-center gap-1 text-slate-700 font-medium">
+                            <MapPin className="w-3 h-3 text-blue-500 shrink-0" />
+                            <span>{rc.warehouse || 'Kho chính'}</span>
+                          </div>
+                        </td>
+
+                        {/* Importer */}
+                        <td className="py-2.5 px-3.5 whitespace-nowrap text-slate-600">
+                          <div className="flex items-center gap-1">
+                            <User className="w-3 h-3 text-slate-400" />
+                            <span>{rc.importerName || 'Quản trị viên'}</span>
+                          </div>
+                        </td>
+
+                        {/* Quantity */}
+                        <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
+                          <span className="font-extrabold text-blue-700 bg-blue-50/60 px-2 py-0.5 rounded border border-blue-200/60">
+                            {rc.totalQuantity} chiếc
+                          </span>
+                        </td>
+
+                        {/* Total Amount */}
+                        <td className="py-2.5 px-3.5 text-right whitespace-nowrap font-bold text-slate-900">
+                          {Number(rc.totalAmount || 0).toLocaleString('vi-VN')} VNĐ
+                        </td>
+
+                        {/* Action */}
+                        <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenReceiptDetail(rc)}
+                            className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition cursor-pointer inline-flex items-center gap-1 text-xs font-semibold"
+                            title="Xem chi tiết phiếu nhập"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Xem</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls for Receipts */}
+            {receiptTotalItems > 0 && (
+              <div className="shrink-0 border-t border-slate-100 bg-white">
+                <AdminPagination
+                  currentPage={receiptCurrentPage}
+                  totalPages={receiptTotalPages}
+                  totalItems={receiptTotalItems}
+                  itemsPerPage={ITEMS_PER_PAGE}
+                  onPageChange={(page) => {
+                    setReceiptCurrentPage(page);
+                    loadReceipts(receiptSearchQuery, page);
+                  }}
+                />
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       {/* ======================================================== */}
-      {/* MODAL 1: NHẬP KHO (PHƯƠNG ÁN 1: TÁCH CỘT BIẾN THỂ)       */}
+      {/* MODAL 1: NHẬP KHO (TÁCH BIỆT: ĐƠN GIÁ NHẬP & GIÁ BÁN MỚI) */}
       {/* ======================================================== */}
       {isAddOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-4xl sm:max-w-5xl w-full p-4 sm:p-5 shadow-2xl font-sans max-h-[92vh] flex flex-col overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-5xl sm:max-w-6xl w-full p-4 sm:p-5 shadow-2xl font-sans max-h-[92vh] flex flex-col overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 shrink-0">
               <h3 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -1055,7 +1420,7 @@ export const AdminInventoryPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleReceiptSubmit} className="flex-1 min-h-0 flex flex-col text-xs pt-2">
-              {/* Form Info Cố định phía trên (Không bị cuộn) */}
+              {/* Form Info Cố định phía trên */}
               <div className="shrink-0 space-y-2 mb-2">
                 {/* Row 1: Mã phiếu nhập & Ngày nhập */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
@@ -1072,7 +1437,7 @@ export const AdminInventoryPage: React.FC = () => {
                         required
                         value={receiptForm.receiptCode}
                         onChange={(e) => setReceiptForm({ ...receiptForm, receiptCode: e.target.value })}
-                        placeholder="VD: PN20250614-001"
+                        placeholder="VD: PN20261105-001"
                         className="w-full pl-8 pr-3 py-1.5 border border-slate-300 rounded-xl font-mono focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs"
                       />
                     </div>
@@ -1185,7 +1550,7 @@ export const AdminInventoryPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Section: Danh sách sản phẩm nhập (Chỉ cuộn ở phần table này) */}
+              {/* Section: Danh sách sản phẩm nhập */}
               <div className="flex-1 min-h-0 flex flex-col pt-1">
                 <div className="flex items-center justify-between mb-1.5 shrink-0">
                   <div className="flex items-center gap-2">
@@ -1197,28 +1562,29 @@ export const AdminInventoryPage: React.FC = () => {
                     </h4>
                   </div>
                   <span className="text-[10px] text-slate-400 font-medium">
-                    Hỗ trợ chọn chi tiết phân loại (Dung lượng, Màu sắc, ...)
+                    Nhập giá mua từ NCC và điều chỉnh trực tiếp giá bán lẻ cho khách hàng
                   </span>
                 </div>
 
-                {/* Table Container - CUỘN DUY NHẤT TRONG TABLE NÀY (ĐÃ ẨN THANH SCROLL) */}
-                <div className="flex-1 min-h-[160px] max-h-[360px] sm:max-h-[400px] border border-slate-200 rounded-xl overflow-x-auto overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-2xs">
-                  <table className="w-full text-left text-xs border-collapse min-w-[780px]">
+                {/* Table Container: Cột riêng cho Đơn giá nhập và Giá bán mới */}
+                <div className="flex-1 min-h-[160px] max-h-[360px] sm:max-h-[380px] border border-slate-200 rounded-xl overflow-x-auto overflow-y-auto no-scrollbar shadow-2xs">
+                  <table className="w-full text-left text-xs border-collapse min-w-[880px]">
                     <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200 text-slate-600 text-[11px] font-bold shadow-2xs">
                       <tr>
-                        <th className="py-2.5 px-2 text-center w-10 bg-slate-50">STT</th>
-                        <th className="py-2.5 px-3 min-w-[200px] bg-slate-50">Sản phẩm *</th>
-                        <th className="py-2.5 px-3 min-w-[230px] bg-slate-50">Biến thể / Phân loại *</th>
-                        <th className="py-2.5 px-2 text-center w-24 bg-slate-50">Số lượng *</th>
-                        <th className="py-2.5 px-3 text-right w-32 bg-slate-50">Đơn giá (VNĐ)</th>
-                        <th className="py-2.5 px-3 text-right w-32 bg-slate-50">Thành tiền (VNĐ)</th>
-                        <th className="py-2.5 px-2 text-center w-12 bg-slate-50">Thao tác</th>
+                        <th className="py-2.5 px-2 text-center w-8 bg-slate-50">STT</th>
+                        <th className="py-2.5 px-3 min-w-[190px] bg-slate-50">Sản phẩm *</th>
+                        <th className="py-2.5 px-3 min-w-[210px] bg-slate-50">Biến thể / Phân loại *</th>
+                        <th className="py-2.5 px-2 text-center w-20 bg-slate-50">Số lượng *</th>
+                        <th className="py-2.5 px-3 text-right w-32 bg-slate-50">Đơn giá nhập (VNĐ)</th>
+                        <th className="py-2.5 px-3 text-right w-32 bg-slate-50">Giá bán mới (VNĐ)</th>
+                        <th className="py-2.5 px-3 text-right w-32 bg-slate-50">Thành tiền nhập</th>
+                        <th className="py-2.5 px-2 text-center w-10 bg-slate-50">Thao tác</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
                       {importRows.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="py-8 text-center text-slate-400">
+                          <td colSpan={8} className="py-8 text-center text-slate-400">
                             <div className="flex flex-col items-center justify-center">
                               <Package className="w-8 h-8 text-slate-300 stroke-[1.5] mb-2" />
                               <p className="text-xs font-semibold text-slate-600">
@@ -1250,7 +1616,7 @@ export const AdminInventoryPage: React.FC = () => {
                                 {idx + 1}
                               </td>
 
-                              {/* Cột 1: Tên sản phẩm */}
+                              {/* Sản phẩm */}
                               <td className="py-2 px-3 align-top">
                                 <select
                                   value={row.productId ? String(row.productId) : ''}
@@ -1268,24 +1634,15 @@ export const AdminInventoryPage: React.FC = () => {
                                   <div className="mt-1 text-[10px] text-slate-500 flex items-center gap-1.5 flex-wrap">
                                     <span>Tổng kho: <strong className="text-slate-700">{currentProd.quantity}</strong> chiếc</span>
                                     {prodVariants.length > 0 && (
-                                      <span className="text-purple-600 font-semibold">
+                                      <span className="text-blue-600 font-semibold">
                                         ({prodVariants.length} biến thể)
-                                      </span>
-                                    )}
-                                    {receiptForm.warehouse ? (
-                                      <span className="text-blue-600 font-medium inline-flex items-center gap-0.5 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 text-[10px]">
-                                        <MapPin className="w-2.5 h-2.5 inline text-blue-500" /> Nhập về: {receiptForm.warehouse}
-                                      </span>
-                                    ) : (
-                                      <span className="text-slate-500 font-medium inline-flex items-center gap-0.5 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200 text-[10px]">
-                                        <MapPin className="w-2.5 h-2.5 inline text-slate-400" /> Chưa chọn kho nhận
                                       </span>
                                     )}
                                   </div>
                                 )}
                               </td>
 
-                              {/* Cột 2: Biến thể / Phân loại (Cascading dropdown - KHÔNG tự động chọn) */}
+                              {/* Biến thể */}
                               <td className="py-2 px-3 align-top">
                                 {!row.productId ? (
                                   <select
@@ -1305,10 +1662,11 @@ export const AdminInventoryPage: React.FC = () => {
                                           handleVariantSelect(idx, e.target.value);
                                         }
                                       }}
-                                      className={`w-full px-2.5 py-1.5 border rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition ${!row.variantId
-                                        ? 'border-amber-300 bg-amber-50/40 text-amber-900 ring-1 ring-amber-300/40'
-                                        : 'border-blue-300 bg-blue-50/20 text-slate-800'
-                                        }`}
+                                      className={`w-full px-2.5 py-1.5 border rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition ${
+                                        !row.variantId
+                                          ? 'border-amber-300 bg-amber-50/40 text-amber-900 ring-1 ring-amber-300/40'
+                                          : 'border-blue-300 bg-blue-50/20 text-slate-800'
+                                      }`}
                                     >
                                       <option value="">-- Chọn biến thể (Dung lượng, Màu sắc...) --</option>
                                       {prodVariants.map((v) => (
@@ -1321,12 +1679,11 @@ export const AdminInventoryPage: React.FC = () => {
                                       </option>
                                     </select>
 
-                                    {/* Action toolbar & Status below dropdown */}
                                     <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] text-slate-500 px-0.5">
                                       <div>
                                         {row.variantId > 0 ? (
                                           <span>
-                                            SKU: <span className="font-mono font-bold text-purple-700">{row.sku || 'N/A'}</span>
+                                            SKU: <span className="font-mono font-bold text-blue-700">{row.sku || 'N/A'}</span>
                                             <span className="ml-1 text-slate-400 font-normal">| Hiện có: <strong>{row.currentStock ?? 0}</strong></span>
                                           </span>
                                         ) : (
@@ -1337,7 +1694,6 @@ export const AdminInventoryPage: React.FC = () => {
                                       </div>
 
                                       <div className="flex items-center gap-2">
-                                        {/* Nút thêm 1 dòng biến thể khác cho sản phẩm này */}
                                         <button
                                           type="button"
                                           onClick={() => handleAddVariantRowForProduct(idx)}
@@ -1347,7 +1703,6 @@ export const AdminInventoryPage: React.FC = () => {
                                           <Plus className="w-2.5 h-2.5 inline" /> Thêm biến thể
                                         </button>
 
-                                        {/* Nút tạo biến thể mới */}
                                         <button
                                           type="button"
                                           onClick={() => handleOpenCreateVariant(row.productId, idx)}
@@ -1357,7 +1712,6 @@ export const AdminInventoryPage: React.FC = () => {
                                           + Tạo mới
                                         </button>
 
-                                        {/* Nút thêm tất cả biến thể */}
                                         {prodVariants.length > 1 && (
                                           <button
                                             type="button"
@@ -1374,7 +1728,7 @@ export const AdminInventoryPage: React.FC = () => {
                                 )}
                               </td>
 
-                              {/* Cột 3: Số lượng nhập */}
+                              {/* Số lượng */}
                               <td className="py-2 px-2 align-top">
                                 <input
                                   type="number"
@@ -1390,7 +1744,7 @@ export const AdminInventoryPage: React.FC = () => {
                                 />
                               </td>
 
-                              {/* Cột 4: Đơn giá nhập */}
+                              {/* Cột 1: ĐƠN GIÁ NHẬP (Giá mua vào từ NCC) */}
                               <td className="py-2 px-3 align-top">
                                 <input
                                   type="number"
@@ -1402,16 +1756,36 @@ export const AdminInventoryPage: React.FC = () => {
                                       unitPrice: Math.max(0, Number(e.target.value) || 0),
                                     })
                                   }
-                                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs text-right focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                                  placeholder="Giá nhập"
+                                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs text-right font-semibold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-slate-800 bg-slate-50/50"
+                                  title="Đơn giá mua từ nhà cung cấp"
                                 />
                               </td>
 
-                              {/* Cột 5: Thành tiền */}
+                              {/* Cột 2: GIÁ BÁN MỚI (Giá bán lẻ cho khách hàng) */}
+                              <td className="py-2 px-3 align-top">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="1000"
+                                  value={row.sellingPrice}
+                                  onChange={(e) =>
+                                    handleImportRowChange(idx, {
+                                      sellingPrice: Math.max(0, Number(e.target.value) || 0),
+                                    })
+                                  }
+                                  placeholder="Giá bán lẻ"
+                                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs text-right font-bold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-slate-800 bg-white"
+                                  title="Giá bán lẻ niêm yết mới cho khách hàng"
+                                />
+                              </td>
+
+                              {/* Thành tiền nhập */}
                               <td className="py-2 px-3 text-right font-bold text-slate-800 whitespace-nowrap align-top pt-2.5">
                                 {(row.quantity * row.unitPrice).toLocaleString('vi-VN')}
                               </td>
 
-                              {/* Cột 6: Thao tác */}
+                              {/* Thao tác */}
                               <td className="py-2 px-2 text-center align-top pt-2">
                                 <button
                                   type="button"
@@ -1430,8 +1804,8 @@ export const AdminInventoryPage: React.FC = () => {
                   </table>
                 </div>
 
-                {/* Below table: Add product button + Total price */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2 shrink-0">
+                {/* Nút thêm dòng & Tổng tiền */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2.5 shrink-0">
                   <button
                     type="button"
                     onClick={handleAddImportRow}
@@ -1451,7 +1825,7 @@ export const AdminInventoryPage: React.FC = () => {
               </div>
 
               {/* Footer Buttons */}
-              <div className="flex justify-end gap-2.5 pt-2.5 border-t border-slate-100 shrink-0 mt-1">
+              <div className="flex justify-end gap-2.5 pt-2.5 border-t border-slate-100 shrink-0 mt-2">
                 <button
                   type="button"
                   onClick={() => setIsAddOpen(false)}
@@ -1483,7 +1857,7 @@ export const AdminInventoryPage: React.FC = () => {
             <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                  <Layers className="w-4 h-4 text-purple-600" />
+                  <Layers className="w-4 h-4 text-blue-600" />
                   <span>Tạo biến thể mới</span>
                 </h3>
                 <p className="text-[11px] text-slate-500 mt-0.5">
@@ -1510,7 +1884,7 @@ export const AdminInventoryPage: React.FC = () => {
                   placeholder="VD: 512GB / Titan Sa Mạc, hoặc 16GB RAM"
                   value={newVariantForm.title}
                   onChange={(e) => setNewVariantForm({ ...newVariantForm, title: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                 />
               </div>
 
@@ -1522,7 +1896,7 @@ export const AdminInventoryPage: React.FC = () => {
                   type="text"
                   value={newVariantForm.sku}
                   onChange={(e) => setNewVariantForm({ ...newVariantForm, sku: e.target.value.toUpperCase() })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono uppercase focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none text-xs"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono uppercase focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs"
                 />
               </div>
 
@@ -1535,7 +1909,7 @@ export const AdminInventoryPage: React.FC = () => {
                     step="1000"
                     value={newVariantForm.price}
                     onChange={(e) => setNewVariantForm({ ...newVariantForm, price: Number(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-right font-bold focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-right font-bold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                   />
                 </div>
                 <div>
@@ -1546,7 +1920,7 @@ export const AdminInventoryPage: React.FC = () => {
                     step="1000"
                     value={newVariantForm.originalPrice}
                     onChange={(e) => setNewVariantForm({ ...newVariantForm, originalPrice: Number(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-right font-bold focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-right font-bold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                   />
                 </div>
               </div>
@@ -1560,7 +1934,7 @@ export const AdminInventoryPage: React.FC = () => {
                   variant="primary"
                   size="sm"
                   disabled={isLoading}
-                  className="bg-purple-600 hover:bg-purple-700 text-white border-transparent"
+                  className="bg-blue-600 hover:bg-blue-700 text-white border-transparent"
                 >
                   {isLoading ? 'Đang tạo...' : 'Tạo & Chọn biến thể'}
                 </Button>
@@ -1571,12 +1945,11 @@ export const AdminInventoryPage: React.FC = () => {
       )}
 
       {/* ======================================================== */}
-      {/* MODAL 2: CẬP NHẬT TỒN KHO & ĐIỀU CHUYỂN (HƯỚNG 2)         */}
+      {/* MODAL 2: CẬP NHẬT TỒN KHO & ĐIỀU CHỈNH GIÁ BÁN           */}
       {/* ======================================================== */}
       {editingItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 font-sans max-h-[92vh] flex flex-col overflow-hidden">
-            {/* Header: Sửa lỗi lặp từ SKU */}
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-xl w-full p-5 sm:p-6 shadow-2xl space-y-4 font-sans max-h-[92vh] flex flex-col overflow-hidden">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-xs">
@@ -1584,7 +1957,7 @@ export const AdminInventoryPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900 leading-tight">
-                    Cập nhật tồn kho
+                    Cập nhật tồn kho & Giá bán
                   </h3>
                   <p className="text-[11px] text-slate-500 font-mono mt-0.5">
                     Mã SKU: <span className="text-blue-700 font-bold">{editingItem.sku}</span>
@@ -1601,7 +1974,6 @@ export const AdminInventoryPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleEditSubmit} className="flex-1 min-h-0 flex flex-col space-y-3 text-xs overflow-hidden">
-              {/* Thông tin sản phẩm (Dạng cố định, tránh hiểu nhầm là sửa tên) */}
               <div className="bg-slate-50 rounded-xl p-3 border border-slate-200/80 shrink-0">
                 <span className="text-[11px] font-semibold text-slate-500 block mb-0.5">Sản phẩm thiết bị</span>
                 <span className="text-xs font-bold text-slate-900 block truncate" title={editingItem.productName}>
@@ -1609,7 +1981,6 @@ export const AdminInventoryPage: React.FC = () => {
                 </span>
               </div>
 
-              {/* Kho lưu trữ & Vị trí kệ */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 shrink-0">
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">Kho lưu trữ</label>
@@ -1636,24 +2007,24 @@ export const AdminInventoryPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* HƯỚNG 2: Nếu sản phẩm có nhiều biến thể con (Dung lượng, Màu sắc...) */}
+              {/* Sản phẩm có nhiều biến thể con: sửa cả Giá bán lẫn Tồn kho */}
               {editVariantRows.length > 1 ? (
                 <div className="flex-1 min-h-0 flex flex-col space-y-2 pt-1">
                   <div className="flex items-center justify-between shrink-0">
                     <label className="text-slate-700 font-bold text-xs flex items-center gap-1.5">
                       <Layers className="w-3.5 h-3.5 text-blue-600" />
-                      <span>Số lượng theo từng phân loại ({editVariantRows.length} biến thể)</span>
+                      <span>Số lượng & Giá bán theo từng phân loại ({editVariantRows.length} biến thể)</span>
                     </label>
                     <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
                       Tổng tồn: {editForm.quantity} chiếc
                     </span>
                   </div>
 
-                  <div className="flex-1 min-h-[120px] max-h-56 overflow-y-auto no-scrollbar space-y-2 border border-slate-200 rounded-xl p-2.5 bg-slate-50/50">
+                  <div className="flex-1 min-h-[140px] max-h-60 overflow-y-auto no-scrollbar space-y-2 border border-slate-200 rounded-xl p-2.5 bg-slate-50/50">
                     {editVariantRows.map((v) => (
                       <div
                         key={v.id}
-                        className="bg-white p-2.5 rounded-lg border border-slate-200/90 shadow-2xs flex items-center justify-between gap-3"
+                        className="bg-white p-2.5 rounded-lg border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5"
                       >
                         <div className="min-w-0 flex-1">
                           <span className="text-xs font-bold text-slate-800 block truncate" title={v.title}>
@@ -1664,55 +2035,90 @@ export const AdminInventoryPage: React.FC = () => {
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <label className="text-[11px] text-slate-500 font-semibold">Tồn kho:</label>
-                          <input
-                            type="number"
-                            min="0"
-                            required
-                            value={v.stock}
-                            onChange={(e) => handleEditVariantStockChange(v.id, Number(e.target.value) || 0)}
-                            className="w-20 px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs text-center font-bold text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                          />
+                        <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
+                          {/* Sửa giá bán lẻ của biến thể */}
+                          <div className="flex items-center gap-1">
+                            <label className="text-[11px] text-slate-500 font-semibold">Giá bán:</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1000"
+                              value={v.price ?? 0}
+                              onChange={(e) => handleEditVariantPriceChange(v.id, Number(e.target.value) || 0)}
+                              className="w-28 px-2 py-1.5 border border-slate-300 rounded-lg text-xs text-right font-bold text-slate-800 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                            />
+                            <span className="text-[10px] text-slate-400 font-semibold">đ</span>
+                          </div>
+
+                          {/* Sửa tồn kho */}
+                          <div className="flex items-center gap-1">
+                            <label className="text-[11px] text-slate-500 font-semibold">Tồn:</label>
+                            <input
+                              type="number"
+                              min="0"
+                              required
+                              value={v.stock}
+                              onChange={(e) => handleEditVariantStockChange(v.id, Number(e.target.value) || 0)}
+                              className="w-16 px-2 py-1.5 border border-slate-300 rounded-lg text-xs text-center font-bold text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                            />
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
               ) : (
-                /* Sản phẩm đơn bản */
-                <div className="shrink-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-slate-700 font-semibold">
-                      Số lượng tồn kho thực tế <span className="text-rose-500">*</span>
+                /* Sản phẩm đơn bản: sửa cả Tồn kho lẫn Giá bán */
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 shrink-0">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">
+                      Giá bán niêm yết (VNĐ) <span className="text-rose-500">*</span>
                     </label>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${Number(editForm.quantity) > 0
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : 'bg-rose-50 text-rose-700 border-rose-200'
-                        }`}
-                    >
-                      {Number(editForm.quantity) > 0 ? 'Còn hàng' : 'Hết hàng'}
-                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1000"
+                      value={editForm.price}
+                      onChange={(e) => setEditForm({ ...editForm, price: Math.max(0, Number(e.target.value) || 0) })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-bold text-sm text-slate-800 bg-white text-right"
+                    />
                   </div>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={editForm.quantity}
-                    onChange={(e) => {
-                      const val = Math.max(0, Number(e.target.value) || 0);
-                      setEditForm({ ...editForm, quantity: val });
-                      if (editVariantRows.length === 1) {
-                        setEditVariantRows([{ ...editVariantRows[0], stock: val }]);
-                      }
-                    }}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-bold text-sm text-slate-800"
-                  />
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-slate-700 font-semibold">
+                        Số lượng tồn kho <span className="text-rose-500">*</span>
+                      </label>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          Number(editForm.quantity) > 5
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : Number(editForm.quantity) > 0
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-rose-50 text-rose-700 border-rose-200'
+                        }`}
+                      >
+                        {Number(editForm.quantity) > 5 ? 'Còn hàng' : Number(editForm.quantity) > 0 ? 'Sắp hết hàng' : 'Hết hàng'}
+                      </span>
+                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={editForm.quantity}
+                      onChange={(e) => {
+                        const val = Math.max(0, Number(e.target.value) || 0);
+                        setEditForm({ ...editForm, quantity: val });
+                        if (editVariantRows.length === 1) {
+                          setEditVariantRows([{ ...editVariantRows[0], stock: val }]);
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-bold text-sm text-slate-800"
+                    />
+                  </div>
                 </div>
               )}
 
-              {/* Footer Buttons: Đồng bộ màu xanh dương */}
               <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 shrink-0">
                 <button
                   type="button"
@@ -1732,6 +2138,149 @@ export const AdminInventoryPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 3: XEM CHI TIẾT PHIẾU NHẬP KHO (XEM LẠI PHIẾU)      */}
+      {/* ======================================================== */}
+      {isReceiptDetailOpen && selectedReceipt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in print:p-0 print:bg-white">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-3xl w-full p-5 sm:p-6 shadow-2xl font-sans max-h-[92vh] flex flex-col overflow-hidden print:border-none print:shadow-none print:max-h-none">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-xs">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
+                    Chi tiết phiếu nhập kho
+                  </h3>
+                  <p className="text-xs font-mono font-bold text-blue-700 mt-0.5">
+                    {selectedReceipt.receiptCode}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 print:hidden">
+                <button
+                  type="button"
+                  onClick={handlePrintReceipt}
+                  className="p-2 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50 border border-slate-200 transition cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+                  title="In phiếu nhập kho"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>In phiếu</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsReceiptDetailOpen(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Receipt Summary Info */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3.5 bg-slate-50/80 rounded-xl border border-slate-200/80 my-3 text-xs shrink-0">
+              <div>
+                <span className="text-[10px] text-slate-400 font-medium block">Ngày nhập</span>
+                <span className="font-bold text-slate-800">{selectedReceipt.importDate}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-medium block">Nhà cung cấp</span>
+                <span className="font-bold text-slate-800 truncate block" title={selectedReceipt.supplierName}>
+                  {selectedReceipt.supplierName || 'N/A'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-medium block">Kho tiếp nhận</span>
+                <span className="font-bold text-slate-800 truncate block" title={selectedReceipt.warehouse}>
+                  {selectedReceipt.warehouse || 'Kho chính'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-medium block">Người lập phiếu</span>
+                <span className="font-bold text-slate-800 truncate block">
+                  {selectedReceipt.importerName || 'Quản trị viên'}
+                </span>
+              </div>
+              {selectedReceipt.note && (
+                <div className="col-span-2 sm:col-span-4 pt-1 border-t border-slate-200/60 mt-1">
+                  <span className="text-[10px] text-slate-400 font-medium block">Ghi chú:</span>
+                  <span className="text-slate-700 italic">{selectedReceipt.note}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Receipt Items Table */}
+            <div className="flex-1 min-h-[140px] max-h-[350px] border border-slate-200 rounded-xl overflow-x-auto overflow-y-auto no-scrollbar shadow-2xs">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="sticky top-0 bg-slate-100/95 border-b border-slate-200 text-slate-600 text-[11px] font-bold">
+                  <tr>
+                    <th className="py-2.5 px-2 text-center w-10">STT</th>
+                    <th className="py-2.5 px-3">Tên sản phẩm</th>
+                    <th className="py-2.5 px-3">Phân loại / Biến thể</th>
+                    <th className="py-2.5 px-2.5">Mã SKU</th>
+                    <th className="py-2.5 px-2 text-center">Số lượng</th>
+                    <th className="py-2.5 px-3 text-right">Đơn giá nhập</th>
+                    <th className="py-2.5 px-3 text-right">Thành tiền</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {selectedReceipt.items && selectedReceipt.items.length > 0 ? (
+                    selectedReceipt.items.map((it, idx) => (
+                      <tr key={it.id || idx} className="hover:bg-slate-50/50">
+                        <td className="py-2 px-2 text-center font-bold text-slate-500">{idx + 1}</td>
+                        <td className="py-2 px-3 font-semibold text-slate-800">{it.productName}</td>
+                        <td className="py-2 px-3 text-slate-600">{it.variantTitle || 'Tiêu chuẩn'}</td>
+                        <td className="py-2 px-2.5 font-mono text-[11px] text-blue-700">{it.sku || 'N/A'}</td>
+                        <td className="py-2 px-2 text-center font-extrabold text-blue-700">
+                          {it.quantity}
+                        </td>
+                        <td className="py-2 px-3 text-right text-slate-700 font-medium">
+                          {Number(it.unitPrice || 0).toLocaleString('vi-VN')} đ
+                        </td>
+                        <td className="py-2 px-3 text-right font-bold text-slate-900">
+                          {Number(it.totalPrice || 0).toLocaleString('vi-VN')} đ
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={7} className="py-6 text-center text-slate-400">
+                        Không có mặt hàng nào trong phiếu nhập.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer Summary */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100 shrink-0 mt-3 text-xs">
+              <div className="text-slate-500">
+                Tổng số lượng: <strong className="text-slate-800 font-mono text-sm">{selectedReceipt.totalQuantity}</strong> chiếc
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-slate-600">Tổng tiền thanh toán:</span>
+                <span className="text-lg font-black text-blue-600">
+                  {Number(selectedReceipt.totalAmount || 0).toLocaleString('vi-VN')} VNĐ
+                </span>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 shrink-0 mt-2 print:hidden">
+              <button
+                type="button"
+                onClick={() => setIsReceiptDetailOpen(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
           </div>
         </div>
       )}

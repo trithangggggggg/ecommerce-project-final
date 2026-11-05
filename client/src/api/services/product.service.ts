@@ -74,10 +74,11 @@ function mapBackendProduct(item: any): Product {
     specs: item.specs,
     options: item.options,
     variants: item.variants,
-    status: item.status !== false,
+    status: typeof item.status === 'string' ? item.status : item.status === false ? 'INACTIVE' : 'ACTIVE',
     isFeatured: item.isFeatured ?? true,
     isNew: item.isNew ?? true,
     createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
   };
 }
 
@@ -224,8 +225,10 @@ export const productService = {
   /**
    * [Admin] Cập nhật số lượng tồn kho sản phẩm (PUT /api/admin/products/{id}/stock)
    */
-  async updateProductStock(id: number | string, stock: number): Promise<Product> {
-    const res = await axiosClient.put(ENDPOINTS.ADMIN_PRODUCT_STOCK(id), { stock });
+  async updateProductStock(id: number | string, stock: number, price?: number): Promise<Product> {
+    const payload: any = { stock };
+    if (price !== undefined) payload.price = price;
+    const res = await axiosClient.put(ENDPOINTS.ADMIN_PRODUCT_STOCK(id), payload);
     const raw = res.data?.data || res.data;
     return mapBackendProduct(raw);
   },
@@ -233,8 +236,10 @@ export const productService = {
   /**
    * [Admin] Cập nhật số lượng tồn kho biến thể sản phẩm (PUT /api/admin/products/variants/{variantId}/stock)
    */
-  async updateVariantStock(variantId: number | string, quantity: number, isDelta = false): Promise<any> {
-    const res = await axiosClient.put(ENDPOINTS.ADMIN_VARIANT_STOCK(variantId), { quantity, isDelta });
+  async updateVariantStock(variantId: number | string, quantity: number, isDelta = false, price?: number): Promise<any> {
+    const payload: any = { quantity, isDelta };
+    if (price !== undefined) payload.price = price;
+    const res = await axiosClient.put(ENDPOINTS.ADMIN_VARIANT_STOCK(variantId), payload);
     return res.data?.data || res.data;
   },
 

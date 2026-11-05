@@ -37,7 +37,7 @@ public class AdminProductController {
             @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "categoryId", required = false) Long categoryId,
             @RequestParam(name = "brand", required = false) String brand,
-            @RequestParam(name = "status", required = false) Boolean status,
+            @RequestParam(name = "status", required = false) String status,
             @RequestParam(name = "includeDeleted", required = false, defaultValue = "false") Boolean includeDeleted,
             @RequestParam(name = "page", defaultValue = "0") Integer page,
             @RequestParam(name = "size", defaultValue = "10") Integer size,
@@ -135,7 +135,19 @@ public class AdminProductController {
             throw new BadRequestException("Số lượng tồn kho (stock) không hợp lệ");
         }
 
-        ProductResponse response = productService.updateProductStock(id, targetStock);
+        java.math.BigDecimal targetPrice = null;
+        if (body != null && body.containsKey("price")) {
+            Object pVal = body.get("price");
+            if (pVal instanceof Number) {
+                targetPrice = java.math.BigDecimal.valueOf(((Number) pVal).doubleValue());
+            } else if (pVal != null) {
+                try {
+                    targetPrice = new java.math.BigDecimal(pVal.toString().trim());
+                } catch (Exception ignored) {}
+            }
+        }
+
+        ProductResponse response = productService.updateProductStock(id, targetStock, targetPrice);
         return ResponseEntity.ok(ApiResponse.success("Cập nhật số lượng tồn kho thành công", response));
     }
 
@@ -148,6 +160,8 @@ public class AdminProductController {
     ) {
         Integer targetQty = null;
         Boolean isDelta = Boolean.FALSE;
+        java.math.BigDecimal targetPrice = null;
+        java.math.BigDecimal targetOriginalPrice = null;
 
         if (body != null) {
             if (body.containsKey("quantity")) {
@@ -178,6 +192,28 @@ public class AdminProductController {
                     isDelta = Boolean.parseBoolean(deltaVal.toString());
                 }
             }
+
+            if (body.containsKey("price")) {
+                Object pVal = body.get("price");
+                if (pVal instanceof Number) {
+                    targetPrice = java.math.BigDecimal.valueOf(((Number) pVal).doubleValue());
+                } else if (pVal != null) {
+                    try {
+                        targetPrice = new java.math.BigDecimal(pVal.toString().trim());
+                    } catch (Exception ignored) {}
+                }
+            }
+
+            if (body.containsKey("originalPrice")) {
+                Object opVal = body.get("originalPrice");
+                if (opVal instanceof Number) {
+                    targetOriginalPrice = java.math.BigDecimal.valueOf(((Number) opVal).doubleValue());
+                } else if (opVal != null) {
+                    try {
+                        targetOriginalPrice = new java.math.BigDecimal(opVal.toString().trim());
+                    } catch (Exception ignored) {}
+                }
+            }
         }
 
         if (targetQty == null && quantityParam != null) {
@@ -191,7 +227,9 @@ public class AdminProductController {
             throw new BadRequestException("Số lượng biến thể không hợp lệ");
         }
 
-        ProductVariantResponse response = productService.updateVariantStock(variantId, targetQty, isDelta);
+        ProductVariantResponse response = productService.updateVariantStock(
+                variantId, targetQty, isDelta, targetPrice, targetOriginalPrice
+        );
         return ResponseEntity.ok(ApiResponse.success("Cập nhật số lượng tồn kho biến thể thành công", response));
     }
 

@@ -21,7 +21,8 @@ public class ProductSpecification {
             BigDecimal maxPrice,
             Boolean status
     ) {
-        return filter(keyword, categoryId, null, minPrice, maxPrice, status, false);
+        String statusStr = status == null ? null : (status ? "ACTIVE" : "INACTIVE");
+        return filter(keyword, categoryId, null, minPrice, maxPrice, statusStr, false);
     }
 
     public static Specification<Product> filter(
@@ -32,6 +33,18 @@ public class ProductSpecification {
             BigDecimal maxPrice,
             Boolean status
     ) {
+        String statusStr = status == null ? null : (status ? "ACTIVE" : "INACTIVE");
+        return filter(keyword, categoryId, brand, minPrice, maxPrice, statusStr, false);
+    }
+
+    public static Specification<Product> filter(
+            String keyword,
+            Long categoryId,
+            String brand,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            String status
+    ) {
         return filter(keyword, categoryId, brand, minPrice, maxPrice, status, false);
     }
 
@@ -41,7 +54,7 @@ public class ProductSpecification {
             String brand,
             BigDecimal minPrice,
             BigDecimal maxPrice,
-            Boolean status,
+            String status,
             Boolean includeDeleted
     ) {
         return (root, query, cb) -> {
@@ -88,11 +101,9 @@ public class ProductSpecification {
                 predicates.add(cb.lessThanOrEqualTo(root.get("price"), maxPrice));
             }
 
-            // 6. Lọc theo trạng thái kinh doanh (status):
-            // Nếu status != null -> lọc chính xác theo status đó
-            // Nếu status == null -> trả về cả sản phẩm đang bán (status=true) và tạm ngừng (status=false)
-            if (status != null) {
-                predicates.add(cb.equal(root.get("status"), status));
+            // 6. Lọc theo trạng thái (ACTIVE, INACTIVE, COMING_SOON)
+            if (StringUtils.hasText(status) && !"ALL".equalsIgnoreCase(status.trim())) {
+                predicates.add(cb.equal(cb.upper(root.get("status")), status.trim().toUpperCase()));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));
