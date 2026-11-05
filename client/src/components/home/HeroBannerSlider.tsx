@@ -21,6 +21,8 @@ export const HeroBannerSlider: React.FC<HeroBannerSliderProps> = ({
   const [isPaused, setIsPaused] = useState(false);
   const touchStartX = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
+  // Track if a swipe is in progress to prevent click + navigate
+  const isSwiping = useRef(false);
 
   // Safe bounds check in case banners change
   const totalSlides = activeBanners.length;
@@ -55,27 +57,44 @@ export const HeroBannerSlider: React.FC<HeroBannerSliderProps> = ({
   // Touch Swipe handlers
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.targetTouches[0].clientX;
+    touchEndX.current = null;
+    isSwiping.current = false;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     touchEndX.current = e.targetTouches[0].clientX;
+    // Mark as swiping if movement exceeds small threshold
+    if (touchStartX.current !== null && Math.abs(touchEndX.current - touchStartX.current) > 10) {
+      isSwiping.current = true;
+    }
   };
 
   const handleTouchEnd = () => {
-    if (!touchStartX.current || !touchEndX.current) return;
+    if (!touchStartX.current || !touchEndX.current) {
+      touchStartX.current = null;
+      touchEndX.current = null;
+      isSwiping.current = false;
+      return;
+    }
     const diff = touchStartX.current - touchEndX.current;
-    const swipeThreshold = 45;
+    const swipeThreshold = 50;
 
-    if (diff > swipeThreshold) {
-      // Swiped left -> next slide
-      handleNext();
-    } else if (diff < -swipeThreshold) {
-      // Swiped right -> prev slide
-      handlePrev();
+    if (Math.abs(diff) >= swipeThreshold) {
+      if (diff > 0) {
+        // Swiped left -> next slide
+        handleNext();
+      } else {
+        // Swiped right -> prev slide
+        handlePrev();
+      }
     }
 
     touchStartX.current = null;
     touchEndX.current = null;
+    // Keep isSwiping true briefly so click handler on link can check it
+    setTimeout(() => {
+      isSwiping.current = false;
+    }, 50);
   };
 
   // Fallback if no active banners exist
@@ -115,7 +134,7 @@ export const HeroBannerSlider: React.FC<HeroBannerSliderProps> = ({
           {activeBanners.map((banner, index) => {
             const isExternal = banner.linkUrl.startsWith('http://') || banner.linkUrl.startsWith('https://');
 
-            const content = (
+            const slideContent = (
               <div className="relative w-full h-full min-w-full overflow-hidden shrink-0">
                 <img
                   src={banner.imageUrl}
@@ -126,7 +145,7 @@ export const HeroBannerSlider: React.FC<HeroBannerSliderProps> = ({
                     (e.target as HTMLImageElement).src = '/images/macbook-hero-banner.jpg';
                   }}
                 />
-                {/* Subtle dark gradient overlay at bottom for title/subtitle readability if present */}
+                {/* Gradient overlay for title/subtitle readability */}
                 {(banner.title || banner.subtitle) && (
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent pt-12 pb-5 px-6 pointer-events-none">
                     <h3 className="text-white text-base sm:text-lg font-bold drop-shadow-md leading-tight line-clamp-1">
@@ -142,6 +161,13 @@ export const HeroBannerSlider: React.FC<HeroBannerSliderProps> = ({
               </div>
             );
 
+            // Handle click: block navigation if a swipe was in progress
+            const handleLinkClick = (e: React.MouseEvent) => {
+              if (isSwiping.current) {
+                e.preventDefault();
+              }
+            };
+
             return isExternal ? (
               <a
                 key={banner.id}
@@ -150,8 +176,9 @@ export const HeroBannerSlider: React.FC<HeroBannerSliderProps> = ({
                 rel="noreferrer"
                 className="block w-full h-full min-w-full"
                 title={banner.title}
+                onClick={handleLinkClick}
               >
-                {content}
+                {slideContent}
               </a>
             ) : (
               <Link
@@ -159,8 +186,9 @@ export const HeroBannerSlider: React.FC<HeroBannerSliderProps> = ({
                 to={banner.linkUrl}
                 className="block w-full h-full min-w-full"
                 title={banner.title}
+                onClick={handleLinkClick}
               >
-                {content}
+                {slideContent}
               </Link>
             );
           })}
