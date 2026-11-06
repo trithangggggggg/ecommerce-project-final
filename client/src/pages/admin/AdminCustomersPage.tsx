@@ -298,7 +298,7 @@ export const AdminCustomersPage: React.FC = () => {
           <span className="text-lg font-bold text-emerald-600">{activeCount}</span>
         </div>
         <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Bị tạm khóa</span>
+          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Bị khóa</span>
           <span className="text-lg font-bold text-rose-600">{blockedCount}</span>
         </div>
         <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
@@ -367,7 +367,7 @@ export const AdminCustomersPage: React.FC = () => {
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Tạm khóa ({blockedCount})
+                Bị khóa ({blockedCount})
               </button>
             </div>
           </div>
@@ -457,14 +457,14 @@ export const AdminCustomersPage: React.FC = () => {
                     {/* Status */}
                     <td className="py-2 px-3 whitespace-nowrap">
                       <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                           c.status
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             : 'bg-rose-50 text-rose-700 border-rose-200'
                         }`}
                       >
                         <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                        <span>{c.status ? 'Hoạt động' : 'Tạm khóa'}</span>
+                        <span>{c.status ? 'Hoạt động' : 'Bị khóa'}</span>
                       </span>
                     </td>
 

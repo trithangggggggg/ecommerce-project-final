@@ -45,8 +45,9 @@ public class AdminPromotionController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<Promotion>> createPromotion(@RequestBody Promotion request) {
+        validatePromotion(request);
         if (promotionRepository.existsByCodeIgnoreCase(request.getCode())) {
-            throw new IllegalArgumentException("Mã khuyến mãi '" + request.getCode() + "' đã tồn tại!");
+            throw new ra.project.server.exception.BadRequestException("Mã khuyến mãi '" + request.getCode() + "' đã tồn tại!");
         }
         if (request.getType() == null) {
             request.setType(request.isShippingDiscount() ? "SHIPPING" : "ORDER");
@@ -64,18 +65,71 @@ public class AdminPromotionController {
         Promotion existing = promotionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Mã khuyến mãi", "id", id));
 
+        validatePromotion(request);
+        if (request.getCode() != null && promotionRepository.existsByCodeIgnoreCaseAndIdNot(request.getCode(), id)) {
+            throw new ra.project.server.exception.BadRequestException("Mã khuyến mãi '" + request.getCode() + "' đã được sử dụng bởi chương trình khác!");
+        }
+
         existing.setCode(request.getCode());
         existing.setTitle(request.getTitle());
         existing.setDiscount(request.getDiscount());
         existing.setMinOrder(request.getMinOrder());
+        existing.setStartDate(request.getStartDate());
         existing.setExpiry(request.getExpiry());
         existing.setUsedCount(request.getUsedCount());
         existing.setMaxUsage(request.getMaxUsage());
-        existing.setStatus(request.getStatus());
+        if (request.getStatus() != null) {
+            existing.setStatus(request.getStatus());
+        }
         existing.setType(request.getType() != null ? request.getType() : (existing.isShippingDiscount() ? "SHIPPING" : "ORDER"));
 
         Promotion updated = promotionRepository.save(existing);
         return ResponseEntity.ok(ApiResponse.success("Cập nhật mã khuyến mãi thành công", updated));
+    }
+
+    @PutMapping(value = {"/{id}/status", "/{id}/toggle-status"})
+    public ResponseEntity<ApiResponse<Promotion>> togglePromotionStatus(
+            @PathVariable Long id,
+            @RequestParam(name = "status", required = false) String statusParam
+    ) {
+        Promotion existing = promotionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Mã khuyến mãi", "id", id));
+
+        String newStatus;
+        if (statusParam != null && !statusParam.isBlank()) {
+            newStatus = "active".equalsIgnoreCase(statusParam) || "true".equalsIgnoreCase(statusParam) ? "ACTIVE" : "INACTIVE";
+        } else {
+            newStatus = "ACTIVE".equalsIgnoreCase(existing.getStatus()) ? "INACTIVE" : "ACTIVE";
+        }
+        existing.setStatus(newStatus);
+        Promotion saved = promotionRepository.save(existing);
+        return ResponseEntity.ok(ApiResponse.success("Đổi trạng thái mã khuyến mãi thành công sang: " + newStatus, saved));
+    }
+
+    private void validatePromotion(Promotion p) {
+        if (p.getCode() == null || p.getCode().trim().isEmpty()) {
+            throw new ra.project.server.exception.BadRequestException("Mã khuyến mãi không được để trống!");
+        }
+        if (p.getDiscount() == null || p.getDiscount().trim().isEmpty()) {
+            throw new ra.project.server.exception.BadRequestException("Giá trị giảm giá không được để trống!");
+        }
+        String discountStr = p.getDiscount().trim();
+        if (discountStr.endsWith("%")) {
+            try {
+                double percent = Double.parseDouble(discountStr.replace("%", "").trim());
+                if (percent <= 0 || percent > 100) {
+                    throw new ra.project.server.exception.BadRequestException("Giá trị giảm theo phần trăm phải nằm trong khoảng từ 1% đến 100%!");
+                }
+            } catch (NumberFormatException e) {
+                throw new ra.project.server.exception.BadRequestException("Định dạng phần trăm giảm giá không hợp lệ: " + discountStr);
+            }
+        }
+
+        if (p.getStartDate() != null && !p.getStartDate().isBlank() && p.getExpiry() != null && !p.getExpiry().isBlank()) {
+            if (p.getStartDate().compareTo(p.getExpiry()) > 0) {
+                throw new ra.project.server.exception.BadRequestException("Ngày bắt đầu không được lớn hơn ngày kết thúc!");
+            }
+        }
     }
 
     @DeleteMapping("/{id}")

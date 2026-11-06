@@ -30,7 +30,7 @@ public class AdminUserController {
         return ResponseEntity.ok(response);
     }
 
-    @PutMapping("/{id}/status")
+    @PutMapping(value = {"/{id}/status", "/{id}/toggle-status"})
     public ResponseEntity<ApiResponse<AdminUserResponse>> updateUserStatus(
             @PathVariable Long id,
             @RequestBody(required = false) Map<String, Object> body,
@@ -46,10 +46,6 @@ public class AdminUserController {
             }
         } else if (statusParam != null) {
             targetStatus = statusParam;
-        }
-
-        if (targetStatus == null) {
-            throw new BadRequestException("Trạng thái người dùng (status: true/false hoặc 'ACTIVE'/'BLOCKED') không được để trống");
         }
 
         ApiResponse<AdminUserResponse> response = userService.updateUserStatus(id, targetStatus);
