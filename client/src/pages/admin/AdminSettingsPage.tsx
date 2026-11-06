@@ -20,7 +20,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 
 export const AdminSettingsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const currentTab = (searchParams.get('tab') as 'profile' | 'security' | 'system') || 'system';
+  const currentTab = (searchParams.get('tab') as 'profile' | 'security' | 'system') || 'profile';
 
   const { user, updateProfile, changePassword } = useAuthStore();
 
