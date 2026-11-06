@@ -273,9 +273,24 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng", "id", userId));
 
-        user.setStatus(status);
+        // Kiểm tra không cho tự khóa chính mình
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && auth.getName() != null) {
+            if (user.getUsername().equalsIgnoreCase(auth.getName())) {
+                throw new BadRequestException("Không thể tự khóa tài khoản của chính mình!");
+            }
+        }
+
+        boolean newStatus = (status != null) ? status : !Boolean.TRUE.equals(user.getStatus());
+
+        // Không cho phép khóa tài khoản Admin khác
+        if (user.getRole() == Role.ADMIN && !newStatus) {
+            throw new BadRequestException("Không thể khóa tài khoản của Quản trị viên (ADMIN) khác!");
+        }
+
+        user.setStatus(newStatus);
         userRepository.save(user);
-        log.info("Quản trị viên đã đổi trạng thái người dùng #{} sang {}", userId, status ? "ACTIVE" : "BLOCKED");
+        log.info("Quản trị viên đã đổi trạng thái người dùng #{} sang {}", userId, newStatus ? "ACTIVE" : "BLOCKED");
 
         List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
         BigDecimal totalSpent = orders.stream()

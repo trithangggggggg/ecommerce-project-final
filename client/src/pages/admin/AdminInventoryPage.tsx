@@ -945,9 +945,25 @@ export const AdminInventoryPage: React.FC = () => {
               <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Còn hàng</span>
               <span className="text-lg font-bold text-emerald-600">{inStockCount} SKU</span>
             </div>
-            <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
-              <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Sắp hết hàng (&le; 5)</span>
-              <span className="text-lg font-bold text-amber-600">{lowStockCount} SKU</span>
+            <div
+              onClick={() => {
+                setStatusFilter(statusFilter === 'LOW_STOCK' ? 'ALL' : 'LOW_STOCK');
+                setCurrentPage(1);
+              }}
+              className={`rounded-xl p-3 border shadow-2xs cursor-pointer transition ${
+                statusFilter === 'LOW_STOCK'
+                  ? 'bg-rose-50/50 border-rose-300 ring-2 ring-rose-200'
+                  : 'bg-white border-slate-200/80 hover:border-rose-200'
+              }`}
+              title="Nhấn để lọc chỉ các SKU sắp hết hàng (<= 5)"
+            >
+              <span className="text-[11px] font-medium text-slate-400 block mb-0.5 flex items-center justify-between">
+                <span>Sắp hết hàng (&le; 5)</span>
+                {statusFilter === 'LOW_STOCK' && (
+                  <span className="text-[9px] bg-rose-600 text-white font-bold px-1.5 py-0.2 rounded-full">Đang lọc</span>
+                )}
+              </span>
+              <span className="text-lg font-bold text-rose-600">{lowStockCount} SKU</span>
             </div>
             <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
               <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Hết hàng</span>
@@ -1001,7 +1017,7 @@ export const AdminInventoryPage: React.FC = () => {
                 >
                   <option value="ALL">Tất cả trạng thái</option>
                   <option value="IN_STOCK">Còn hàng</option>
-                  <option value="LOW_STOCK">Sắp hết hàng</option>
+                  <option value="LOW_STOCK">Chỉ sắp hết hàng (&le; 5)</option>
                   <option value="OUT_OF_STOCK">Hết hàng</option>
                 </select>
               </div>
@@ -1095,12 +1111,10 @@ export const AdminInventoryPage: React.FC = () => {
                           {/* Quantity */}
                           <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
                             <span
-                              className={`text-xs font-extrabold ${
+                              className={`text-xs font-extrabold px-2 py-0.5 rounded ${
                                 item.quantity > 5
-                                  ? 'text-emerald-700'
-                                  : item.quantity > 0
-                                  ? 'text-amber-700'
-                                  : 'text-rose-700'
+                                  ? 'text-emerald-700 bg-emerald-50/50'
+                                  : 'text-rose-700 bg-rose-50 border border-rose-200 font-black'
                               }`}
                             >
                               {item.quantity}
@@ -1116,13 +1130,13 @@ export const AdminInventoryPage: React.FC = () => {
                                 <span>Còn hàng</span>
                               </span>
                             ) : item.status === 'LOW_STOCK' ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-amber-50 text-amber-700 border-amber-200">
-                                <AlertTriangle className="w-3 h-3 text-amber-500" />
-                                <span>Sắp hết hàng</span>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-rose-50 text-rose-700 border-rose-200">
+                                <AlertTriangle className="w-3 h-3 text-rose-600" />
+                                <span>Sắp hết hàng (&le; 5)</span>
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-rose-50 text-rose-700 border-rose-200">
-                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-rose-100 text-rose-800 border-rose-300">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
                                 <span>Hết hàng</span>
                               </span>
                             )}
@@ -1185,9 +1199,7 @@ export const AdminInventoryPage: React.FC = () => {
                                           className={`text-xs font-black block ${
                                             (v.stock ?? 0) > 5
                                               ? 'text-emerald-600'
-                                              : (v.stock ?? 0) > 0
-                                              ? 'text-amber-600'
-                                              : 'text-rose-600'
+                                              : 'text-rose-600 bg-rose-50 px-1 py-0.5 rounded border border-rose-200'
                                           }`}
                                         >
                                           {v.stock ?? 0} chiếc
