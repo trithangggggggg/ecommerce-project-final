@@ -196,9 +196,12 @@ jobs:
             cd "$HOME/$DEPLOY_DIR"
             git fetch --depth 1 origin "$BRANCH_NAME"
             git reset --hard "origin/$BRANCH_NAME"
+            if [ ! -f .env ]; then
+              cp .env.example .env 2>/dev/null || touch .env
+            fi
             if [ -n "$GEMINI_API_KEY" ]; then
-              sed -i "s|GEMINI_API_KEY=.*|GEMINI_API_KEY=\"$GEMINI_API_KEY\"|g" student.env
-              sed -i "s|GEMINI_API_KEY=.*|GEMINI_API_KEY=$GEMINI_API_KEY|g" .env
+              sed -i "s|GEMINI_API_KEY=.*|GEMINI_API_KEY=\"$GEMINI_API_KEY\"|g" student.env 2>/dev/null || true
+              sed -i "s|GEMINI_API_KEY=.*|GEMINI_API_KEY=$GEMINI_API_KEY|g" .env 2>/dev/null || true
             fi
             if [ -n "$ADMIN_USERNAME" ]; then
               sed -i "s|^ADMIN_USERNAME=.*|ADMIN_USERNAME=\"$ADMIN_USERNAME\"|g" student.env 2>/dev/null || echo "ADMIN_USERNAME=\"$ADMIN_USERNAME\"" >> student.env
