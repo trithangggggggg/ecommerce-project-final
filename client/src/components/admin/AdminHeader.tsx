@@ -42,7 +42,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
         {/* User Pill Matching Reference Image */}
         <div className="flex items-center gap-3">
           <Link
-            to={ROUTES.PROFILE}
+            to={`${ROUTES.ADMIN_SETTINGS}?tab=profile`}
             className="flex items-center gap-2.5 p-1 pr-2 hover:bg-slate-50 rounded-xl transition group"
           >
             <img
