@@ -25,6 +25,7 @@ export interface AuthState {
   verifyOtp: (payload: VerifyOtpPayload) => Promise<User>;
   resendOtp: (payload: ResendOtpPayload) => Promise<string>;
   logout: () => void;
+  fetchProfile: () => Promise<User>;
   updateProfile: (payload: UpdateProfilePayload) => Promise<User>;
   changePassword: (payload: ChangePasswordPayload) => Promise<void>;
   setUser: (user: User | null) => void;
@@ -151,6 +152,28 @@ export const useAuthStore = create<AuthState>()(
         });
         // Ẩn giỏ hàng khi đăng xuất
         useCartStore.getState().switchUser(null);
+      },
+
+      fetchProfile: async (): Promise<User> => {
+        try {
+          const profile = await authService.getProfile();
+          const currentUser = get().user;
+          const mergedUser: User = {
+            ...(currentUser || {}),
+            ...profile,
+          } as User;
+
+          try {
+            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mergedUser));
+          } catch {
+            // Ignore
+          }
+
+          set({ user: mergedUser });
+          return mergedUser;
+        } catch (err) {
+          throw err;
+        }
       },
 
       updateProfile: async (payload: UpdateProfilePayload): Promise<User> => {
