@@ -106,6 +106,7 @@ export const AdminOrdersPage: React.FC = () => {
     phoneNumber: string;
     shippingAddress: string;
     paymentMethod: PaymentMethod;
+    carrierId?: number | '';
     productName: string;
     quantity: number;
     price: number;
@@ -115,6 +116,7 @@ export const AdminOrdersPage: React.FC = () => {
     phoneNumber: '',
     shippingAddress: '',
     paymentMethod: 'COD',
+    carrierId: '',
     productName: '',
     quantity: 1,
     price: 0,
@@ -221,6 +223,42 @@ export const AdminOrdersPage: React.FC = () => {
       }));
     }
   }, [matchedVariant]);
+
+  // List of active carriers with fallback
+  const displayCarriers = useMemo(() => {
+    const active = carriers.filter((c) => c.status === 'ACTIVE');
+    if (active.length > 0) return active;
+    if (carriers.length > 0) return carriers;
+    return [
+      { id: 1, code: 'GHN', name: 'Giao Hàng Nhanh', serviceType: 'Chuyển phát nhanh 24h & Hỏa tốc', hotline: '1900 636677', shippingFee: 35000, activeOrders: 0, rating: 4.9, status: 'ACTIVE' },
+      { id: 2, code: 'GHTK', name: 'Giao Hàng Tiết Kiệm', serviceType: 'Giao hàng tiêu chuẩn toàn quốc', hotline: '1900 6092', shippingFee: 22000, activeOrders: 0, rating: 4.8, status: 'ACTIVE' },
+      { id: 3, code: 'VTP', name: 'Viettel Post', serviceType: 'Bưu chính chuyển phát liên tỉnh', hotline: '1900 8095', shippingFee: 25000, activeOrders: 0, rating: 4.7, status: 'ACTIVE' },
+      { id: 4, code: 'JNT', name: 'J&T Express', serviceType: 'Vận chuyển nhanh TMĐT', hotline: '1900 1088', shippingFee: 28000, activeOrders: 0, rating: 4.6, status: 'ACTIVE' },
+    ] as ShippingCarrier[];
+  }, [carriers]);
+
+  // Selected carrier for manual new order
+  const selectedCarrierForNewOrder = useMemo(() => {
+    if (newOrderForm.paymentMethod !== 'COD' || !newOrderForm.carrierId) return null;
+    return displayCarriers.find((c) => c.id === Number(newOrderForm.carrierId)) || null;
+  }, [newOrderForm.paymentMethod, newOrderForm.carrierId, displayCarriers]);
+
+  // Calculated total including shipping fee based on promotional thresholds
+  const newOrderCalculatedTotal = useMemo(() => {
+    if (!selectedProductId || !newOrderForm.price) return 0;
+    const subtotal = newOrderForm.price * (newOrderForm.quantity || 1);
+    if (newOrderForm.paymentMethod === 'COD' && selectedCarrierForNewOrder) {
+      const baseFee = selectedCarrierForNewOrder.shippingFee || 30000;
+      let actualShipping = baseFee;
+      if (subtotal >= 20000000) {
+        actualShipping = 0;
+      } else if (subtotal >= 10000000) {
+        actualShipping = Math.round(baseFee / 2);
+      }
+      return subtotal + actualShipping;
+    }
+    return subtotal;
+  }, [selectedProductId, newOrderForm.price, newOrderForm.quantity, newOrderForm.paymentMethod, selectedCarrierForNewOrder]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -482,6 +520,7 @@ export const AdminOrdersPage: React.FC = () => {
       phoneNumber: '',
       shippingAddress: '',
       paymentMethod: 'COD',
+      carrierId: '',
       productName: '',
       quantity: 1,
       price: 0,
@@ -490,6 +529,9 @@ export const AdminOrdersPage: React.FC = () => {
     setIsCreateOpen(true);
     if (availableProducts.length === 0) {
       fetchAvailableProducts();
+    }
+    if (carriers.length === 0) {
+      fetchCarriers();
     }
   };
 
@@ -503,6 +545,11 @@ export const AdminOrdersPage: React.FC = () => {
 
     if (!selectedProductId) {
       showToast('Vui lòng chọn sản phẩm cần đặt hàng');
+      return;
+    }
+
+    if (newOrderForm.paymentMethod === 'COD' && !newOrderForm.carrierId) {
+      showToast('Vui lòng chọn phương thức giao hàng / đơn vị vận chuyển');
       return;
     }
 
@@ -524,6 +571,7 @@ export const AdminOrdersPage: React.FC = () => {
         phoneNumber: newOrderForm.phoneNumber.trim(),
         shippingAddress: newOrderForm.shippingAddress.trim(),
         paymentMethod: newOrderForm.paymentMethod,
+        carrierId: newOrderForm.paymentMethod === 'COD' && newOrderForm.carrierId ? Number(newOrderForm.carrierId) : undefined,
         note: newOrderForm.note?.trim() || undefined,
         items: [
           {
@@ -544,6 +592,7 @@ export const AdminOrdersPage: React.FC = () => {
         phoneNumber: '',
         shippingAddress: '',
         paymentMethod: 'COD',
+        carrierId: '',
         productName: '',
         quantity: 1,
         price: 0,
@@ -1197,8 +1246,8 @@ export const AdminOrdersPage: React.FC = () => {
       {/* ======================================================== */}
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4 font-sans max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-5 sm:p-5.5 shadow-2xl space-y-3 font-sans max-h-[96vh] overflow-y-auto no-scrollbar">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <ShoppingCart className="w-5 h-5 text-blue-600" />
                 <span>Tạo đơn hàng thủ công mới</span>
@@ -1212,8 +1261,8 @@ export const AdminOrdersPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleCreateOrderSubmit} className="space-y-3.5 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <form onSubmit={handleCreateOrderSubmit} className="space-y-2.5 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">Tên khách hàng / người nhận *</label>
                   <input
@@ -1222,7 +1271,7 @@ export const AdminOrdersPage: React.FC = () => {
                     placeholder="Nguyễn Văn A"
                     value={newOrderForm.receiverName}
                     onChange={(e) => setNewOrderForm({ ...newOrderForm, receiverName: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                   />
                 </div>
                 <div>
@@ -1233,7 +1282,7 @@ export const AdminOrdersPage: React.FC = () => {
                     placeholder="0912 345 678"
                     value={newOrderForm.phoneNumber}
                     onChange={(e) => setNewOrderForm({ ...newOrderForm, phoneNumber: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                   />
                 </div>
               </div>
@@ -1246,12 +1295,12 @@ export const AdminOrdersPage: React.FC = () => {
                   placeholder="Số 123 Đường Cầu Giấy, Quận Cầu Giấy, Hà Nội"
                   value={newOrderForm.shippingAddress}
                   onChange={(e) => setNewOrderForm({ ...newOrderForm, shippingAddress: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-1.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                 />
               </div>
 
               {/* Box Select: Tên sản phẩm từ Database */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">
                     Sản phẩm đặt hàng *
@@ -1261,7 +1310,7 @@ export const AdminOrdersPage: React.FC = () => {
                     value={selectedProductId}
                     disabled={isLoadingProducts}
                     onChange={(e) => handleProductChange(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium truncate"
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium truncate"
                   >
                     <option value="">-- Chọn sản phẩm có sẵn --</option>
                     {availableProducts.map((p) => (
@@ -1281,8 +1330,15 @@ export const AdminOrdersPage: React.FC = () => {
                   <label className="block text-slate-700 font-semibold mb-1">Phương thức thanh toán</label>
                   <select
                     value={newOrderForm.paymentMethod}
-                    onChange={(e) => setNewOrderForm({ ...newOrderForm, paymentMethod: e.target.value as PaymentMethod })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    onChange={(e) => {
+                      const method = e.target.value as PaymentMethod;
+                      setNewOrderForm((prev) => ({
+                        ...prev,
+                        paymentMethod: method,
+                        carrierId: method === 'COD' ? prev.carrierId : '',
+                      }));
+                    }}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                   >
                     <option value="COD">Thanh toán khi nhận hàng (COD)</option>
                     <option value="ONLINE">Thanh toán trực tuyến (ONLINE / VNPAY)</option>
@@ -1290,9 +1346,44 @@ export const AdminOrdersPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Phương thức giao hàng (chỉ hiển thị khi chọn COD) */}
+              {newOrderForm.paymentMethod === 'COD' && (
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Truck className="w-4 h-4 text-blue-600" />
+                      Phương thức giao hàng *
+                    </span>
+                    {selectedCarrierForNewOrder && (
+                      <span className="text-xs font-normal text-slate-500">
+                        Cước phí: <strong className="text-blue-600 font-bold">{formatPrice(selectedCarrierForNewOrder.shippingFee)}</strong>
+                      </span>
+                    )}
+                  </label>
+                  <select
+                    required={newOrderForm.paymentMethod === 'COD'}
+                    value={newOrderForm.carrierId || ''}
+                    onChange={(e) =>
+                      setNewOrderForm((prev) => ({
+                        ...prev,
+                        carrierId: e.target.value ? Number(e.target.value) : '',
+                      }))
+                    }
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium text-slate-800"
+                  >
+                    <option value="">-- Chọn đơn vị vận chuyển / phương thức giao hàng --</option>
+                    {displayCarriers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.code}) - {c.serviceType} ({formatPrice(c.shippingFee)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Biến thể sản phẩm (Dung lượng, Màu sắc...) */}
               {isLoadingProductDetail && (
-                <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200/70 flex items-center gap-2 text-blue-700 text-xs">
+                <div className="p-2.5 bg-blue-50/70 rounded-xl border border-blue-200/70 flex items-center gap-2 text-blue-700 text-xs">
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                   <span>Đang tải thông tin biến thể từ Database...</span>
                 </div>
@@ -1301,7 +1392,7 @@ export const AdminOrdersPage: React.FC = () => {
               {!isLoadingProductDetail && selectedProductDetail && (
                 <>
                   {selectedProductDetail.options && selectedProductDetail.options.length > 0 ? (
-                    <div className="p-3.5 bg-slate-50/90 rounded-xl border border-slate-200 space-y-2.5">
+                    <div className="p-3 bg-slate-50/90 rounded-xl border border-slate-200 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                           <Package className="w-3.5 h-3.5 text-blue-600" />
@@ -1315,7 +1406,7 @@ export const AdminOrdersPage: React.FC = () => {
                         )}
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {selectedProductDetail.options.map((opt) => (
                           <div key={opt.id || opt.name}>
                             <label className="block text-slate-600 font-semibold mb-1">
@@ -1324,7 +1415,7 @@ export const AdminOrdersPage: React.FC = () => {
                             <select
                               value={selectedOptions[opt.name] || ''}
                               onChange={(e) => handleOptionChange(opt.name, e.target.value)}
-                              className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs font-semibold"
+                              className="w-full px-3 py-1.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs font-semibold"
                             >
                               {opt.values.map((v) => (
                                 <option key={v.id || v.value} value={v.value}>
@@ -1337,14 +1428,14 @@ export const AdminOrdersPage: React.FC = () => {
                       </div>
                     </div>
                   ) : selectedProductDetail.variants && selectedProductDetail.variants.length > 1 ? (
-                    <div className="p-3 bg-slate-50/90 rounded-xl border border-slate-200 space-y-1.5">
+                    <div className="p-2.5 bg-slate-50/90 rounded-xl border border-slate-200 space-y-1.5">
                       <label className="block text-slate-700 font-semibold mb-1">
                         Chọn biến thể *
                       </label>
                       <select
                         value={matchedVariant?.id || ''}
                         onChange={(e) => handleVariantSelect(Number(e.target.value))}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs"
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs"
                       >
                         {selectedProductDetail.variants.map((v) => (
                           <option key={v.id} value={v.id}>
@@ -1354,7 +1445,7 @@ export const AdminOrdersPage: React.FC = () => {
                       </select>
                     </div>
                   ) : (
-                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-slate-600 text-xs flex items-center justify-between">
+                    <div className="p-2 bg-slate-50 rounded-xl border border-slate-200 text-slate-600 text-xs flex items-center justify-between">
                       <span className="flex items-center gap-1.5 font-medium">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                         Sản phẩm tiêu chuẩn (Không có biến thể phụ)
@@ -1370,7 +1461,7 @@ export const AdminOrdersPage: React.FC = () => {
               )}
 
               {/* Số lượng & Đơn giá (Tự động điền & Readonly/Disabled) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">
                     Số lượng * {matchedVariant?.stock != null && (
@@ -1388,7 +1479,7 @@ export const AdminOrdersPage: React.FC = () => {
                     onChange={(e) =>
                       setNewOrderForm({ ...newOrderForm, quantity: Math.max(1, Number(e.target.value) || 1) })
                     }
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                   />
                 </div>
                 <div>
@@ -1400,7 +1491,7 @@ export const AdminOrdersPage: React.FC = () => {
                     readOnly
                     disabled
                     value={newOrderForm.price > 0 ? formatPrice(newOrderForm.price) : '0 ₫'}
-                    className="w-full px-3 py-2 border border-slate-200 bg-slate-100 text-slate-800 font-bold rounded-xl cursor-not-allowed outline-none select-none"
+                    className="w-full px-3 py-1.5 border border-slate-200 bg-slate-100 text-slate-800 font-bold rounded-xl cursor-not-allowed outline-none select-none"
                   />
                 </div>
               </div>
@@ -1412,14 +1503,26 @@ export const AdminOrdersPage: React.FC = () => {
                   placeholder="Giao giờ hành chính, gọi trước khi đến..."
                   value={newOrderForm.note}
                   onChange={(e) => setNewOrderForm({ ...newOrderForm, note: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none resize-none"
+                  className="w-full px-3 py-1.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none resize-none"
                 />
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center font-bold">
-                <span className="text-slate-600">Tổng thanh toán:</span>
+              <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center font-bold">
+                <div className="flex flex-col">
+                  <span className="text-slate-600">Tổng thanh toán:</span>
+                  {selectedProductId && newOrderForm.paymentMethod === 'COD' && selectedCarrierForNewOrder && newOrderForm.price > 0 && (
+                    <span className="text-[11px] font-normal text-slate-500">
+                      Tiền hàng: {formatPrice(newOrderForm.price * newOrderForm.quantity)}
+                      {newOrderCalculatedTotal > newOrderForm.price * newOrderForm.quantity ? (
+                        <> + Cước giao: {formatPrice(newOrderCalculatedTotal - newOrderForm.price * newOrderForm.quantity)}</>
+                      ) : (
+                        newOrderForm.price * newOrderForm.quantity >= 20000000 ? <> + Cước giao: 0 ₫ (Freeship ≥ 20tr)</> : null
+                      )}
+                    </span>
+                  )}
+                </div>
                 <span className="text-base text-blue-600">
-                  {selectedProductId ? formatPrice(newOrderForm.price * newOrderForm.quantity) : '0 ₫'}
+                  {selectedProductId ? formatPrice(newOrderCalculatedTotal) : '0 ₫'}
                 </span>
               </div>
 
@@ -1579,7 +1682,7 @@ export const AdminOrdersPage: React.FC = () => {
       {/* ======================================================== */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl space-y-5 p-6 font-sans">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-2xl w-full max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl space-y-5 p-6 font-sans">
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">

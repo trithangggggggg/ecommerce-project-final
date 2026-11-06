@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import ra.project.server.common.response.ApiResponse;
 import ra.project.server.exception.BadRequestException;
+import ra.project.server.exception.ForbiddenException;
 import ra.project.server.exception.ResourceNotFoundException;
 import ra.project.server.exception.UnauthorizedException;
 import ra.project.server.model.dto.request.ChangePasswordRequest;
@@ -87,7 +88,11 @@ public class UserServiceImpl implements UserService {
         Optional<User> userOpt = userRepository.findByUsernameIgnoreCase(username)
                 .or(() -> userRepository.findByEmailIgnoreCase(username));
         if (userOpt.isPresent()) {
-            return userOpt.get();
+            User u = userOpt.get();
+            if (Boolean.FALSE.equals(u.getStatus())) {
+                throw new ForbiddenException("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên!");
+            }
+            return u;
         }
 
         // 2. Nếu là tài khoản Admin và chưa tìm thấy theo username/email chính xác
@@ -106,8 +111,14 @@ public class UserServiceImpl implements UserService {
             return userRepository.save(newAdmin);
         }
 
-        return userRepository.findByUsername(username)
+        User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng", "tên tài khoản", username));
+
+        if (Boolean.FALSE.equals(user.getStatus())) {
+            throw new ForbiddenException("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên!");
+        }
+
+        return user;
     }
 
     private String resolveAvatarUrl(String url) {
