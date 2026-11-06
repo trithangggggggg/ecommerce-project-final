@@ -3,6 +3,8 @@ package ra.project.server.model.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(name = "promotions")
 @Getter
@@ -28,8 +30,14 @@ public class Promotion extends BaseEntity {
     @Column(name = "min_order", length = 100)
     private String minOrder;
 
+    @Column(name = "start_date", length = 50)
+    private String startDate;
+
     @Column(name = "expiry", length = 50)
     private String expiry;
+
+    @Column(name = "max_discount_amount", precision = 12, scale = 2)
+    private BigDecimal maxDiscountAmount;
 
     @Column(name = "used_count")
     @Builder.Default

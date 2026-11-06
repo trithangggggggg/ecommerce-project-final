@@ -168,12 +168,12 @@ public class OrderServiceImpl implements OrderService {
 
         // 1. Áp dụng mã giảm giá tiền hàng
         if (StringUtils.hasText(rawCouponCode)) {
-            Promotion promo = validatePromotion(rawCouponCode, user);
+            Promotion promo = validatePromotion(rawCouponCode, user, totalAmount);
             if (promo.isShippingDiscount()) {
                 throw new BadRequestException("Mã '" + promo.getCode() + "' là mã ưu đãi vận chuyển. Vui lòng nhập vào ô Mã giảm giá vận chuyển.");
             }
 
-            discountAmount = calculateDiscountAmount(totalAmount, promo.getDiscount());
+            discountAmount = calculateDiscountAmount(totalAmount, promo.getDiscount(), promo.getMaxDiscountAmount());
             appliedOrderCoupon = promo.getCode();
 
             promo.setUsedCount((promo.getUsedCount() != null ? promo.getUsedCount() : 0) + 1);
@@ -214,13 +214,13 @@ public class OrderServiceImpl implements OrderService {
 
         // 2. Áp dụng mã giảm giá vận chuyển (Voucher Freeship)
         if (StringUtils.hasText(rawShippingCouponCode)) {
-            Promotion shippingPromo = validatePromotion(rawShippingCouponCode, user);
+            Promotion shippingPromo = validatePromotion(rawShippingCouponCode, user, subtotalAfterDiscount);
             if (!shippingPromo.isShippingDiscount()) {
                 throw new BadRequestException("Mã '" + shippingPromo.getCode() + "' là mã giảm giá đơn hàng, không áp dụng cho phí vận chuyển.");
             }
 
             if (actualShippingFee.compareTo(BigDecimal.ZERO) > 0) {
-                shippingDiscount = calculateDiscountAmount(actualShippingFee, shippingPromo.getDiscount());
+                shippingDiscount = calculateDiscountAmount(actualShippingFee, shippingPromo.getDiscount(), shippingPromo.getMaxDiscountAmount());
                 actualShippingFee = actualShippingFee.subtract(shippingDiscount);
                 if (actualShippingFee.compareTo(BigDecimal.ZERO) < 0) {
                     actualShippingFee = BigDecimal.ZERO;
@@ -262,30 +262,53 @@ public class OrderServiceImpl implements OrderService {
         return ApiResponse.created("Đặt hàng thành công", orderMapper.toResponse(savedOrder));
     }
 
-    private BigDecimal calculateDiscountAmount(BigDecimal subtotal, String discountStr) {
+    private BigDecimal calculateDiscountAmount(BigDecimal subtotal, String discountStr, BigDecimal maxDiscountAmount) {
         if (!StringUtils.hasText(discountStr) || subtotal == null || subtotal.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
+        BigDecimal calculatedDiscount = BigDecimal.ZERO;
         String clean = discountStr.trim().replace(".", "").replace(",", "");
         if (clean.endsWith("%")) {
             String percentStr = clean.replace("%", "").trim();
             try {
                 BigDecimal percent = new BigDecimal(percentStr);
-                return subtotal.multiply(percent).divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP);
+                calculatedDiscount = subtotal.multiply(percent).divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP);
             } catch (Exception e) {
-                return BigDecimal.ZERO;
+                calculatedDiscount = BigDecimal.ZERO;
+            }
+        } else {
+            String numOnly = clean.replaceAll("[^0-9]", "");
+            if (!numOnly.isBlank()) {
+                try {
+                    BigDecimal fixed = new BigDecimal(numOnly);
+                    calculatedDiscount = fixed.min(subtotal);
+                } catch (Exception e) {
+                    calculatedDiscount = BigDecimal.ZERO;
+                }
             }
         }
-        String numOnly = clean.replaceAll("[^0-9]", "");
-        if (!numOnly.isBlank()) {
-            try {
-                BigDecimal fixed = new BigDecimal(numOnly);
-                return fixed.min(subtotal);
-            } catch (Exception e) {
-                return BigDecimal.ZERO;
+
+        if (maxDiscountAmount != null && maxDiscountAmount.compareTo(BigDecimal.ZERO) > 0) {
+            if (calculatedDiscount.compareTo(maxDiscountAmount) > 0) {
+                calculatedDiscount = maxDiscountAmount;
             }
         }
-        return BigDecimal.ZERO;
+        return calculatedDiscount;
+    }
+
+    private BigDecimal parseMinOrderAmount(String minOrderStr) {
+        if (!StringUtils.hasText(minOrderStr) || minOrderStr.toLowerCase().contains("mọi đơn")) {
+            return BigDecimal.ZERO;
+        }
+        String clean = minOrderStr.replaceAll("[^0-9]", "");
+        if (clean.isBlank()) {
+            return BigDecimal.ZERO;
+        }
+        try {
+            return new BigDecimal(clean);
+        } catch (Exception e) {
+            return BigDecimal.ZERO;
+        }
     }
 
     @Override
@@ -455,7 +478,7 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    private Promotion validatePromotion(String code, User user) {
+    private Promotion validatePromotion(String code, User user, BigDecimal subtotal) {
         String trimmedCode = code.trim();
         Promotion promo = promotionRepository.findByCodeIgnoreCase(trimmedCode)
                 .orElseThrow(() -> new BadRequestException("Mã giảm giá '" + trimmedCode + "' không tồn tại trên hệ thống"));
@@ -479,6 +502,16 @@ public class OrderServiceImpl implements OrderService {
             throw new BadRequestException("Mã giảm giá này là mã đền bù dành riêng cho tài khoản được bồi thường đơn hàng. Bạn không thể sử dụng mã này.");
         }
 
+        if (StringUtils.hasText(promo.getStartDate())) {
+            try {
+                LocalDate startDate = LocalDate.parse(promo.getStartDate().trim());
+                if (startDate.isAfter(LocalDate.now())) {
+                    throw new BadRequestException("Mã giảm giá '" + trimmedCode + "' chưa tới ngày áp dụng (bắt đầu từ ngày " + promo.getStartDate() + ")");
+                }
+            } catch (DateTimeParseException ignored) {
+            }
+        }
+
         if (StringUtils.hasText(promo.getExpiry())) {
             try {
                 LocalDate expiryDate = LocalDate.parse(promo.getExpiry().trim());
@@ -488,6 +521,14 @@ public class OrderServiceImpl implements OrderService {
             } catch (DateTimeParseException ignored) {
             }
         }
+
+        if (subtotal != null && StringUtils.hasText(promo.getMinOrder())) {
+            BigDecimal minOrderRequired = parseMinOrderAmount(promo.getMinOrder());
+            if (minOrderRequired.compareTo(BigDecimal.ZERO) > 0 && subtotal.compareTo(minOrderRequired) < 0) {
+                throw new BadRequestException("Đơn hàng chưa đạt giá trị tối thiểu " + promo.getMinOrder() + " để áp dụng mã giảm giá này");
+            }
+        }
+
         return promo;
     }
 }
