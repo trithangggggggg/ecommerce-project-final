@@ -256,7 +256,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
         {/* User Card at Sidebar Bottom */}
         <div className="p-3 px-3.5 border-t border-slate-100 bg-slate-50/70 shrink-0">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 min-w-0">
+            <Link
+              to={`${ROUTES.ADMIN_SETTINGS}?tab=profile`}
+              onClick={onClose}
+              className="flex items-center gap-3 min-w-0 flex-1 hover:opacity-80 transition cursor-pointer"
+              title="Xem hồ sơ cá nhân"
+            >
               <img
                 src={
                   user?.avatarUrl ||
@@ -278,7 +283,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                   Administrator
                 </span>
               </div>
-            </div>
+            </Link>
             <button
               type="button"
               onClick={() => setShowLogoutModal(true)}
