@@ -104,6 +104,38 @@ class AdminAiControllerTest {
     }
 
     @Test
+    @DisplayName("Admin gửi yêu cầu sinh mô tả với name, brand, specs dạng JSON")
+    void testGenerateDescription_WithNameBrandSpecs_Success() throws Exception {
+        Map<String, Object> payload = Map.of(
+                "name", "MacBook Pro M4",
+                "brand", "Apple",
+                "categoryName", "Laptop",
+                "specs", Map.of("RAM", "24GB", "Chip", "M4 Pro"),
+                "keywords", List.of("macbook", "m4", "apple")
+        );
+
+        AiGenerateDescriptionResponse mockResponse = AiGenerateDescriptionResponse.builder()
+                .productName("MacBook Pro M4")
+                .brand("Apple")
+                .categoryName("Laptop")
+                .description("## MacBook Pro M4 – Đỉnh Cao Công Nghệ...")
+                .seoTitle("Apple MacBook Pro M4 - Chính Hãng | NEXOR")
+                .seoKeywords("apple, macbook pro m4, laptop chính hãng")
+                .provider("SMART_SEO_ENGINE (Fallback)")
+                .build();
+
+        when(aiService.generateProductDescription(any(AiGenerateDescriptionRequest.class)))
+                .thenReturn(mockResponse);
+
+        mockMvc.perform(post("/api/admin/ai/generate-description")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(payload)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.productName").value("MacBook Pro M4"))
+                .andExpect(jsonPath("$.data.brand").value("Apple"));
+    }
+    @Test
     @DisplayName("Lấy danh sách tài liệu tri thức thành công")
     void testGetAllKnowledgeDocuments() throws Exception {
         KnowledgeDocumentResponse doc = KnowledgeDocumentResponse.builder()
