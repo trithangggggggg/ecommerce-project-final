@@ -59,8 +59,14 @@ public class OrderServiceImpl implements OrderService {
         }
 
         String username = authentication.getName();
-        return userRepository.findByUsername(username)
+        User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng", "tên tài khoản", username));
+
+        if (Boolean.FALSE.equals(user.getStatus())) {
+            throw new ForbiddenException("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên!");
+        }
+
+        return user;
     }
 
     @Override
