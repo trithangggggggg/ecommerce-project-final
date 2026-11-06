@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 public class AiGenerateDescriptionResponse {
 
     private String productName;
+    private String brand;
     private String categoryName;
     private String description;
     private String seoTitle;

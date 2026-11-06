@@ -1,5 +1,6 @@
 package ra.project.server.service.impl;
 
+import ra.project.server.exception.BadRequestException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -90,33 +91,48 @@ public class AiServiceImpl implements AiService {
 
     @Override
     public AiGenerateDescriptionResponse generateProductDescription(AiGenerateDescriptionRequest request) {
-        String productName = request.getProductName().trim();
+        String productName = request != null ? request.getEffectiveName() : "";
+        if (!StringUtils.hasText(productName)) {
+            throw new BadRequestException("Tên sản phẩm không được để trống");
+        }
+        String brand = request.getBrand();
         String categoryName = StringUtils.hasText(request.getCategoryName()) ? request.getCategoryName().trim() : "Thiết bị điện tử";
+        Object specs = request.getSpecs();
         List<String> keywords = request.getKeywords();
-        String prompt = buildPrompt(productName, categoryName, keywords);
+
+        String prompt = buildPrompt(productName, brand, categoryName, specs, keywords);
 
         // 1. Thử gọi Google Gemini AI nếu có API Key
-        if (StringUtils.hasText(geminiApiKey) && !geminiApiKey.equalsIgnoreCase("dummy") && !geminiApiKey.startsWith("placeholder")) {
-            log.info("Đang gọi Google Gemini AI Model [{}] để sinh mô tả SEO cho: {}", geminiModel, productName);
-            String geminiText = callGeminiApi(prompt);
-            if (StringUtils.hasText(geminiText)) {
-                log.info("Google Gemini AI sinh mô tả SEO thành công cho: {}", productName);
-                return AiGenerateDescriptionResponse.builder()
-                        .productName(productName)
-                        .categoryName(categoryName)
-                        .description(geminiText.trim())
-                        .seoTitle(generateSeoTitle(productName, categoryName))
-                        .seoKeywords(generateKeywords(productName, categoryName, keywords))
-                        .provider("GOOGLE_GEMINI (" + geminiModel + ")")
-                        .build();
+        String activeGeminiKey = getEffectiveGeminiApiKey();
+        String activeGeminiModel = getEffectiveGeminiModel();
+        if (StringUtils.hasText(activeGeminiKey) && !activeGeminiKey.equalsIgnoreCase("dummy") && !activeGeminiKey.startsWith("placeholder")) {
+            log.info("Đang gọi Google Gemini AI Model [{}] để sinh mô tả SEO cho: {}", activeGeminiModel, productName);
+            try {
+                String geminiText = callGeminiApi(prompt);
+                if (StringUtils.hasText(geminiText)) {
+                    log.info("Google Gemini AI sinh mô tả SEO thành công cho: {}", productName);
+                    return AiGenerateDescriptionResponse.builder()
+                            .productName(productName)
+                            .brand(brand)
+                            .categoryName(categoryName)
+                            .description(cleanMarkdownOutput(geminiText))
+                            .seoTitle(generateSeoTitle(productName, brand, categoryName))
+                            .seoKeywords(generateKeywords(productName, brand, categoryName, keywords))
+                            .provider("GOOGLE_GEMINI (" + activeGeminiModel + ")")
+                            .build();
+                }
+            } catch (Exception ex) {
+                log.warn("Lỗi hoặc timeout khi gọi Gemini AI sinh mô tả: {}", ex.getMessage());
             }
         }
 
         // 2. Thử gọi Spring AI (OpenAI) nếu có cấu hình OpenAI
-        if (StringUtils.hasText(openAiApiKey) && !openAiApiKey.equalsIgnoreCase("dummy") && !openAiApiKey.startsWith("sk-placeholder")) {
+        String activeOpenAiKey = getEffectiveOpenAiApiKey();
+        String activeOpenAiModel = getEffectiveOpenAiModel();
+        if (StringUtils.hasText(activeOpenAiKey) && !activeOpenAiKey.equalsIgnoreCase("dummy") && !activeOpenAiKey.startsWith("sk-placeholder")) {
             try {
-                log.info("Đang gọi Spring AI OpenAI Model [{}] để sinh mô tả SEO cho: {}", openAiModel, productName);
-                OpenAiApi openAiApi = new OpenAiApi(openAiApiKey);
+                log.info("Đang gọi Spring AI OpenAI Model [{}] để sinh mô tả SEO cho: {}", activeOpenAiModel, productName);
+                OpenAiApi openAiApi = new OpenAiApi(activeOpenAiKey);
                 OpenAiChatModel chatModel = new OpenAiChatModel(openAiApi);
                 String aiGeneratedText = chatModel.call(prompt);
 
@@ -124,11 +140,12 @@ public class AiServiceImpl implements AiService {
                     log.info("Spring AI sinh mô tả SEO thành công cho: {}", productName);
                     return AiGenerateDescriptionResponse.builder()
                             .productName(productName)
+                            .brand(brand)
                             .categoryName(categoryName)
-                            .description(aiGeneratedText.trim())
-                            .seoTitle(generateSeoTitle(productName, categoryName))
-                            .seoKeywords(generateKeywords(productName, categoryName, keywords))
-                            .provider("SPRING_AI (" + openAiModel + ")")
+                            .description(cleanMarkdownOutput(aiGeneratedText))
+                            .seoTitle(generateSeoTitle(productName, brand, categoryName))
+                            .seoKeywords(generateKeywords(productName, brand, categoryName, keywords))
+                            .provider("SPRING_AI (" + activeOpenAiModel + ")")
                             .build();
                 }
             } catch (Exception ex) {
@@ -136,16 +153,17 @@ public class AiServiceImpl implements AiService {
             }
         }
 
-        // 3. Chế độ sinh mô tả chuẩn SEO thông minh (Smart Fallback Generator) khi không có API Key
+        // 3. Chế độ sinh mô tả chuẩn SEO thông minh (Smart Fallback Generator) khi không có API Key hoặc gặp lỗi/timeout
         log.info("Sử dụng thuật toán sinh mô tả chuẩn SEO tự động cho: {}", productName);
-        String fallbackDescription = generateSmartSeoDescription(productName, categoryName, keywords);
+        String fallbackDescription = generateSmartSeoDescription(productName, brand, categoryName, specs, keywords);
 
         return AiGenerateDescriptionResponse.builder()
                 .productName(productName)
+                .brand(brand)
                 .categoryName(categoryName)
-                .description(fallbackDescription)
-                .seoTitle(generateSeoTitle(productName, categoryName))
-                .seoKeywords(generateKeywords(productName, categoryName, keywords))
+                .description(cleanMarkdownOutput(fallbackDescription))
+                .seoTitle(generateSeoTitle(productName, brand, categoryName))
+                .seoKeywords(generateKeywords(productName, brand, categoryName, keywords))
                 .provider("SMART_SEO_ENGINE (Fallback)")
                 .build();
     }
@@ -595,45 +613,146 @@ public class AiServiceImpl implements AiService {
         return null;
     }
 
-    private String buildPrompt(String productName, String categoryName, List<String> keywords) {
+    public String cleanMarkdownOutput(String text) {
+        if (!StringUtils.hasText(text)) {
+            return "";
+        }
+        String cleaned = text.trim();
+
+        // Bỏ code block bắt đầu (`markdown, `md, `)
+        if (cleaned.startsWith("`")) {
+            int firstNewline = cleaned.indexOf('\n');
+            if (firstNewline != -1) {
+                cleaned = cleaned.substring(firstNewline + 1).trim();
+            } else {
+                cleaned = cleaned.replaceFirst("^`[a-zA-Z]*", "").trim();
+            }
+        }
+
+        // Bỏ code block kết thúc (`)
+        if (cleaned.endsWith("`")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 3).trim();
+        }
+
+        return cleaned;
+    }
+
+    private String formatSpecs(Object specs) {
+        if (specs == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+
+        if (specs instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry.getKey() != null && entry.getValue() != null) {
+                    sb.append("- **").append(entry.getKey().toString().trim()).append("**: ")
+                            .append(entry.getValue().toString().trim()).append("\n");
+                }
+            }
+        } else if (specs instanceof List<?> list) {
+            for (Object item : list) {
+                if (item instanceof Map<?, ?> itemMap) {
+                    Object key = itemMap.containsKey("key") ? itemMap.get("key") : itemMap.get("specKey");
+                    Object val = itemMap.containsKey("value") ? itemMap.get("value") : itemMap.get("specValue");
+                    Object group = itemMap.containsKey("group") ? itemMap.get("group") : itemMap.get("groupName");
+                    if (key != null && val != null) {
+                        if (group != null && StringUtils.hasText(group.toString())) {
+                            sb.append("- **[").append(group.toString().trim()).append("] ")
+                                    .append(key.toString().trim()).append("**: ")
+                                    .append(val.toString().trim()).append("\n");
+                        } else {
+                            sb.append("- **").append(key.toString().trim()).append("**: ")
+                                    .append(val.toString().trim()).append("\n");
+                        }
+                    } else {
+                        sb.append("- ").append(itemMap).append("\n");
+                    }
+                } else if (item != null && StringUtils.hasText(item.toString())) {
+                    sb.append("- ").append(item.toString().trim()).append("\n");
+                }
+            }
+        } else if (specs instanceof String str && StringUtils.hasText(str)) {
+            sb.append(str.trim()).append("\n");
+        }
+
+        return sb.toString().trim();
+    }
+
+    private String buildPrompt(String productName, String brand, String categoryName, Object specs, List<String> keywords) {
         StringBuilder sb = new StringBuilder();
         sb.append("Bạn là chuyên gia Content Marketing & SEO Thương Mại Điện Tử hàng đầu.\n");
-        sb.append("Hãy viết một đoạn mô tả sản phẩm hấp dẫn, chuẩn SEO cho sản phẩm sau:\n");
+        sb.append("Hãy viết bài mô tả sản phẩm hấp dẫn, chuẩn kỹ thuật, tối ưu hóa SEO cho sản phẩm sau:\n");
         sb.append("- Tên sản phẩm: ").append(productName).append("\n");
-        sb.append("- Danh mục: ").append(categoryName).append("\n");
-        if (keywords != null && !keywords.isEmpty()) {
-            sb.append("- Các từ khóa trọng tâm: ").append(String.join(", ", keywords)).append("\n");
+        if (StringUtils.hasText(brand)) {
+            sb.append("- Thương hiệu: ").append(brand.trim()).append("\n");
         }
-        sb.append("\nYêu cầu cấu trúc:\n");
-        sb.append("1. Mở đầu hấp dẫn giới thiệu định vị sản phẩm.\n");
-        sb.append("2. Nêu bật các tính năng công nghệ vượt trội, hiệu năng, thiết kế và trải nghiệm thực tế.\n");
-        sb.append("3. Lợi ích tối đa cho người dùng và lời cam kết chất lượng/bảo hành chính hãng.\n");
-        sb.append("Văn phong hiện đại, lôi cuốn, độ dài khoảng 120-180 từ, định dạng Markdown rõ ràng.");
+        sb.append("- Danh mục: ").append(categoryName).append("\n");
+
+        String formattedSpecs = formatSpecs(specs);
+        if (StringUtils.hasText(formattedSpecs)) {
+            sb.append("- Thông số kỹ thuật chi tiết:\n").append(formattedSpecs).append("\n");
+        }
+
+        if (keywords != null && !keywords.isEmpty()) {
+            sb.append("- Từ khóa SEO trọng tâm: ").append(String.join(", ", keywords)).append("\n");
+        }
+
+        sb.append("\n--- YÊU CẦU ĐỊNH DẠNG ĐẦU RA BẮT BUỘC ---\n");
+        sb.append("Chỉ trả về nội dung Markdown thuần túy (tuyệt đối KHÔNG bọc trong khối code block `markdown hoặc `).\n");
+        sb.append("Cấu trúc bài viết phải bao gồm chính xác 4 phần sau:\n\n");
+        sb.append("### 1. Tiêu đề\n");
+        sb.append("Tiêu đề hấp dẫn, chứa tên sản phẩm và điểm nhấn công nghệ, kèm đoạn giới thiệu mở đầu 2-3 câu lôi cuốn.\n\n");
+        sb.append("### 2. Điểm nổi bật\n");
+        sb.append("Trình bày từ 3-5 gạch đầu dòng (bullet points) nêu bật công nghệ đột phá, thiết kế, hiệu năng và trải nghiệm sử dụng thực tế.\n\n");
+        sb.append("### 3. Thông số kỹ thuật\n");
+        sb.append("Liệt kê đầy đủ, chính xác các thông số kỹ thuật (dựa trên thông số cung cấp).\n\n");
+        sb.append("### 4. Đối tượng phù hợp\n");
+        sb.append("Phân tích rõ sản phẩm phù hợp nhất với nhóm khách hàng nào (học sinh, sinh viên, dân văn phòng, game thủ, sáng tạo nội dung...) kèm cam kết chất lượng, bảo hành chính hãng tại NEXOR.\n");
         return sb.toString();
     }
 
-    private String generateSmartSeoDescription(String productName, String categoryName, List<String> keywords) {
+    private String generateSmartSeoDescription(String productName, String brand, String categoryName, Object specs, List<String> keywords) {
+        String brandPrefix = StringUtils.hasText(brand) ? (" từ thương hiệu danh tiếng **" + brand.trim() + "**") : "";
         String keywordStr = (keywords != null && !keywords.isEmpty()) ? String.join(", ", keywords) : "công nghệ tiên tiến, thiết kế đẳng cấp";
+        String specsBlock = formatSpecs(specs);
+        if (!StringUtils.hasText(specsBlock)) {
+            specsBlock = "- **Thương hiệu**: " + (StringUtils.hasText(brand) ? brand.trim() : "Chính hãng") + "\n" +
+                    "- **Phân khúc**: " + categoryName + "\n" +
+                    "- **Tính năng chính**: Tối ưu hiệu năng, tiết kiệm điện năng, kết nối thông minh\n" +
+                    "- **Bảo hành**: 12 tháng chính hãng 1 đổi 1";
+        }
 
         return String.format(
-                "### Giới thiệu sản phẩm %s\n\n" +
-                "**%s** là sự kết hợp hoàn hảo giữa thiết kế hiện đại, tinh tế và hiệu năng vượt bậc trong phân khúc **%s**. " +
-                "Sở hữu ngôn ngữ hoàn thiện cao cấp cùng độ bền bỉ đáng kinh ngạc, sản phẩm mang lại trải nghiệm đỉnh cao cho cả nhu cầu công việc lẫn giải trí thường ngày.\n\n" +
-                "#### Điểm nổi bật vượt trội:\n" +
-                "- **Hiệu năng bứt phá**: Tối ưu hóa xử lý mượt mà, phản hồi tức thì với tốc độ đáng nể.\n" +
-                "- **Trải nghiệm xuất sắc**: Tích hợp các tính năng thông minh (%s) giúp nâng cao tiện ích cho người sử dụng.\n" +
-                "- **Độ bền chuẩn mực**: Quy trình sản xuất nghiêm ngặt, vật liệu thân thiện và an toàn tuyệt đối.\n\n" +
-                "Sản phẩm được phân phối chính hãng với chế độ bảo hành 12 tháng, 1 đổi 1 trong 30 ngày và giao hàng nhanh toàn quốc. Đặt hàng ngay hôm nay để nhận ưu đãi hấp dẫn nhất!",
-                productName, productName, categoryName, keywordStr
+                "## %s – Đỉnh Cao Công Nghệ, Trải Nghiệm Hoàn Mỹ\n\n" +
+                "**%s**%s là sự kết hợp hoàn hảo giữa ngôn ngữ thiết kế thời thượng và hiệu năng vượt bậc trong phân khúc **%s**. " +
+                "Sở hữu độ hoàn thiện cao cấp cùng độ bền bỉ đáng tin cậy, sản phẩm mang lại trải nghiệm đỉnh cao cho cả nhu cầu công việc lẫn giải trí thường ngày.\n\n" +
+                "### Điểm nổi bật vượt trội\n" +
+                "- **Hiệu năng bứt phá**: Tối ưu hóa xử lý mượt mà, phản hồi tức thì với tốc độ ấn tượng.\n" +
+                "- **Trải nghiệm đỉnh cao**: Tích hợp các tính năng công nghệ thông minh (%s) nâng tầm tiện ích.\n" +
+                "- **Thiết kế sang trọng**: Kiểu dáng hiện đại, gia công tỉ mỉ, vật liệu cao cấp và an toàn tuyệt đối.\n" +
+                "- **Tiết kiệm năng lượng**: Tối ưu thời lượng sử dụng bền bỉ suốt cả ngày dài.\n\n" +
+                "### Thông số kỹ thuật\n" +
+                "%s\n\n" +
+                "### Đối tượng phù hợp\n" +
+                "Sản phẩm là lựa chọn lý tưởng dành cho người dùng cá nhân, học sinh, sinh viên và giới chuyên môn cần một thiết bị bền bỉ, mạnh mẽ và thời trang. " +
+                "Được phân phối chính hãng tại NEXOR với cam kết 100%% New Seal, bảo hành 12 tháng 1 đổi 1 và hỗ trợ giao hàng hỏa tốc toàn quốc.",
+                productName, productName, brandPrefix, categoryName, keywordStr, specsBlock
         );
     }
 
-    private String generateSeoTitle(String productName, String categoryName) {
+    private String generateSeoTitle(String productName, String brand, String categoryName) {
+        if (StringUtils.hasText(brand)) {
+            return String.format("%s %s - Chính Hãng, Giá Tốt Nhất Phân Khúc %s | NEXOR", brand.trim(), productName, categoryName);
+        }
         return String.format("%s - Chính Hãng, Giá Tốt Nhất Phân Khúc %s | NEXOR", productName, categoryName);
     }
 
-    private String generateKeywords(String productName, String categoryName, List<String> keywords) {
+    private String generateKeywords(String productName, String brand, String categoryName, List<String> keywords) {
         StringBuilder sb = new StringBuilder();
+        if (StringUtils.hasText(brand)) {
+            sb.append(brand.trim().toLowerCase()).append(", ");
+        }
         sb.append(productName.toLowerCase()).append(", ");
         sb.append(categoryName.toLowerCase()).append(" chính hãng, ");
         sb.append("mua ").append(productName.toLowerCase()).append(", ");
