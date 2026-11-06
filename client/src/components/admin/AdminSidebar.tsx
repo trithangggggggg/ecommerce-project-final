@@ -74,7 +74,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
       >
         {/* Brand Header */}
         <div className="h-14 px-4 border-b border-slate-100 flex items-center justify-between shrink-0">
-          <Link to={ROUTES.ADMIN} className="flex items-center gap-2.5">
+          <Link to={ROUTES.HOME} className="flex items-center gap-2.5 hover:opacity-85 transition" title="Về trang chủ cửa hàng">
             <img
               src="/images/nexor_logo.png"
               alt="NEXOR Admin"
