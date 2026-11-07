@@ -93,7 +93,7 @@ const getSavedLocationMap = (): Record<number, { warehouse: string; shelfLocatio
 const saveLocationMap = (map: Record<number, { warehouse: string; shelfLocation?: string }>) => {
   try {
     localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(map));
-  } catch {}
+  } catch { }
 };
 
 const formatDateTime = (dateStr?: string): string => {
@@ -287,7 +287,7 @@ export const AdminInventoryPage: React.FC = () => {
           }
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Open Create Receipt
@@ -893,17 +893,15 @@ export const AdminInventoryPage: React.FC = () => {
         <button
           type="button"
           onClick={() => setActiveTab('INVENTORY')}
-          className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
-            activeTab === 'INVENTORY'
+          className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${activeTab === 'INVENTORY'
               ? 'bg-blue-600 text-white shadow-xs'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
+            }`}
         >
           <Archive className="w-4 h-4" />
           <span>Danh sách tồn kho</span>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-            activeTab === 'INVENTORY' ? 'bg-blue-700/80 text-white' : 'bg-slate-200 text-slate-700'
-          }`}>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === 'INVENTORY' ? 'bg-blue-700/80 text-white' : 'bg-slate-200 text-slate-700'
+            }`}>
             {items.length}
           </span>
         </button>
@@ -914,17 +912,15 @@ export const AdminInventoryPage: React.FC = () => {
             setActiveTab('RECEIPTS');
             loadReceipts();
           }}
-          className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
-            activeTab === 'RECEIPTS'
+          className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${activeTab === 'RECEIPTS'
               ? 'bg-blue-600 text-white shadow-xs'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
+            }`}
         >
           <History className="w-4 h-4" />
           <span>Lịch sử phiếu nhập kho</span>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-            activeTab === 'RECEIPTS' ? 'bg-blue-700/80 text-white' : 'bg-slate-200 text-slate-700'
-          }`}>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === 'RECEIPTS' ? 'bg-blue-700/80 text-white' : 'bg-slate-200 text-slate-700'
+            }`}>
             {receiptTotalItems}
           </span>
         </button>
@@ -950,11 +946,10 @@ export const AdminInventoryPage: React.FC = () => {
                 setStatusFilter(statusFilter === 'LOW_STOCK' ? 'ALL' : 'LOW_STOCK');
                 setCurrentPage(1);
               }}
-              className={`rounded-xl p-3 border shadow-2xs cursor-pointer transition ${
-                statusFilter === 'LOW_STOCK'
+              className={`rounded-xl p-3 border shadow-2xs cursor-pointer transition ${statusFilter === 'LOW_STOCK'
                   ? 'bg-rose-50/50 border-rose-300 ring-2 ring-rose-200'
                   : 'bg-white border-slate-200/80 hover:border-rose-200'
-              }`}
+                }`}
               title="Nhấn để lọc chỉ các SKU sắp hết hàng (<= 5)"
             >
               <span className="text-[11px] font-medium text-slate-400 block mb-0.5 flex items-center justify-between">
@@ -1111,11 +1106,10 @@ export const AdminInventoryPage: React.FC = () => {
                           {/* Quantity */}
                           <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
                             <span
-                              className={`text-xs font-extrabold px-2 py-0.5 rounded ${
-                                item.quantity > 5
+                              className={`text-xs font-extrabold px-2 py-0.5 rounded ${item.quantity > 5
                                   ? 'text-emerald-700 bg-emerald-50/50'
                                   : 'text-rose-700 bg-rose-50 border border-rose-200 font-black'
-                              }`}
+                                }`}
                             >
                               {item.quantity}
                             </span>
@@ -1196,11 +1190,10 @@ export const AdminInventoryPage: React.FC = () => {
                                       </div>
                                       <div className="text-right shrink-0">
                                         <span
-                                          className={`text-xs font-black block ${
-                                            (v.stock ?? 0) > 5
+                                          className={`text-xs font-black block ${(v.stock ?? 0) > 5
                                               ? 'text-emerald-600'
                                               : 'text-rose-600 bg-rose-50 px-1 py-0.5 rounded border border-rose-200'
-                                          }`}
+                                            }`}
                                         >
                                           {v.stock ?? 0} chiếc
                                         </span>
@@ -1674,11 +1667,10 @@ export const AdminInventoryPage: React.FC = () => {
                                           handleVariantSelect(idx, e.target.value);
                                         }
                                       }}
-                                      className={`w-full px-2.5 py-1.5 border rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition ${
-                                        !row.variantId
+                                      className={`w-full px-2.5 py-1.5 border rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition ${!row.variantId
                                           ? 'border-amber-300 bg-amber-50/40 text-amber-900 ring-1 ring-amber-300/40'
                                           : 'border-blue-300 bg-blue-50/20 text-slate-800'
-                                      }`}
+                                        }`}
                                     >
                                       <option value="">-- Chọn biến thể (Dung lượng, Màu sắc...) --</option>
                                       {prodVariants.map((v) => (
@@ -2102,13 +2094,12 @@ export const AdminInventoryPage: React.FC = () => {
                         Số lượng tồn kho <span className="text-rose-500">*</span>
                       </label>
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                          Number(editForm.quantity) > 5
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${Number(editForm.quantity) > 5
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             : Number(editForm.quantity) > 0
-                            ? 'bg-amber-50 text-amber-700 border-amber-200'
-                            : 'bg-rose-50 text-rose-700 border-rose-200'
-                        }`}
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : 'bg-rose-50 text-rose-700 border-rose-200'
+                          }`}
                       >
                         {Number(editForm.quantity) > 5 ? 'Còn hàng' : Number(editForm.quantity) > 0 ? 'Sắp hết hàng' : 'Hết hàng'}
                       </span>
