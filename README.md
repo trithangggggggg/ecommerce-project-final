@@ -8,7 +8,7 @@
 
 > **Nexor** là hệ sinh thái thương mại điện tử chuyên cung cấp các sản phẩm công nghệ cao cấp, tích hợp trợ lý AI thông minh tư vấn mua sắm, quản lý chuỗi cửa hàng vật lý, hỗ trợ thanh toán trực tuyến và tự động hóa quy trình CI/CD toàn diện.
 
-🌐 **Production Website**: [http://nexortech.io.vn](http://nexortech.io.vn)
+🌐 **Production Website**: [https://nexortech.io.vn](https://nexortech.io.vn)
 
 ---
 
