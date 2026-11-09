@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom';
 import Header from '../components/common/Header/Header';
 import Footer from '../components/common/Footer/Footer';
 import AiChatbot from '../components/common/Chat/AiChatbot';
+import LuckyWheelModal from '../components/common/LuckyWheelModal';
 
 export default function GuestLayout() {
   return (
@@ -13,6 +14,8 @@ export default function GuestLayout() {
       <Footer />
       {/* Floating AI Chatbot Bubble */}
       <AiChatbot />
+      {/* Floating Lucky Wheel Button & Modal */}
+      <LuckyWheelModal />
     </div>
   );
 }
