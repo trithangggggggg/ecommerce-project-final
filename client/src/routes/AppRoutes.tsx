@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+﻿import React, { useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 
@@ -17,6 +17,7 @@ import LoginPage from '../pages/auth/LoginPage';
 import RegisterPage from '../pages/auth/RegisterPage';
 import ProfilePage from '../pages/auth/ProfilePage';
 import UnauthorizedPage from '../pages/common/UnauthorizedPage';
+import StoresPage from '../pages/guest/StoresPage';
 import NotFoundPage from '../pages/common/NotFoundPage';
 
 // Lazy-loaded Admin Layout & Pages (Code Splitting để giảm bundle size trang chủ)
@@ -74,6 +75,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="trang-chu" element={<HomePage />} />
           <Route path="products" element={<ProductsPage />} />
           <Route path="products/:id" element={<ProductDetailPage />} />
+          <Route path="stores" element={<StoresPage />} />
           <Route path="cart" element={<CartPage />} />
 
           {/* Các route yêu cầu khách hàng đăng nhập */}

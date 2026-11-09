@@ -50,4 +50,44 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+/* =========================================================
+   Leaflet map fixes — Tailwind v4 resets break tile images
+   ========================================================= */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  z-index: 1;
+}
 
+/* Tailwind preflight sets img { max-width: 100%; display: block }
+   which breaks Leaflet tile rendering */
+.leaflet-container img.leaflet-tile,
+.leaflet-pane img,
+.leaflet-tile-container img {
+  max-width: none !important;
+  max-height: none !important;
+  display: inline !important;
+  box-sizing: content-box !important;
+  border: none !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Ensure markers render properly */
+.leaflet-marker-icon,
+.leaflet-marker-shadow {
+  max-width: none !important;
+  max-height: none !important;
+  display: inline-block !important;
+}
+
+.custom-nexor-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 1rem !important;
+  padding: 0.25rem !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+}
