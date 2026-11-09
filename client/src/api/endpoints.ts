@@ -29,6 +29,10 @@ export const ENDPOINTS = {
     APPLY: '/promotions/apply',
     AVAILABLE: '/promotions/available',
   },
+  WHEEL: {
+    STATUS: '/wheel/status',
+    SPIN: '/wheel/spin',
+  },
   ADMIN_ORDERS: {
     LIST: '/admin/orders',
     UPDATE_STATUS: (id: number | string) => `/admin/orders/${id}/status`,
