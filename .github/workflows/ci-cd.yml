@@ -9,9 +9,9 @@ name: CI/CD
 
 on:
   push:
-    branches: [ dev, main ]
+    branches: [ dev ]
   pull_request:
-    branches: [ dev, main ]
+    branches: [ dev ]
   workflow_dispatch:
 
 env:
@@ -146,7 +146,7 @@ jobs:
   deploy:
     name: Deploy lên Server
     needs: build
-    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') && github.event_name == 'push'
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read

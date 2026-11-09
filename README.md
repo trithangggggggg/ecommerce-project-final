@@ -73,7 +73,7 @@
 Hệ thống CI/CD được cấu hình tự động tại `.github/workflows/ci-cd.yml` với các bước kiểm soát chất lượng nghiêm ngặt:
 
 ```
-[Git Push / PR] ──► [dev / main]
+[Git Push / PR] ──► [dev]
                          │
         ┌────────────────┴────────────────┐
         ▼                                 ▼
@@ -91,17 +91,17 @@ Gradle 8.14 + JDK 21             Node 20 + npm ci
         │ Thành công                      │ Lỗi: Gửi log chi tiết
         ▼                                 ▼
 [Push Images lên GHCR]            [Build Failed]
-(Chỉ chạy khi push/merge)
+(Chỉ chạy khi push/merge vào dev)
         │
         ▼
 [Deploy SSH lên VPS 163.223.9.81]
-- Kéo source code mới nhất
+- Kéo source code mới nhất nhánh dev
 - Cập nhật biến môi trường an toàn
 - Zero-downtime container rolling restart
 ```
 
-- **Trigger Conditions**: Tự động kích hoạt khi có `push` hoặc `pull_request` vào 2 nhánh trọng yếu: `dev` và `main`.
-- **An Toàn Tuyệt Đối**: Bước Push GHCR và Deploy SSH chỉ thực thi khi code đã được kiểm thử 100% xanh và được merge/push chính thức vào nhánh `dev` hoặc `main`. Các PR đang mở chỉ chạy test và smoke test mà không ảnh hưởng tới môi trường server.
+- **Trigger Conditions**: Tự động kích hoạt khi có `push` hoặc `pull_request` vào nhánh `dev` (giai đoạn phát triển). Khi toàn bộ dự án hoàn thiện sẽ bổ sung nhánh `main`.
+- **An Toàn Tuyệt Đối**: Bước Push GHCR và Deploy SSH chỉ thực thi khi code đã được kiểm thử 100% xanh và được merge/push chính thức vào nhánh `dev`. Các Pull Request vào nhánh `dev` chỉ chạy test và smoke test mà không deploy lên server.
 
 ---
 
