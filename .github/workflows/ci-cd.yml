@@ -9,7 +9,9 @@ name: CI/CD
 
 on:
   push:
-    branches: [ dev]
+    branches: [ dev, main ]
+  pull_request:
+    branches: [ dev, main ]
   workflow_dispatch:
 
 env:
@@ -86,7 +88,9 @@ jobs:
           ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME || secrets.ADMIN_EMAIL || 'admin' }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || secrets.ADMIN_USERNAME || 'admin@nexor.vn' }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || '123123123' }}
-        run: docker compose --env-file student.env up -d --build --wait --wait-timeout 300
+        run: |
+          sudo fuser -k 80/tcp 2>/dev/null || true
+          docker compose --env-file student.env up -d --build --wait --wait-timeout 300
 
       - name: Smoke test kiểm tra dịch vụ
         run: |
@@ -112,7 +116,7 @@ jobs:
         run: docker compose --env-file student.env logs --no-color
 
       - name: Đăng nhập GitHub Container Registry (GHCR)
-        if: success()
+        if: success() && github.event_name == 'push'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -120,7 +124,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push Images lên GHCR
-        if: success()
+        if: success() && github.event_name == 'push'
         env:
           IMAGE: ${{ steps.meta.outputs.image }}
           FRONTEND_IMAGE: ${{ steps.meta.outputs.frontend_image }}
