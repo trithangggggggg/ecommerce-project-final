@@ -66,7 +66,7 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(6))
+            .connectTimeout(Duration.ofSeconds(15))
             .build();
 
     private String getEffectiveGeminiApiKey() {
@@ -168,12 +168,14 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
         }
 
         String effectiveModel = getEffectiveGeminiModel();
-        String[] candidateModels = new String[]{
-                effectiveModel,
-                "gemini-1.5-flash",
-                "gemini-2.0-flash",
-                "gemini-2.5-flash"
-        };
+        List<String> candidateModels = new ArrayList<>();
+        if (StringUtils.hasText(effectiveModel) && !effectiveModel.contains("3.5")) {
+            candidateModels.add(effectiveModel.trim());
+        }
+        if (!candidateModels.contains("gemini-1.5-flash")) candidateModels.add("gemini-1.5-flash");
+        if (!candidateModels.contains("gemini-2.0-flash")) candidateModels.add("gemini-2.0-flash");
+        if (!candidateModels.contains("gemini-2.5-flash")) candidateModels.add("gemini-2.5-flash");
+        if (!candidateModels.contains("gemini-1.5-pro")) candidateModels.add("gemini-1.5-pro");
 
         String prompt = "Bạn là chuyên gia thẩm định và nhận diện sản phẩm thương mại điện tử công nghệ của sàn NEXOR.\n" +
                 "Hãy phân tích hình ảnh sản phẩm và trả về ĐÚNG MỘT JSON hợp lệ duy nhất (không kèm markdown ```json, không kèm giải thích bên ngoài):\n" +
@@ -194,11 +196,12 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
                 String endpointUrl = String.format("%s/%s:generateContent?key=%s", cleanApiUrl, model.trim(), apiKey.trim());
 
                 Map<String, Object> textPart = Map.of("text", prompt);
+                // CHÚ Ý: Google Gemini REST API yêu cầu camelCase 'inlineData' và 'mimeType'
                 Map<String, Object> inlineData = Map.of(
-                        "mime_type", mimeType,
+                        "mimeType", mimeType,
                         "data", base64Data
                 );
-                Map<String, Object> imagePart = Map.of("inline_data", inlineData);
+                Map<String, Object> imagePart = Map.of("inlineData", inlineData);
 
                 Map<String, Object> content = Map.of("parts", List.of(textPart, imagePart));
                 Map<String, Object> requestPayload = new LinkedHashMap<>();
@@ -213,7 +216,7 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
 
                 HttpRequest httpRequest = HttpRequest.newBuilder()
                         .uri(URI.create(endpointUrl))
-                        .timeout(Duration.ofSeconds(6))
+                        .timeout(Duration.ofSeconds(15))
                         .header("Content-Type", "application/json; charset=utf-8")
                         .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
                         .build();
@@ -226,7 +229,10 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
                     if (candidates.isArray() && !candidates.isEmpty()) {
                         JsonNode textNode = candidates.get(0).path("content").path("parts").get(0).path("text");
                         if (!textNode.isMissingNode() && StringUtils.hasText(textNode.asText())) {
-                            return parseGeminiJsonResponse(textNode.asText().trim());
+                            VisualSearchAttributes parsed = parseGeminiJsonResponse(textNode.asText().trim());
+                            if (parsed != null && (StringUtils.hasText(parsed.getCategory()) || StringUtils.hasText(parsed.getBrand()))) {
+                                return parsed;
+                            }
                         }
                     }
                 } else {
@@ -334,7 +340,8 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
 
         if (allProducts == null || allProducts.isEmpty()) {
             allProducts = productRepository.findAll().stream()
-                    .filter(p -> (p.getIsDeleted() == null || !p.getIsDeleted()) && "ACTIVE".equalsIgnoreCase(p.getStatus()))
+                    .filter(p -> (p.getIsDeleted() == null || !p.getIsDeleted()) &&
+                            (p.getStatus() == null || "ACTIVE".equalsIgnoreCase(p.getStatus()) || "1".equals(p.getStatus()) || "true".equalsIgnoreCase(p.getStatus())))
                     .collect(Collectors.toList());
         }
 
@@ -473,8 +480,11 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
         }
 
         ProductVariantResponse bestVariantResponse = null;
-        if (bestVariantEntity != null) {
-            bestVariantResponse = productMapper.toVariantResponse(bestVariantEntity);
+        if (bestVariantEntity != null && productMapper != null) {
+            try {
+                bestVariantResponse = productMapper.toVariantResponse(bestVariantEntity);
+            } catch (Exception ignored) {
+            }
         }
 
         BigDecimal effectivePrice = product.getPrice();
@@ -519,4 +529,3 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
         }
     }
 }
-
