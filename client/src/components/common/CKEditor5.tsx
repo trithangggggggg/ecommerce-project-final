@@ -147,7 +147,7 @@ export const CKEditor5: React.FC<CKEditor5Props> = ({
         config={editorConfig}
         data={value}
         disabled={disabled}
-        onChange={(_event, editor) => {
+        onChange={(_event: any, editor: any) => {
           const data = editor.getData();
           onChange(data);
         }}

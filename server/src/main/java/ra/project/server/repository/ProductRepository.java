@@ -37,7 +37,7 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     long countActiveProducts();
 
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"category", "variants"})
-    @Query("SELECT p FROM Product p WHERE (p.isDeleted = false OR p.isDeleted IS NULL) AND UPPER(p.status) = 'ACTIVE'")
+    @Query("SELECT p FROM Product p WHERE (p.isDeleted = false OR p.isDeleted IS NULL) AND (p.status IS NULL OR UPPER(p.status) = 'ACTIVE' OR UPPER(p.status) = 'TRUE' OR p.status = '1')")
     List<Product> findAllActiveForSearch();
 
     @Modifying

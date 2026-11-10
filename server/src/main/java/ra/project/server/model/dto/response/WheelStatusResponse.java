@@ -15,9 +15,10 @@ import java.util.List;
 public class WheelStatusResponse {
     private boolean canSpin;
     private boolean hasSpunToday;
+    @Builder.Default
+    private int remainingSpins = 0;
     private String message;
     private String todayVoucherCode;
     private String todayRewardLabel;
     private List<WheelReward> rewards;
 }
-

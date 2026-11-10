@@ -18,6 +18,7 @@ import {
   Sparkles,
   Store,
   Newspaper,
+  Gift,
 } from 'lucide-react';
 import { ROUTES } from '../../constants/routes';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -47,6 +48,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
     { title: 'Bài viết & Tin tức', path: ROUTES.ADMIN_ARTICLES, icon: Newspaper },
     { title: 'Khách hàng', path: ROUTES.ADMIN_CUSTOMERS, icon: Users },
     { title: 'Khuyến mãi', path: ROUTES.ADMIN_PROMOTIONS, icon: Percent },
+    { title: 'Vòng quay may mắn', path: ROUTES.ADMIN_WHEEL, icon: Gift },
     { title: 'Banner trang chủ', path: ROUTES.ADMIN_BANNERS, icon: ImageIcon },
     { title: 'Hệ thống Showroom', path: ROUTES.ADMIN_STORES, icon: Store },
     { title: 'Vận chuyển', path: ROUTES.ADMIN_SHIPPING, icon: Truck },

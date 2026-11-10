@@ -33,6 +33,13 @@ export const ENDPOINTS = {
     STATUS: '/wheel/status',
     SPIN: '/wheel/spin',
   },
+  ADMIN_WHEEL: {
+    HISTORY: '/admin/wheel/history',
+    STATS: '/admin/wheel/stats',
+    REWARDS: '/admin/wheel/rewards',
+    DELETE_HISTORY: (id: number | string) => `/admin/wheel/history/${id}`,
+    RESET_USER: (userId: number | string) => `/admin/wheel/reset-user/${userId}`,
+  },
   ADMIN_ORDERS: {
     LIST: '/admin/orders',
     UPDATE_STATUS: (id: number | string) => `/admin/orders/${id}/status`,

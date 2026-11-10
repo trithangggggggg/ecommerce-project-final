@@ -3,15 +3,21 @@ package ra.project.server.service.impl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ra.project.server.common.response.ApiResponse;
+import ra.project.server.common.response.PageResponse;
 import ra.project.server.exception.BadRequestException;
 import ra.project.server.exception.ForbiddenException;
+import ra.project.server.exception.ResourceNotFoundException;
 import ra.project.server.exception.UnauthorizedException;
 import ra.project.server.model.dto.WheelReward;
+import ra.project.server.model.dto.response.AdminWheelSpinHistoryResponse;
+import ra.project.server.model.dto.response.AdminWheelStatsResponse;
 import ra.project.server.model.dto.response.WheelSpinResponse;
 import ra.project.server.model.dto.response.WheelStatusResponse;
 import ra.project.server.model.entity.Promotion;
@@ -25,10 +31,7 @@ import ra.project.server.service.WheelService;
 import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Slf4j
 @Service
@@ -191,6 +194,7 @@ public class WheelServiceImpl implements WheelService {
                     WheelStatusResponse.builder()
                             .canSpin(false)
                             .hasSpunToday(false)
+                            .remainingSpins(0)
                             .message("Vui lòng đăng nhập để nhận 1 lượt quay may mắn mỗi ngày!")
                             .rewards(rewards)
                             .build()
@@ -206,6 +210,7 @@ public class WheelServiceImpl implements WheelService {
                     WheelStatusResponse.builder()
                             .canSpin(false)
                             .hasSpunToday(true)
+                            .remainingSpins(0)
                             .message("Bạn đã sử dụng lượt quay hôm nay. Hãy quay lại vào ngày mai nhé!")
                             .todayVoucherCode(history.getVoucherCode())
                             .todayRewardLabel(history.getRewardLabel())
@@ -218,6 +223,7 @@ public class WheelServiceImpl implements WheelService {
                 WheelStatusResponse.builder()
                         .canSpin(true)
                         .hasSpunToday(false)
+                        .remainingSpins(1)
                         .message("Bạn có 1 lượt quay may mắn miễn phí hôm nay. Chúc bạn trúng lớn!")
                         .rewards(rewards)
                         .build()
@@ -306,6 +312,75 @@ public class WheelServiceImpl implements WheelService {
         return ApiResponse.success("Quay thưởng thành công!", response);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public ApiResponse<PageResponse<AdminWheelSpinHistoryResponse>> getSpinHistory(
+            String keyword, LocalDate spinDate, Pageable pageable) {
+        String cleanKeyword = (keyword != null && !keyword.trim().isEmpty()) ? keyword.trim() : null;
+        Page<AdminWheelSpinHistoryResponse> page = wheelSpinHistoryRepository.searchHistory(cleanKeyword, spinDate, pageable);
+        return ApiResponse.success("Lấy lịch sử quay thưởng thành công", PageResponse.from(page));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ApiResponse<AdminWheelStatsResponse> getWheelStats() {
+        long totalSpins = wheelSpinHistoryRepository.count();
+        long spinsToday = wheelSpinHistoryRepository.countBySpinDate(LocalDate.now());
+        long uniqueUsers = wheelSpinHistoryRepository.countDistinctUsers();
+        long vouchersIssued = promotionRepository.countByCodeStartingWithIgnoreCase("WHEEL-");
+        long vouchersUsed = promotionRepository.countByCodeStartingWithIgnoreCaseAndUsedCountGreaterThan("WHEEL-", 0);
+
+        List<Object[]> distributionRaw = wheelSpinHistoryRepository.countSpinsByReward();
+        List<AdminWheelStatsResponse.RewardDistributionItem> distribution = new ArrayList<>();
+
+        List<WheelReward> defaultRewards = getDefaultRewards();
+        Map<Integer, Long> countMap = new HashMap<>();
+        for (Object[] row : distributionRaw) {
+            Integer rId = ((Number) row[0]).intValue();
+            Long count = ((Number) row[2]).longValue();
+            countMap.put(rId, count);
+        }
+
+        for (WheelReward r : defaultRewards) {
+            long c = countMap.getOrDefault(r.getId(), 0L);
+            double pct = totalSpins > 0 ? ((double) c * 100.0) / totalSpins : 0.0;
+            distribution.add(AdminWheelStatsResponse.RewardDistributionItem.builder()
+                    .rewardId(r.getId())
+                    .rewardLabel(r.getLabel())
+                    .count(c)
+                    .percentage(Math.round(pct * 10.0) / 10.0)
+                    .build());
+        }
+
+        AdminWheelStatsResponse stats = AdminWheelStatsResponse.builder()
+                .totalSpins(totalSpins)
+                .spinsToday(spinsToday)
+                .uniqueUsers(uniqueUsers)
+                .vouchersIssued(vouchersIssued)
+                .vouchersUsed(vouchersUsed)
+                .rewardDistributions(distribution)
+                .build();
+
+        return ApiResponse.success("Lấy thống kê vòng quay thành công", stats);
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<Void> deleteSpinHistory(Long id) {
+        WheelSpinHistory history = wheelSpinHistoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Lịch sử quay thưởng", "id", id));
+        wheelSpinHistoryRepository.delete(history);
+        return ApiResponse.success("Xóa lịch sử quay thưởng thành công", null);
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<Void> resetUserDailySpin(Long userId) {
+        LocalDate today = LocalDate.now();
+        wheelSpinHistoryRepository.deleteByUserIdAndSpinDate(userId, today);
+        return ApiResponse.success("Đã đặt lại lượt quay hôm nay cho người dùng thành công", null);
+    }
+
     private String generateUniqueVoucherCode(String prefix) {
         String code;
         int attempts = 0;
@@ -328,4 +403,3 @@ public class WheelServiceImpl implements WheelService {
         return code;
     }
 }
-

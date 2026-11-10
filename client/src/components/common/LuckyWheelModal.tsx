@@ -62,7 +62,7 @@ export const LuckyWheelModal: React.FC = () => {
   const animationFrameIdRef = useRef<number | null>(null);
   const lastSoundTickSliceRef = useRef<number>(-1);
 
-  // 8 phần thưởng chuẩn E-ShopTECH theo đúng palette và layout hình mẫu
+  // 8 phần thưởng chuẩn NEXOR theo đúng palette và layout hình mẫu
   const defaultRewards: WheelReward[] = [
     { id: 0, label: '10K Voucher', shortLabel: '10K', discount: '10.000', type: 'ORDER', minOrder: 'Mọi đơn hàng', weight: 30, color: '#1e40af', textColor: '#ffffff', icon: 'coupon' },
     { id: 1, label: '10% Giảm Giá', shortLabel: '10%', discount: '10%', type: 'ORDER', minOrder: '100.000₫', weight: 25, color: '#4338ca', textColor: '#ffffff', icon: 'cube' },
@@ -387,6 +387,13 @@ export const LuckyWheelModal: React.FC = () => {
     setErrorMsg(null);
   };
 
+  // Số lượt quay khả dụng hôm nay
+  const remainingSpins = !isAuthenticated
+    ? 1
+    : (wheelStatus?.remainingSpins !== undefined
+        ? wheelStatus.remainingSpins
+        : (wheelStatus?.canSpin ? 1 : 0));
+
   // Xác định mã voucher hiển thị hôm nay
   const displayVoucherCode = spinResult?.voucherCode || wheelStatus?.todayVoucherCode;
 
@@ -399,21 +406,33 @@ export const LuckyWheelModal: React.FC = () => {
         type="button"
         onClick={() => setIsOpen(true)}
         className="fixed bottom-6 left-6 z-40 group flex items-center gap-2.5 px-4 py-2.5 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-gray-950 font-black rounded-full shadow-[0_8px_25px_rgba(245,158,11,0.5)] transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer ring-4 ring-amber-400/30"
-        title="Vòng Quay May Mắn - E-ShopTECH"
+        title="Vòng Quay May Mắn - NEXOR"
       >
         <div className="relative">
           <Gift className="w-6 h-6 text-gray-950 animate-bounce" />
           <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+            <span
+              className={`animate-ping absolute inline-flex h-full w-full rounded-full ${
+                remainingSpins > 0 ? 'bg-emerald-400' : 'bg-red-400'
+              } opacity-75`}
+            />
+            <span
+              className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                remainingSpins > 0 ? 'bg-emerald-500' : 'bg-red-500'
+              }`}
+            />
           </span>
         </div>
         <div className="flex flex-col text-left">
           <span className="text-[11px] font-black uppercase tracking-wider leading-none text-gray-950">
-            VÒNG QUAY MAY MẮN
+            VÒNG QUAY NEXOR
           </span>
-          <span className="text-[9px] font-bold text-amber-950 leading-tight">
-            1 LƯỢT MIỄN PHÍ
+          <span className="text-[9px] font-extrabold text-amber-950 leading-tight">
+            {!isAuthenticated
+              ? '1 LƯỢT MIỄN PHÍ'
+              : remainingSpins > 0
+              ? 'CÒN 1 LƯỢT QUAY'
+              : '0 LƯỢT - CHỜ MAI'}
           </span>
         </div>
       </button>
@@ -443,11 +462,17 @@ export const LuckyWheelModal: React.FC = () => {
               <X className="w-4 h-4" />
             </button>
 
-            {/* HEADER: Badge E-ShopTECH + Tiêu đề Vòng quay may mắn */}
+            {/* HEADER: Badge NEXOR + Tiêu đề Vòng quay may mắn */}
             <div className="flex flex-col items-center text-center mt-1 mb-2">
-              <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-amber-950/70 border border-amber-500/50 text-amber-300 text-xs font-black uppercase tracking-wider shadow-sm mb-1.5">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-950/70 border border-amber-500/50 text-amber-300 text-xs font-black uppercase tracking-wider shadow-sm mb-1.5">
                 <Gift className="w-3.5 h-3.5 text-amber-400" />
-                <span>E-ShopTECH</span>
+                <span>NEXOR</span>
+                <span className="w-1 h-1 rounded-full bg-amber-400/60" />
+                <span className="text-[11px] font-bold text-amber-200">
+                  {isAuthenticated
+                    ? `Lượt quay: ${remainingSpins}`
+                    : '1 lượt/ngày'}
+                </span>
               </div>
 
               <div className="flex items-center justify-center gap-2">
@@ -460,7 +485,7 @@ export const LuckyWheelModal: React.FC = () => {
               </div>
 
               <p className="text-xs sm:text-sm text-gray-300 font-medium mt-1">
-                Quay mỗi ngày để nhận những phần quà hấp dẫn từ E-ShopTECH!
+                Quay mỗi ngày để nhận những phần quà hấp dẫn từ NEXOR!
               </p>
             </div>
 
@@ -503,12 +528,17 @@ export const LuckyWheelModal: React.FC = () => {
                 disabled={spinning || (wheelStatus ? !wheelStatus.canSpin : false)}
                 className={`absolute z-10 w-[78px] h-[78px] rounded-full flex flex-col items-center justify-center shadow-[0_4px_18px_rgba(0,0,0,0.6),0_0_18px_rgba(245,158,11,0.5)] transition-all cursor-pointer ${
                   spinning || (wheelStatus ? !wheelStatus.canSpin : false)
-                    ? 'bg-gradient-to-b from-gray-500 to-gray-700 text-gray-300 cursor-not-allowed opacity-90 ring-4 ring-gray-900/60'
+                    ? 'bg-gradient-to-b from-gray-600 to-gray-800 text-gray-300 cursor-not-allowed opacity-90 ring-4 ring-gray-900/60'
                     : 'bg-gradient-to-b from-[#fef08a] via-[#f59e0b] to-[#d97706] text-[#291e0a] hover:scale-105 active:scale-95 hover:shadow-[0_0_25px_rgba(245,158,11,0.8)] ring-4 ring-amber-300/40 border-2 border-white'
                 }`}
               >
                 {spinning ? (
                   <RotateCw className="w-6 h-6 animate-spin text-white" />
+                ) : wheelStatus && !wheelStatus.canSpin ? (
+                  <>
+                    <span className="text-[12px] font-black leading-tight tracking-wider text-gray-200">HẾT</span>
+                    <span className="text-[10px] font-bold leading-tight tracking-wider text-amber-400">LƯỢT</span>
+                  </>
                 ) : (
                   <>
                     <span className="text-[14px] font-black leading-tight tracking-wider">QUAY</span>
@@ -549,29 +579,40 @@ export const LuckyWheelModal: React.FC = () => {
               {/* Đã đăng nhập */}
               {isAuthenticated && (
                 <>
-                  {/* Dòng 1: Lượt quay tiếp theo / Lượt quay hôm nay */}
-                  <div className="flex items-center justify-between text-xs sm:text-sm">
-                    <div className="flex items-center gap-2 text-gray-300 font-medium">
-                      <Clock className="w-4 h-4 text-amber-400" />
-                      <span>
-                        {wheelStatus && !wheelStatus.canSpin
-                          ? 'Lượt quay tiếp theo sau:'
-                          : 'Lượt quay may mắn hôm nay:'}
-                      </span>
+                  {/* Dòng 1: Hiển thị trực quan Số lượt quay còn lại */}
+                  <div className="flex items-center justify-between text-xs sm:text-sm bg-black/40 px-3 py-2 rounded-xl border border-white/5">
+                    <div className="flex items-center gap-2 text-gray-200 font-medium">
+                      <RotateCw className="w-4 h-4 text-amber-400" />
+                      <span>Số lượt quay còn lại:</span>
                     </div>
 
-                    {wheelStatus && !wheelStatus.canSpin ? (
-                      <span className="bg-[#0b0c10]/80 border border-amber-500/40 px-3 py-1 rounded-lg text-amber-300 font-mono font-bold tracking-wider shadow-inner">
-                        {timeUntilTomorrow}
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`px-3 py-0.5 rounded-full font-black text-xs uppercase tracking-wide border ${
+                          remainingSpins > 0
+                            ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.3)]'
+                            : 'bg-red-950/80 border-red-500/40 text-red-400'
+                        }`}
+                      >
+                        {remainingSpins} lượt
                       </span>
-                    ) : (
-                      <span className="bg-emerald-950/70 border border-emerald-500/40 px-2.5 py-0.5 rounded-lg text-emerald-400 font-black text-xs uppercase tracking-wide">
-                        1 Lượt miễn phí
-                      </span>
-                    )}
+                    </div>
                   </div>
 
-                  {/* Dòng 2: Voucher hôm nay (nếu đã có voucher) */}
+                  {/* Dòng 2: Đếm ngược lượt quay tiếp theo nếu đã hết lượt */}
+                  {wheelStatus && !wheelStatus.canSpin && (
+                    <div className="flex items-center justify-between text-xs sm:text-sm px-1">
+                      <div className="flex items-center gap-2 text-gray-300 font-medium">
+                        <Clock className="w-4 h-4 text-amber-400" />
+                        <span>Lượt quay miễn phí tiếp theo sau:</span>
+                      </div>
+                      <span className="bg-[#0b0c10]/90 border border-amber-500/40 px-3 py-1 rounded-lg text-amber-300 font-mono font-bold tracking-wider shadow-inner">
+                        {timeUntilTomorrow}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Dòng 3: Voucher hôm nay (nếu đã có voucher) */}
                   {displayVoucherCode && (
                     <div className="flex items-center justify-between pt-2 border-t border-white/10 text-xs sm:text-sm">
                       <div className="flex items-center gap-2 text-gray-300 font-medium">

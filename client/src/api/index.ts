@@ -5,3 +5,5 @@ export * from './services/product.service';
 export * from './services/order.service';
 export * from './services/ai.service';
 export * from './services/store.service';
+export * from './services/wheel.service';
+export * from './services/adminWheel.service';
