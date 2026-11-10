@@ -25,4 +25,6 @@ export const ROUTES = {
   ADMIN_AI: '/admin/ai',
   UNAUTHORIZED: '/unauthorized',
   STORES: '/stores',
+  NEWS: '/news',
+  POLICIES: '/policies',
 } as const;

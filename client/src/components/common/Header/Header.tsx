@@ -96,21 +96,13 @@ export const Header: React.FC = () => {
     }
   };
 
-  const navCategories = [
-    { name: 'Trang chủ', slug: '', isHome: true },
-    { name: 'Laptop', slug: 'laptop' },
-    { name: 'Điện thoại', slug: 'dien-thoai' },
-    { name: 'Máy tính bảng', slug: 'may-tinh-bang' },
-    { name: 'Phụ kiện', slug: 'phu-kien' },
-    { name: 'Thiết bị điện tử', slug: 'thiet-bi-dien-tu' },
-    { name: 'Gaming', slug: 'gaming' },
-    { name: 'Khuyến mãi', slug: 'khuyen-mai' },
-    {
-      name: 'Showroom',
-      slug: 'stores',
-      isHome: false,
-      href: ROUTES.STORES,
-    },
+  const navItems = [
+    { name: 'Trang chủ', path: ROUTES.HOME, isHome: true },
+    { name: 'Tất cả sản phẩm', path: ROUTES.PRODUCTS },
+    { name: 'Hot Deals', path: '/products?category=khuyen-mai', isHot: true },
+    { name: 'Tin tức công nghệ', path: ROUTES.NEWS },
+    { name: 'Chính sách & Bảo hành', path: ROUTES.POLICIES },
+    { name: 'Hệ thống Showroom', path: ROUTES.STORES },
   ];
 
   const dropdownCategories = [
@@ -176,30 +168,31 @@ export const Header: React.FC = () => {
     },
   ];
 
-  const getNavLink = (item: (typeof navCategories)[0]) => {
-    if (item.href) return item.href;
-    if (item.isHome) return ROUTES.HOME;
-    return `/products?category=${item.slug}`;
-  };
-
-  const isCategoryActive = (item: (typeof navCategories)[0]) => {
-    if (item.href) {
-      return location.pathname === item.href || location.pathname.startsWith(`${item.href}/`);
-    }
+  const isNavItemActive = (item: (typeof navItems)[0]) => {
     if (item.isHome) {
-      return location.pathname === '/' && !currentCategory;
-    }
-    if (location.pathname.startsWith('/products')) {
-      if (!currentCategory) return false;
-      const targetSlug = item.slug.toLowerCase().trim();
       return (
-        currentCategory === targetSlug ||
-        currentCategory.replace(/-/g, '') === targetSlug.replace(/-/g, '') ||
-        currentCategory.includes(targetSlug) ||
-        targetSlug.includes(currentCategory)
+        location.pathname === ROUTES.HOME &&
+        !searchParams.get('category') &&
+        !searchParams.get('keyword')
       );
     }
-    return false;
+    if (item.isHot) {
+      return (
+        location.pathname === ROUTES.PRODUCTS &&
+        (currentCategory === 'khuyen-mai' || searchParams.get('hot') === 'true')
+      );
+    }
+    if (item.path === ROUTES.PRODUCTS) {
+      return (
+        location.pathname === ROUTES.PRODUCTS &&
+        currentCategory !== 'khuyen-mai' &&
+        searchParams.get('hot') !== 'true'
+      );
+    }
+    return (
+      location.pathname === item.path ||
+      location.pathname.startsWith(`${item.path}/`)
+    );
   };
 
   return (
@@ -546,14 +539,13 @@ export const Header: React.FC = () => {
 
           {/* Center: Category Nav Links (Dynamic active underline) */}
           <nav className="hidden md:flex items-center gap-6 overflow-x-auto py-2 no-scrollbar">
-            {navCategories.map((item) => {
-              const active = isCategoryActive(item);
-              const targetUrl = getNavLink(item);
+            {navItems.map((item) => {
+              const active = isNavItemActive(item);
 
               return (
                 <Link
                   key={item.name}
-                  to={targetUrl}
+                  to={item.path}
                   className={`text-xs font-semibold py-1 transition-all relative border-b-2 whitespace-nowrap ${
                     active
                       ? 'text-white font-bold border-white'
@@ -574,14 +566,13 @@ export const Header: React.FC = () => {
           <p className="text-[11px] font-bold uppercase text-gray-400 pb-1 border-b border-gray-800">
             Danh mục & Trang
           </p>
-          {navCategories.map((item) => {
-            const active = isCategoryActive(item);
-            const targetUrl = getNavLink(item);
+          {navItems.map((item) => {
+            const active = isNavItemActive(item);
 
             return (
               <Link
                 key={item.name}
-                to={targetUrl}
+                to={item.path}
                 onClick={() => setMobileMenuOpen(false)}
                 className={`block py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${
                   active
