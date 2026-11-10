@@ -132,8 +132,6 @@ const SHOWROOMS: Showroom[] = [
   },
 ];
 
-const PROVINCES = Array.from(new Set(SHOWROOMS.map((s) => s.province))).sort();
-
 // Các nguồn Tile Layer HOÀN TOÀN MIỄN PHÍ - KHÔNG CẦN BẤT KỲ API KEY NÀO
 interface TileSource {
   id: string;

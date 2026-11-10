@@ -411,7 +411,6 @@ export const AdminStoresPage: React.FC = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             leftIcon={<Search className="w-4 h-4 text-slate-400" />}
-            size="sm"
           />
         </div>
 
