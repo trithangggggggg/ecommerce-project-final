@@ -14,9 +14,11 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import ra.project.server.mapper.ProductMapper;
 import ra.project.server.model.dto.request.AiChatRequest;
+import ra.project.server.model.dto.request.AiGenerateArticleRequest;
 import ra.project.server.model.dto.request.AiGenerateDescriptionRequest;
 import ra.project.server.model.dto.request.ChatMessageDto;
 import ra.project.server.model.dto.response.AiChatResponse;
+import ra.project.server.model.dto.response.AiGenerateArticleResponse;
 import ra.project.server.model.dto.response.AiGenerateDescriptionResponse;
 import ra.project.server.model.dto.response.ProductResponse;
 import ra.project.server.model.dto.response.VisualSearchResponse;
@@ -171,6 +173,60 @@ public class AiServiceImpl implements AiService {
                 .seoTitle(generateSeoTitle(productName, brand, categoryName))
                 .seoKeywords(generateKeywords(productName, brand, categoryName, keywords))
                 .provider("SMART_SEO_ENGINE (Fallback)")
+                .build();
+    }
+
+    @Override
+    public AiGenerateArticleResponse generateArticleContent(AiGenerateArticleRequest request) {
+        String title = request != null && StringUtils.hasText(request.getTitle()) ? request.getTitle().trim() : "";
+        if (!StringUtils.hasText(title)) {
+            throw new BadRequestException("Tiêu đề bài viết không được để trống");
+        }
+        String category = request != null && StringUtils.hasText(request.getCategory()) ? request.getCategory().trim() : "Công nghệ";
+        String summary = request != null && StringUtils.hasText(request.getSummary()) ? request.getSummary().trim() : "";
+
+        String prompt = "Bạn là chuyên gia biên tập tin tức và đánh giá công nghệ hàng đầu cho NEXOR Flagship Tech Store. "
+                + "Hãy viết một bài viết chuyên sâu, chuẩn SEO, định dạng HTML phong phú (hỗ trợ trực tiếp cho trình soạn thảo CKEditor 5) "
+                + "dựa trên các thông tin sau:\n"
+                + "- Tiêu đề bài viết: " + title + "\n"
+                + "- Chuyên mục: " + category + "\n"
+                + (StringUtils.hasText(summary) ? "- Tóm tắt ban đầu: " + summary + "\n" : "")
+                + "\nYêu cầu cấu trúc bài viết:\n"
+                + "1. Mở đầu hấp dẫn, nêu bật xu hướng và bối cảnh công nghệ mới nhất.\n"
+                + "2. Sử dụng đúng các thẻ HTML: <h2> cho từng phần chính, <h3> cho các mục con, <p> cho đoạn văn, <ul><li> cho danh sách điểm nổi bật / thông số kỹ thuật, <blockquote> cho nhận xét chuyên gia, <strong> để nhấn mạnh.\n"
+                + "3. Cuối bài có phần Đánh giá & Lời khuyên (Kết luận) phù hợp với người dùng / người mua sắm.\n"
+                + "4. Chỉ trả về trực tiếp mã HTML cho phần nội dung (KHÔNG bọc trong thẻ ```html ``` hay <html><body>).";
+
+        String activeGeminiKey = getEffectiveGeminiApiKey();
+        String activeGeminiModel = getEffectiveGeminiModel();
+        if (StringUtils.hasText(activeGeminiKey) && !activeGeminiKey.equalsIgnoreCase("dummy") && !activeGeminiKey.startsWith("placeholder")) {
+            log.info("Đang gọi Google Gemini AI Model [{}] để sinh nội dung bài viết: {}", activeGeminiModel, title);
+            try {
+                String geminiText = callGeminiApi(prompt);
+                if (StringUtils.hasText(geminiText)) {
+                    String cleanContent = cleanHtmlOutput(geminiText);
+                    String generatedSummary = StringUtils.hasText(summary) ? summary : generateSmartSummary(title, category);
+                    return AiGenerateArticleResponse.builder()
+                            .title(title)
+                            .summary(generatedSummary)
+                            .content(cleanContent)
+                            .provider("GOOGLE_GEMINI (" + activeGeminiModel + ")")
+                            .build();
+                }
+            } catch (Exception ex) {
+                log.warn("Lỗi khi gọi Gemini AI tạo bài viết: {}", ex.getMessage());
+            }
+        }
+
+        // Smart Fallback
+        String fallbackContent = generateSmartArticleHtml(title, category);
+        String fallbackSummary = StringUtils.hasText(summary) ? summary : generateSmartSummary(title, category);
+
+        return AiGenerateArticleResponse.builder()
+                .title(title)
+                .summary(fallbackSummary)
+                .content(fallbackContent)
+                .provider("SMART_TECH_WRITER (Fallback)")
                 .build();
     }
 
@@ -641,6 +697,191 @@ public class AiServiceImpl implements AiService {
         }
 
         return cleaned;
+    }
+
+    public String cleanHtmlOutput(String text) {
+        if (!StringUtils.hasText(text)) {
+            return "";
+        }
+        String cleaned = text.trim();
+        if (cleaned.startsWith("```html")) {
+            cleaned = cleaned.substring(7).trim();
+        } else if (cleaned.startsWith("```")) {
+            int firstNewline = cleaned.indexOf('\n');
+            if (firstNewline != -1) {
+                cleaned = cleaned.substring(firstNewline + 1).trim();
+            }
+        }
+        if (cleaned.endsWith("```")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 3).trim();
+        }
+        return cleaned;
+    }
+
+    public String generateSmartSummary(String title, String category) {
+        String lower = (title + " " + category).toLowerCase();
+        if (lower.contains("so sánh") || lower.contains(" vs ") || lower.contains("đối đầu") || lower.contains("kèo")) {
+            return "Phân tích chi tiết cuộc đối đầu công nghệ trong bài viết '" + title + "'. Đâu là sự lựa chọn tối ưu cho nhu cầu thực tế và ngân sách của bạn?";
+        }
+        if (lower.contains("mẹo") || lower.contains("thủ thuật") || lower.contains("cách ") || lower.contains("hướng dẫn") || lower.contains("tối ưu")) {
+            return "Tổng hợp các thủ thuật và hướng dẫn thiết thực nhất về " + title + " giúp bạn làm chủ thiết bị, nâng cao hiệu suất và kéo dài tuổi thọ phần cứng.";
+        }
+        if (lower.contains("macbook") || lower.contains("laptop") || lower.contains("máy tính") || lower.contains("gaming")) {
+            return "Đánh giá chuyên sâu " + title + " từ hiệu năng CPU/GPU, màn hình hiển thị đến khả năng tản nhiệt thực tế cho lập trình viên, designer và game thủ.";
+        }
+        if (lower.contains("iphone") || lower.contains("samsung") || lower.contains("galaxy") || lower.contains("điện thoại") || lower.contains("phone")) {
+            return "Trải nghiệm thực tế " + title + " với những đánh giá khách quan về cụm camera, thời lượng pin, độ mượt mà của hệ điều hành và giá trị sở hữu.";
+        }
+        if (lower.contains("tai nghe") || lower.contains("loa") || lower.contains("âm thanh") || lower.contains("airpods") || lower.contains("sony")) {
+            return "Cảm nhận chất âm chân thực và hiệu quả chống ồn của " + title + ". Góc nhìn chuyên sâu từ chuyên gia âm thanh tại NEXOR Flagship Store.";
+        }
+        if (lower.contains("ai") || lower.contains("trí tuệ nhân tạo") || lower.contains("agent") || lower.contains("xu hướng")) {
+            return "Khám phá làn sóng công nghệ đột phá trong bài viết " + title + ". Cập nhật xu hướng AI thế hệ mới và ứng dụng thực tiễn trong công việc số.";
+        }
+        return "Khám phá bài viết chuyên sâu về " + title + " thuộc chuyên mục " + category
+                + ". Đánh giá chi tiết ưu điểm, hiệu năng thực tế và tư vấn trải nghiệm tối ưu tại hệ thống NEXOR.";
+    }
+
+    public String generateSmartArticleHtml(String title, String category) {
+        String lower = (title + " " + (category != null ? category : "")).toLowerCase();
+
+        // 1. Dạng bài SO SÁNH / ĐỐI ĐẦU
+        if (lower.contains("so sánh") || lower.contains(" vs ") || lower.contains("đối đầu") || lower.contains("kèo")) {
+            return "<h2>1. Đặt lên bàn cân: Cuộc đối đầu giữa hai biểu tượng công nghệ</h2>\n"
+                    + "<p>Thị trường công nghệ cao cấp luôn chứng kiến sự cạnh tranh khốc liệt giữa các ông lớn. Trong bài viết <strong>" + title + "</strong> hôm nay, chúng ta cùng phân tích chi tiết từng khía cạnh để tìm ra đâu là sự lựa chọn chân ái cho nhu cầu thực tế của bạn.</p>\n\n"
+                    + "<h2>2. Ngôn ngữ thiết kế & Trải nghiệm cầm nắm thực tế</h2>\n"
+                    + "<p>Mỗi thiết bị đều theo đuổi một triết lý thẩm mỹ và vật liệu chế tác riêng biệt:</p>\n"
+                    + "<ul>\n"
+                    + "  <li><strong>Chất liệu và độ hoàn thiện:</strong> Sử dụng khung viền kim loại cao cấp kết hợp mặt kính cường lực chống trầy xước, mang lại cảm giác sang trọng và đầm tay.</li>\n"
+                    + "  <li><strong>Màn hình hiển thị:</strong> Tần số quét cao thích ứng cùng độ sáng đỉnh vượt trội, đảm bảo hiển thị sắc nét ngay cả dưới ánh nắng gắt trực tiếp.</li>\n"
+                    + "</ul>\n\n"
+                    + "<h2>3. Đọ sức hiệu năng & Khả năng xử lý tác vụ nặng</h2>\n"
+                    + "<p>Khi đặt cả hai vào các bài kiểm tra áp lực từ render video, chơi game 3D đồ họa cao đến đa nhiệm liên tục, sự khác biệt về kiến trúc chip và tối ưu hóa hệ điều hành bắt đầu bộc lộ rõ rệt.</p>\n"
+                    + "<blockquote>\n"
+                    + "  <p>Một thiết bị vượt trội về độ ổn định mượt mà lâu dài, trong khi đối thủ lại chiếm ưu thế về khả năng đa nhiệm linh hoạt và các tính năng thông minh.</p>\n"
+                    + "</blockquote>\n\n"
+                    + "<h2>4. Thời lượng pin, tốc độ sạc & Hệ sinh thái</h2>\n"
+                    + "<p>Khả năng duy trì liên lạc suốt ngày dài và hệ sinh thái phụ kiện đồng bộ đi kèm là yếu tố quyết định sự gắn bó lâu dài của người dùng với sản phẩm.</p>\n\n"
+                    + "<h2>5. Kết luận: Đâu là thiết bị xứng đáng xuống tiền?</h2>\n"
+                    + "<p>Tùy thuộc vào thói quen sử dụng và hệ sinh thái sẵn có của bạn, cả hai đều là những cỗ máy xuất sắc nhất phân khúc. Hãy ghé ngay showroom <strong>NEXOR Flagship Store</strong> để trực tiếp cầm trên tay và đưa ra lựa chọn phù hợp nhất!</p>";
+        }
+
+        // 2. Dạng bài THỦ THUẬT / MẸO / HƯỚNG DẪN TỐI ƯU
+        if (lower.contains("mẹo") || lower.contains("thủ thuật") || lower.contains("cách ") || lower.contains("hướng dẫn") || lower.contains("tối ưu")) {
+            return "<h2>1. Tầm quan trọng của việc tối ưu hóa thiết bị</h2>\n"
+                    + "<p>Sau một thời gian sử dụng, hệ điều hành và các ứng dụng ngầm thường tích tụ dữ liệu rác, gây hao pin và làm giảm độ mượt mà. Với chủ đề <strong>" + title + "</strong>, bạn sẽ nắm trọn các bước thiết lập chuẩn chỉ từ chuyên gia kỹ thuật.</p>\n\n"
+                    + "<h2>2. Các bước thiết lập quan trọng cần làm ngay</h2>\n"
+                    + "<ul>\n"
+                    + "  <li><strong>Bước 1 - Dọn dẹp ứng dụng chạy ngầm:</strong> Tắt các tiến trình không cần thiết và hạn chế quyền định vị nền của những app ít sử dụng.</li>\n"
+                    + "  <li><strong>Bước 2 - Tùy chỉnh hiệu suất năng lượng:</strong> Kích hoạt các chế độ tiết kiệm điện thông minh hoặc điều chỉnh tần số quét thích ứng theo kịch bản sử dụng.</li>\n"
+                    + "  <li><strong>Bước 3 - Cập nhật bản vá phần mềm mới nhất:</strong> Luôn đảm bảo máy chạy trên phiên bản firmware được nhà sản xuất tối ưu lỗi bảo mật và hiệu năng.</li>\n"
+                    + "</ul>\n\n"
+                    + "<blockquote>\n"
+                    + "  <p>Chỉ với vài thao tác tinh chỉnh đơn giản trong phần cài đặt, thiết bị của bạn có thể kéo dài thêm từ 20% đến 30% thời lượng sử dụng mỗi ngày.</p>\n"
+                    + "</blockquote>\n\n"
+                    + "<h2>3. Những thói quen sử dụng sai lầm cần tránh</h2>\n"
+                    + "<p>Hạn chế thói quen vừa cắm sạc vừa dùng các tác vụ nặng, tránh để máy ở nơi có nhiệt độ cao và nên khởi động lại thiết bị định kỳ một lần mỗi tuần để giải phóng hoàn toàn bộ nhớ RAM.</p>\n\n"
+                    + "<h2>4. Lời khuyên từ kỹ thuật viên NEXOR</h2>\n"
+                    + "<p>Nếu bạn gặp bất kỳ trở ngại nào trong quá trình thao tác, đừng ngần ngại mang máy đến chi nhánh <strong>NEXOR</strong> gần nhất để được kỹ thuật viên hỗ trợ kiểm tra và vệ sinh máy hoàn toàn miễn phí!</p>";
+        }
+
+        // 3. Dạng bài LAPTOP / MACBOOK / PC GAMING
+        if (lower.contains("macbook") || lower.contains("laptop") || lower.contains("máy tính") || lower.contains("gaming") || lower.contains("dell") || lower.contains("asus")) {
+            return "<h2>1. Đột phá về kiến trúc vi xử lý và hiệu suất tản nhiệt</h2>\n"
+                    + "<p>Trong phân khúc máy tính xách tay cao cấp hiện nay, <strong>" + title + "</strong> được sinh ra để giải quyết bài toán cân bằng giữa tính di động cao và sức mạnh tính toán ấn tượng.</p>\n\n"
+                    + "<h2>2. Màn hình chuẩn màu đồ họa & Bàn phím gõ êm ái</h2>\n"
+                    + "<p>Trải nghiệm thị giác và xúc giác luôn là điểm cộng lớn của dòng máy này:</p>\n"
+                    + "<ul>\n"
+                    + "  <li><strong>Độ phủ màu chuyên nghiệp:</strong> Đạt 100% sRGB và chuẩn DCI-P3, độ sáng cao giúp làm việc ngoài trời hoặc phòng studio không lo sai lệch màu.</li>\n"
+                    + "  <li><strong>Hành trình phím tối ưu:</strong> Độ nảy phản hồi xúc giác rõ ràng, khoảng cách phím hợp lý cùng trackpad kích thước lớn phủ kính mượt mà.</li>\n"
+                    + "</ul>\n\n"
+                    + "<h2>3. Benchmark thực tế: Làm việc, lập trình và giải trí</h2>\n"
+                    + "<p>Thử nghiệm khả năng biên dịch mã nguồn lớn, dựng video 4K đa luồng và chơi các tựa game Esport mới nhất. Hệ thống tản nhiệt thông minh giữ cho bề mặt kê tay luôn mát mẻ và quạt hoạt động êm ái.</p>\n"
+                    + "<blockquote>\n"
+                    + "  <p>Hiệu năng trên mỗi watt điện năng tiêu thụ đạt mức ấn tượng, mang lại thời lượng pin đủ sức đồng hành trọn vẹn cả ngày làm việc.</p>\n"
+                    + "</blockquote>\n\n"
+                    + "<h2>4. Cổng kết nối và khả năng mở rộng linh hoạt</h2>\n"
+                    + "<p>Trang bị các chuẩn kết nối hiện đại tốc độ cao như Thunderbolt, USB-C Power Delivery và khe cắm thẻ nhớ tiện lợi cho công việc sáng tạo nội dung.</p>\n\n"
+                    + "<h2>5. Tổng kết: Ai là người nên sở hữu chiếc máy này?</h2>\n"
+                    + "<p>Đây là sự đầu tư xứng đáng cho các lập trình viên, nhà sáng tạo nội dung số và chuyên gia cần một cỗ máy làm việc tin cậy. Sản phẩm đang được phân phối chính hãng tại <strong>NEXOR Flagship Store</strong> với chính sách bảo hành 1 đổi 1 chu đáo.</p>";
+        }
+
+        // 4. Dạng bài SMARTPHONE / ĐIỆN THOẠI FLAGSHIP
+        if (lower.contains("iphone") || lower.contains("samsung") || lower.contains("galaxy") || lower.contains("điện thoại") || lower.contains("phone")) {
+            return "<h2>1. Tổng quan thiết kế & Sự tinh tế của dòng Flagship</h2>\n"
+                    + "<p>Những chiếc smartphone đỉnh cao luôn là nơi hội tụ tinh hoa công nghệ chế tác. Với <strong>" + title + "</strong>, người dùng có cơ hội tiếp cận những công nghệ di động tiên phong nhất năm nay.</p>\n\n"
+                    + "<h2>2. Camera đỉnh cao: Sáng tạo nội dung không giới hạn</h2>\n"
+                    + "<p>Hệ thống quang học thế hệ mới mang lại sự bứt phá vượt bậc về khả năng thu sáng và xử lý ảnh điện toán:</p>\n"
+                    + "<ul>\n"
+                    + "  <li><strong>Cảm biến chính độ phân giải cao:</strong> Giữ trọn từng chi tiết dù trong điều kiện ngược sáng hay môi trường thiếu sáng phức tạp.</li>\n"
+                    + "  <li><strong>Ống kính Tele Zoom quang học:</strong> Bắt trọn những khung hình từ khoảng cách xa với độ sắc nét tự nhiên không vỡ hạt.</li>\n"
+                    + "  <li><strong>Thuật toán chân dung AI:</strong> Xóa phông mượt mà, tách bạch lọn tóc và tông màu da tự nhiên, rực rỡ.</li>\n"
+                    + "</ul>\n\n"
+                    + "<h2>3. Sức mạnh phần cứng & Trí tuệ nhân tạo trên thiết bị (On-device AI)</h2>\n"
+                    + "<p>Trang bị con chip sản xuất trên tiến trình tối tân, hỗ trợ các tính năng AI dịch thuật trực tiếp, chỉnh sửa hình ảnh thông minh và tối ưu hóa hiệu năng chơi game 120 FPS không giật lag.</p>\n"
+                    + "<blockquote>\n"
+                    + "  <p>Sự kết hợp ăn ý giữa phần cứng siêu mạnh và phần mềm thông minh tạo nên trải nghiệm vuốt chạm mượt mà chuẩn flagship.</p>\n"
+                    + "</blockquote>\n\n"
+                    + "<h2>4. Thời lượng pin bền bỉ & Tốc độ sạc nhanh ấn tượng</h2>\n"
+                    + "<p>Dung lượng pin lớn cùng công nghệ quản lý điện năng thông minh cho phép bạn tự tin sử dụng suốt cả ngày dài mà không cần lo lắng về việc sạc lại giữa chừng.</p>\n\n"
+                    + "<h2>5. Kết luận</h2>\n"
+                    + "<p>Chiếc điện thoại này hoàn toàn đáp ứng trọn vẹn mọi kỳ vọng từ công việc đến giải trí đỉnh cao. Đừng quên ghé ngay <strong>NEXOR</strong> để trải nghiệm máy thử nghiệm thực tế và nhận các phần quà ưu đãi độc quyền!</p>";
+        }
+
+        // 5. Dạng bài ÂM THANH / TAI NGHE / LOA
+        if (lower.contains("tai nghe") || lower.contains("loa") || lower.contains("âm thanh") || lower.contains("airpods") || lower.contains("sony")) {
+            return "<h2>1. Đắm chìm vào không gian âm nhạc chất lượng cao</h2>\n"
+                    + "<p>Với những người yêu âm nhạc và thường xuyên làm việc trong môi trường ồn ào, <strong>" + title + "</strong> là chiếc chìa khóa mở ra không gian tĩnh lặng và giai điệu sống động.</p>\n\n"
+                    + "<h2>2. Công nghệ chống ồn chủ động (ANC) & Chế độ xuyên âm</h2>\n"
+                    + "<p>Hệ thống microphone kép đa hướng lọc sạch tiếng ồn tàu xe, tiếng người trò chuyện nơi văn phòng, giúp bạn tập trung tuyệt đối vào công việc.</p>\n"
+                    + "<ul>\n"
+                    + "  <li><strong>Chất âm Hi-Res sắc nét:</strong> Âm trầm sâu lắng uy lực, dải trung ấm áp và dải cao tách bạch không chói gắt.</li>\n"
+                    + "  <li><strong>Đàm thoại trong trẻo:</strong> Thuật toán AI lọc tạp âm gió giúp giọng nói luôn rõ ràng trong các cuộc gọi họp online.</li>\n"
+                    + "</ul>\n\n"
+                    + "<blockquote>\n"
+                    + "  <p>Cảm giác đeo êm ái suốt nhiều giờ liền mà không gây bí tai hay đau vành tai, hoàn hảo cho những chuyến bay hay làm việc cả ngày dài.</p>\n"
+                    + "</blockquote>\n\n"
+                    + "<h2>3. Đánh giá tổng thể & Địa chỉ mua sắm uy tín</h2>\n"
+                    + "<p>Một sự nâng cấp xứng tầm cho trải nghiệm thính giác của bạn. Sản phẩm được bảo hành chính hãng 12 tháng tại các chi nhánh của <strong>NEXOR Store</strong>.</p>";
+        }
+
+        // 6. Dạng bài AI & XU HƯỚNG CÔNG NGHỆ TƯƠNG LAI
+        if (lower.contains("ai") || lower.contains("trí tuệ nhân tạo") || lower.contains("agent") || lower.contains("xu hướng") || lower.contains("tương lai")) {
+            return "<h2>1. Làn sóng trí tuệ nhân tạo đang tái định hình thế giới</h2>\n"
+                    + "<p>Không còn là những lý thuyết xa xôi, chủ đề <strong>" + title + "</strong> đang trực tiếp tác động đến quy trình làm việc, sản xuất và đời sống hàng ngày của hàng triệu người dùng công nghệ.</p>\n\n"
+                    + "<h2>2. Từ trợ lý ảo thụ động đến hệ thống tự hành thông minh</h2>\n"
+                    + "<p>Bước ngoặt lớn nhất nằm ở khả năng tự suy luận logic, phối hợp nhiều công cụ và xử lý chuỗi tác vụ phức tạp một cách chủ động:</p>\n"
+                    + "<ul>\n"
+                    + "  <li><strong>Tự động hóa tác vụ:</strong> Rút ngắn thời gian xử lý dữ liệu và tạo báo cáo từ nhiều giờ xuống chỉ còn vài giây.</li>\n"
+                    + "  <li><strong>Cá nhân hóa trải nghiệm:</strong> Hệ thống hiểu ngữ cảnh người dùng tốt hơn, đưa ra các phản hồi chuẩn xác theo thời gian thực.</li>\n"
+                    + "  <li><strong>Bảo mật & Quyền riêng tư:</strong> Xu hướng xử lý dữ liệu cục bộ ngay trên vi xử lý NPU của máy tính và điện thoại.</li>\n"
+                    + "</ul>\n\n"
+                    + "<blockquote>\n"
+                    + "  <p>Những cá nhân và doanh nghiệp biết tận dụng công cụ AI từ sớm sẽ có lợi thế cạnh tranh vượt trội trong kỷ nguyên số.</p>\n"
+                    + "</blockquote>\n\n"
+                    + "<h2>3. Cơ hội và thách thức trong giai đoạn chuyển mình</h2>\n"
+                    + "<p>Bên cạnh năng suất vượt trội, người dùng cần trang bị tư duy phản biện để kiểm chứng thông tin và nâng cao năng lực bảo mật dữ liệu cá nhân.</p>\n\n"
+                    + "<h2>4. Đón đầu kỷ nguyên AI cùng NEXOR</h2>\n"
+                    + "<p>Tại <strong>NEXOR</strong>, chúng tôi luôn cập nhật nhanh nhất các dòng phần cứng trang bị NPU AI tiên tiến nhất để bạn sẵn sàng bứt phá mọi giới hạn!</p>";
+        }
+
+        // 7. Dạng bài ĐÁNH GIÁ CHUYÊN SÂU (Mặc định cho các chủ đề khác)
+        return "<h2>1. Đặt vấn đề: Tại sao chủ đề này lại nhận được nhiều sự quan tâm?</h2>\n"
+                + "<p>Trong dòng chảy không ngừng của thế giới số, <strong>" + title + "</strong> đang thu hút đông đảo sự quan tâm của cộng đồng đam mê công nghệ. Thuộc nhóm nội dung <em>" + category + "</em>, bài viết này sẽ mang đến góc nhìn chân thực, khách quan và chi tiết nhất.</p>\n\n"
+                + "<h2>2. Những điểm sáng nổi bật và giá trị thực tế mang lại</h2>\n"
+                + "<p>Sau khi tổng hợp các bài thử nghiệm và phản hồi thực tế từ người dùng, đây là những ưu điểm đáng giá nhất:</p>\n"
+                + "<ul>\n"
+                + "  <li><strong>Tính ứng dụng cao:</strong> Giải quyết trực tiếp các nhu cầu cấp thiết trong học tập, làm việc và phong cách sống hiện đại.</li>\n"
+                + "  <li><strong>Độ hoàn thiện và tính ổn định:</strong> Vận hành tin cậy, tỉ mỉ trong từng trải nghiệm sử dụng hàng ngày.</li>\n"
+                + "  <li><strong>Tương thích linh hoạt:</strong> Dễ dàng phối ghép và đồng bộ cùng các thiết bị khác trong hệ sinh thái số.</li>\n"
+                + "</ul>\n\n"
+                + "<blockquote>\n"
+                + "  <p>Một bước tiến công nghệ đáng giá, dung hòa xuất sắc giữa mức chi phí đầu tư và giá trị thực tiễn đem lại cho người dùng.</p>\n"
+                + "</blockquote>\n\n"
+                + "<h2>3. Một số điểm người dùng cần lưu ý</h2>\n"
+                + "<p>Bên cạnh những điểm cộng sáng giá, bạn cũng nên cân nhắc kỹ về ngân sách và nhu cầu thực sự để chọn đúng phiên bản cấu hình phù hợp nhất với bản thân.</p>\n\n"
+                + "<h2>4. Đánh giá tổng quan & Tư vấn mua hàng</h2>\n"
+                + "<p>Nếu bạn muốn sở hữu và trải nghiệm sản phẩm chuẩn chính hãng với mức giá cạnh tranh nhất, hãy đến ngay hệ thống bán lẻ công nghệ <strong>NEXOR Flagship Store</strong> hoặc liên hệ hotline để được đội ngũ kỹ thuật viên tư vấn tận tâm!</p>";
     }
 
     private String formatSpecs(Object specs) {

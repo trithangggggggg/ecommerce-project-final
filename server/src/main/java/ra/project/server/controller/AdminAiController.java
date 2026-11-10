@@ -41,6 +41,14 @@ public class AdminAiController {
         return ResponseEntity.ok(ApiResponse.success("Tạo mô tả sản phẩm chuẩn SEO thành công", response));
     }
 
+    @PostMapping("/generate-article")
+    public ResponseEntity<ApiResponse<ra.project.server.model.dto.response.AiGenerateArticleResponse>> generateArticle(
+            @Valid @RequestBody ra.project.server.model.dto.request.AiGenerateArticleRequest request
+    ) {
+        ra.project.server.model.dto.response.AiGenerateArticleResponse response = aiService.generateArticleContent(request);
+        return ResponseEntity.ok(ApiResponse.success("Tạo nội dung bài viết bằng AI thành công", response));
+    }
+
     // ========================================================
     // QUẢN LÝ TRI THỨC AI (AI KNOWLEDGE BASE MANAGEMENT)
     // ========================================================

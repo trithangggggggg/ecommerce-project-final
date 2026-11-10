@@ -37,7 +37,8 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
             migrateDefaultVariantsForExistingProducts();
             backfillOrderItems();
             createEmailOtpTableIfNotExists();
-            log.info(">>> [Migration] Hoàn tất migration biến thể sản phẩm & email OTP thành công!");
+            createArticlesTableIfNotExists();
+            log.info(">>> [Migration] Hoàn tất migration biến thể sản phẩm, email OTP & bài viết thành công!");
         } catch (Exception e) {
             log.error(">>> [Migration] Gặp lỗi trong quá trình thực thi migration:", e);
             throw new RuntimeException("Migration failed", e);
@@ -374,6 +375,28 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_email_otps_email (email),
                 INDEX idx_email_otps_created_at (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        """);
+    }
+
+    private void createArticlesTableIfNotExists() {
+        log.info(">>> [Migration] Kiểm tra và tạo bảng 'articles' nếu chưa tồn tại...");
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS articles (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                slug VARCHAR(255) NOT NULL UNIQUE,
+                summary VARCHAR(1000) NULL,
+                content LONGTEXT NULL,
+                thumbnail VARCHAR(500) NULL,
+                category VARCHAR(100) NULL,
+                views BIGINT NOT NULL DEFAULT 0,
+                status BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at DATETIME NULL,
+                updated_at DATETIME NULL,
+                INDEX idx_article_slug (slug),
+                INDEX idx_article_category (category),
+                INDEX idx_article_status (status)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         """);
     }

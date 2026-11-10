@@ -33,4 +33,25 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Order> findActiveOrdersByProductId(
             @org.springframework.data.repository.query.Param("productId") Long productId,
             @org.springframework.data.repository.query.Param("statuses") List<OrderStatus> statuses);
+
+    @org.springframework.data.jpa.repository.Query("SELECT COUNT(o) FROM Order o WHERE o.createdAt >= :start AND o.createdAt <= :end")
+    long countOrdersBetween(
+            @org.springframework.data.repository.query.Param("start") java.time.LocalDateTime start,
+            @org.springframework.data.repository.query.Param("end") java.time.LocalDateTime end);
+
+    @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.status != ra.project.server.model.enums.OrderStatus.CANCELLED AND o.createdAt >= :start AND o.createdAt <= :end")
+    java.math.BigDecimal sumRevenueBetween(
+            @org.springframework.data.repository.query.Param("start") java.time.LocalDateTime start,
+            @org.springframework.data.repository.query.Param("end") java.time.LocalDateTime end);
+
+    @org.springframework.data.jpa.repository.Query("SELECT COUNT(o) FROM Order o WHERE o.status = :status AND o.createdAt >= :start AND o.createdAt <= :end")
+    long countOrdersByStatusBetween(
+            @org.springframework.data.repository.query.Param("status") OrderStatus status,
+            @org.springframework.data.repository.query.Param("start") java.time.LocalDateTime start,
+            @org.springframework.data.repository.query.Param("end") java.time.LocalDateTime end);
+
+    @org.springframework.data.jpa.repository.Query("SELECT o FROM Order o WHERE o.status != ra.project.server.model.enums.OrderStatus.CANCELLED AND o.createdAt >= :start AND o.createdAt <= :end ORDER BY o.createdAt ASC")
+    List<Order> findActiveOrdersBetween(
+            @org.springframework.data.repository.query.Param("start") java.time.LocalDateTime start,
+            @org.springframework.data.repository.query.Param("end") java.time.LocalDateTime end);
 }

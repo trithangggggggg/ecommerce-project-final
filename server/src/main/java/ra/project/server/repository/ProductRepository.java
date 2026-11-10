@@ -31,6 +31,8 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
     long countByCategoryId(Long categoryId);
 
+    Page<Product> findByStatusAndIsDeletedFalse(String status, Pageable pageable);
+
     @Query("SELECT COUNT(p) FROM Product p WHERE p.isDeleted = false OR p.isDeleted IS NULL")
     long countActiveProducts();
 

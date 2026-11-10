@@ -99,11 +99,11 @@ export const Header: React.FC = () => {
     }
   };
 
-  const navItems = [
+const navItems = [
     { name: 'Trang chủ', path: ROUTES.HOME, isHome: true },
     { name: 'Tất cả sản phẩm', path: ROUTES.PRODUCTS },
     { name: 'Hot Deals', path: '/products?category=khuyen-mai', isHot: true },
-    { name: 'Tin tức công nghệ', path: ROUTES.NEWS },
+    { name: 'Tin tức công nghệ', path: ROUTES.ARTICLES },
     { name: 'Chính sách & Bảo hành', path: ROUTES.POLICIES },
     { name: 'Hệ thống Showroom', path: ROUTES.STORES },
   ];
