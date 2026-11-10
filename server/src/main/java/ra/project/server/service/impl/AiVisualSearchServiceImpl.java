@@ -286,7 +286,11 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
         String color = "Đen / Bạc";
         List<String> keywords = new ArrayList<>(List.of("Công nghệ", "Chính hãng", "NEXOR"));
 
-        if (cleanName.contains("laptop") || cleanName.contains("macbook") || cleanName.contains("dell") || cleanName.contains("thinkpad")) {
+        if (cleanName.contains("tai-nghe") || cleanName.contains("headphone") || cleanName.contains("earphone") || cleanName.contains("airpod") || cleanName.contains("sony")) {
+            category = "Thiết bị âm thanh";
+            brand = "Sony";
+            keywords.add("Tai nghe");
+        } else if (cleanName.contains("laptop") || cleanName.contains("macbook") || cleanName.contains("dell") || cleanName.contains("thinkpad")) {
             category = "Laptop";
             keywords.add("Laptop");
             if (cleanName.contains("macbook") || cleanName.contains("apple")) {
@@ -310,10 +314,6 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
             category = "Máy tính bảng";
             brand = "Apple";
             keywords.add("iPad");
-        } else if (cleanName.contains("tai-nghe") || cleanName.contains("headphone") || cleanName.contains("airpod") || cleanName.contains("sony")) {
-            category = "Thiết bị âm thanh";
-            brand = "Sony";
-            keywords.add("Tai nghe");
         }
 
         return VisualSearchAttributes.builder()
