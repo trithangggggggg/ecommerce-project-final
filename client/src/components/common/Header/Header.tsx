@@ -22,7 +22,6 @@ import {
   Flame,
   Grid,
   Package,
-  MapPin,
 } from 'lucide-react';
 import { useCartStore } from '../../../store/useCartStore';
 import { useAuthStore } from '../../../store/useAuthStore';
@@ -111,8 +110,6 @@ export const Header: React.FC = () => {
       slug: 'stores',
       isHome: false,
       href: ROUTES.STORES,
-      icon: MapPin,
-      isSpecial: true,
     },
   ];
 
@@ -552,25 +549,6 @@ export const Header: React.FC = () => {
             {navCategories.map((item) => {
               const active = isCategoryActive(item);
               const targetUrl = getNavLink(item);
-              const IconComponent = (item as any).icon;
-              const isSpecial = (item as any).isSpecial;
-
-              if (isSpecial) {
-                return (
-                  <Link
-                    key={item.name}
-                    to={targetUrl}
-                    className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full transition-all border shrink-0 ${
-                      active
-                        ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm shadow-indigo-500/30 font-bold'
-                        : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/20 hover:text-white hover:border-indigo-400/50'
-                    }`}
-                  >
-                    {IconComponent && <IconComponent className="w-3.5 h-3.5 text-indigo-400" />}
-                    <span>{item.name}</span>
-                  </Link>
-                );
-              }
 
               return (
                 <Link
@@ -599,26 +577,19 @@ export const Header: React.FC = () => {
           {navCategories.map((item) => {
             const active = isCategoryActive(item);
             const targetUrl = getNavLink(item);
-            const IconComponent = (item as any).icon;
-            const isSpecial = (item as any).isSpecial;
 
             return (
               <Link
                 key={item.name}
                 to={targetUrl}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition ${
-                  isSpecial
-                    ? active
-                      ? 'bg-indigo-600 text-white font-bold shadow-sm'
-                      : 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/25'
-                    : active
+                className={`block py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${
+                  active
                     ? 'text-white bg-blue-600/20 font-bold border-l-2 border-white pl-3'
                     : 'text-gray-300 hover:text-white hover:bg-gray-800/40'
                 }`}
               >
-                {IconComponent && <IconComponent className="w-4 h-4 text-indigo-400" />}
-                <span>{item.name}</span>
+                {item.name}
               </Link>
             );
           })}

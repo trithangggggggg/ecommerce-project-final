@@ -587,14 +587,19 @@ export default function ProductDetailPage() {
             </div>
 
             {/* Store availability */}
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center justify-between text-xs text-gray-600">
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-600">
               <div className="flex items-center gap-2">
                 <MapPin size={16} className="text-blue-600 shrink-0" />
-                <span>Có sẵn tại <strong>48 showroom</strong> NEXOR trên toàn quốc</span>
+                <span>Có sẵn tại <strong>hệ thống showroom</strong> NEXOR trên toàn quốc</span>
               </div>
-              <span className="text-blue-600 font-semibold cursor-pointer hover:underline">
-                Tìm chi nhánh gần nhất
-              </span>
+              <Link
+                to={ROUTES.STORES}
+                className="text-blue-600 font-semibold hover:text-blue-700 hover:underline flex items-center gap-1 cursor-pointer transition"
+                title="Xem danh sách chi nhánh và bản đồ showroom"
+              >
+                <span>Tìm chi nhánh gần nhất</span>
+                <ChevronRight size={14} />
+              </Link>
             </div>
           </div>
         </div>
