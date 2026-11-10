@@ -5,16 +5,12 @@ import {
   Upload,
   Link as LinkIcon,
   X,
-  Sparkles,
   RefreshCw,
   AlertCircle,
-  CheckCircle2,
   Video,
   SwitchCamera,
-  Image as ImageIcon,
+  ImageIcon,
   ArrowRight,
-  Tag,
-  Cpu,
 } from 'lucide-react';
 import { visualSearchService } from '../../api/services/visualSearch.service';
 import type { VisualSearchResponse, VisualSearchProductItem } from '../../models/visualSearch.model';
@@ -26,12 +22,12 @@ interface VisualSearchModalProps {
 
 type TabType = 'upload' | 'camera' | 'url';
 
-// 4 mẫu ảnh thử nghiệm thực tế có sẵn trong hệ thống NEXOR
+// 4 mẫu ảnh thử nghiệm thực tế có sẵn trong hệ thống
 const QUICK_SAMPLE_IMAGES = [
-  { label: 'MacBook Air M3', url: '/images/macbook-air-m3-card.jpg', category: 'Laptop' },
-  { label: 'iPhone 16 Pro Max', url: '/images/iphone-16-pro-max.jpg', category: 'Điện thoại' },
-  { label: 'Samsung S24 Ultra', url: '/images/samsung-s24-ultra.jpg', category: 'Điện thoại' },
-  { label: 'ASUS ROG Strix G16', url: '/images/asus-rog-strix.jpg', category: 'Gaming' },
+  { label: 'MacBook Air M3', url: '/images/macbook-air-m3-card.jpg' },
+  { label: 'iPhone 16 Pro Max', url: '/images/iphone-16-pro-max.jpg' },
+  { label: 'Samsung S24 Ultra', url: '/images/samsung-s24-ultra.jpg' },
+  { label: 'ASUS ROG Strix G16', url: '/images/asus-rog-strix.jpg' },
 ];
 
 export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, onClose }) => {
@@ -71,7 +67,7 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
     setCameraError(null);
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Trình duyệt của bạn không hỗ trợ camera.');
+        throw new Error('Trình duyệt không hỗ trợ truy cập máy ảnh.');
       }
       stopCamera();
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -86,8 +82,8 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
       const error = err as Error;
       setCameraError(
         error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError'
-          ? 'Quyền truy cập máy ảnh bị từ chối. Vui lòng cấp quyền trong trình duyệt.'
-          : error.message || 'Không thể kết nối đến máy ảnh.'
+          ? 'Quyền truy cập máy ảnh bị từ chối. Vui lòng cấp quyền trong cài đặt trình duyệt.'
+          : error.message || 'Không thể mở máy ảnh.'
       );
     }
   }, [facingMode, stopCamera]);
@@ -101,7 +97,7 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
     }
   }, [isOpen, activeTab, selectedImage, startCamera, stopCamera]);
 
-  // Lắng nghe sự kiện Paste (Ctrl + V) trên toàn màn hình khi modal đang mở
+  // Lắng nghe sự kiện Paste (Ctrl + V)
   useEffect(() => {
     if (!isOpen) return;
 
@@ -142,7 +138,7 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
     setIsAnalyzing(true);
     setErrorMsg(null);
     setSearchResponse(null);
-    setStatusMessage('Đang khởi động mạng nơ-ron Gemini Vision...');
+    setStatusMessage('Đang xử lý hình ảnh...');
 
     try {
       const res = await visualSearchService.search(imageInput, (step) => {
@@ -151,7 +147,7 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
       setSearchResponse(res);
     } catch (err: unknown) {
       const error = err as Error;
-      setErrorMsg(error.message || 'Không thể nhận diện sản phẩm. Vui lòng thử lại với ảnh rõ nét hơn!');
+      setErrorMsg(error.message || 'Không thể phân tích ảnh này. Vui lòng thử lại với ảnh rõ nét hơn.');
     } finally {
       setIsAnalyzing(false);
     }
@@ -159,20 +155,18 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
 
   // Chọn file từ máy tính
   const handleFileSelect = (file: File) => {
-    // Backend spec: Chấp nhận JPEG, PNG, WEBP (từ chối GIF, PDF, TXT)
     const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
     const isJpegExt = file.name.toLowerCase().endsWith('.jpg') || file.name.toLowerCase().endsWith('.jpeg');
     const isPngExt = file.name.toLowerCase().endsWith('.png');
     const isWebpExt = file.name.toLowerCase().endsWith('.webp');
 
     if (!validTypes.includes(file.type) && !isJpegExt && !isPngExt && !isWebpExt) {
-      setErrorMsg('Định dạng không được hỗ trợ. Vui lòng chọn ảnh định dạng JPEG, PNG hoặc WEBP.');
+      setErrorMsg('Vui lòng chọn ảnh định dạng JPEG, PNG hoặc WEBP.');
       return;
     }
 
-    // Backend spec: Giới hạn tối đa 5MB
     if (file.size > 5 * 1024 * 1024) {
-      setErrorMsg('Dung lượng ảnh vượt quá 5MB. Vui lòng chọn ảnh nhỏ hơn 5MB.');
+      setErrorMsg('Dung lượng ảnh tối đa là 5MB.');
       return;
     }
 
@@ -268,25 +262,24 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto overflow-x-hidden rounded-3xl bg-[#13151b] border border-blue-500/30 shadow-[0_0_60px_rgba(30,58,138,0.4)] flex flex-col text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-sm animate-fade-in font-sans">
+      <div className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto overflow-x-hidden rounded-2xl bg-[#0f1115] border border-white/10 shadow-2xl flex flex-col text-white">
         
         {/* ========================================================= */}
-        {/* 1. HEADER MODAL: AI BRANDING & CLOSE BUTTON */}
+        {/* 1. HEADER: TỐI GIẢN ĐEN - XÁM - TRẮNG */}
         {/* ========================================================= */}
-        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-800/80 bg-gradient-to-r from-[#181b24] via-[#1a1f2e] to-[#181b24]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-[#14171d]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 shadow-inner">
-              <Camera className="w-5 h-5 animate-pulse" />
+            <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white">
+              <Camera className="w-4 h-4" />
             </div>
             <div>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[10px] font-black uppercase tracking-wider mb-0.5">
-                <Sparkles className="w-3 h-3 text-blue-400" />
-                <span>NEXOR Vision Multimodal AI</span>
-              </div>
-              <h2 className="text-lg sm:text-xl font-black tracking-tight text-white">
-                Tìm kiếm sản phẩm bằng hình ảnh
+              <h2 className="text-base font-bold text-white tracking-tight">
+                Tìm kiếm bằng hình ảnh
               </h2>
+              <p className="text-xs text-gray-400">
+                Tìm sản phẩm tương đồng qua ảnh tải lên, máy ảnh hoặc đường dẫn
+              </p>
             </div>
           </div>
 
@@ -294,7 +287,7 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
             type="button"
             onClick={handleClose}
             disabled={isAnalyzing}
-            className="w-8 h-8 rounded-full bg-gray-800/80 hover:bg-gray-700 text-gray-400 hover:text-white flex items-center justify-center transition border border-white/5 cursor-pointer disabled:opacity-40"
+            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center transition border border-white/5 cursor-pointer disabled:opacity-30"
             title="Đóng"
           >
             <X className="w-4 h-4" />
@@ -302,22 +295,22 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
         </div>
 
         {/* ========================================================= */}
-        {/* 2. BODY CHÍNH */}
+        {/* 2. NỘI DUNG CHÍNH */}
         {/* ========================================================= */}
-        <div className="p-4 sm:p-6 flex-1 flex flex-col gap-5">
+        <div className="p-5 sm:p-6 flex-1 flex flex-col gap-5">
 
-          {/* KHI CHƯA CHỌN ẢNH: HIỂN THỊ CÁC TAB NẠP ẢNH */}
+          {/* KHI CHƯA CHỌN ẢNH: CÁC TAB NẠP ẢNH TỐI GIẢN */}
           {!selectedImage && (
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-5">
               {/* Tab Selector */}
-              <div className="flex items-center justify-center gap-1.5 p-1 bg-[#1a1e28] rounded-2xl border border-gray-800/70 max-w-md mx-auto w-full">
+              <div className="flex items-center justify-center gap-1 p-1 bg-[#181a20] rounded-xl border border-white/10 max-w-md mx-auto w-full">
                 <button
                   type="button"
                   onClick={() => setActiveTab('upload')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition cursor-pointer ${
                     activeTab === 'upload'
-                      ? 'bg-blue-600 text-white shadow-md'
-                      : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
+                      ? 'bg-white text-black font-semibold shadow-sm'
+                      : 'text-gray-400 hover:text-white'
                   }`}
                 >
                   <Upload className="w-3.5 h-3.5" />
@@ -326,40 +319,40 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                 <button
                   type="button"
                   onClick={() => setActiveTab('camera')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition cursor-pointer ${
                     activeTab === 'camera'
-                      ? 'bg-blue-600 text-white shadow-md'
-                      : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
+                      ? 'bg-white text-black font-semibold shadow-sm'
+                      : 'text-gray-400 hover:text-white'
                   }`}
                 >
                   <Video className="w-3.5 h-3.5" />
-                  <span>Chụp ảnh</span>
+                  <span>Máy ảnh</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab('url')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition cursor-pointer ${
                     activeTab === 'url'
-                      ? 'bg-blue-600 text-white shadow-md'
-                      : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
+                      ? 'bg-white text-black font-semibold shadow-sm'
+                      : 'text-gray-400 hover:text-white'
                   }`}
                 >
                   <LinkIcon className="w-3.5 h-3.5" />
-                  <span>Dán liên kết</span>
+                  <span>Đường dẫn ảnh</span>
                 </button>
               </div>
 
-              {/* TAB 1: KÉO THẢ & CHỌN TỆP */}
+              {/* TAB 1: KÉO THẢ & CHỌN FILE */}
               {activeTab === 'upload' && (
                 <div
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
-                  className={`relative border-2 border-dashed rounded-3xl p-8 sm:p-12 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-3 ${
+                  className={`border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center transition cursor-pointer flex flex-col items-center justify-center gap-3 ${
                     isDragging
-                      ? 'border-blue-500 bg-blue-500/10 scale-[0.99]'
-                      : 'border-gray-700/60 hover:border-blue-500/60 bg-[#171a23]/80 hover:bg-[#1a1f2b]'
+                      ? 'border-white bg-white/5'
+                      : 'border-white/15 hover:border-white/40 bg-[#14171d] hover:bg-[#181b22]'
                   }`}
                 >
                   <input
@@ -373,41 +366,40 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                       }
                     }}
                   />
-                  <div className="w-16 h-16 rounded-3xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 shadow-md">
-                    <Upload className="w-8 h-8" />
+                  <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-300">
+                    <Upload className="w-5 h-5" />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <p className="text-sm sm:text-base font-bold text-gray-200">
-                      Kéo thả hình ảnh vào đây hoặc{' '}
-                      <span className="text-blue-400 underline decoration-blue-400/40 underline-offset-4">
-                        chọn từ máy tính
+                    <p className="text-sm font-medium text-gray-200">
+                      Kéo thả ảnh vào đây hoặc{' '}
+                      <span className="text-white underline underline-offset-4 font-semibold">
+                        chọn từ thiết bị
                       </span>
                     </p>
                     <p className="text-xs text-gray-400">
-                      Hỗ trợ JPEG, PNG, WEBP (Tối đa 5MB) • Dán nhanh ảnh bằng <kbd className="px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700 text-[10px] text-gray-300 font-mono">Ctrl + V</kbd>
+                      Hỗ trợ JPEG, PNG, WEBP (tối đa 5MB) • Dán nhanh bằng phím <kbd className="px-1.5 py-0.5 rounded bg-white/10 border border-white/15 text-[11px] text-gray-200 font-mono">Ctrl + V</kbd>
                     </p>
                   </div>
                 </div>
               )}
 
-              {/* TAB 2: WEBCAM TRỰC TIẾP */}
+              {/* TAB 2: MÁY ẢNH / WEBCAM */}
               {activeTab === 'camera' && (
-                <div className="flex flex-col items-center justify-center gap-4 bg-[#171a23] p-4 sm:p-6 rounded-3xl border border-gray-800">
+                <div className="flex flex-col items-center justify-center gap-4 bg-[#14171d] p-5 rounded-2xl border border-white/10">
                   {cameraError ? (
                     <div className="p-6 text-center flex flex-col items-center gap-3">
-                      <AlertCircle className="w-10 h-10 text-red-400" />
-                      <p className="text-sm text-red-300 font-medium">{cameraError}</p>
+                      <AlertCircle className="w-8 h-8 text-gray-400" />
+                      <p className="text-xs text-gray-300 max-w-sm">{cameraError}</p>
                       <button
                         type="button"
                         onClick={startCamera}
-                        className="py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition flex items-center gap-2"
+                        className="py-2 px-4 rounded-lg bg-white text-black text-xs font-semibold hover:bg-gray-200 transition"
                       >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                        <span>Thử lại máy ảnh</span>
+                        Thử lại máy ảnh
                       </button>
                     </div>
                   ) : (
-                    <div className="relative w-full max-w-md aspect-[4/3] rounded-2xl overflow-hidden bg-black flex items-center justify-center border border-gray-700/60 shadow-xl">
+                    <div className="relative w-full max-w-md aspect-[4/3] rounded-xl overflow-hidden bg-black flex items-center justify-center border border-white/15">
                       <video
                         ref={videoRef}
                         autoPlay
@@ -415,23 +407,23 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                         muted
                         className="w-full h-full object-cover"
                       />
-                      {/* Khung ngắm chụp ảnh Target Reticle */}
-                      <div className="absolute inset-6 border border-white/30 rounded-xl pointer-events-none flex flex-col justify-between p-2">
+                      {/* Khung ngắm chụp ảnh tối giản */}
+                      <div className="absolute inset-5 border border-white/20 rounded-lg pointer-events-none flex flex-col justify-between p-2">
                         <div className="flex justify-between">
-                          <div className="w-4 h-4 border-t-2 border-l-2 border-blue-400" />
-                          <div className="w-4 h-4 border-t-2 border-r-2 border-blue-400" />
+                          <div className="w-3 h-3 border-t-2 border-l-2 border-white" />
+                          <div className="w-3 h-3 border-t-2 border-r-2 border-white" />
                         </div>
                         <div className="flex justify-between">
-                          <div className="w-4 h-4 border-b-2 border-l-2 border-blue-400" />
-                          <div className="w-4 h-4 border-b-2 border-r-2 border-blue-400" />
+                          <div className="w-3 h-3 border-b-2 border-l-2 border-white" />
+                          <div className="w-3 h-3 border-b-2 border-r-2 border-white" />
                         </div>
                       </div>
 
-                      {/* Nút lật camera trước/sau */}
+                      {/* Nút lật camera */}
                       <button
                         type="button"
                         onClick={toggleFacingMode}
-                        className="absolute top-3 right-3 p-2 rounded-full bg-black/60 hover:bg-black/80 text-white text-xs backdrop-blur-sm transition border border-white/20"
+                        className="absolute top-3 right-3 p-2 rounded-lg bg-black/60 hover:bg-black text-white text-xs backdrop-blur-sm transition border border-white/20 cursor-pointer"
                         title="Đổi camera trước / sau"
                       >
                         <SwitchCamera className="w-4 h-4" />
@@ -440,38 +432,36 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                   )}
 
                   {!cameraError && cameraStream && (
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={handleCapturePhoto}
-                        className="py-3 px-6 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-sm transition-all shadow-[0_0_20px_rgba(59,130,246,0.5)] flex items-center gap-2 hover:scale-105 active:scale-95 cursor-pointer"
-                      >
-                        <Camera className="w-4 h-4" />
-                        <span>Chụp & Phân tích ngay</span>
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCapturePhoto}
+                      className="py-2.5 px-6 rounded-full bg-white hover:bg-gray-200 text-black font-bold text-xs transition flex items-center gap-2 cursor-pointer shadow-md"
+                    >
+                      <Camera className="w-4 h-4" />
+                      <span>Chụp ảnh này</span>
+                    </button>
                   )}
                 </div>
               )}
 
               {/* TAB 3: DÁN ĐƯỜNG DẪN URL */}
               {activeTab === 'url' && (
-                <form onSubmit={handleUrlSubmit} className="flex flex-col gap-3 bg-[#171a23] p-4 sm:p-6 rounded-3xl border border-gray-800">
+                <form onSubmit={handleUrlSubmit} className="flex flex-col gap-3 bg-[#14171d] p-5 rounded-2xl border border-white/10">
                   <div className="flex flex-col sm:flex-row items-center gap-2">
                     <div className="relative flex-1 w-full">
-                      <LinkIcon className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <LinkIcon className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
                         type="url"
                         value={imageUrlInput}
                         onChange={(e) => setImageUrlInput(e.target.value)}
-                        placeholder="Dán đường dẫn ảnh sản phẩm (https://.../photo.jpg)"
-                        className="w-full bg-[#1e222d] text-white text-xs pl-10 pr-4 py-3 rounded-2xl border border-gray-700/80 focus:border-blue-500 focus:outline-none transition placeholder-gray-400"
+                        placeholder="Dán link ảnh sản phẩm (https://.../photo.jpg)"
+                        className="w-full bg-[#1b1e26] text-white text-xs pl-10 pr-4 py-2.5 rounded-xl border border-white/15 focus:border-white focus:outline-none transition placeholder-gray-500"
                       />
                     </div>
                     <button
                       type="submit"
                       disabled={!imageUrlInput.trim()}
-                      className="w-full sm:w-auto py-3 px-6 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:bg-gray-800 disabled:text-gray-500 text-white font-bold text-xs transition cursor-pointer shrink-0"
+                      className="w-full sm:w-auto py-2.5 px-5 rounded-xl bg-white hover:bg-gray-200 disabled:bg-gray-800 disabled:text-gray-500 text-black font-semibold text-xs transition cursor-pointer shrink-0"
                     >
                       Tìm kiếm
                     </button>
@@ -479,11 +469,10 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                 </form>
               )}
 
-              {/* THỬ NGAY VỚI MẪU ẢNH CÓ SẴN TRONG DỰ ÁN */}
-              <div className="flex flex-col gap-2 pt-2 border-t border-gray-800/60">
-                <span className="text-xs text-gray-400 font-medium flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Hoặc trải nghiệm ngay với ảnh mẫu công nghệ:</span>
+              {/* MẪU ẢNH CÔNG NGHỆ THỬ NGHIỆM */}
+              <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
+                <span className="text-xs text-gray-400 font-normal">
+                  Hoặc thử nhanh với ảnh mẫu:
                 </span>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {QUICK_SAMPLE_IMAGES.map((sample) => (
@@ -495,21 +484,16 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                         setCurrentFile(null);
                         analyzeImage(sample.url);
                       }}
-                      className="group flex items-center gap-2 p-2 rounded-xl bg-[#181b24] hover:bg-blue-600/10 border border-gray-800 hover:border-blue-500/40 transition cursor-pointer text-left"
+                      className="group flex items-center gap-2 p-2 rounded-xl bg-[#14171d] hover:bg-[#1b1e26] border border-white/10 hover:border-white/30 transition cursor-pointer text-left"
                     >
                       <img
                         src={sample.url}
                         alt={sample.label}
-                        className="w-8 h-8 rounded-lg object-cover shrink-0 border border-white/10 group-hover:scale-105 transition-transform"
+                        className="w-8 h-8 rounded-lg object-cover shrink-0 border border-white/10"
                       />
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-[11px] font-semibold text-gray-300 group-hover:text-blue-300 truncate">
-                          {sample.label}
-                        </span>
-                        <span className="text-[9px] text-gray-500">
-                          {sample.category}
-                        </span>
-                      </div>
+                      <span className="text-xs text-gray-300 group-hover:text-white truncate font-medium">
+                        {sample.label}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -517,91 +501,64 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
             </div>
           )}
 
-          {/* KHI ĐÃ CÓ ẢNH: SPLIT VIEW HIỂN THỊ ẢNH QUÉT LASER & KẾT QUẢ SO KHỚP */}
+          {/* KHI ĐÃ CÓ ẢNH: SPLIT VIEW HIỂN THỊ ẢNH QUÉT & KẾT QUẢ TỐI GIẢN */}
           {selectedImage && (
             <div className="flex flex-col lg:flex-row items-start gap-6">
               
-              {/* CỘT TRÁI: KHUNG QUÉT ẢNH LASER SCANNER */}
+              {/* CỘT TRÁI: KHUNG ẢNH & TIA QUÉT TRẮNG */}
               <div className="w-full lg:w-72 shrink-0 flex flex-col gap-3">
-                <div className="relative w-full aspect-square rounded-3xl overflow-hidden bg-[#0c0d12] border-2 border-blue-500/40 shadow-[0_0_30px_rgba(59,130,246,0.25)] flex items-center justify-center group">
+                <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-black border border-white/15 flex items-center justify-center">
                   <img
                     src={selectedImage}
-                    alt="Query Image"
+                    alt="Query"
                     className="w-full h-full object-contain p-2"
                   />
 
-                  {/* TIA LASER NEON QUÉT LẶP LẠI */}
+                  {/* TIA LASER TRẮNG QUÉT TRÊN ẢNH */}
                   {isAnalyzing && (
                     <>
-                      <div className="absolute inset-0 bg-blue-500/10 pointer-events-none" />
-                      <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_15px_#22d3ee,0_0_30px_#3b82f6] animate-scan-laser pointer-events-none" />
+                      <div className="absolute inset-0 bg-white/5 pointer-events-none" />
+                      <div className="absolute left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-white to-transparent shadow-[0_0_12px_rgba(255,255,255,0.8)] animate-scan-laser pointer-events-none" />
                     </>
                   )}
 
-                  {/* 4 Góc ngắm mục tiêu AI Target Reticle */}
-                  <div className="absolute inset-3 pointer-events-none flex flex-col justify-between p-1">
+                  {/* 4 Góc Reticle */}
+                  <div className="absolute inset-2.5 pointer-events-none flex flex-col justify-between p-1">
                     <div className="flex justify-between">
-                      <div className="w-3.5 h-3.5 border-t-2 border-l-2 border-cyan-400" />
-                      <div className="w-3.5 h-3.5 border-t-2 border-r-2 border-cyan-400" />
+                      <div className="w-3 h-3 border-t border-l border-white/60" />
+                      <div className="w-3 h-3 border-t border-r border-white/60" />
                     </div>
                     <div className="flex justify-between">
-                      <div className="w-3.5 h-3.5 border-b-2 border-l-2 border-cyan-400" />
-                      <div className="w-3.5 h-3.5 border-b-2 border-r-2 border-cyan-400" />
+                      <div className="w-3 h-3 border-b border-l border-white/60" />
+                      <div className="w-3 h-3 border-b border-r border-white/60" />
                     </div>
                   </div>
                 </div>
 
-                {/* Trạng thái tiến trình AI */}
+                {/* Trạng thái phân tích */}
                 {isAnalyzing ? (
-                  <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-2xl flex items-center gap-2.5 text-xs text-blue-300">
-                    <RefreshCw className="w-4 h-4 animate-spin text-blue-400 shrink-0" />
-                    <span className="font-medium animate-pulse">{statusMessage}</span>
+                  <div className="p-2.5 bg-white/5 border border-white/10 rounded-xl flex items-center gap-2 text-xs text-gray-300">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-white shrink-0" />
+                    <span className="font-normal">{statusMessage}</span>
                   </div>
                 ) : (
                   <button
                     type="button"
                     onClick={handleResetImage}
-                    className="w-full py-2.5 px-4 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-200 hover:text-white text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer border border-white/5"
+                    className="w-full py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-xs font-medium transition flex items-center justify-center gap-1.5 cursor-pointer border border-white/10"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                     <span>Đổi hoặc quét ảnh khác</span>
                   </button>
                 )}
-
-                {/* Thông tin mô hình AI nhận diện */}
-                {!isAnalyzing && searchResponse && (
-                  <div className="p-3 bg-[#171a23] rounded-2xl border border-gray-800/80 flex flex-col gap-2 text-xs">
-                    <div className="flex items-center justify-between text-gray-400">
-                      <span className="flex items-center gap-1.5">
-                        <Cpu className="w-3.5 h-3.5 text-blue-400" />
-                        <span>Mô hình AI:</span>
-                      </span>
-                      <span className="font-bold text-gray-200">
-                        {searchResponse.provider || 'Gemini Vision AI'}
-                      </span>
-                    </div>
-
-                    {searchResponse.detectedAttributes?.brand && (
-                      <div className="flex items-center justify-between text-gray-400">
-                        <span className="flex items-center gap-1.5">
-                          <Tag className="w-3.5 h-3.5 text-blue-400" />
-                          <span>Hãng dự đoán:</span>
-                        </span>
-                        <span className="font-bold text-blue-400">
-                          {searchResponse.detectedAttributes.brand}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
 
-              {/* CỘT PHẢI: KẾT QUẢ SẢN PHẨM TƯƠNG ĐỒNG */}
+              {/* CỘT PHẢI: KẾT QUẢ SẢN PHẨM */}
               <div className="flex-1 w-full flex flex-col gap-3">
                 
-                {/* Thông báo lỗi nếu có */}
+                {/* Lỗi nếu có */}
                 {errorMsg && (
-                  <div className="p-4 bg-red-500/15 border border-red-500/30 rounded-2xl flex items-center justify-between gap-3 text-xs text-red-300">
+                  <div className="p-3 bg-red-950/40 border border-red-500/30 rounded-xl flex items-center justify-between gap-3 text-xs text-red-200">
                     <div className="flex items-center gap-2">
                       <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
                       <span>{errorMsg}</span>
@@ -609,25 +566,24 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                     <button
                       type="button"
                       onClick={() => currentFile ? analyzeImage(currentFile) : (selectedImage && analyzeImage(selectedImage))}
-                      className="py-1 px-3 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold"
+                      className="py-1 px-2.5 bg-red-600 hover:bg-red-500 text-white rounded font-medium text-[11px]"
                     >
                       Thử lại
                     </button>
                   </div>
                 )}
 
-                {/* Skeleton Loading khi đang quét */}
+                {/* Loading skeleton */}
                 {isAnalyzing && (
-                  <div className="flex flex-col gap-3">
-                    <div className="h-6 w-48 bg-gray-800 rounded-lg animate-pulse" />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-2.5">
+                    <div className="h-4 w-40 bg-white/10 rounded animate-pulse" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       {[1, 2, 3, 4].map((n) => (
-                        <div key={n} className="p-3 rounded-2xl bg-[#171a23] border border-gray-800 flex gap-3 animate-pulse">
-                          <div className="w-20 h-20 bg-gray-800 rounded-xl shrink-0" />
+                        <div key={n} className="p-3 rounded-xl bg-[#14171d] border border-white/10 flex gap-3 animate-pulse">
+                          <div className="w-16 h-16 bg-white/5 rounded-lg shrink-0" />
                           <div className="flex-1 flex flex-col gap-2 justify-center">
-                            <div className="h-4 bg-gray-800 rounded w-full" />
-                            <div className="h-3 bg-gray-800 rounded w-2/3" />
-                            <div className="h-4 bg-gray-800 rounded w-1/3" />
+                            <div className="h-3.5 bg-white/10 rounded w-full" />
+                            <div className="h-3 bg-white/5 rounded w-2/3" />
                           </div>
                         </div>
                       ))}
@@ -635,41 +591,23 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                   </div>
                 )}
 
-                {/* Kết quả nhận diện thành công */}
+                {/* Danh sách kết quả */}
                 {!isAnalyzing && searchResponse && (
                   <div className="flex flex-col gap-3">
                     {/* Header kết quả */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-gray-800">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                        <span className="text-sm font-black text-gray-100">
-                          Tìm thấy {searchResponse.products?.length || searchResponse.totalMatches || 0} sản phẩm tương đồng
-                        </span>
-                      </div>
+                    <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                      <span className="text-xs font-semibold text-gray-200">
+                        Tìm thấy {searchResponse.products?.length || searchResponse.totalMatches || 0} sản phẩm tương đồng
+                      </span>
                       {searchResponse.detectedAttributes?.category && (
-                        <span className="px-2.5 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs font-bold">
+                        <span className="px-2 py-0.5 rounded-md bg-white/10 text-gray-300 text-[11px] font-medium border border-white/10">
                           {searchResponse.detectedAttributes.category}
                         </span>
                       )}
                     </div>
 
-                    {/* Từ khóa nhận diện được */}
-                    {searchResponse.detectedAttributes?.keywords && searchResponse.detectedAttributes.keywords.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[11px] text-gray-400">Từ khóa trích xuất:</span>
-                        {searchResponse.detectedAttributes.keywords.map((kw, idx) => (
-                          <span
-                            key={idx}
-                            className="px-2 py-0.5 rounded-md bg-[#1f2430] text-gray-300 text-[10px] font-medium border border-gray-700/60"
-                          >
-                            #{kw}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Grid sản phẩm tương đồng */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[50vh] overflow-y-auto pr-1">
+                    {/* Grid sản phẩm tối giản */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[50vh] overflow-y-auto pr-1">
                       {searchResponse.products?.map((item: VisualSearchProductItem) => (
                         <div
                           key={item.id}
@@ -677,65 +615,47 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                             handleClose();
                             navigate(`/products/${item.id}`);
                           }}
-                          className="group relative p-3 rounded-2xl bg-[#171a23] hover:bg-[#1c212e] border border-gray-800 hover:border-blue-500/50 transition-all flex gap-3 cursor-pointer shadow-md hover:shadow-blue-500/10"
+                          className="group relative p-2.5 rounded-xl bg-[#14171d] hover:bg-[#1a1d26] border border-white/10 hover:border-white/30 transition flex gap-3 cursor-pointer"
                         >
-                          {/* Ảnh Thumbnail */}
-                          <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-gray-900 border border-white/5 shrink-0 flex items-center justify-center p-1">
+                          {/* Thumbnail */}
+                          <div className="w-16 h-16 rounded-lg overflow-hidden bg-black/50 border border-white/10 shrink-0 flex items-center justify-center p-1">
                             <img
                               src={item.imageUrl || '/images/logo.png'}
                               alt={item.name}
-                              className="w-full h-full object-contain group-hover:scale-108 transition-transform duration-300"
+                              className="w-full h-full object-contain"
                             />
                           </div>
 
-                          {/* Thông tin sản phẩm */}
+                          {/* Chi tiết */}
                           <div className="flex-1 flex flex-col justify-between min-w-0">
                             <div>
                               <div className="flex items-center justify-between gap-1 mb-1">
-                                {item.brand && (
-                                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider truncate">
-                                    {item.brand}
-                                  </span>
-                                )}
-                                {/* Huy hiệu % Match */}
-                                <span
-                                  className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
-                                    item.matchPercent >= 90
-                                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                                      : item.matchPercent >= 75
-                                      ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                                      : 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-                                  }`}
-                                >
-                                  {item.matchPercent}% Match
+                                <span className="text-[10px] text-gray-400 uppercase tracking-wide truncate">
+                                  {item.brand || item.categoryName}
+                                </span>
+                                {/* Badge % Match tối giản */}
+                                <span className="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono text-[10px] font-bold border border-white/15 shrink-0">
+                                  {item.matchPercent}%
                                 </span>
                               </div>
 
-                              <h4 className="text-xs font-bold text-gray-200 line-clamp-2 group-hover:text-blue-400 transition-colors">
+                              <h4 className="text-xs font-medium text-gray-200 line-clamp-2 group-hover:text-white transition">
                                 {item.name}
                               </h4>
 
-                              {/* Lý do so khớp từ backend */}
                               {item.matchReason && (
-                                <p className="text-[10px] text-gray-400 mt-1 line-clamp-1 italic">
-                                  💡 {item.matchReason}
+                                <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">
+                                  {item.matchReason}
                                 </p>
                               )}
                             </div>
 
-                            <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-gray-800/80">
-                              <div className="flex items-baseline gap-1.5">
-                                <span className="text-xs font-black text-blue-400">
-                                  {formatPrice(item.price)}
-                                </span>
-                                {item.originalPrice && item.originalPrice > item.price && (
-                                  <span className="text-[10px] text-gray-500 line-through">
-                                    {formatPrice(item.originalPrice)}
-                                  </span>
-                                )}
-                              </div>
+                            <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-white/5">
+                              <span className="text-xs font-bold text-white">
+                                {formatPrice(item.price)}
+                              </span>
 
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-gray-400 group-hover:text-white transition">
+                              <span className="inline-flex items-center gap-1 text-[11px] text-gray-400 group-hover:text-white transition">
                                 <span>Xem</span>
                                 <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
                               </span>
@@ -747,18 +667,18 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                   </div>
                 )}
 
-                {/* Kết quả rỗng nếu không có sản phẩm */}
+                {/* Kết quả rỗng */}
                 {!isAnalyzing && searchResponse && (!searchResponse.products || searchResponse.products.length === 0) && (
-                  <div className="p-8 text-center flex flex-col items-center justify-center gap-3 bg-[#171a23] rounded-2xl border border-gray-800">
-                    <ImageIcon className="w-12 h-12 text-gray-600" />
-                    <h3 className="text-sm font-bold text-gray-300">Không tìm thấy sản phẩm tương đồng</h3>
-                    <p className="text-xs text-gray-500 max-w-sm">
-                      Hãy thử tải lên ảnh có độ phân giải cao hơn, góc chụp thẳng và đủ ánh sáng để AI nhận diện tốt nhất.
+                  <div className="p-8 text-center flex flex-col items-center justify-center gap-3 bg-[#14171d] rounded-xl border border-white/10">
+                    <ImageIcon className="w-8 h-8 text-gray-500" />
+                    <h3 className="text-xs font-medium text-gray-300">Không tìm thấy sản phẩm tương đồng</h3>
+                    <p className="text-[11px] text-gray-500 max-w-sm">
+                      Hãy thử tải lên ảnh có độ phân giải cao hơn, góc chụp thẳng và đủ ánh sáng.
                     </p>
                     <button
                       type="button"
                       onClick={handleResetImage}
-                      className="mt-2 py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition cursor-pointer"
+                      className="mt-1 py-1.5 px-3.5 rounded-lg bg-white text-black text-xs font-semibold hover:bg-gray-200 transition cursor-pointer"
                     >
                       Thử ảnh khác
                     </button>

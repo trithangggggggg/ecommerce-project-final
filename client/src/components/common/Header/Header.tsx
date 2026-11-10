@@ -246,8 +246,8 @@ export const Header: React.FC = () => {
             <button
               type="button"
               onClick={() => setVisualSearchOpen(true)}
-              className="absolute right-3 p-1 rounded-full text-gray-400 hover:text-blue-400 hover:bg-gray-700/60 transition cursor-pointer flex items-center justify-center group"
-              title="Tìm kiếm bằng hình ảnh (NEXOR Vision AI)"
+              className="absolute right-3 p-1 rounded-full text-gray-400 hover:text-white hover:bg-gray-700/60 transition cursor-pointer flex items-center justify-center group"
+              title="Tìm kiếm bằng hình ảnh"
             >
               <Camera className="w-4 h-4 group-hover:scale-110 transition-transform" />
             </button>
