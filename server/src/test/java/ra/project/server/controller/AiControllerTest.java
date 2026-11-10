@@ -9,12 +9,16 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import ra.project.server.exception.GlobalExceptionHandler;
 import ra.project.server.model.dto.request.AiChatRequest;
 import ra.project.server.model.dto.response.AiChatResponse;
 import ra.project.server.model.dto.response.ProductResponse;
+import ra.project.server.model.dto.response.VisualSearchAttributes;
+import ra.project.server.model.dto.response.VisualSearchProductItem;
+import ra.project.server.model.dto.response.VisualSearchResponse;
 import ra.project.server.service.AiService;
 import ra.project.server.service.RateLimiterService;
 
@@ -24,6 +28,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -134,6 +139,50 @@ class AiControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @DisplayName("Khách hàng tìm kiếm sản phẩm bằng hình ảnh thành công")
+    void testVisualSearch_Success() throws Exception {
+        MockMultipartFile imageFile = new MockMultipartFile(
+                "image",
+                "macbook.jpg",
+                "image/jpeg",
+                "test-image-data".getBytes()
+        );
+
+        VisualSearchResponse mockResponse = VisualSearchResponse.builder()
+                .detectedAttributes(VisualSearchAttributes.builder()
+                        .category("Laptop")
+                        .brand("Apple")
+                        .color("Xám")
+                        .keywords(List.of("MacBook", "M3"))
+                        .build())
+                .totalMatches(1)
+                .products(List.of(VisualSearchProductItem.builder()
+                        .id(1L)
+                        .name("MacBook Pro M3")
+                        .brand("Apple")
+                        .categoryName("Laptop")
+                        .price(new BigDecimal("45000000"))
+                        .matchPercent(95)
+                        .matchReason("Khớp danh mục và thương hiệu")
+                        .build()))
+                .provider("Google Gemini Vision AI")
+                .build();
+
+        when(aiService.visualSearch(any())).thenReturn(mockResponse);
+
+        mockMvc.perform(multipart("/api/ai/visual-search")
+                        .file(imageFile))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.totalMatches").value(1))
+                .andExpect(jsonPath("$.data.products[0].name").value("MacBook Pro M3"))
+                .andExpect(jsonPath("$.data.products[0].matchPercent").value(95))
+                .andExpect(jsonPath("$.data.detectedAttributes.category").value("Laptop"));
+
+        verify(aiService, times(1)).visualSearch(any());
     }
 }
 

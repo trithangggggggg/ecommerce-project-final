@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 import ra.project.server.mapper.ProductMapper;
 import ra.project.server.model.dto.request.AiChatRequest;
 import ra.project.server.model.dto.request.AiGenerateDescriptionRequest;
@@ -18,10 +19,12 @@ import ra.project.server.model.dto.request.ChatMessageDto;
 import ra.project.server.model.dto.response.AiChatResponse;
 import ra.project.server.model.dto.response.AiGenerateDescriptionResponse;
 import ra.project.server.model.dto.response.ProductResponse;
+import ra.project.server.model.dto.response.VisualSearchResponse;
 import ra.project.server.model.entity.Product;
 import ra.project.server.repository.ProductRepository;
 import ra.project.server.service.AiConfigService;
 import ra.project.server.service.AiService;
+import ra.project.server.service.AiVisualSearchService;
 import ra.project.server.service.KnowledgeBaseService;
 
 import java.net.URI;
@@ -45,6 +48,9 @@ public class AiServiceImpl implements AiService {
     private final ProductRepository productRepository;
     private final ProductMapper productMapper;
     private final KnowledgeBaseService knowledgeBaseService;
+
+    @Autowired(required = false)
+    private AiVisualSearchService aiVisualSearchService;
 
     @Autowired(required = false)
     private AiConfigService aiConfigService;
@@ -763,5 +769,13 @@ public class AiServiceImpl implements AiService {
             }
         }
         return sb.toString();
+    }
+
+    @Override
+    public VisualSearchResponse visualSearch(MultipartFile image) {
+        if (aiVisualSearchService != null) {
+            return aiVisualSearchService.searchByImage(image);
+        }
+        throw new IllegalStateException("AiVisualSearchService chưa được nạp");
     }
 }
