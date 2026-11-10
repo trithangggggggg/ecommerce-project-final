@@ -22,7 +22,6 @@ import {
   Flame,
   Grid,
   Package,
-  MapPin,
   Camera,
 } from 'lucide-react';
 import { useCartStore } from '../../../store/useCartStore';

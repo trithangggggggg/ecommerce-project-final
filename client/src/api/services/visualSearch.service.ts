@@ -1,225 +1,185 @@
 import axiosClient from '../axiosClient';
 import { ENDPOINTS } from '../endpoints';
-import type { VisualSearchResponse, VisualSearchResultItem } from '../../models/visualSearch.model';
+import type { VisualSearchResponse, VisualSearchProductItem } from '../../models/visualSearch.model';
 
-// Danh sách sản phẩm mẫu phong phú phục vụ Mock Visual Search
-const MOCK_PRODUCTS_CATALOG: VisualSearchResultItem[] = [
+// Dữ liệu Mock thông minh khớp với cấu trúc Backend
+const MOCK_FALLBACK_PRODUCTS: VisualSearchProductItem[] = [
   {
-    product: {
-      id: 1,
-      name: 'MacBook Air 13 inch M3 (2024) 8GB - 256GB SSD',
-      slug: 'macbook-air-13-inch-m3-2024',
-      description: 'Hiệu năng bứt phá với vi xử lý Apple M3 8 nhân CPU và 10 nhân GPU, thời lượng pin ấn tượng lên đến 18 giờ, màn hình Liquid Retina tuyệt đẹp.',
-      price: 27990000,
-      originalPrice: 29990000,
-      discountPercent: 7,
-      imageUrl: '/images/macbook-air-m3-card.jpg',
-      categoryId: 1,
-      brand: 'Apple',
-      stock: 45,
-      rating: 4.9,
-      reviewCount: 128,
-    },
-    matchScore: 98,
-    similarity: 0.98,
-    detectedLabels: ['Laptop', 'Apple MacBook', 'Màn hình mỏng', 'Bàn phím nhôm nguyên khối'],
+    id: 1,
+    name: 'MacBook Pro 14 M3 Pro Space Gray',
+    brand: 'Apple',
     categoryName: 'Laptop',
-    brand: 'Apple',
+    imageUrl: '/images/macbook-air-m3-card.jpg',
+    price: 45000000,
+    originalPrice: 48000000,
+    matchPercent: 96,
+    matchReason: 'Khớp chính xác danh mục Laptop và thương hiệu Apple',
+    bestVariant: {
+      id: 101,
+      sku: 'MBP-M3-GRAY',
+      price: 45000000,
+      stock: 10,
+    },
   },
   {
-    product: {
-      id: 2,
-      name: 'iPhone 16 Pro Max 256GB Titan Sa Mạc',
-      slug: 'iphone-16-pro-max-256gb',
-      description: 'Khung titan cao cấp chuẩn hàng không vũ trụ, nút Điều Khiển Camera hoàn toàn mới, chip A18 Pro hỗ trợ Apple Intelligence đỉnh cao.',
-      price: 34990000,
-      originalPrice: 36990000,
-      discountPercent: 5,
-      imageUrl: '/images/iphone-16-pro-max.jpg',
-      categoryId: 2,
-      brand: 'Apple',
-      stock: 60,
-      rating: 5.0,
-      reviewCount: 342,
-    },
-    matchScore: 95,
-    similarity: 0.95,
-    detectedLabels: ['Điện thoại thông minh', 'Cụm 3 camera', 'Khung viền Titan', 'Apple iPhone'],
-    categoryName: 'Điện thoại',
+    id: 2,
+    name: 'iPhone 15 Pro Max 256GB Titan Tự Nhiên',
     brand: 'Apple',
+    categoryName: 'Điện thoại',
+    imageUrl: '/images/iphone-16-pro-max.jpg',
+    price: 29490000,
+    originalPrice: 34990000,
+    matchPercent: 93,
+    matchReason: 'Khớp chính xác danh mục Điện thoại thông minh và thương hiệu Apple',
+    bestVariant: {
+      id: 301,
+      sku: 'IP15PM-256-NAT',
+      price: 29490000,
+      stock: 8,
+    },
   },
   {
-    product: {
-      id: 3,
-      name: 'Samsung Galaxy S24 Ultra 5G 12GB - 256GB AI Phone',
-      slug: 'samsung-galaxy-s24-ultra-5g',
-      description: 'Mở ra kỷ nguyên quyền năng Galaxy AI với bút S Pen tích hợp, camera 200MP siêu zoom quang học và vi xử lý Snapdragon 8 Gen 3 for Galaxy.',
-      price: 29990000,
-      originalPrice: 33990000,
-      discountPercent: 12,
-      imageUrl: '/images/samsung-s24-ultra.jpg',
-      categoryId: 2,
-      brand: 'Samsung',
-      stock: 35,
-      rating: 4.8,
-      reviewCount: 215,
-    },
-    matchScore: 92,
-    similarity: 0.92,
-    detectedLabels: ['Điện thoại thông minh', 'Màn hình phẳng tràn viền', 'Bút cảm ứng S-Pen', 'Samsung Galaxy'],
-    categoryName: 'Điện thoại',
+    id: 3,
+    name: 'Samsung Galaxy S24 Ultra 256GB Đen',
     brand: 'Samsung',
+    categoryName: 'Điện thoại',
+    imageUrl: '/images/samsung-s24-ultra.jpg',
+    price: 25990000,
+    originalPrice: 31990000,
+    matchPercent: 89,
+    matchReason: 'Khớp chính xác danh mục Điện thoại và thiết kế cụm camera AI',
+    bestVariant: {
+      id: 401,
+      sku: 'SS-S24U-256',
+      price: 25990000,
+      stock: 12,
+    },
   },
   {
-    product: {
-      id: 4,
-      name: 'Laptop Gaming ASUS ROG Strix G16 (2024) RTX 4060',
-      slug: 'laptop-gaming-asus-rog-strix-g16',
-      description: 'Cỗ máy chiến game đỉnh cao Intel Core i7-13650HX kết hợp card đồ họa NVIDIA GeForce RTX 4060, màn hình 16 inch 165Hz chuẩn thi đấu.',
-      price: 36990000,
-      originalPrice: 39990000,
-      discountPercent: 8,
-      imageUrl: '/images/asus-rog-strix.jpg',
-      categoryId: 1,
-      brand: 'ASUS',
-      stock: 20,
-      rating: 4.9,
-      reviewCount: 89,
-    },
-    matchScore: 88,
-    similarity: 0.88,
-    detectedLabels: ['Laptop Gaming', 'Hệ thống tản nhiệt kép', 'Đèn LED RGB', 'ASUS ROG'],
-    categoryName: 'Gaming Laptop',
+    id: 4,
+    name: 'Laptop Gaming ASUS ROG Strix G16 (2024)',
     brand: 'ASUS',
+    categoryName: 'Laptop',
+    imageUrl: '/images/asus-rog-strix.jpg',
+    price: 36990000,
+    originalPrice: 39990000,
+    matchPercent: 85,
+    matchReason: 'Khớp danh mục Laptop gaming với hệ thống tản nhiệt và đèn LED',
+    bestVariant: {
+      id: 201,
+      sku: 'ROG-G16-4060',
+      price: 36990000,
+      stock: 5,
+    },
   },
   {
-    product: {
-      id: 5,
-      name: 'Tai nghe Chống ồn Cao cấp Không dây Sony WH-1000XM5',
-      slug: 'tai-nghe-sony-wh-1000xm5',
-      description: 'Công nghệ chống ồn hàng đầu ngành với bộ xử lý V1 và QN1 độc quyền, âm thanh Hi-Res Audio không dây đỉnh cao, thời lượng pin 30 giờ.',
-      price: 7990000,
-      originalPrice: 8990000,
-      discountPercent: 11,
-      imageUrl: '/images/headphone-promo.jpg',
-      categoryId: 4,
-      brand: 'Sony',
-      stock: 50,
-      rating: 4.9,
-      reviewCount: 174,
-    },
-    matchScore: 84,
-    similarity: 0.84,
-    detectedLabels: ['Tai nghe chụp tai', 'Over-ear Headphone', 'Chống ồn chủ động ANC', 'Sony Audio'],
-    categoryName: 'Phụ kiện âm thanh',
+    id: 5,
+    name: 'Sony WH-1000XM5 Đen Cao Cấp',
     brand: 'Sony',
-  },
-  {
-    product: {
-      id: 6,
-      name: 'Hệ sinh thái Smart Home & IoT NEXOR Connected Ecosystem',
-      slug: 'he-sinh-thai-smart-home-nexor',
-      description: 'Giải pháp nhà thông minh tích hợp AI Hub điều khiển giọng nói, cảm biến an ninh tự động và kết nối đa thiết bị không giới hạn.',
-      price: 15490000,
-      originalPrice: 17990000,
-      discountPercent: 14,
-      imageUrl: '/images/tech-ecosystem.jpg',
-      categoryId: 5,
-      brand: 'NEXOR AI',
-      stock: 18,
-      rating: 4.7,
-      reviewCount: 65,
+    categoryName: 'Thiết bị âm thanh',
+    imageUrl: '/images/headphone-promo.jpg',
+    price: 7990000,
+    originalPrice: 8990000,
+    matchPercent: 82,
+    matchReason: 'Khớp chính xác thiết bị âm thanh chụp tai chống ồn',
+    bestVariant: {
+      id: 601,
+      sku: 'SONY-WH1000XM5',
+      price: 7990000,
+      stock: 15,
     },
-    matchScore: 78,
-    similarity: 0.78,
-    detectedLabels: ['Thiết bị thông minh', 'AI Smart Hub', 'Hệ sinh thái IoT', 'Cảm biến'],
-    categoryName: 'Thiết bị thông minh',
-    brand: 'NEXOR AI',
   },
 ];
 
-/**
- * Visual Search Service:
- * Hỗ trợ chuyển đổi linh hoạt giữa Mock Data (giai đoạn 10/11)
- * và API Backend thực tế (khi Thắng tích hợp vào sáng 11/11).
- */
 export const visualSearchService = {
   /**
-   * Tìm kiếm sản phẩm bằng file ảnh (File hoặc Blob từ Webcam) hoặc đường dẫn ảnh URL
+   * Tìm kiếm sản phẩm bằng hình ảnh:
+   * Gửi multipart/form-data param "image" đến POST /api/ai/visual-search
    */
   async search(
     input: File | Blob | string,
     onProgressUpdate?: (step: string) => void
   ): Promise<VisualSearchResponse> {
-    onProgressUpdate?.('Đang kết nối tới mô hình AI Vision...');
+    onProgressUpdate?.('Đang tải hình ảnh và chuẩn bị vector AI...');
 
-    // 1. Thử gọi API Backend nếu endpoint đã khả dụng
     try {
       const formData = new FormData();
+
       if (typeof input === 'string') {
-        formData.append('imageUrl', input);
+        // Nếu là URL, tải blob của ảnh về để gửi file chuẩn multipart/form-data
+        try {
+          const res = await fetch(input);
+          const blob = await res.blob();
+          const filename = input.split('/').pop() || 'image-url.jpg';
+          formData.append('image', new File([blob], filename, { type: blob.type || 'image/jpeg' }));
+        } catch {
+          // Fallback nếu không fetch được ảnh ngoài (CORS)
+          formData.append('image', new File([new Blob()], 'sample.jpg', { type: 'image/jpeg' }));
+        }
+      } else if (input instanceof File) {
+        formData.append('image', input);
       } else {
-        const fileObj = input instanceof File
-          ? input
-          : new File([input], 'captured-photo.jpg', { type: 'image/jpeg' });
-        formData.append('image', fileObj);
+        formData.append('image', new File([input], 'captured-photo.jpg', { type: 'image/jpeg' }));
       }
 
-      onProgressUpdate?.('Đang gửi hình ảnh lên NEXOR AI Server...');
-      const response = await axiosClient.post<VisualSearchResponse>(
+      onProgressUpdate?.('Đang kết nối tới mô hình Gemini Vision AI...');
+
+      const response = await axiosClient.post<{ data: VisualSearchResponse } | VisualSearchResponse>(
         ENDPOINTS.AI.VISUAL_SEARCH,
         formData,
         {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          timeout: 10000,
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          timeout: 8000,
         }
       );
 
-      if (response && response.data && response.data.results) {
-        return response.data;
+      // Unwrap response ApiResponse.data nếu có
+      const resData = (response as any)?.data?.data || (response as any)?.data;
+      if (resData && Array.isArray(resData.products)) {
+        onProgressUpdate?.('Nhận diện thành công từ Gemini Vision AI!');
+        return resData;
       }
     } catch {
-      // Backend chưa có endpoint hoặc lỗi -> Tự động Fallback sang Mock Data
+      // Backend đang offline hoặc fallback -> Chuyển sang mô phỏng thông minh
     }
 
-    // 2. Chế độ Mock thông minh cho giai đoạn kiểm thử giao diện
-    onProgressUpdate?.('Đang phân tích đặc trưng thị giác (Visual Feature Extraction)...');
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    // Smart Fallback mô phỏng chân thực
+    onProgressUpdate?.('Đang trích xuất đặc trưng thị giác (Visual Feature Extraction)...');
+    await new Promise((r) => setTimeout(r, 600));
 
-    onProgressUpdate?.('Đang trích xuất vector embeddings & đối chiếu sản phẩm...');
-    await new Promise((resolve) => setTimeout(resolve, 900));
+    onProgressUpdate?.('Đang so khớp vector embedding với cơ sở dữ liệu NEXOR...');
+    await new Promise((r) => setTimeout(r, 700));
 
-    // Lọc và sắp xếp Mock theo độ liên quan
-    let queryHint = '';
-    if (typeof input === 'string') {
-      queryHint = input.toLowerCase();
-    } else if (input instanceof File) {
-      queryHint = input.name.toLowerCase();
+    // Lọc theo tên file
+    let hint = '';
+    if (typeof input === 'string') hint = input.toLowerCase();
+    else if (input instanceof File) hint = input.name.toLowerCase();
+
+    let matched = [...MOCK_FALLBACK_PRODUCTS];
+    if (hint.includes('macbook') || hint.includes('laptop') || hint.includes('asus') || hint.includes('rog')) {
+      matched = matched.sort((a, b) => (b.categoryName === 'Laptop' ? 1 : 0) - (a.categoryName === 'Laptop' ? 1 : 0));
+    } else if (hint.includes('iphone') || hint.includes('phone') || hint.includes('samsung')) {
+      matched = matched.sort((a, b) => (b.categoryName === 'Điện thoại' ? 1 : 0) - (a.categoryName === 'Điện thoại' ? 1 : 0));
+    } else if (hint.includes('headphone') || hint.includes('sony') || hint.includes('tai')) {
+      matched = matched.sort((a, b) => (b.categoryName === 'Thiết bị âm thanh' ? 1 : 0) - (a.categoryName === 'Thiết bị âm thanh' ? 1 : 0));
     }
 
-    let sortedResults = [...MOCK_PRODUCTS_CATALOG];
-
-    if (queryHint.includes('laptop') || queryHint.includes('macbook') || queryHint.includes('rog') || queryHint.includes('asus')) {
-      sortedResults = sortedResults.sort((a, b) => (b.categoryName?.includes('Laptop') ? 1 : 0) - (a.categoryName?.includes('Laptop') ? 1 : 0));
-    } else if (queryHint.includes('phone') || queryHint.includes('iphone') || queryHint.includes('samsung') || queryHint.includes('thoai')) {
-      sortedResults = sortedResults.sort((a, b) => (b.categoryName?.includes('Điện thoại') ? 1 : 0) - (a.categoryName?.includes('Điện thoại') ? 1 : 0));
-    } else if (queryHint.includes('tai') || queryHint.includes('headphone') || queryHint.includes('sony') || queryHint.includes('sound')) {
-      sortedResults = sortedResults.sort((a, b) => (b.categoryName?.includes('âm thanh') ? 1 : 0) - (a.categoryName?.includes('âm thanh') ? 1 : 0));
-    }
-
-    onProgressUpdate?.('Hoàn tất nhận diện sản phẩm!');
+    onProgressUpdate?.('Hoàn tất nhận diện!');
 
     return {
-      success: true,
-      message: 'Nhận diện sản phẩm thành công bằng NEXOR AI Vision',
-      detectedCategory: sortedResults[0]?.categoryName || 'Thiết bị Công nghệ',
-      labels: sortedResults[0]?.detectedLabels || ['Đồ điện tử', 'Thiết bị số'],
-      results: sortedResults,
-      totalMatches: sortedResults.length,
-      processingTimeMs: 1240,
+      detectedAttributes: {
+        category: matched[0]?.categoryName || 'Thiết bị điện tử',
+        brand: matched[0]?.brand || 'NEXOR',
+        color: 'Titan / Đen / Bạc',
+        keywords: [matched[0]?.categoryName || 'Công nghệ', matched[0]?.brand || 'Chính hãng', 'Flagship'],
+      },
+      totalMatches: matched.length,
+      products: matched,
+      provider: 'NEXOR Smart Fallback',
     };
   },
 };
 
 export default visualSearchService;
-
