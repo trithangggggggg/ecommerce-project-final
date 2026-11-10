@@ -31,6 +31,7 @@ const AdminCategoriesPage = React.lazy(() => import('../pages/admin/AdminCategor
 const AdminOrdersPage = React.lazy(() => import('../pages/admin/AdminOrdersPage'));
 const AdminCustomersPage = React.lazy(() => import('../pages/admin/AdminCustomersPage'));
 const AdminPromotionsPage = React.lazy(() => import('../pages/admin/AdminPromotionsPage'));
+const AdminWheelPage = React.lazy(() => import('../pages/admin/AdminWheelPage'));
 const AdminBannersPage = React.lazy(() => import('../pages/admin/AdminBannersPage'));
 const AdminStoresPage = React.lazy(() => import('../pages/admin/AdminStoresPage'));
 const AdminShippingPage = React.lazy(() => import('../pages/admin/AdminShippingPage'));
@@ -120,6 +121,7 @@ export const AppRoutes: React.FC = () => {
             <Route path="orders" element={<AdminOrdersPage />} />
             <Route path="customers" element={<AdminCustomersPage />} />
             <Route path="promotions" element={<AdminPromotionsPage />} />
+            <Route path="wheel" element={<AdminWheelPage />} />
             <Route path="banners" element={<AdminBannersPage />} />
             <Route path="stores" element={<AdminStoresPage />} />
             <Route path="shipping" element={<AdminShippingPage />} />

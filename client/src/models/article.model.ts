@@ -31,14 +31,5 @@ export interface ArticleFilterParams {
   sort?: string;
 }
 
-export interface PageResponse<T> {
-  content: T[];
-  pageNumber: number;
-  pageSize: number;
-  totalElements: number;
-  totalPages: number;
-  last: boolean;
-  first: boolean;
-  empty: boolean;
-}
+export type { PageResponse } from './api.model';
 
