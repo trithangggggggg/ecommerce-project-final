@@ -531,7 +531,7 @@ const StoresPage: React.FC = () => {
                 return (
                   <Marker
                     key={showroom.id}
-                    ref={(ref) => {
+                    ref={(ref: any) => {
                       markerRefs.current[showroom.id] = ref;
                     }}
                     position={[showroom.lat, showroom.lng]}
