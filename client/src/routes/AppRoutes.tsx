@@ -1,4 +1,4 @@
-﻿import React, { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 
@@ -29,6 +29,7 @@ const AdminOrdersPage = React.lazy(() => import('../pages/admin/AdminOrdersPage'
 const AdminCustomersPage = React.lazy(() => import('../pages/admin/AdminCustomersPage'));
 const AdminPromotionsPage = React.lazy(() => import('../pages/admin/AdminPromotionsPage'));
 const AdminBannersPage = React.lazy(() => import('../pages/admin/AdminBannersPage'));
+const AdminStoresPage = React.lazy(() => import('../pages/admin/AdminStoresPage'));
 const AdminShippingPage = React.lazy(() => import('../pages/admin/AdminShippingPage'));
 const AdminInventoryPage = React.lazy(() => import('../pages/admin/AdminInventoryPage'));
 const AdminSuppliersPage = React.lazy(() => import('../pages/admin/AdminSuppliersPage'));
@@ -112,6 +113,7 @@ export const AppRoutes: React.FC = () => {
             <Route path="customers" element={<AdminCustomersPage />} />
             <Route path="promotions" element={<AdminPromotionsPage />} />
             <Route path="banners" element={<AdminBannersPage />} />
+            <Route path="stores" element={<AdminStoresPage />} />
             <Route path="shipping" element={<AdminShippingPage />} />
             <Route path="inventory" element={<AdminInventoryPage />} />
             <Route path="suppliers" element={<AdminSuppliersPage />} />

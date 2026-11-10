@@ -1,4 +1,4 @@
-﻿export const ROUTES = {
+export const ROUTES = {
   HOME: '/',
   PRODUCTS: '/products',
   PRODUCT_DETAIL: '/products/:id',
@@ -16,6 +16,7 @@
   ADMIN_CUSTOMERS: '/admin/customers',
   ADMIN_PROMOTIONS: '/admin/promotions',
   ADMIN_BANNERS: '/admin/banners',
+  ADMIN_STORES: '/admin/stores',
   ADMIN_SHIPPING: '/admin/shipping',
   ADMIN_INVENTORY: '/admin/inventory',
   ADMIN_SUPPLIERS: '/admin/suppliers',

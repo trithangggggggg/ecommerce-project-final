@@ -4,12 +4,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import ra.project.server.common.response.ApiResponse;
 import ra.project.server.model.dto.request.AiChatRequest;
 import ra.project.server.model.dto.response.AiChatResponse;
+import ra.project.server.model.dto.response.VisualSearchResponse;
 import ra.project.server.service.AiService;
 import ra.project.server.service.RateLimiterService;
 
@@ -50,6 +53,19 @@ public class AiController {
         log.info("Khách hàng [{}] gửi câu hỏi tư vấn AI: {}", clientIp, request.getMessage());
         AiChatResponse response = aiService.chatWithCustomer(request);
         return ResponseEntity.ok(ApiResponse.success("Phản hồi từ NEXOR AI Assistant", response));
+    }
+
+    @PostMapping(value = "/visual-search", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<VisualSearchResponse>> visualSearch(
+            @RequestParam("image") MultipartFile image,
+            HttpServletRequest httpRequest
+    ) {
+        String clientIp = getClientIp(httpRequest);
+        log.info("Khách hàng [{}] gửi yêu cầu tìm kiếm sản phẩm bằng hình ảnh (file: {}, size: {} bytes)",
+                clientIp, image != null ? image.getOriginalFilename() : "null", image != null ? image.getSize() : 0);
+
+        VisualSearchResponse response = aiService.visualSearch(image);
+        return ResponseEntity.ok(ApiResponse.success("Tìm kiếm sản phẩm bằng hình ảnh thành công", response));
     }
 
     private String getClientIp(HttpServletRequest request) {

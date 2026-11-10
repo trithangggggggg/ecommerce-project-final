@@ -54,6 +54,12 @@ export const ENDPOINTS = {
     LIST: '/admin/suppliers',
     DETAIL: (id: number | string) => `/admin/suppliers/${id}`,
   },
+  STORES: '/stores',
+  STORE_DETAIL: (id: number | string) => `/stores/${id}`,
+  ADMIN_STORES: {
+    LIST: '/admin/stores',
+    DETAIL: (id: number | string) => `/admin/stores/${id}`,
+  },
   ADMIN_INVENTORY_RECEIPTS: {
     LIST: '/admin/inventory/receipts',
     DETAIL: (id: number | string) => `/admin/inventory/receipts/${id}`,
