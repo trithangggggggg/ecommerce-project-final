@@ -13,6 +13,7 @@ import {
   Check,
   Compass,
 } from 'lucide-react';
+import { storeService } from '../../api/services/store.service';
 
 // ---------------------------------------------------------------------------
 // Types & Data
@@ -256,6 +257,7 @@ const MapController: React.FC<MapControllerProps> = ({ selected }) => {
 // Main Page Component
 // ---------------------------------------------------------------------------
 const StoresPage: React.FC = () => {
+  const [storesList, setStoresList] = useState<Showroom[]>(SHOWROOMS);
   const [selectedProvince, setSelectedProvince] = useState<string>('');
   const [selectedShowroom, setSelectedShowroom] = useState<Showroom | null>(null);
   const [activeTileSourceId, setActiveTileSourceId] = useState<string>('osm-fr');
@@ -264,9 +266,36 @@ const StoresPage: React.FC = () => {
   // Lưu trữ ref các Marker để tự động mở Popup khi click showroom ở danh sách trái
   const markerRefs = useRef<{ [key: number]: L.Marker | null }>({});
 
+  // Gọi API lấy danh sách showroom thực tế từ backend
+  useEffect(() => {
+    const fetchApiStores = async () => {
+      try {
+        const data = await storeService.getPublicStores();
+        if (Array.isArray(data) && data.length > 0) {
+          const mapped: Showroom[] = data.map((item) => ({
+            id: item.id,
+            name: item.name,
+            province: item.province,
+            address: item.address,
+            phone: item.phoneNumber || '',
+            lat: item.latitude != null ? item.latitude : 21.0285,
+            lng: item.longitude != null ? item.longitude : 105.8542,
+            openHours: item.openHours || '08:00 - 22:00',
+          }));
+          setStoresList(mapped);
+        }
+      } catch {
+        // Fallback danh sách mặc định nếu server chưa khởi động
+      }
+    };
+    fetchApiStores();
+  }, []);
+
+  const dynamicProvinces = Array.from(new Set(storesList.map((s) => s.province))).sort();
+
   const filteredShowrooms = selectedProvince
-    ? SHOWROOMS.filter((s) => s.province === selectedProvince)
-    : SHOWROOMS;
+    ? storesList.filter((s) => s.province === selectedProvince)
+    : storesList;
 
   const currentTileSource =
     TILE_SOURCES.find((s) => s.id === activeTileSourceId) || TILE_SOURCES[0];
@@ -333,10 +362,10 @@ const StoresPage: React.FC = () => {
                   }}
                   className="w-full appearance-none bg-gray-50 hover:bg-gray-100/80 border border-gray-200 text-gray-800 text-sm font-semibold rounded-xl px-4 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent cursor-pointer transition"
                 >
-                  <option value="">— Tất cả Tỉnh / Thành phố ({SHOWROOMS.length} Showroom) —</option>
-                  {PROVINCES.map((prov) => (
+                  <option value="">— Tất cả Tỉnh / Thành phố ({storesList.length} Showroom) —</option>
+                  {dynamicProvinces.map((prov) => (
                     <option key={prov} value={prov}>
-                      {prov} ({SHOWROOMS.filter((s) => s.province === prov).length} địa điểm)
+                      {prov} ({storesList.filter((s) => s.province === prov).length} địa điểm)
                     </option>
                   ))}
                 </select>
