@@ -66,6 +66,7 @@ export const ENDPOINTS = {
   },
   AI: {
     CHAT: '/ai/chat',
+    VISUAL_SEARCH: '/ai/visual-search',
     GENERATE_DESCRIPTION: '/admin/ai/generate-description',
   },
   ADMIN_AI: {

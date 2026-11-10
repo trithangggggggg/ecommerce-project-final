@@ -22,12 +22,14 @@ import {
   Flame,
   Grid,
   Package,
+  Camera,
 } from 'lucide-react';
 import { useCartStore } from '../../../store/useCartStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { ROUTES } from '../../../constants/routes';
 import { PetMascot } from '../Mascot/PetMascot';
 import { LogoutConfirmModal } from '../LogoutConfirmModal';
+import { VisualSearchModal } from '../VisualSearchModal';
 
 export const Header: React.FC = () => {
   const navigate = useNavigate();
@@ -42,6 +44,7 @@ export const Header: React.FC = () => {
   const [avatarError, setAvatarError] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [visualSearchOpen, setVisualSearchOpen] = useState(false);
 
   const userMenuRef = useRef<HTMLDivElement>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -230,8 +233,17 @@ export const Header: React.FC = () => {
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               placeholder="Tìm kiếm sản phẩm, thương hiệu..."
-              className="w-full bg-[#232731] hover:bg-[#282d38] focus:bg-[#282d38] text-white text-xs pl-10 pr-4 py-2 rounded-full border border-gray-700/50 focus:border-blue-500 focus:outline-none transition placeholder-gray-400"
+              className="w-full bg-[#232731] hover:bg-[#282d38] focus:bg-[#282d38] text-white text-xs pl-10 pr-10 py-2 rounded-full border border-gray-700/50 focus:border-blue-500 focus:outline-none transition placeholder-gray-400"
             />
+            {/* Visual Search Camera Button */}
+            <button
+              type="button"
+              onClick={() => setVisualSearchOpen(true)}
+              className="absolute right-3 p-1 rounded-full text-gray-400 hover:text-white hover:bg-gray-700/60 transition cursor-pointer flex items-center justify-center group"
+              title="Tìm kiếm bằng hình ảnh"
+            >
+              <Camera className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            </button>
           </div>
         </form>
 
@@ -586,6 +598,12 @@ export const Header: React.FC = () => {
           })}
         </div>
       )}
+
+      {/* Modal Tìm kiếm bằng hình ảnh (Visual Search AI) */}
+      <VisualSearchModal
+        isOpen={visualSearchOpen}
+        onClose={() => setVisualSearchOpen(false)}
+      />
 
       {/* Modal xác nhận đăng xuất */}
       <LogoutConfirmModal
