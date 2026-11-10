@@ -6,10 +6,12 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import ra.project.server.model.entity.Article;
 import ra.project.server.model.entity.Category;
 import ra.project.server.model.entity.Supplier;
 import ra.project.server.model.entity.User;
 import ra.project.server.model.enums.Role;
+import ra.project.server.repository.ArticleRepository;
 import ra.project.server.repository.CategoryRepository;
 import ra.project.server.repository.SupplierRepository;
 import ra.project.server.repository.UserRepository;
@@ -25,6 +27,7 @@ public class DataInitializer implements CommandLineRunner {
         private final UserRepository userRepository;
         private final CategoryRepository categoryRepository;
         private final SupplierRepository supplierRepository;
+        private final ArticleRepository articleRepository;
         private final PasswordEncoder passwordEncoder;
 
         @Override
@@ -34,6 +37,7 @@ public class DataInitializer implements CommandLineRunner {
                 initCustomerUser();
                 initCategoriesOnly();
                 initSuppliersOnly();
+                initArticlesOnly();
         }
 
         private void initCustomerUser() {
@@ -148,6 +152,85 @@ public class DataInitializer implements CommandLineRunner {
                         );
                         supplierRepository.saveAll(defaultSuppliers);
                         log.info(">>> [DataInitializer] Đã khởi tạo thành công {} nhà cung cấp vào CSDL!", defaultSuppliers.size());
+                }
+        }
+
+        private void initArticlesOnly() {
+                if (articleRepository.count() == 0) {
+                        log.info(">>> [DataInitializer] Chưa có bài viết tin tức nào, tiến hành khởi tạo danh sách bài viết mẫu...");
+                        List<Article> sampleArticles = List.of(
+                                Article.builder()
+                                        .title("Đánh giá MacBook Air M3: Đỉnh cao laptop mỏng nhẹ cho lập trình viên và sinh viên")
+                                        .slug("danh-gia-macbook-air-m3-dinh-cao-laptop-mong-nhe-cho-lap-trinh-vien-va-sinh-vien")
+                                        .summary("MacBook Air M3 mang lại hiệu năng ấn tượng, thời lượng pin cả ngày và khả năng xuất 2 màn hình ngoài. Cùng tìm hiểu xem đây có phải là chiếc máy đáng nâng cấp nhất năm 2026?")
+                                        .content("<h2>1. Thiết kế sang trọng, tinh tế đến từng đường nét</h2>"
+                                                + "<p>MacBook Air M3 vẫn duy trì ngôn ngữ thiết kế vuông vức hiện đại, siêu mỏng nhẹ chỉ <strong>1.24 kg</strong>. Vỏ nhôm nguyên khối tái chế 100% thân thiện với môi trường, đặc biệt phiên bản màu Midnight đã được bổ sung lớp phủ anot hóa giảm thiểu đáng kể dấu vân tay.</p>"
+                                                + "<h2>2. Sức mạnh đột phá từ con chip Apple M3</h2>"
+                                                + "<p>Chip M3 được sản xuất trên tiến trình <strong>3nm</strong> tiên tiến nhất thế giới, đem đến bước nhảy vọt về hiệu suất GPU với công nghệ Ray Tracing và Mesh Shading bằng phần cứng.</p>"
+                                                + "<ul>"
+                                                + "<li><strong>Tốc độ CPU:</strong> Nhanh hơn 35% so với M1 và 20% so với M2.</li>"
+                                                + "<li><strong>Xử lý đồ họa GPU:</strong> Chơi mượt mà các tựa game đồ họa cao và render video 4K ProRes nhanh chóng.</li>"
+                                                + "<li><strong>Neural Engine 16 lõi:</strong> Tối ưu cho các mô hình AI máy học nội bộ chạy cực nhanh và tiết kiệm điện.</li>"
+                                                + "</ul>"
+                                                + "<h2>3. Trải nghiệm pin bền bỉ lên tới 18 giờ liên tục</h2>"
+                                                + "<p>Bạn hoàn toàn có thể làm việc trọn vẹn cả ngày dài tại quán cà phê mà không cần mang theo củ sạc. Màn hình Liquid Retina 500 nits sống động với dải màu P3 rực rỡ.</p>"
+                                                + "<blockquote><p>MacBook Air M3 xứng đáng là chiếc máy tính xách tay mỏng nhẹ toàn diện nhất thị trường hiện nay cho công việc, học tập và sáng tạo nội dung.</p></blockquote>")
+                                        .thumbnail("/images/macbook-hero-banner.jpg")
+                                        .category("Đánh giá")
+                                        .views(128L)
+                                        .status(true)
+                                        .build(),
+
+                                Article.builder()
+                                        .title("Xu hướng AI và Trí tuệ nhân tạo năm 2026: Kỷ nguyên của các trợ lý Agentic")
+                                        .slug("xu-huong-ai-va-tri-tue-nhan-tao-nam-2026-ky-nguyen-cua-cac-tro-ly-agentic")
+                                        .summary("Năm 2026 đánh dấu bước ngoặt khi AI không chỉ trả lời câu hỏi mà đã có thể tự động lập kế hoạch, sử dụng công cụ và giải quyết công việc phức tạp thay con người.")
+                                        .content("<h2>1. Từ Chatbot thế hệ cũ sang Agentic AI chủ động</h2>"
+                                                + "<p>Nếu như những năm trước, chúng ta quen thuộc với việc hỏi - đáp cùng các mô hình ngôn ngữ lớn (LLM), thì năm 2026 chứng kiến sự bùng nổ của <em>Hệ thống Tự hành (Agentic Systems)</em>. Các Agent có khả năng tự suy luận, tự gọi API, viết code và sửa lỗi mà không cần sự can thiệp liên tục từ người dùng.</p>"
+                                                + "<h2>2. Tích hợp AI ngay trong phần cứng thiết bị di động</h2>"
+                                                + "<p>Các dòng chip mới nhất như Snapdragon 8 Elite, Apple A18 Pro và Tensor G5 đều trang bị NPU siêu mạnh, cho phép xử lý thị giác máy tính và trợ lý giọng nói trực tiếp On-device với độ trễ gần như bằng 0 mà vẫn bảo mật thông tin riêng tư tuyệt đối.</p>"
+                                                + "<h2>3. Đón đầu công nghệ tại hệ thống bán lẻ NEXOR</h2>"
+                                                + "<p>Tại NEXOR, chúng tôi luôn cập nhật nhanh nhất các thiết bị công nghệ hỗ trợ AI tiên tiến nhất cùng sự tư vấn chuyên sâu từ đội ngũ kỹ thuật viên am hiểu công nghệ.</p>")
+                                        .thumbnail("/images/tech-future-banner.jpg")
+                                        .category("Công nghệ")
+                                        .views(256L)
+                                        .status(true)
+                                        .build(),
+
+                                Article.builder()
+                                        .title("So sánh iPhone 16 Pro Max và Samsung Galaxy S24 Ultra: Kèo đối đầu đỉnh cao")
+                                        .slug("so-sanh-iphone-16-pro-max-va-samsung-galaxy-s24-ultra-keo-doi-dau-dinh-cao")
+                                        .summary("Hai chiếc smartphone cao cấp nhất hiện nay đến từ Apple và Samsung có những điểm gì khác biệt? Đâu là sự lựa chọn tối ưu cho nhu cầu sử dụng của bạn?")
+                                        .content("<h2>1. Màn hình và Thiết kế: Khung viền Titan đẳng cấp</h2>"
+                                                + "<p>Cả iPhone 16 Pro Max và Galaxy S24 Ultra đều sử dụng khung viền Titan cấp 5 cao cấp, mang lại cảm giác cầm nắm chắc chắn, chống trầy xước và giảm trọng lượng đáng kể.</p>"
+                                                + "<h2>2. Nhiếp ảnh và Quay phim: 5x Zoom quang học & Camera Control</h2>"
+                                                + "<p>iPhone 16 Pro Max bổ sung nút điều khiển Camera Control tiện lợi và quay video 4K 120fps Dolby Vision điện ảnh. Trong khi đó, Galaxy S24 Ultra ghi điểm nhờ cảm biến 200MP siêu nét cùng bút S-Pen đa năng tích hợp sâu trong thân máy.</p>"
+                                                + "<h2>3. Kết luận</h2>"
+                                                + "<p>Nếu bạn yêu thích hệ sinh thái mượt mà của Apple và khả năng quay video đỉnh cao, hãy chọn <strong>iPhone 16 Pro Max</strong>. Nếu bạn muốn màn hình chống chói Dynamic AMOLED đỉnh nhất và bộ công cụ Galaxy AI mạnh mẽ, <strong>Galaxy S24 Ultra</strong> là sự lựa chọn số 1.</p>")
+                                        .thumbnail("/images/iphone-16-pro-max.jpg")
+                                        .category("Đánh giá")
+                                        .views(342L)
+                                        .status(true)
+                                        .build(),
+
+                                Article.builder()
+                                        .title("Top 5 mẹo tối ưu hiệu năng Laptop Gaming ASUS ROG cho game thủ chuyên nghiệp")
+                                        .slug("top-5-meo-toi-uu-hieu-nang-laptop-gaming-asus-rog-cho-game-thu-chuyen-nghiep")
+                                        .summary("Bỏ túi ngay 5 thiết lập quan trọng giúp laptop ASUS ROG tản nhiệt mát mẻ hơn, tăng FPS khi leo rank và kéo dài tuổi thọ phần cứng máy.")
+                                        .content("<h2>1. Kích hoạt MUX Switch và NVIDIA Advanced Optimus</h2>"
+                                                + "<p>Chuyển chế độ sang dGPU Discrete Graphics trong ứng dụng Armoury Crate để luồng xuất hình đi trực tiếp từ card rời, giúp giảm độ trễ hiển thị và tăng ngay từ 10% đến 25% FPS trong game Esport.</p>"
+                                                + "<h2>2. Tùy chỉnh Fan Curve trong Armoury Crate</h2>"
+                                                + "<p>Hãy chuyển sang profile <em>Turbo</em> hoặc <em>Manual</em> khi chơi game nặng để quạt tản nhiệt quay ở công suất tối ưu sớm hơn, giữ cho CPU và GPU luôn duy trì dưới 82 độ C.</p>"
+                                                + "<h2>3. Cập nhật Game Ready Driver mới nhất</h2>"
+                                                + "<p>Thường xuyên kiểm tra GeForce Experience để cài đặt driver mới nhất được tối ưu hóa riêng cho các tựa game hot hiện hành.</p>")
+                                        .thumbnail("/images/asus-rog-strix.jpg")
+                                        .category("Thủ thuật")
+                                        .views(89L)
+                                        .status(true)
+                                        .build()
+                        );
+                        articleRepository.saveAll(sampleArticles);
+                        log.info(">>> [DataInitializer] Đã khởi tạo thành công {} bài viết tin tức mẫu chuẩn SEO vào CSDL!", sampleArticles.size());
                 }
         }
 }

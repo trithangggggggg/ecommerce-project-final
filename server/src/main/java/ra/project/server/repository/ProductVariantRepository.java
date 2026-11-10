@@ -30,4 +30,11 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
     @Modifying
     @Query("UPDATE ProductVariant pv SET pv.stock = pv.stock + :qty WHERE pv.id = :id")
     int restoreStock(@Param("id") Long id, @Param("qty") int qty);
+
+    @Query("SELECT pv FROM ProductVariant pv " +
+           "JOIN FETCH pv.product p " +
+           "LEFT JOIN FETCH p.category " +
+           "WHERE pv.stock <= :threshold AND pv.status = true AND p.isDeleted = false " +
+           "ORDER BY pv.stock ASC")
+    List<ProductVariant> findLowStockVariants(@Param("threshold") int threshold);
 }

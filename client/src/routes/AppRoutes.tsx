@@ -18,12 +18,15 @@ import RegisterPage from '../pages/auth/RegisterPage';
 import ProfilePage from '../pages/auth/ProfilePage';
 import UnauthorizedPage from '../pages/common/UnauthorizedPage';
 import StoresPage from '../pages/guest/StoresPage';
+import ArticlesPage from '../pages/guest/ArticlesPage';
+import ArticleDetailPage from '../pages/guest/ArticleDetailPage';
 import NotFoundPage from '../pages/common/NotFoundPage';
 
 // Lazy-loaded Admin Layout & Pages (Code Splitting để giảm bundle size trang chủ)
 const AdminLayout = React.lazy(() => import('../layouts/AdminLayout'));
 const DashboardPage = React.lazy(() => import('../pages/admin/DashboardPage'));
 const AdminProductsPage = React.lazy(() => import('../pages/admin/AdminProductsPage'));
+const AdminArticlesPage = React.lazy(() => import('../pages/admin/AdminArticlesPage'));
 const AdminCategoriesPage = React.lazy(() => import('../pages/admin/AdminCategoriesPage'));
 const AdminOrdersPage = React.lazy(() => import('../pages/admin/AdminOrdersPage'));
 const AdminCustomersPage = React.lazy(() => import('../pages/admin/AdminCustomersPage'));
@@ -77,6 +80,10 @@ export const AppRoutes: React.FC = () => {
           <Route path="products" element={<ProductsPage />} />
           <Route path="products/:id" element={<ProductDetailPage />} />
           <Route path="stores" element={<StoresPage />} />
+          <Route path="articles" element={<ArticlesPage />} />
+          <Route path="articles/:slug" element={<ArticleDetailPage />} />
+          <Route path="tin-tuc" element={<ArticlesPage />} />
+          <Route path="tin-tuc/:slug" element={<ArticleDetailPage />} />
           <Route path="cart" element={<CartPage />} />
 
           {/* Các route yêu cầu khách hàng đăng nhập */}
@@ -108,6 +115,7 @@ export const AppRoutes: React.FC = () => {
             <Route index element={<DashboardPage />} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="products" element={<AdminProductsPage />} />
+            <Route path="articles" element={<AdminArticlesPage />} />
             <Route path="categories" element={<AdminCategoriesPage />} />
             <Route path="orders" element={<AdminOrdersPage />} />
             <Route path="customers" element={<AdminCustomersPage />} />

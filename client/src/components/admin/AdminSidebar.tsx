@@ -17,6 +17,7 @@ import {
   Image as ImageIcon,
   Sparkles,
   Store,
+  Newspaper,
 } from 'lucide-react';
 import { ROUTES } from '../../constants/routes';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -43,6 +44,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
     { title: 'Đơn hàng', path: ROUTES.ADMIN_ORDERS, icon: ShoppingCart },
     { title: 'Sản phẩm', path: ROUTES.ADMIN_PRODUCTS, icon: Package },
     { title: 'Danh mục', path: ROUTES.ADMIN_CATEGORIES, icon: Layers },
+    { title: 'Bài viết & Tin tức', path: ROUTES.ADMIN_ARTICLES, icon: Newspaper },
     { title: 'Khách hàng', path: ROUTES.ADMIN_CUSTOMERS, icon: Users },
     { title: 'Khuyến mãi', path: ROUTES.ADMIN_PROMOTIONS, icon: Percent },
     { title: 'Banner trang chủ', path: ROUTES.ADMIN_BANNERS, icon: ImageIcon },

@@ -95,10 +95,12 @@ public class SecurityConfig {
                         // Cho phép gọi các endpoint Auth và Chatbot AI không cần đăng nhập
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/ai/**").permitAll()
-                        // Cho phép xem sản phẩm, danh mục, tra cứu mã giảm giá, vòng quay, showroom và đối tác vận chuyển công khai
+                        // Cho phép truy cập file tĩnh uploads công khai
+                        .requestMatchers("/uploads/**").permitAll()
+                        // Cho phép xem sản phẩm, danh mục, tin tức bài viết, tra cứu mã giảm giá, vòng quay, showroom và đối tác vận chuyển công khai
                         .requestMatchers("/api/promotions/**").permitAll()
                         .requestMatchers("/api/wheel/status").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**", "/api/shipping-carriers/**", "/api/stores/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**", "/api/articles/**", "/api/shipping-carriers/**", "/api/stores/**").permitAll()
                         // Phân quyền ADMIN cho các chức năng quản trị
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // Các API cá nhân, đơn hàng và quay thưởng yêu cầu đã đăng nhập

@@ -23,8 +23,11 @@ export const ROUTES = {
   ADMIN_REPORTS: '/admin/reports',
   ADMIN_SETTINGS: '/admin/settings',
   ADMIN_AI: '/admin/ai',
+  ADMIN_ARTICLES: '/admin/articles',
   UNAUTHORIZED: '/unauthorized',
   STORES: '/stores',
   NEWS: '/news',
   POLICIES: '/policies',
+  ARTICLES: '/articles',
+  ARTICLE_DETAIL: '/articles/:slug',
 } as const;

@@ -25,4 +25,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByEmailIgnoreCase(String email);
 
     long countByRole(ra.project.server.model.enums.Role role);
+
+    long countByRoleAndCreatedAtBetween(ra.project.server.model.enums.Role role, java.time.LocalDateTime start, java.time.LocalDateTime end);
 }

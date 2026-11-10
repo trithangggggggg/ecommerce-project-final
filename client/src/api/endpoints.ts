@@ -68,6 +68,7 @@ export const ENDPOINTS = {
     CHAT: '/ai/chat',
     VISUAL_SEARCH: '/ai/visual-search',
     GENERATE_DESCRIPTION: '/admin/ai/generate-description',
+    GENERATE_ARTICLE: '/admin/ai/generate-article',
   },
   ADMIN_AI: {
     KNOWLEDGE: '/admin/ai/knowledge',
@@ -79,5 +80,16 @@ export const ENDPOINTS = {
     KNOWLEDGE_CHUNKS: (id: number | string) => `/admin/ai/knowledge/${id}/chunks`,
     CONFIG: '/admin/ai/config',
     CONFIG_TEST: '/admin/ai/config/test',
+  },
+  ARTICLES: '/articles',
+  ARTICLE_DETAIL: (slug: string) => `/articles/${slug}`,
+  ADMIN_ARTICLES: {
+    LIST: '/admin/articles',
+    DETAIL: (id: number | string) => `/admin/articles/${id}`,
+    CREATE: '/admin/articles',
+    UPDATE: (id: number | string) => `/admin/articles/${id}`,
+    DELETE: (id: number | string) => `/admin/articles/${id}`,
+    UPLOAD_THUMBNAIL: '/admin/articles/upload-thumbnail',
+    UPLOAD_IMAGE: '/admin/articles/upload-image',
   },
 } as const;

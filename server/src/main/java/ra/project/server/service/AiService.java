@@ -11,6 +11,8 @@ public interface AiService {
 
     AiGenerateDescriptionResponse generateProductDescription(AiGenerateDescriptionRequest request);
 
+    ra.project.server.model.dto.response.AiGenerateArticleResponse generateArticleContent(ra.project.server.model.dto.request.AiGenerateArticleRequest request);
+
     AiChatResponse chatWithCustomer(AiChatRequest request);
 
     VisualSearchResponse visualSearch(MultipartFile image);
