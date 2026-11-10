@@ -1,22 +1,21 @@
 import 'leaflet/dist/leaflet.css';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import {
   MapPin,
-  Phone,
   Clock,
   Navigation,
   ChevronDown,
-  Store,
   Layers,
   Check,
-  Compass,
+  Search,
+  ArrowRight,
 } from 'lucide-react';
 import { storeService } from '../../api/services/store.service';
 
 // ---------------------------------------------------------------------------
-// Types & Data
+// Types & Sample Data
 // ---------------------------------------------------------------------------
 export interface Showroom {
   id: number;
@@ -27,7 +26,18 @@ export interface Showroom {
   lat: number;
   lng: number;
   openHours?: string;
+  image?: string;
+  distance?: number;
 }
+
+const STORE_IMAGES = [
+  'https://images.unsplash.com/photo-1531297484001-80022131f5a1?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=600&q=80',
+];
 
 const SHOWROOMS: Showroom[] = [
   {
@@ -39,6 +49,7 @@ const SHOWROOMS: Showroom[] = [
     lat: 21.0066,
     lng: 105.7901,
     openHours: '08:00 – 21:00',
+    image: STORE_IMAGES[0],
   },
   {
     id: 2,
@@ -49,6 +60,7 @@ const SHOWROOMS: Showroom[] = [
     lat: 21.0286,
     lng: 105.8521,
     openHours: '08:30 – 21:30',
+    image: STORE_IMAGES[1],
   },
   {
     id: 3,
@@ -59,6 +71,7 @@ const SHOWROOMS: Showroom[] = [
     lat: 10.7769,
     lng: 106.6951,
     openHours: '08:00 – 22:00',
+    image: STORE_IMAGES[2],
   },
   {
     id: 4,
@@ -69,6 +82,7 @@ const SHOWROOMS: Showroom[] = [
     lat: 10.8509,
     lng: 106.7721,
     openHours: '08:00 – 21:30',
+    image: STORE_IMAGES[3],
   },
   {
     id: 5,
@@ -79,6 +93,7 @@ const SHOWROOMS: Showroom[] = [
     lat: 16.0544,
     lng: 108.2022,
     openHours: '08:00 – 21:00',
+    image: STORE_IMAGES[4],
   },
   {
     id: 6,
@@ -89,6 +104,7 @@ const SHOWROOMS: Showroom[] = [
     lat: 16.0693,
     lng: 108.1797,
     openHours: '08:30 – 21:00',
+    image: STORE_IMAGES[5],
   },
   {
     id: 7,
@@ -99,6 +115,7 @@ const SHOWROOMS: Showroom[] = [
     lat: 20.8449,
     lng: 106.6881,
     openHours: '08:00 – 21:00',
+    image: STORE_IMAGES[0],
   },
   {
     id: 8,
@@ -109,6 +126,7 @@ const SHOWROOMS: Showroom[] = [
     lat: 10.0333,
     lng: 105.7881,
     openHours: '08:00 – 21:00',
+    image: STORE_IMAGES[1],
   },
   {
     id: 9,
@@ -119,6 +137,7 @@ const SHOWROOMS: Showroom[] = [
     lat: 12.2451,
     lng: 109.1951,
     openHours: '08:00 – 21:00',
+    image: STORE_IMAGES[2],
   },
   {
     id: 10,
@@ -129,10 +148,25 @@ const SHOWROOMS: Showroom[] = [
     lat: 16.4674,
     lng: 107.5951,
     openHours: '08:00 – 20:30',
+    image: STORE_IMAGES[3],
   },
 ];
 
-// Các nguồn Tile Layer HOÀN TOÀN MIỄN PHÍ - KHÔNG CẦN BẤT KỲ API KEY NÀO
+// Tính khoảng cách Haversine (km)
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
 interface TileSource {
   id: string;
   name: string;
@@ -144,71 +178,57 @@ interface TileSource {
 
 const TILE_SOURCES: TileSource[] = [
   {
+    id: 'esri-street',
+    name: 'Esri Street (Giao diện sạch)',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri',
+    maxZoom: 19,
+  },
+  {
     id: 'osm-fr',
-    name: 'Bản đồ OpenStreetMap',
+    name: 'OpenStreetMap chuẩn',
     url: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png',
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors &copy; <a href="https://openstreetmap.fr" target="_blank" rel="noreferrer">OSM France</a>',
+    attribution: '&copy; OpenStreetMap contributors',
     subdomains: 'abc',
     maxZoom: 20,
   },
   {
-    id: 'esri-street',
-    name: 'Bản đồ đường phố Esri',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-    attribution:
-      'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom',
-    maxZoom: 19,
-  },
-  {
     id: 'osm-hot',
-    name: 'Bản đồ OpenStreetMap Nhân đạo (HOT)',
+    name: 'OpenStreetMap HOT',
     url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors, Tiles style by Humanitarian OpenStreetMap Team',
+    attribution: '&copy; OpenStreetMap contributors',
     subdomains: 'abc',
     maxZoom: 19,
   },
 ];
 
-// Tạo Marker Icon vector hiện đại (không bị vỡ ảnh trên mọi thiết bị)
+// Marker Pin vector hiện đại giống hệt ảnh mẫu
 const createPinIcon = (isSelected: boolean) =>
   L.divIcon({
     className: 'custom-nexor-marker',
     html: `
-      <div style="position: relative; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;">
+      <div style="position: relative; width: 28px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
         ${
           isSelected
-            ? '<div style="position: absolute; inset: -4px; border-radius: 50%; background-color: rgba(99, 102, 241, 0.35); animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>'
+            ? '<div style="position: absolute; top: -3px; width: 34px; height: 34px; border-radius: 50%; background-color: rgba(15, 23, 42, 0.25); animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>'
             : ''
         }
-        <div style="
-          width: 32px;
-          height: 32px;
-          border-radius: 50% 50% 50% 0;
-          transform: rotate(-45deg);
-          background: ${isSelected ? 'linear-gradient(135deg, #4f46e5, #4338ca)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'};
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border: 2px solid #ffffff;
-          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-          transition: transform 0.2s ease, background 0.2s ease;
-        ">
-          <svg style="transform: rotate(45deg); width: 16px; height: 16px; color: #ffffff;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
-            <circle cx="12" cy="10" r="3"></circle>
-          </svg>
-        </div>
+        <svg width="28" height="36" viewBox="0 0 30 38" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 3px 5px rgba(0,0,0,0.28)); transition: transform 0.2s ease;">
+          <path d="M15 0C6.716 0 0 6.716 0 15C0 25.5 15 38 15 38C15 38 30 25.5 30 15C30 6.716 23.284 0 15 0Z" fill="${
+            isSelected ? '#0f172a' : '#1e88e5'
+          }"/>
+          <circle cx="15" cy="14" r="5.5" fill="#ffffff"/>
+          ${isSelected ? '<circle cx="15" cy="14" r="2.8" fill="#0f172a"/>' : ''}
+        </svg>
       </div>
     `,
-    iconSize: [34, 34],
-    iconAnchor: [17, 34],
-    popupAnchor: [0, -32],
+    iconSize: [28, 36],
+    iconAnchor: [14, 36],
+    popupAnchor: [0, -34],
   });
 
 // ---------------------------------------------------------------------------
-// MapController Component (FlyTo + InvalidateSize handling)
+// MapController Component
 // ---------------------------------------------------------------------------
 interface MapControllerProps {
   selected: Showroom | null;
@@ -218,33 +238,23 @@ const MapController: React.FC<MapControllerProps> = ({ selected }) => {
   const map = useMap();
 
   useEffect(() => {
-    // Sửa lỗi nền xám: Kích hoạt tính toán lại kích thước khung hình bản đồ
     map.invalidateSize();
-
-    const timer1 = setTimeout(() => {
-      map.invalidateSize();
-    }, 150);
-
-    const timer2 = setTimeout(() => {
-      map.invalidateSize();
-    }, 600);
-
-    const handleResize = () => {
-      map.invalidateSize();
-    };
-
+    const t1 = setTimeout(() => map.invalidateSize(), 100);
+    const t2 = setTimeout(() => map.invalidateSize(), 300);
+    const t3 = setTimeout(() => map.invalidateSize(), 600);
+    const handleResize = () => map.invalidateSize();
     window.addEventListener('resize', handleResize);
-
     return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
       window.removeEventListener('resize', handleResize);
     };
   }, [map]);
 
   useEffect(() => {
     if (selected) {
-      map.flyTo([selected.lat, selected.lng], 16, { duration: 1.2 });
+      map.flyTo([selected.lat, selected.lng], 16, { duration: 1 });
     }
   }, [selected, map]);
 
@@ -256,21 +266,61 @@ const MapController: React.FC<MapControllerProps> = ({ selected }) => {
 // ---------------------------------------------------------------------------
 const StoresPage: React.FC = () => {
   const [storesList, setStoresList] = useState<Showroom[]>(SHOWROOMS);
+  const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedProvince, setSelectedProvince] = useState<string>('');
+  const [sortBy, setSortBy] = useState<'default' | 'distance' | 'name'>('default');
   const [selectedShowroom, setSelectedShowroom] = useState<Showroom | null>(null);
-  const [activeTileSourceId, setActiveTileSourceId] = useState<string>('osm-fr');
+  const [activeTileSourceId, setActiveTileSourceId] = useState<string>('esri-street');
   const [showLayerMenu, setShowLayerMenu] = useState<boolean>(false);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
 
-  // Lưu trữ ref các Marker để tự động mở Popup khi click showroom ở danh sách trái
   const markerRefs = useRef<{ [key: number]: L.Marker | null }>({});
 
-  // Gọi API lấy danh sách showroom thực tế từ backend
+  // Khóa cuộn trang và ẩn Footer để loại bỏ hoàn toàn thanh kéo dọc khi ở trang Showroom
+  useEffect(() => {
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalHtmlOverflow = document.documentElement.style.overflow;
+    const footer = document.querySelector('footer');
+    const originalFooterDisplay = footer ? footer.style.display : '';
+
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    if (footer) {
+      footer.style.display = 'none';
+    }
+
+    return () => {
+      document.body.style.overflow = originalBodyOverflow;
+      document.documentElement.style.overflow = originalHtmlOverflow;
+      if (footer) {
+        footer.style.display = originalFooterDisplay;
+      }
+    };
+  }, []);
+
+  // Lấy vị trí địa lý của người dùng
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setUserCoords({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          });
+        },
+        () => {},
+        { timeout: 6000 }
+      );
+    }
+  }, []);
+
+  // Lấy danh sách showroom từ API backend
   useEffect(() => {
     const fetchApiStores = async () => {
       try {
         const data = await storeService.getPublicStores();
         if (Array.isArray(data) && data.length > 0) {
-          const mapped: Showroom[] = data.map((item) => ({
+          const mapped: Showroom[] = data.map((item, index) => ({
             id: item.id,
             name: item.name,
             province: item.province,
@@ -278,29 +328,58 @@ const StoresPage: React.FC = () => {
             phone: item.phoneNumber || '',
             lat: item.latitude != null ? item.latitude : 21.0285,
             lng: item.longitude != null ? item.longitude : 105.8542,
-            openHours: item.openHours || '08:00 - 22:00',
+            openHours: item.openHours || '08:00 – 21:30',
+            image: STORE_IMAGES[index % STORE_IMAGES.length],
           }));
           setStoresList(mapped);
         }
       } catch {
-        // Fallback danh sách mặc định nếu server chưa khởi động
+        // Fallback danh sách mặc định nếu server chưa chạy
       }
     };
     fetchApiStores();
   }, []);
 
-  const dynamicProvinces = Array.from(new Set(storesList.map((s) => s.province))).sort();
+  const dynamicProvinces = useMemo(() => {
+    return Array.from(new Set(storesList.map((s) => s.province))).sort();
+  }, [storesList]);
 
-  const filteredShowrooms = selectedProvince
-    ? storesList.filter((s) => s.province === selectedProvince)
-    : storesList;
+  const filteredAndSortedShowrooms = useMemo(() => {
+    let list = storesList.map((store) => {
+      const distance = userCoords
+        ? calculateDistance(userCoords.lat, userCoords.lng, store.lat, store.lng)
+        : undefined;
+      return { ...store, distance };
+    });
+
+    if (selectedProvince) {
+      list = list.filter((s) => s.province === selectedProvince);
+    }
+
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      list = list.filter(
+        (s) =>
+          s.name.toLowerCase().includes(term) ||
+          s.address.toLowerCase().includes(term) ||
+          s.province.toLowerCase().includes(term)
+      );
+    }
+
+    if (sortBy === 'distance') {
+      list.sort((a, b) => (a.distance ?? 999999) - (b.distance ?? 999999));
+    } else if (sortBy === 'name') {
+      list.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    return list;
+  }, [storesList, selectedProvince, searchTerm, sortBy, userCoords]);
 
   const currentTileSource =
     TILE_SOURCES.find((s) => s.id === activeTileSourceId) || TILE_SOURCES[0];
 
   const handleShowroomClick = (showroom: Showroom) => {
     setSelectedShowroom(showroom);
-    // Tự động mở Popup tương ứng trên bản đồ
     const marker = markerRefs.current[showroom.id];
     if (marker) {
       marker.openPopup();
@@ -315,303 +394,392 @@ const StoresPage: React.FC = () => {
     );
   };
 
-  // Tọa độ trung tâm Việt Nam
   const defaultCenter: [number, number] = [16.047, 108.206];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Page Header */}
-      <div className="bg-gradient-to-r from-[#181a20] via-[#1e2330] to-[#282d3d] py-10 px-4 shadow-inner">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-400">
-              <Store className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                Hệ Thống Showroom NEXOR
+    <>
+      {/* CSS Rules đảm bảo trang fit chính xác 1 viewport, ẩn triệt để thanh scrollbar */}
+      <style>{`
+        footer {
+          display: none !important;
+        }
+        html, body, #root {
+          overflow: hidden !important;
+          height: 100% !important;
+        }
+        #main-content {
+          overflow: hidden !important;
+          height: calc(100vh - 108px) !important;
+          display: flex !important;
+          flex-direction: column !important;
+          padding: 0 !important;
+          margin: 0 !important;
+        }
+        .store-locator-custom-popup .leaflet-popup-content-wrapper {
+          padding: 0 !important;
+          border-radius: 1rem !important;
+          overflow: hidden !important;
+          box-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.16) !important;
+        }
+        .store-locator-custom-popup .leaflet-popup-content {
+          margin: 0 !important;
+          line-height: 1.4 !important;
+        }
+        .store-locator-custom-popup .leaflet-popup-tip {
+          background: #ffffff !important;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 9999px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+      `}</style>
+
+      {/* Container chiếm trọn chiều cao còn lại của viewport (dưới Header ~108px), không tràn */}
+      <div className="w-full h-[calc(100vh-108px)] max-h-[calc(100vh-108px)] flex flex-col p-2.5 sm:p-3.5 md:p-4 bg-[#f4f7fb] box-border overflow-hidden">
+        {/* Card trắng chính theo phong cách ảnh mẫu */}
+        <div className="w-full h-full max-w-[1440px] mx-auto bg-white rounded-2xl md:rounded-3xl shadow-xs border border-slate-200/90 p-3 sm:p-4 lg:p-5 flex flex-col overflow-hidden min-h-0">
+          {/* Header Card: Store locator + Badge + Search icon */}
+          <div className="flex items-center justify-between shrink-0 pb-2.5">
+            <div className="flex items-center gap-2.5">
+              <h1 className="text-xl sm:text-2xl font-black text-[#1d3557] tracking-tight">
+                Tìm kiếm Showroom
               </h1>
-              <p className="text-gray-400 text-xs sm:text-sm mt-0.5">
-                Trải nghiệm trực tiếp các sản phẩm công nghệ flagship tại các thành phố lớn
-              </p>
+              <span className="text-[11px] font-bold px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-full">
+                {filteredAndSortedShowrooms.length} địa điểm
+              </span>
+            </div>
+            <div className="text-slate-400 p-1 rounded-full hover:bg-slate-50 transition">
+              <Search className="w-4 h-4 text-slate-500" />
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-[380px_1fr] gap-6 items-start">
-          {/* ----------------------------------------------------------------
-              LEFT PANEL: Province filter & Showroom List
-          ---------------------------------------------------------------- */}
-          <div className="flex flex-col gap-4">
-            {/* Bộ lọc Tỉnh / Thành phố */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                Chọn khu vực / Tỉnh thành
-              </label>
-              <div className="relative">
+          {/* Thanh tìm kiếm & Bộ lọc bo tròn (Pill style theo ảnh mẫu) */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shrink-0 pb-3 border-b border-slate-100">
+            {/* Ô nhập địa chỉ / tên */}
+            <div className="relative flex-1 min-w-[200px]">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Nhập tên showroom, địa chỉ..."
+                className="w-full bg-[#f4f6f8] hover:bg-[#edf0f4] focus:bg-white text-slate-800 text-xs sm:text-sm font-medium rounded-full py-2 pl-3.5 pr-8 border border-transparent focus:border-slate-300 focus:outline-none transition"
+              />
+              {searchTerm ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 font-bold"
+                >
+                  ✕
+                </button>
+              ) : (
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+              )}
+            </div>
+
+            {/* Bộ lọc Tỉnh thành, Khoảng cách và Nút SEARCH */}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Dropdown Tỉnh/Thành */}
+              <div className="relative min-w-[130px] sm:min-w-[160px]">
                 <select
                   value={selectedProvince}
                   onChange={(e) => {
                     setSelectedProvince(e.target.value);
                     setSelectedShowroom(null);
                   }}
-                  className="w-full appearance-none bg-gray-50 hover:bg-gray-100/80 border border-gray-200 text-gray-800 text-sm font-semibold rounded-xl px-4 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent cursor-pointer transition"
+                  className="w-full appearance-none bg-[#f4f6f8] hover:bg-[#edf0f4] text-slate-700 text-xs sm:text-sm font-semibold rounded-full py-2 pl-3.5 pr-7 border border-transparent focus:outline-none cursor-pointer transition truncate"
                 >
-                  <option value="">— Tất cả Tỉnh / Thành phố ({storesList.length} Showroom) —</option>
+                  <option value="">Tất cả Tỉnh/Thành</option>
                   {dynamicProvinces.map((prov) => (
                     <option key={prov} value={prov}>
-                      {prov} ({storesList.filter((s) => s.province === prov).length} địa điểm)
+                      {prov}
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
               </div>
 
-              <div className="flex items-center justify-between mt-2.5 text-xs text-gray-500">
-                <span>
-                  Hiển thị{' '}
-                  <strong className="text-indigo-600 font-bold">{filteredShowrooms.length}</strong>{' '}
-                  showroom
-                </span>
-                {selectedProvince && (
+              {/* Dropdown Sắp xếp / Khoảng cách */}
+              <div className="relative min-w-[110px] sm:min-w-[125px]">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as 'default' | 'distance' | 'name')}
+                  className="w-full appearance-none bg-[#f4f6f8] hover:bg-[#edf0f4] text-slate-700 text-xs sm:text-sm font-semibold rounded-full py-2 pl-3 pr-7 border border-transparent focus:outline-none cursor-pointer transition"
+                >
+                  <option value="default">Mặc định</option>
+                  <option value="distance">Gần nhất</option>
+                  <option value="name">Tên A-Z</option>
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+              </div>
+
+              {/* Nút TÌM KIẾM pill đen */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (filteredAndSortedShowrooms.length > 0) {
+                    handleShowroomClick(filteredAndSortedShowrooms[0]);
+                  }
+                }}
+                className="bg-black hover:bg-slate-800 active:scale-95 text-white text-[11px] font-extrabold uppercase tracking-wider px-5 py-2 rounded-full transition shadow-xs cursor-pointer"
+              >
+                TÌM KIẾM
+              </button>
+            </div>
+          </div>
+
+          {/* Bố cục nội dung chính: Bên trái Bản đồ (Map) - Bên phải Danh sách (List) */}
+          {/* min-h-0 và flex-1 đảm bảo không bao giờ tràn ra ngoài viewport */}
+          <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 pt-3">
+            {/* ----------------------------------------------------------------
+                BÊN TRÁI: BẢN ĐỒ MAP
+            ---------------------------------------------------------------- */}
+            <div className="lg:col-span-7 xl:col-span-8 h-full min-h-0 rounded-2xl overflow-hidden relative border border-slate-200 shadow-inner bg-slate-100">
+              {/* Nút đổi Tile Layer */}
+              <div className="absolute top-2.5 right-2.5 z-[1000]">
+                <div className="relative">
                   <button
                     type="button"
-                    onClick={() => {
-                      setSelectedProvince('');
-                      setSelectedShowroom(null);
-                    }}
-                    className="text-xs text-indigo-600 hover:text-indigo-800 font-medium underline cursor-pointer"
+                    onClick={() => setShowLayerMenu(!showLayerMenu)}
+                    className="flex items-center gap-1.5 bg-white/95 backdrop-blur-md px-2.5 py-1 rounded-full shadow-xs border border-slate-200 text-[11px] font-semibold text-slate-700 hover:text-blue-600 transition cursor-pointer"
+                    title="Đổi nguồn bản đồ"
                   >
-                    Xem tất cả
+                    <Layers className="w-3 h-3 text-blue-500" />
+                    <span>{currentTileSource.name.split(' (')[0]}</span>
+                    <ChevronDown className="w-3 h-3 text-slate-400" />
                   </button>
-                )}
-              </div>
-            </div>
 
-            {/* Danh sách Showroom dạng cuộn */}
-            <div className="flex flex-col gap-3 max-h-[580px] overflow-y-auto pr-1 no-scrollbar">
-              {filteredShowrooms.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-8 text-center text-gray-400 text-sm">
-                  <Store className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-                  Không tìm thấy showroom nào tại tỉnh thành này.
-                </div>
-              ) : (
-                filteredShowrooms.map((showroom) => {
-                  const isActive = selectedShowroom?.id === showroom.id;
-                  return (
-                    <div
-                      key={showroom.id}
-                      onClick={() => handleShowroomClick(showroom)}
-                      className={`w-full text-left bg-white rounded-2xl border p-4 transition-all cursor-pointer shadow-sm hover:shadow-md ${
-                        isActive
-                          ? 'border-indigo-500 ring-2 ring-indigo-100 shadow-indigo-100/50'
-                          : 'border-gray-100 hover:border-indigo-200'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div
-                          className={`mt-0.5 w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition ${
-                            isActive
-                              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
-                              : 'bg-indigo-50 text-indigo-600'
-                          }`}
-                        >
-                          <MapPin className="w-4.5 h-4.5" />
+                  {showLayerMenu && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setShowLayerMenu(false)}
+                      />
+                      <div className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-50 text-xs">
+                        <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                          Nguồn dữ liệu bản đồ
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <h3
-                              className={`text-sm font-bold leading-tight truncate ${
-                                isActive ? 'text-indigo-600' : 'text-gray-900'
+                        {TILE_SOURCES.map((source) => {
+                          const isCurrent = source.id === activeTileSourceId;
+                          return (
+                            <button
+                              key={source.id}
+                              type="button"
+                              onClick={() => {
+                                setActiveTileSourceId(source.id);
+                                setShowLayerMenu(false);
+                              }}
+                              className={`w-full flex items-center justify-between px-3 py-1.5 text-left transition cursor-pointer ${
+                                isCurrent
+                                  ? 'bg-blue-50 text-blue-600 font-bold'
+                                  : 'text-slate-700 hover:bg-slate-50'
                               }`}
                             >
-                              {showroom.name}
-                            </h3>
-                            <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full shrink-0">
+                              <span>{source.name}</span>
+                              {isCurrent && <Check className="w-3 h-3 text-blue-600" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Bản đồ Leaflet Map Container */}
+              <MapContainer
+                key={activeTileSourceId}
+                center={defaultCenter}
+                zoom={6}
+                style={{ height: '100%', width: '100%' }}
+                scrollWheelZoom={true}
+              >
+                <TileLayer
+                  attribution={currentTileSource.attribution}
+                  url={currentTileSource.url}
+                  subdomains={currentTileSource.subdomains || 'abc'}
+                  maxZoom={currentTileSource.maxZoom || 19}
+                />
+
+                <MapController selected={selectedShowroom} />
+
+                {filteredAndSortedShowrooms.map((showroom) => {
+                  const isSelected = selectedShowroom?.id === showroom.id;
+                  return (
+                    <Marker
+                      key={showroom.id}
+                      ref={(ref) => {
+                        markerRefs.current[showroom.id] = ref;
+                      }}
+                      position={[showroom.lat, showroom.lng]}
+                      icon={createPinIcon(isSelected)}
+                      eventHandlers={{
+                        click: () => setSelectedShowroom(showroom),
+                      }}
+                    >
+                      <Popup
+                        className="store-locator-custom-popup"
+                        minWidth={240}
+                        maxWidth={270}
+                        closeButton={false}
+                      >
+                        <div className="bg-white rounded-2xl overflow-hidden p-0">
+                          {/* Ảnh Showroom */}
+                          <div className="h-24 w-full overflow-hidden relative bg-slate-100">
+                            <img
+                              src={
+                                showroom.image ||
+                                STORE_IMAGES[(showroom.id - 1) % STORE_IMAGES.length]
+                              }
+                              alt={showroom.name}
+                              className="w-full h-full object-cover"
+                            />
+                            <span className="absolute bottom-1.5 left-2 text-[9px] font-bold text-white px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-xs">
                               {showroom.province}
                             </span>
                           </div>
 
-                          <p className="text-xs text-gray-600 mt-1 leading-snug line-clamp-2">
-                            {showroom.address}
-                          </p>
+                          {/* Thông tin Showroom */}
+                          <div className="p-2.5">
+                            <h4 className="font-bold text-slate-800 text-xs leading-snug">
+                              {showroom.name}
+                            </h4>
+                            <p className="text-[10px] text-slate-500 uppercase tracking-wide mt-0.5 line-clamp-1">
+                              {showroom.address}
+                            </p>
 
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-gray-500">
-                            <span className="flex items-center gap-1.5 font-medium">
-                              <Phone className="w-3.5 h-3.5 text-indigo-500" />
-                              {showroom.phone}
-                            </span>
-                            {showroom.openHours && (
-                              <span className="flex items-center gap-1.5 text-gray-500">
-                                <Clock className="w-3.5 h-3.5 text-gray-400" />
-                                {showroom.openHours}
+                            {/* Footer: Khoảng cách + Nút Chỉ đường */}
+                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                              <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                                <MapPin className="w-3 h-3 text-blue-500" />
+                                {showroom.distance != null
+                                  ? `${showroom.distance} KM`
+                                  : showroom.phone}
                               </span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center justify-between pt-2.5 mt-2.5 border-t border-gray-100">
-                            <span className="text-[11px] text-gray-400 flex items-center gap-1">
-                              <Compass className="w-3 h-3" />
-                              Bấm để xem trên bản đồ
-                            </span>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDirections(showroom);
-                              }}
-                              className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 transition py-1 px-2 hover:bg-indigo-50 rounded-lg cursor-pointer"
-                              title="Mở Google Maps chỉ đường"
-                            >
-                              <Navigation className="w-3.5 h-3.5" />
-                              Chỉ đường
-                            </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDirections(showroom)}
+                                className="flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-900 hover:text-blue-600 border border-slate-300 hover:border-blue-500 px-2.5 py-1 rounded-full transition cursor-pointer"
+                              >
+                                <span>CHỈ ĐƯỜNG</span>
+                                <ArrowRight className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </div>
+                      </Popup>
+                    </Marker>
                   );
-                })
-              )}
+                })}
+              </MapContainer>
             </div>
-          </div>
 
-          {/* ----------------------------------------------------------------
-              RIGHT PANEL: Leaflet Map Container
-          ---------------------------------------------------------------- */}
-          <div className="relative rounded-2xl overflow-hidden shadow-lg border border-gray-200 h-[600px] md:h-[650px] bg-slate-100">
-            {/* Control bar: Nguồn bản đồ (Tile Provider Selector) */}
-            <div className="absolute top-3 right-3 z-[1000] flex items-center gap-2">
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowLayerMenu(!showLayerMenu)}
-                  className="flex items-center gap-1.5 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-md border border-gray-200 text-xs font-semibold text-gray-700 hover:text-indigo-600 hover:border-indigo-300 transition cursor-pointer"
-                  title="Đổi nguồn bản đồ khi mạng chập chờn"
-                >
-                  <Layers className="w-3.5 h-3.5 text-indigo-500" />
-                  <span>{currentTileSource.name.split(' (')[0]}</span>
-                  <ChevronDown className="w-3 h-3 text-gray-400" />
-                </button>
-
-                {showLayerMenu && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setShowLayerMenu(false)}
-                    />
-                    <div className="absolute right-0 top-full mt-1.5 w-60 bg-white rounded-xl shadow-xl border border-gray-200 py-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-150">
-                      <div className="px-3 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                        Chọn nguồn dữ liệu bản đồ
-                      </div>
-                      {TILE_SOURCES.map((source) => {
-                        const isCurrent = source.id === activeTileSourceId;
-                        return (
-                          <button
-                            key={source.id}
-                            type="button"
-                            onClick={() => {
-                              setActiveTileSourceId(source.id);
-                              setShowLayerMenu(false);
-                            }}
-                            className={`w-full flex items-center justify-between px-3 py-2 text-left transition cursor-pointer ${
-                              isCurrent
-                                ? 'bg-indigo-50 text-indigo-600 font-bold'
-                                : 'text-gray-700 hover:bg-gray-50'
+            {/* ----------------------------------------------------------------
+                BÊN PHẢI: DANH SÁCH SHOWROOM
+            ---------------------------------------------------------------- */}
+            <div className="lg:col-span-5 xl:col-span-4 h-full min-h-0 flex flex-col overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                {filteredAndSortedShowrooms.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400 bg-slate-50/60 rounded-2xl border border-dashed border-slate-200">
+                    <MapPin className="w-7 h-7 text-slate-300 mb-1.5" />
+                    <p className="text-xs font-semibold text-slate-600">
+                      Không tìm thấy showroom phù hợp
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Thử đổi từ khóa hoặc chọn tỉnh thành khác
+                    </p>
+                    {(searchTerm || selectedProvince) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchTerm('');
+                          setSelectedProvince('');
+                        }}
+                        className="mt-2 text-xs text-blue-600 font-bold hover:underline"
+                      >
+                        Xóa bộ lọc
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  filteredAndSortedShowrooms.map((showroom) => {
+                    const isSelected = selectedShowroom?.id === showroom.id;
+                    return (
+                      <div
+                        key={showroom.id}
+                        onClick={() => handleShowroomClick(showroom)}
+                        className={`w-full text-left rounded-2xl p-2.5 sm:p-3 transition-all cursor-pointer flex items-center justify-between gap-2.5 ${
+                          isSelected
+                            ? 'bg-blue-50/80 border-2 border-blue-500 shadow-xs'
+                            : 'bg-[#f8fafc] hover:bg-slate-100/90 border border-transparent hover:border-slate-200'
+                        }`}
+                      >
+                        {/* Tên & Địa chỉ */}
+                        <div className="min-w-0 flex-1">
+                          <h3
+                            className={`text-xs sm:text-sm font-bold truncate leading-snug ${
+                              isSelected ? 'text-blue-700' : 'text-slate-800'
                             }`}
                           >
-                            <span>{source.name}</span>
-                            {isCurrent && <Check className="w-3.5 h-3.5 text-indigo-600" />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Bản đồ Leaflet Map Container */}
-            <MapContainer
-              key={activeTileSourceId} // Re-mount sạch sẽ khi chuyển nguồn Tile Layer
-              center={defaultCenter}
-              zoom={6}
-              style={{ height: '100%', width: '100%' }}
-              scrollWheelZoom={true}
-            >
-              <TileLayer
-                attribution={currentTileSource.attribution}
-                url={currentTileSource.url}
-                subdomains={currentTileSource.subdomains || 'abc'}
-                maxZoom={currentTileSource.maxZoom || 19}
-              />
-
-              {/* Map Controller tự động bay tới tọa độ & sửa lỗi render */}
-              <MapController selected={selectedShowroom} />
-
-              {/* Danh sách Markers */}
-              {filteredShowrooms.map((showroom) => {
-                const isSelected = selectedShowroom?.id === showroom.id;
-                return (
-                  <Marker
-                    key={showroom.id}
-                    ref={(ref) => {
-                      markerRefs.current[showroom.id] = ref;
-                    }}
-                    position={[showroom.lat, showroom.lng]}
-                    icon={createPinIcon(isSelected)}
-                    eventHandlers={{
-                      click: () => setSelectedShowroom(showroom),
-                    }}
-                  >
-                    <Popup minWidth={240} maxWidth={300} className="custom-leaflet-popup">
-                      <div className="p-1">
-                        <div className="flex items-center gap-1.5 mb-1.5">
-                          <span className="w-2 h-2 rounded-full bg-indigo-600 inline-block"></span>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">
-                            Showroom NEXOR
-                          </span>
-                        </div>
-                        <h4 className="font-bold text-gray-900 text-sm leading-tight mb-1">
-                          {showroom.name}
-                        </h4>
-                        <p className="text-gray-600 text-xs mb-2 leading-snug flex items-start gap-1.5">
-                          <MapPin className="w-3.5 h-3.5 text-indigo-500 shrink-0 mt-0.5" />
-                          <span>{showroom.address}</span>
-                        </p>
-                        <div className="space-y-1 mb-3 text-xs text-gray-600 bg-gray-50 p-2 rounded-lg border border-gray-100">
-                          <div className="flex items-center gap-2">
-                            <Phone className="w-3 h-3 text-gray-400" />
-                            <span className="font-medium text-gray-800">{showroom.phone}</span>
+                            {showroom.name}
+                          </h3>
+                          <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500">
+                            <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span className="truncate">{showroom.address}</span>
                           </div>
                           {showroom.openHours && (
-                            <div className="flex items-center gap-2">
-                              <Clock className="w-3 h-3 text-gray-400" />
+                            <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-400">
+                              <Clock className="w-2.5 h-2.5 shrink-0" />
                               <span>{showroom.openHours}</span>
                             </div>
                           )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleDirections(showroom)}
-                          className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-xs font-bold py-2 px-3 rounded-xl shadow-md shadow-indigo-200 transition cursor-pointer"
-                        >
-                          <Navigation className="w-3.5 h-3.5" />
-                          <span>Chỉ đường trên Google Maps</span>
-                        </button>
+
+                        {/* Khoảng cách / SĐT và nút Chỉ đường */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="text-right">
+                            <div className="text-xs font-black text-slate-700">
+                              {showroom.distance != null
+                                ? `${showroom.distance} KM`
+                                : showroom.province}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-medium">
+                              {showroom.phone}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDirections(showroom);
+                            }}
+                            className="flex flex-col items-center justify-center w-8 h-8 rounded-xl bg-white hover:bg-blue-600 text-slate-700 hover:text-white border border-slate-200 hover:border-blue-600 transition shadow-2xs group cursor-pointer"
+                            title="Chỉ đường trên Google Maps"
+                          >
+                            <Navigation className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
+                            <span className="text-[7.5px] font-black uppercase">ĐI</span>
+                          </button>
+                        </div>
                       </div>
-                    </Popup>
-                  </Marker>
-                );
-              })}
-            </MapContainer>
+                    );
+                  })
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
