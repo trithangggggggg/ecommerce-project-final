@@ -34,6 +34,10 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     @Query("SELECT COUNT(p) FROM Product p WHERE p.isDeleted = false OR p.isDeleted IS NULL")
     long countActiveProducts();
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"category", "variants"})
+    @Query("SELECT p FROM Product p WHERE (p.isDeleted = false OR p.isDeleted IS NULL) AND UPPER(p.status) = 'ACTIVE'")
+    List<Product> findAllActiveForSearch();
+
     @Modifying
     @Query("UPDATE Product p SET p.stock = (SELECT COALESCE(SUM(v.stock), 0) FROM ProductVariant v WHERE v.product.id = p.id AND v.status = true), p.updatedAt = CURRENT_TIMESTAMP WHERE p.id = :productId")
     void syncProductTotalStock(@Param("productId") Long productId);
