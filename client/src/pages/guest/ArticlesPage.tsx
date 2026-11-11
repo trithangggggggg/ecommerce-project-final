@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import {
   Newspaper,
   Calendar,
@@ -15,6 +15,8 @@ import type { Article } from '../../models/article.model';
 const CATEGORIES = ['Tất cả', 'Công nghệ', 'Đánh giá', 'Tin tức', 'Thủ thuật'];
 
 export const ArticlesPage: React.FC = () => {
+  const location = useLocation();
+  const basePath = location.pathname.startsWith('/news') ? '/news' : '/articles';
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('Tất cả');
@@ -152,7 +154,7 @@ export const ArticlesPage: React.FC = () => {
                     </div>
 
                     <h2 className="text-xl sm:text-2xl font-bold text-slate-900 group-hover:text-blue-600 transition-colors leading-snug">
-                      <Link to={`/articles/${featuredArticle.slug}`}>
+                      <Link to={`${basePath}/${featuredArticle.slug}`}>
                         {featuredArticle.title}
                       </Link>
                     </h2>
@@ -165,7 +167,7 @@ export const ArticlesPage: React.FC = () => {
 
                   <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
                     <Link
-                      to={`/articles/${featuredArticle.slug}`}
+                      to={`${basePath}/${featuredArticle.slug}`}
                       className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-blue-600 hover:text-blue-700 hover:underline"
                     >
                       <span>Đọc tiếp bài viết</span>
@@ -191,7 +193,7 @@ export const ArticlesPage: React.FC = () => {
                       className="bg-white rounded-2xl overflow-hidden border border-slate-200/80 shadow-xs hover:shadow-lg transition-all duration-300 flex flex-col group"
                     >
                       <Link
-                        to={`/articles/${item.slug}`}
+                        to={`${basePath}/${item.slug}`}
                         className="relative block aspect-16/9 overflow-hidden bg-slate-100"
                       >
                         <img
@@ -224,7 +226,7 @@ export const ArticlesPage: React.FC = () => {
                           </div>
 
                           <h4 className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-2 text-sm leading-snug">
-                            <Link to={`/articles/${item.slug}`}>{item.title}</Link>
+                            <Link to={`${basePath}/${item.slug}`}>{item.title}</Link>
                           </h4>
 
                           <p className="mt-2 text-xs text-slate-500 line-clamp-2 leading-relaxed">
@@ -234,7 +236,7 @@ export const ArticlesPage: React.FC = () => {
 
                         <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
                           <Link
-                            to={`/articles/${item.slug}`}
+                            to={`${basePath}/${item.slug}`}
                             className="text-xs font-bold text-blue-600 group-hover:text-blue-700 flex items-center gap-1"
                           >
                             <span>Chi tiết</span>

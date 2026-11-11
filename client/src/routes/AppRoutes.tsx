@@ -81,6 +81,8 @@ export const AppRoutes: React.FC = () => {
           <Route path="products" element={<ProductsPage />} />
           <Route path="products/:id" element={<ProductDetailPage />} />
           <Route path="stores" element={<StoresPage />} />
+          <Route path="news" element={<ArticlesPage />} />
+          <Route path="news/:slug" element={<ArticleDetailPage />} />
           <Route path="articles" element={<ArticlesPage />} />
           <Route path="articles/:slug" element={<ArticleDetailPage />} />
           <Route path="tin-tuc" element={<ArticlesPage />} />
@@ -117,6 +119,7 @@ export const AppRoutes: React.FC = () => {
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="products" element={<AdminProductsPage />} />
             <Route path="articles" element={<AdminArticlesPage />} />
+            <Route path="news" element={<AdminArticlesPage />} />
             <Route path="categories" element={<AdminCategoriesPage />} />
             <Route path="orders" element={<AdminOrdersPage />} />
             <Route path="customers" element={<AdminCustomersPage />} />
