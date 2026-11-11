@@ -32,6 +32,7 @@ import { useCartStore } from '../../store/useCartStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { orderService } from '../../api/services/order.service';
 import { shippingService } from '../../api/services/shipping.service';
+import paymentService from '../../api/services/payment.service';
 import type { ShippingCarrier } from '../admin/AdminShippingPage';
 import { promotionService, type PromotionCheckResult } from '../../api/services/promotion.service';
 import type { PromoItem } from '../admin/AdminPromotionsPage';
@@ -418,6 +419,28 @@ export const CheckoutPage: React.FC = () => {
         const buyNowVariantId = buyNowItem.variantId || buyNowItem.variant?.id;
         if (buyNowVariantId) {
           useCartStore.getState().removeItem(buyNowVariantId, buyNowItem.product.id);
+        }
+      }
+
+      // Nếu chọn VNPAY / SePay → tạo payment và redirect đến cổng thanh toán
+      if (paymentMethod === 'VNPAY' || paymentMethod === 'SEPAY') {
+        try {
+          const paymentData = await paymentService.createPayment({
+            orderId: createdOrder.id,
+            description: `Thanh toan don hang #${createdOrder.id}`,
+            paymentMethod: 'VNPAY',
+          });
+          // Chuyển hướng sang URL do Backend cung cấp
+          paymentService.redirectToGateway(paymentData.checkoutUrl, paymentData.checkoutFields);
+          return; // Dừng lại — trình duyệt sẽ điều hướng sang cổng thanh toán
+        } catch (payErr: unknown) {
+          const payMsg =
+            payErr instanceof Error
+              ? payErr.message
+              : 'Không thể kết nối cổng thanh toán VNPAY. Vui lòng thử lại!';
+          setErrorMessage(payMsg);
+          setIsSubmitting(false);
+          return;
         }
       }
 
@@ -1286,6 +1309,37 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                   </label>
 
+                  {/* Thanh toán qua VNPAY */}
+                  <label
+                    className={`flex items-start gap-3.5 p-3.5 rounded-xl border-2 transition cursor-pointer ${
+                      paymentMethod === 'VNPAY' || paymentMethod === 'SEPAY'
+                        ? 'border-blue-600 bg-blue-50/40 shadow-2xs'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="VNPAY"
+                      checked={paymentMethod === 'VNPAY' || paymentMethod === 'SEPAY'}
+                      onChange={() => setPaymentMethod('VNPAY')}
+                      className="mt-1 text-blue-600 focus:ring-blue-500"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                          <span>Thanh toán qua VNPAY</span>
+                        </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                          Xác nhận tức thì
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        Thanh toán trực tuyến bảo mật qua cổng VNPAY (Quét mã VNPAY-QR, Thẻ ATM nội địa, Internet Banking, Visa/Mastercard).
+                      </p>
+                    </div>
+                  </label>
+
                   {/* Hướng dẫn chuyển khoản ngân hàng nếu chọn BANK_TRANSFER */}
                   {paymentMethod === 'BANK_TRANSFER' && (
                     <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-3 animate-fade-in text-xs">
@@ -1659,6 +1713,8 @@ export const CheckoutPage: React.FC = () => {
                       ? 'Đang xử lý đơn hàng...'
                       : paymentMethod === 'BANK_TRANSFER'
                       ? `Xác nhận & Nhận mã thanh toán (${formatPrice(finalTotal)})`
+                      : paymentMethod === 'VNPAY' || paymentMethod === 'SEPAY'
+                      ? `Thanh toán qua VNPAY (${formatPrice(finalTotal)})`
                       : `Xác nhận đặt hàng (${formatPrice(finalTotal)})`}
                   </Button>
                 </div>
