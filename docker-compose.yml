@@ -57,6 +57,14 @@ services:
       MAIL_PORT: ${MAIL_PORT:-587}
       MAIL_USERNAME: ${MAIL_USERNAME:-trithang2006vn@gmail.com}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      SEPAY_MERCHANT_ID: ${SEPAY_MERCHANT_ID:-}
+      SEPAY_SECRET_KEY: ${SEPAY_SECRET_KEY:-}
+      SEPAY_IPN_SECRET_KEY: ${SEPAY_IPN_SECRET_KEY:-}
+      SEPAY_CHECKOUT_URL: ${SEPAY_CHECKOUT_URL:-https://pay-sandbox.sepay.vn/v1/checkout/init}
+      SEPAY_API_URL: ${SEPAY_API_URL:-https://pgapi-sandbox.sepay.vn}
+      SEPAY_SUCCESS_URL: ${SEPAY_SUCCESS_URL:-https://nexortech.io.vn/payment/result}
+      SEPAY_ERROR_URL: ${SEPAY_ERROR_URL:-https://nexortech.io.vn/payment/result}
+      SEPAY_CANCEL_URL: ${SEPAY_CANCEL_URL:-https://nexortech.io.vn/payment/result}
       TZ: Asia/Ho_Chi_Minh
     depends_on:
       mysql:

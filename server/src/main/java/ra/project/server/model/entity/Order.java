@@ -4,8 +4,10 @@ import jakarta.persistence.*;
 import lombok.*;
 import ra.project.server.model.enums.OrderStatus;
 import ra.project.server.model.enums.PaymentMethod;
+import ra.project.server.model.enums.PaymentStatus;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -59,6 +61,27 @@ public class Order extends BaseEntity {
     @Column(name = "payment_method", nullable = false, length = 30)
     @Builder.Default
     private PaymentMethod paymentMethod = PaymentMethod.COD;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", nullable = false, length = 30)
+    @Builder.Default
+    private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
+
+    @Column(name = "sepay_invoice_number", length = 100, unique = true)
+    private String sepayInvoiceNumber;
+
+    @Column(name = "sepay_order_id", length = 100)
+    private String sepayOrderId;
+
+    @Column(name = "payment_reference", length = 100)
+    private String paymentReference;
+
+    @Column(name = "paid_at")
+    private LocalDateTime paidAt;
+
+    @Version
+    @Column(name = "version")
+    private Long version;
 
     @Column(name = "note", length = 500)
     private String note;
