@@ -261,6 +261,43 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
             log.info(">>> [Migration] Thêm cột 'shipping_fee' vào bảng 'orders'...");
             jdbcTemplate.execute("ALTER TABLE orders ADD COLUMN shipping_fee DECIMAL(12, 2) NOT NULL DEFAULT 0.00");
         }
+        if (!orderColumns.contains("payment_status")) {
+            log.info(">>> [Migration] Thêm cột 'payment_status' vào bảng 'orders'...");
+            jdbcTemplate.execute("ALTER TABLE orders ADD COLUMN payment_status VARCHAR(30) NOT NULL DEFAULT 'UNPAID'");
+        }
+        if (!orderColumns.contains("sepay_invoice_number")) {
+            log.info(">>> [Migration] Thêm cột 'sepay_invoice_number' vào bảng 'orders'...");
+            jdbcTemplate.execute("ALTER TABLE orders ADD COLUMN sepay_invoice_number VARCHAR(100) NULL");
+            try {
+                jdbcTemplate.execute("CREATE UNIQUE INDEX uk_orders_sepay_invoice_number ON orders(sepay_invoice_number)");
+            } catch (Exception ignored) {
+                // index might already exist
+            }
+        }
+        if (!orderColumns.contains("sepay_order_id")) {
+            log.info(">>> [Migration] Thêm cột 'sepay_order_id' vào bảng 'orders'...");
+            jdbcTemplate.execute("ALTER TABLE orders ADD COLUMN sepay_order_id VARCHAR(100) NULL");
+        }
+        if (!orderColumns.contains("payment_reference")) {
+            log.info(">>> [Migration] Thêm cột 'payment_reference' vào bảng 'orders'...");
+            jdbcTemplate.execute("ALTER TABLE orders ADD COLUMN payment_reference VARCHAR(100) NULL");
+        }
+        if (!orderColumns.contains("paid_at")) {
+            log.info(">>> [Migration] Thêm cột 'paid_at' vào bảng 'orders'...");
+            jdbcTemplate.execute("ALTER TABLE orders ADD COLUMN paid_at DATETIME NULL");
+        }
+        if (!orderColumns.contains("version")) {
+            log.info(">>> [Migration] Thêm cột 'version' vào bảng 'orders'...");
+            jdbcTemplate.execute("ALTER TABLE orders ADD COLUMN version BIGINT NOT NULL DEFAULT 0");
+        }
+
+        // Backfill an toàn cho các bản ghi cũ nếu Hibernate đã tạo cột cho phép NULL
+        try {
+            jdbcTemplate.update("UPDATE orders SET payment_status = 'UNPAID' WHERE payment_status IS NULL");
+            jdbcTemplate.update("UPDATE orders SET version = 0 WHERE version IS NULL");
+        } catch (Exception e) {
+            log.warn(">>> [Migration] Không thể backfill payment_status/version cho orders: {}", e.getMessage());
+        }
     }
 
     private Set<String> getTableColumns(String tableName) throws SQLException {

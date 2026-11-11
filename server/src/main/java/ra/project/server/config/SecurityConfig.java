@@ -101,12 +101,15 @@ public class SecurityConfig {
                         .requestMatchers("/api/promotions/**").permitAll()
                         .requestMatchers("/api/wheel/status").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**", "/api/articles/**", "/api/shipping-carriers/**", "/api/stores/**").permitAll()
+                        // Cho phép SePay gọi IPN và trả kết quả Return URL (đã xác thực X-Secret-Key trên IPN)
+                        .requestMatchers("/api/payment/sepay/ipn", "/api/payment/sepay/payment-return").permitAll()
                         // Phân quyền ADMIN cho các chức năng quản trị
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        // Các API cá nhân, đơn hàng và quay thưởng yêu cầu đã đăng nhập
+                        // Các API cá nhân, đơn hàng, thanh toán và quay thưởng yêu cầu đã đăng nhập
                         .requestMatchers("/api/wheel/spin").authenticated()
                         .requestMatchers("/api/users/**").authenticated()
                         .requestMatchers("/api/orders/**").authenticated()
+                        .requestMatchers("/api/payment/**").authenticated()
                         // Tất cả các yêu cầu còn lại
                         .anyRequest().authenticated()
                 );

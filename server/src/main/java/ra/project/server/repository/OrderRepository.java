@@ -1,13 +1,18 @@
 package ra.project.server.repository;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import ra.project.server.model.entity.Order;
 import ra.project.server.model.enums.OrderStatus;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
@@ -22,6 +27,12 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Page<Order> findByStatusOrderByCreatedAtDesc(OrderStatus status, Pageable pageable);
     
     java.util.Optional<Order> findFirstByCompensationCoupon(String compensationCoupon);
+
+    Optional<Order> findBySepayInvoiceNumber(String sepayInvoiceNumber);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT o FROM Order o WHERE o.sepayInvoiceNumber = :sepayInvoiceNumber")
+    Optional<Order> findBySepayInvoiceNumberForUpdate(@Param("sepayInvoiceNumber") String sepayInvoiceNumber);
     
     @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.status != ra.project.server.model.enums.OrderStatus.CANCELLED")
     java.math.BigDecimal calculateTotalRevenue();
