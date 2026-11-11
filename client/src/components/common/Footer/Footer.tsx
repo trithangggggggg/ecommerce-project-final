@@ -42,7 +42,7 @@ const SERVICE_BENEFITS = [
 ];
 
 const PAYMENT_METHODS = [
-  'VNPAY',
+  'SePay',
   'MoMo',
   'ZaloPay',
   'Apple Pay',
