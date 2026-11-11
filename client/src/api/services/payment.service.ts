@@ -36,11 +36,10 @@ export interface SepayReturnResponse {
 // ============================================================
 export const paymentService = {
   /**
-   * Tạo yêu cầu thanh toán SePay.
-   * Backend trả về checkoutUrl + checkoutFields (form POST fields).
-   * Frontend cần submit form POST ẩn đến checkoutUrl.
+   * Khởi tạo yêu cầu thanh toán (SePay / VNPAY).
+   * Backend trả về checkoutUrl + checkoutFields (chữ ký HMAC).
    */
-  async createSepayPayment(
+  async createPayment(
     data: SepayCreatePaymentRequest
   ): Promise<SepayPaymentResponse> {
     const response = await axiosClient.post(
@@ -53,11 +52,18 @@ export const paymentService = {
     return response.data as SepayPaymentResponse;
   },
 
+  // Alias để tương thích
+  async createSepayPayment(
+    data: SepayCreatePaymentRequest
+  ): Promise<SepayPaymentResponse> {
+    return this.createPayment(data);
+  },
+
   /**
-   * Xác thực kết quả thanh toán từ SePay sau khi redirect về.
-   * Chấp nhận toàn bộ query params từ URL (payment, invoice, orderId...)
+   * Xác thực kết quả thanh toán sau khi cổng thanh toán redirect về.
+   * Chấp nhận toàn bộ query params từ URL (payment, invoice, orderId, vnpay params...).
    */
-  async verifySepayReturn(
+  async verifyPayment(
     params: Record<string, string>
   ): Promise<SepayReturnResponse> {
     const response = await axiosClient.get(
@@ -70,26 +76,46 @@ export const paymentService = {
     return response.data as SepayReturnResponse;
   },
 
+  // Alias để tương thích
+  async verifySepayReturn(
+    params: Record<string, string>
+  ): Promise<SepayReturnResponse> {
+    return this.verifyPayment(params);
+  },
+
   /**
-   * Tạo và submit hidden form POST đến SePay checkout URL.
-   * Đây là cơ chế SePay yêu cầu (không phải redirect đơn giản).
+   * Chuyển hướng người dùng sang cổng thanh toán:
+   * - Nếu cổng thanh toán cung cấp form fields đã ký: Tạo form ẩn và submit POST (chuẩn SePay).
+   * - Nếu chỉ có checkoutUrl trực tiếp: Điều hướng URL bằng window.location.href.
    */
+  redirectToGateway(
+    checkoutUrl: string,
+    checkoutFields?: Record<string, string>
+  ): void {
+    if (checkoutFields && Object.keys(checkoutFields).length > 0) {
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = checkoutUrl;
+      form.style.display = 'none';
+
+      Object.entries(checkoutFields).forEach(([name, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
+      });
+
+      document.body.appendChild(form);
+      form.submit();
+    } else if (checkoutUrl) {
+      window.location.href = checkoutUrl;
+    }
+  },
+
+  // Alias để tương thích
   submitSepayForm(checkoutUrl: string, checkoutFields: Record<string, string>): void {
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = checkoutUrl;
-    form.style.display = 'none';
-
-    Object.entries(checkoutFields).forEach(([name, value]) => {
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = name;
-      input.value = value;
-      form.appendChild(input);
-    });
-
-    document.body.appendChild(form);
-    form.submit();
+    this.redirectToGateway(checkoutUrl, checkoutFields);
   },
 };
 

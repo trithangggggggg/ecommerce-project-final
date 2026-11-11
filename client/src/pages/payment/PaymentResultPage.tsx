@@ -38,6 +38,23 @@ export const PaymentResultPage: React.FC = () => {
         paramsObj[key] = value;
       });
 
+      // Tự động map các tham số nếu điều hướng từ VNPAY chuẩn
+      if (!paramsObj['payment'] && paramsObj['vnp_ResponseCode']) {
+        paramsObj['payment'] =
+          paramsObj['vnp_ResponseCode'] === '00'
+            ? 'success'
+            : paramsObj['vnp_ResponseCode'] === '24'
+            ? 'cancel'
+            : 'error';
+      }
+      if (!paramsObj['orderId'] && paramsObj['vnp_TxnRef']) {
+        if (/^\d+$/.test(paramsObj['vnp_TxnRef'])) {
+          paramsObj['orderId'] = paramsObj['vnp_TxnRef'];
+        } else {
+          paramsObj['invoice'] = paramsObj['vnp_TxnRef'];
+        }
+      }
+
       // Nếu không có bất kỳ param nào liên quan đến thanh toán
       if (!paymentParam && !paramsObj['vnp_ResponseCode'] && !paramsObj['orderId']) {
         if (isMounted) {
@@ -49,7 +66,7 @@ export const PaymentResultPage: React.FC = () => {
 
       try {
         setLoading(true);
-        const data = await paymentService.verifySepayReturn(paramsObj);
+        const data = await paymentService.verifyPayment(paramsObj);
         if (isMounted) {
           setResult(data);
         }
@@ -76,18 +93,33 @@ export const PaymentResultPage: React.FC = () => {
   }, [searchParams, paymentParam]);
 
   // Phân tích trạng thái giao dịch
-  // Ưu tiên kết quả từ backend trả về, fallback sang query param
+  const vnpResponseCode = searchParams.get('vnp_ResponseCode');
+  const isVnpSuccess = vnpResponseCode === '00';
+  const isVnpCancel = vnpResponseCode === '24';
+
   const isSuccess = result
     ? result.success
-    : paymentParam?.toLowerCase() === 'success' || searchParams.get('vnp_ResponseCode') === '00';
+    : isVnpSuccess || paymentParam?.toLowerCase() === 'success';
 
   const isCancelled = result
     ? result.cancelled
-    : paymentParam?.toLowerCase() === 'cancel';
+    : isVnpCancel || paymentParam?.toLowerCase() === 'cancel';
 
-  const displayOrderId = result?.orderId || orderIdParam;
-  const displayInvoice = result?.invoiceNumber || invoiceParam;
-  const displayAmount = result?.amount;
+  const vnpAmount = searchParams.get('vnp_Amount');
+  const parsedVnpAmount = vnpAmount ? Number(vnpAmount) / 100 : undefined;
+
+  const displayOrderId =
+    result?.orderId ||
+    orderIdParam ||
+    (searchParams.get('vnp_TxnRef') && /^\d+$/.test(searchParams.get('vnp_TxnRef') || '')
+      ? searchParams.get('vnp_TxnRef')
+      : null);
+  const displayInvoice =
+    result?.invoiceNumber ||
+    invoiceParam ||
+    searchParams.get('vnp_TransactionNo') ||
+    searchParams.get('vnp_TxnRef');
+  const displayAmount = result?.amount ?? parsedVnpAmount;
 
   return (
     <div className="min-h-[80vh] bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center font-sans">

@@ -422,20 +422,22 @@ export const CheckoutPage: React.FC = () => {
         }
       }
 
-      // Nếu chọn SePay/VNPAY → tạo payment và redirect đến cổng thanh toán
-      if (paymentMethod === 'SEPAY') {
+      // Nếu chọn VNPAY / SePay → tạo payment và redirect đến cổng thanh toán
+      if (paymentMethod === 'VNPAY' || paymentMethod === 'SEPAY') {
         try {
-          const sepayData = await paymentService.createSepayPayment({
+          const paymentData = await paymentService.createPayment({
             orderId: createdOrder.id,
+            description: `Thanh toan don hang #${createdOrder.id}`,
+            paymentMethod: 'VNPAY',
           });
-          // Submit hidden form POST đến SePay gateway
-          paymentService.submitSepayForm(sepayData.checkoutUrl, sepayData.checkoutFields);
-          return; // Dừng lại — trình duyệt sẽ điều hướng sang SePay
+          // Chuyển hướng sang URL do Backend cung cấp
+          paymentService.redirectToGateway(paymentData.checkoutUrl, paymentData.checkoutFields);
+          return; // Dừng lại — trình duyệt sẽ điều hướng sang cổng thanh toán
         } catch (payErr: unknown) {
           const payMsg =
             payErr instanceof Error
               ? payErr.message
-              : 'Không thể kết nối cổng thanh toán SePay. Vui lòng thử lại!';
+              : 'Không thể kết nối cổng thanh toán VNPAY. Vui lòng thử lại!';
           setErrorMessage(payMsg);
           setIsSubmitting(false);
           return;
@@ -1307,33 +1309,33 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                   </label>
 
-                  {/* Thanh toán qua VNPAY / SePay */}
+                  {/* Thanh toán qua VNPAY */}
                   <label
                     className={`flex items-start gap-3.5 p-3.5 rounded-xl border-2 transition cursor-pointer ${
-                      paymentMethod === 'SEPAY'
-                        ? 'border-red-600 bg-red-50/40 shadow-2xs'
+                      paymentMethod === 'VNPAY' || paymentMethod === 'SEPAY'
+                        ? 'border-blue-600 bg-blue-50/40 shadow-2xs'
                         : 'border-gray-200 hover:border-gray-300 bg-white'
                     }`}
                   >
                     <input
                       type="radio"
                       name="paymentMethod"
-                      value="SEPAY"
-                      checked={paymentMethod === 'SEPAY'}
-                      onChange={() => setPaymentMethod('SEPAY')}
-                      className="mt-1 text-red-600 focus:ring-red-500"
+                      value="VNPAY"
+                      checked={paymentMethod === 'VNPAY' || paymentMethod === 'SEPAY'}
+                      onChange={() => setPaymentMethod('VNPAY')}
+                      className="mt-1 text-blue-600 focus:ring-blue-500"
                     />
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
-                          <span>Thanh toán qua VNPAY / Cổng trực tuyến (SePay)</span>
+                          <span>Thanh toán qua VNPAY</span>
                         </span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-100 text-red-800">
-                          Tự động 24/7
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                          Xác nhận tức thì
                         </span>
                       </div>
                       <p className="text-[11px] text-gray-500 mt-0.5">
-                        Hỗ trợ VNPAY, Thẻ ATM nội địa, Thẻ quốc tế Visa/Mastercard hoặc quét mã QR tự động.
+                        Thanh toán trực tuyến bảo mật qua cổng VNPAY (Quét mã VNPAY-QR, Thẻ ATM nội địa, Internet Banking, Visa/Mastercard).
                       </p>
                     </div>
                   </label>
@@ -1711,8 +1713,8 @@ export const CheckoutPage: React.FC = () => {
                       ? 'Đang xử lý đơn hàng...'
                       : paymentMethod === 'BANK_TRANSFER'
                       ? `Xác nhận & Nhận mã thanh toán (${formatPrice(finalTotal)})`
-                      : paymentMethod === 'SEPAY'
-                      ? `Thanh toán qua VNPAY / SePay (${formatPrice(finalTotal)})`
+                      : paymentMethod === 'VNPAY' || paymentMethod === 'SEPAY'
+                      ? `Thanh toán qua VNPAY (${formatPrice(finalTotal)})`
                       : `Xác nhận đặt hàng (${formatPrice(finalTotal)})`}
                   </Button>
                 </div>
