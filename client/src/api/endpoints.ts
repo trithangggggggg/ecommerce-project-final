@@ -99,4 +99,10 @@ export const ENDPOINTS = {
     UPLOAD_THUMBNAIL: '/admin/articles/upload-thumbnail',
     UPLOAD_IMAGE: '/admin/articles/upload-image',
   },
+  ADMIN_EXPORT: {
+    ORDERS: '/admin/export/orders',
+    INVENTORY: '/admin/export/inventory',
+    CUSTOMERS: '/admin/export/customers',
+    REVENUE: '/admin/export/revenue',
+  },
 } as const;

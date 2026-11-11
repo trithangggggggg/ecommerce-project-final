@@ -8,6 +8,12 @@ import {
   Users,
   PackageCheck,
   RotateCw,
+  FileSpreadsheet,
+  Loader2,
+  ShoppingBag,
+  Boxes,
+  TrendingUp,
+  Download,
 } from 'lucide-react';
 import { ROUTES } from '../../constants/routes';
 import {
@@ -15,9 +21,10 @@ import {
   type DashboardData,
   formatShortVND,
 } from '../../api/services/dashboard.service';
+import { exportService } from '../../api/services/export.service';
 import { formatPrice } from '../../utils/format';
 
-type TimeRange = 'Hôm nay' | '7 ngày gần nhất' | '30 ngày qua' | 'Năm nay';
+type TimeRange = 'Hôm nay' | '7 ngày gần nhất' | '30 ngày qua' | 'Năm nay' | 'Tùy chọn';
 
 interface TimelinePoint {
   key: string;
@@ -59,12 +66,25 @@ function createSmoothPath(pts: { x: number; y: number }[]): string {
 }
 
 export const DashboardPage: React.FC = () => {
-  const [selectedTimeRange, setSelectedTimeRange] = useState<TimeRange>('7 ngày gần nhất');
+  const [selectedTimeRange, setSelectedTimeRange] = useState<TimeRange>('Hôm nay');
   const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false);
+  const [isTopDateDropdownOpen, setIsTopDateDropdownOpen] = useState(false);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const topDateDropdownRef = useRef<HTMLDivElement>(null);
+  const exportDropdownRef = useRef<HTMLDivElement>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isExporting, setIsExporting] = useState<string | null>(null);
+
+  // Khởi tạo ngày bắt đầu / kết thúc mặc định theo định dạng YYYY-MM-DD
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
+  const [customStartDate, setCustomStartDate] = useState<string>(todayStr);
+  const [customEndDate, setCustomEndDate] = useState<string>(todayStr);
 
   // Đóng dropdown khi click bên ngoài
   useEffect(() => {
@@ -72,10 +92,81 @@ export const DashboardPage: React.FC = () => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsTimeDropdownOpen(false);
       }
+      if (topDateDropdownRef.current && !topDateDropdownRef.current.contains(e.target as Node)) {
+        setIsTopDateDropdownOpen(false);
+      }
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const getSelectedDateLabel = () => {
+    if (selectedTimeRange === 'Hôm nay') {
+      return `Hôm nay (${new Date().toLocaleDateString('vi-VN')})`;
+    }
+    if (selectedTimeRange === '7 ngày gần nhất') {
+      return '7 ngày gần nhất';
+    }
+    if (selectedTimeRange === '30 ngày qua') {
+      return 'Tháng này (30 ngày)';
+    }
+    if (selectedTimeRange === 'Năm nay') {
+      return `Năm nay (${new Date().getFullYear()})`;
+    }
+    if (selectedTimeRange === 'Tùy chọn' && customStartDate && customEndDate) {
+      const formatPart = (dStr: string) => {
+        const parts = dStr.split('-');
+        if (parts.length === 3) {
+          return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+        return dStr;
+      };
+      if (customStartDate === customEndDate) {
+        return `Ngày ${formatPart(customStartDate)}`;
+      }
+      return `${formatPart(customStartDate)} - ${formatPart(customEndDate)}`;
+    }
+    return 'Lọc theo ngày';
+  };
+
+  const handleApplyCustomRange = () => {
+    if (!customStartDate || !customEndDate) return;
+    if (customStartDate > customEndDate) {
+      alert('Ngày bắt đầu không được lớn hơn ngày kết thúc');
+      return;
+    }
+    setSelectedTimeRange('Tùy chọn');
+    setIsTopDateDropdownOpen(false);
+  };
+
+  const handleExport = async (type: 'orders' | 'inventory' | 'customers' | 'revenue') => {
+    try {
+      setIsExporting(type);
+      if (type === 'orders') {
+        await exportService.exportOrders();
+      } else if (type === 'inventory') {
+        await exportService.exportInventory();
+      } else if (type === 'customers') {
+        await exportService.exportCustomers();
+      } else if (type === 'revenue') {
+        const rangeMap: Record<string, string> = {
+          'Hôm nay': '7days',
+          '7 ngày gần nhất': '7days',
+          '30 ngày qua': '30days',
+          'Năm nay': 'year',
+        };
+        await exportService.exportRevenue({ range: rangeMap[selectedTimeRange] || 'month' });
+      }
+      setShowExportMenu(false);
+    } catch (err) {
+      console.error('Export Excel failed:', err);
+    } finally {
+      setIsExporting(null);
+    }
+  };
 
   // Gọi API lấy dữ liệu thực tế từ Backend
   const loadDashboardData = async () => {
@@ -189,6 +280,40 @@ export const DashboardPage: React.FC = () => {
           showLabel: true,
         });
       }
+    } else if (selectedTimeRange === 'Tùy chọn' && customStartDate && customEndDate) {
+      const s = new Date(customStartDate + 'T00:00:00');
+      const e = new Date(customEndDate + 'T23:59:59');
+      const diffMs = e.getTime() - s.getTime();
+      const diffDays = Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24)));
+
+      for (let i = 0; i <= diffDays; i++) {
+        const d = new Date(s.getFullYear(), s.getMonth(), s.getDate() + i);
+        if (d > e) break;
+        const dayLabel = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const fullDate = `Ngày ${dayLabel}/${d.getFullYear()}`;
+
+        const dayOrders = activeOrders.filter((o) => {
+          const od = parseOrderDate(o.createdAt);
+          if (!od) return false;
+          return (
+            od.getFullYear() === d.getFullYear() &&
+            od.getMonth() === d.getMonth() &&
+            od.getDate() === d.getDate()
+          );
+        });
+
+        const rev = dayOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+        const showLabel = diffDays <= 10 ? true : (i % Math.max(1, Math.ceil(diffDays / 6)) === 0 || i === diffDays);
+
+        points.push({
+          key: `custom-${i}`,
+          label: dayLabel,
+          fullDate,
+          revenue: rev,
+          orderCount: dayOrders.length,
+          showLabel,
+        });
+      }
     } else {
       // Default: '7 ngày gần nhất'
       for (let i = 0; i < 7; i++) {
@@ -299,7 +424,7 @@ export const DashboardPage: React.FC = () => {
       linePath,
       areaPath,
     };
-  }, [dashboardData?.orders, selectedTimeRange]);
+  }, [dashboardData?.orders, selectedTimeRange, customStartDate, customEndDate]);
 
   // Mini sparkline đường cong động cho card Tổng doanh thu dựa trên xu hướng 7 ngày thực tế
   const sparkline7d = useMemo(() => {
@@ -335,17 +460,246 @@ export const DashboardPage: React.FC = () => {
     return createSmoothPath(coords);
   }, [dashboardData?.orders]);
 
-  // 1. Thẻ thống kê 4 cột (Lấy số liệu thật từ Backend)
-  const totalRevenue = dashboardData?.totalRevenueFormatted ?? '0 ₫';
-  const totalOrders = dashboardData?.totalOrders ?? 0;
-  const totalCustomers = dashboardData?.totalCustomers ?? 1;
+  // Helper kiểm tra một ngày có nằm trong khoảng thời gian đang chọn không
+  const isDateInSelectedRange = (date: Date): boolean => {
+    const now = new Date();
+    if (selectedTimeRange === 'Hôm nay') {
+      return (
+        date.getFullYear() === now.getFullYear() &&
+        date.getMonth() === now.getMonth() &&
+        date.getDate() === now.getDate()
+      );
+    }
+    if (selectedTimeRange === '7 ngày gần nhất') {
+      const s = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+      s.setHours(0, 0, 0, 0);
+      return date >= s && date <= now;
+    }
+    if (selectedTimeRange === '30 ngày qua') {
+      const s = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
+      s.setHours(0, 0, 0, 0);
+      return date >= s && date <= now;
+    }
+    if (selectedTimeRange === 'Năm nay') {
+      return date.getFullYear() === now.getFullYear();
+    }
+    if (selectedTimeRange === 'Tùy chọn' && customStartDate && customEndDate) {
+      const s = new Date(customStartDate + 'T00:00:00');
+      const e = new Date(customEndDate + 'T23:59:59');
+      return date >= s && date <= e;
+    }
+    return true;
+  };
+
+  // 1. Lọc đơn hàng phát sinh trong khoảng thời gian đã chọn
+  const periodOrders = useMemo(() => {
+    if (!dashboardData?.orders) return [];
+    return dashboardData.orders.filter((o) => {
+      const od = parseOrderDate(o.createdAt);
+      if (!od) return false;
+      return isDateInSelectedRange(od);
+    });
+  }, [dashboardData?.orders, selectedTimeRange, customStartDate, customEndDate]);
+
+  // Đơn hàng hợp lệ (loại trừ CANCELLED)
+  const activePeriodOrders = useMemo(() => {
+    return periodOrders.filter((o) => o.status !== 'CANCELLED');
+  }, [periodOrders]);
+
+  // 2. Tổng doanh thu trong kỳ
+  const periodRevenueNumber = useMemo(() => {
+    return activePeriodOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+  }, [activePeriodOrders]);
+
+  const periodRevenueFormatted = useMemo(() => {
+    return formatPrice(periodRevenueNumber);
+  }, [periodRevenueNumber]);
+
+  // 3. Khách hàng mới trong kỳ
+  const periodCustomersCount = useMemo(() => {
+    const customers = dashboardData?.customers || [];
+    const matched = customers.filter((u) => {
+      const cd = parseOrderDate(u.createdAt);
+      if (!cd) return false;
+      return isDateInSelectedRange(cd);
+    });
+    if (matched.length > 0) return matched.length;
+
+    // Fallback: Số lượng khách hàng duy nhất có phát sinh đơn hàng trong kỳ
+    const buyerIds = new Set(
+      periodOrders.map((o) => (o as any).userId || o.receiverName || o.phoneNumber).filter(Boolean)
+    );
+    return buyerIds.size;
+  }, [dashboardData?.customers, periodOrders, selectedTimeRange, customStartDate, customEndDate]);
+
+  // 4. Doanh thu theo danh mục trong kỳ
+  const periodCategoryStats = useMemo(() => {
+    const categories = (dashboardData?.categories && dashboardData.categories.length > 0)
+      ? dashboardData.categories
+      : [
+          { id: 1, name: 'Điện thoại' },
+          { id: 2, name: 'Laptop' },
+          { id: 3, name: 'Máy tính bảng' },
+          { id: 4, name: 'Thiết bị âm thanh' },
+          { id: 5, name: 'Đồng hồ & Phụ kiện' },
+        ];
+    const products = dashboardData?.products || [];
+
+    const productCategoryMap = new Map<number, number>();
+    products.forEach((p) => {
+      const catId = p.categoryId || (p.category ? p.category.id : 1);
+      if (p.id) productCategoryMap.set(p.id, catId);
+    });
+
+    const categoryRevenueMap = new Map<number, number>();
+    const categorySoldCountMap = new Map<number, number>();
+    let totalItemsRevenue = 0;
+
+    activePeriodOrders.forEach((order) => {
+      const items = order.orderItems || (order as any).items || [];
+      items.forEach((item) => {
+        const itemTotal =
+          Number(item.totalPrice) || Number(item.price || 0) * Number(item.quantity || 1) || 0;
+        const qty = Number(item.quantity) || 1;
+
+        let catId = (item as any).categoryId;
+        if (!catId && item.productId) {
+          catId = productCategoryMap.get(item.productId);
+        }
+        if (!catId) {
+          const pName = (item.productName || '').toLowerCase();
+          const matched = categories.find((c) => pName.includes(c.name.toLowerCase()));
+          if (matched) catId = matched.id;
+          else if (pName.includes('iphone') || pName.includes('galaxy') || pName.includes('phone') || pName.includes('điện thoại')) catId = 1;
+          else if (pName.includes('macbook') || pName.includes('laptop')) catId = 2;
+          else if (pName.includes('ipad') || pName.includes('tab')) catId = 3;
+          else if (pName.includes('tai nghe') || pName.includes('loa') || pName.includes('jbl') || pName.includes('marshall')) catId = 4;
+          else if (pName.includes('watch') || pName.includes('đồng hồ')) catId = 5;
+          else catId = categories[0]?.id || 1;
+        }
+
+        categoryRevenueMap.set(catId, (categoryRevenueMap.get(catId) || 0) + itemTotal);
+        categorySoldCountMap.set(catId, (categorySoldCountMap.get(catId) || 0) + qty);
+        totalItemsRevenue += itemTotal;
+      });
+    });
+
+    const baseRevenue = totalItemsRevenue > 0 ? totalItemsRevenue : periodRevenueNumber;
+
+    const sortedCategories = [...categories].sort((a, b) => {
+      const revA = categoryRevenueMap.get(a.id) || 0;
+      const revB = categoryRevenueMap.get(b.id) || 0;
+      if (revB !== revA) return revB - revA;
+      return a.id - b.id;
+    });
+
+    const percentageMap = new Map<number, number>();
+    let sumPercentages = 0;
+    let maxRevenueCatId: number | null = null;
+    let maxRevenue = -1;
+
+    sortedCategories.forEach((cat) => {
+      const rev = categoryRevenueMap.get(cat.id) || 0;
+      if (baseRevenue > 0 && rev > 0) {
+        const pct = Math.round((rev / baseRevenue) * 100);
+        percentageMap.set(cat.id, pct);
+        sumPercentages += pct;
+        if (rev > maxRevenue) {
+          maxRevenue = rev;
+          maxRevenueCatId = cat.id;
+        }
+      } else {
+        percentageMap.set(cat.id, 0);
+      }
+    });
+
+    if (baseRevenue > 0 && maxRevenueCatId !== null && sumPercentages > 0 && sumPercentages !== 100) {
+      const currentPct = percentageMap.get(maxRevenueCatId) || 0;
+      percentageMap.set(maxRevenueCatId, currentPct + (100 - sumPercentages));
+    }
+
+    const CIRCUMFERENCE = 251.327; // 2 * PI * 40
+    let accumulatedOffset = 0;
+    const DYNAMIC_COLORS = ['#2563eb', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4', '#6366f1', '#14b8a6'];
+
+    return sortedCategories.map((cat, index) => {
+      const catRevenue = categoryRevenueMap.get(cat.id) || 0;
+      const percentage = percentageMap.get(cat.id) || 0;
+      const strokeDashLength = baseRevenue > 0 && catRevenue > 0
+        ? (catRevenue / baseRevenue) * CIRCUMFERENCE
+        : 0;
+      const offset = accumulatedOffset;
+      accumulatedOffset -= strokeDashLength;
+
+      return {
+        id: cat.id,
+        name: cat.name,
+        percentage,
+        value: formatShortVND(catRevenue),
+        rawRevenue: catRevenue,
+        color: DYNAMIC_COLORS[index % DYNAMIC_COLORS.length],
+        strokeDash: `${strokeDashLength.toFixed(1)} ${CIRCUMFERENCE.toFixed(1)}`,
+        offset,
+        productCount: 0,
+        soldCount: categorySoldCountMap.get(cat.id) || 0,
+      };
+    });
+  }, [dashboardData?.categories, dashboardData?.products, activePeriodOrders, periodRevenueNumber]);
+
+  // 5. Top 8 Sản phẩm bán chạy trong kỳ
+  const periodTopProducts = useMemo(() => {
+    const products = dashboardData?.products || [];
+    const productSoldCountMap = new Map<number, number>();
+
+    activePeriodOrders.forEach((o) => {
+      const items = o.orderItems || (o as any).items || [];
+      items.forEach((item) => {
+        const pId = Number(item.productId);
+        if (pId) {
+          const cur = productSoldCountMap.get(pId) || 0;
+          productSoldCountMap.set(pId, cur + (Number(item.quantity) || 1));
+        }
+      });
+    });
+
+    const sortedProducts = [...products].sort((a, b) => {
+      const soldA = productSoldCountMap.get(a.id) || 0;
+      const soldB = productSoldCountMap.get(b.id) || 0;
+      if (soldB !== soldA) return soldB - soldA;
+      return (Number(b.price) || 0) - (Number(a.price) || 0);
+    });
+
+    const displayProducts = sortedProducts.length > 0 ? sortedProducts.slice(0, 8) : [];
+    return displayProducts.map((p, index) => {
+      const sold = productSoldCountMap.get(p.id) || 0;
+      return {
+        id: p.id,
+        rank: index + 1,
+        name: p.name,
+        category: p.category?.name || 'Thiết bị công nghệ',
+        sold: `${sold} đã bán`,
+        image: p.imageUrl,
+        price: formatPrice(Number(p.price) || 0),
+      };
+    });
+  }, [dashboardData?.products, activePeriodOrders]);
+
   const totalProducts = dashboardData?.totalProducts ?? 20;
 
+  const periodLabel = useMemo(() => {
+    if (selectedTimeRange === 'Hôm nay') return 'hôm nay';
+    if (selectedTimeRange === '7 ngày gần nhất') return '7 ngày qua';
+    if (selectedTimeRange === '30 ngày qua') return '30 ngày qua';
+    if (selectedTimeRange === 'Năm nay') return 'năm nay';
+    return 'kỳ đã chọn';
+  }, [selectedTimeRange]);
+
+  // 4 Thẻ thống kê cập nhật động 100% theo khoảng thời gian đã chọn
   const stats = [
     {
       title: 'Tổng doanh thu',
-      value: totalRevenue,
-      change: totalOrders > 0 ? '+14.5% hôm nay' : '0 giao dịch hôm nay',
+      value: periodRevenueFormatted,
+      change: periodRevenueNumber > 0 ? `Doanh thu ${periodLabel}` : `0 ₫ ${periodLabel}`,
       icon: ShoppingCart,
       color: 'bg-blue-50 text-blue-600 border border-blue-100',
       sparklineColor: '#2563eb',
@@ -353,17 +707,17 @@ export const DashboardPage: React.FC = () => {
     },
     {
       title: 'Đơn hàng mới',
-      value: `${totalOrders} đơn`,
-      change: totalOrders > 0 ? `+${totalOrders} đơn mới` : '0 đơn hôm nay',
+      value: `${periodOrders.length} đơn`,
+      change: periodOrders.length > 0 ? `+${periodOrders.length} đơn ${periodLabel}` : `0 đơn ${periodLabel}`,
       icon: Package,
       color: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
       sparklineColor: '#10b981',
-      sparklinePath: totalOrders > 0 ? 'M 0,26 C 20,24 35,28 50,15 C 65,5 80,18 100,6' : 'M 0,26 L 100,26',
+      sparklinePath: periodOrders.length > 0 ? 'M 0,26 C 20,24 35,28 50,15 C 65,5 80,18 100,6' : 'M 0,26 L 100,26',
     },
     {
       title: 'Khách hàng mới',
-      value: `${totalCustomers} người`,
-      change: totalCustomers > 0 ? `+${totalCustomers} tài khoản` : '0 khách hàng',
+      value: `${periodCustomersCount} người`,
+      change: periodCustomersCount > 0 ? `+${periodCustomersCount} người ${periodLabel}` : `0 người ${periodLabel}`,
       icon: Users,
       color: 'bg-sky-50 text-sky-600 border border-sky-100',
       sparklineColor: '#0284c7',
@@ -380,15 +734,8 @@ export const DashboardPage: React.FC = () => {
     },
   ];
 
-  // 2. Dữ liệu Doanh thu theo danh mục (Lấy 100% từ Database thực)
-  const categoryStats = dashboardData?.categoryBreakdown && dashboardData.categoryBreakdown.length > 0
-    ? dashboardData.categoryBreakdown
-    : [];
-
-  // 3. Sản phẩm bán chạy (Top 5 sản phẩm từ Database thực)
-  const topProducts = dashboardData?.topProducts && dashboardData.topProducts.length > 0
-    ? dashboardData.topProducts
-    : [];
+  const categoryStats = periodCategoryStats;
+  const topProducts = periodTopProducts;
 
   return (
     <div className="h-full flex flex-col justify-between font-sans select-none overflow-hidden space-y-3 sm:space-y-3.5">
@@ -403,8 +750,110 @@ export const DashboardPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Date Selector Pill & Refresh */}
+        {/* Date Selector Pill, Refresh & Export Excel */}
         <div className="flex items-center gap-2">
+          {/* Nút Xuất Báo Cáo Excel */}
+          <div className="relative" ref={exportDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setShowExportMenu((prev) => !prev)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition cursor-pointer"
+              title="Xuất báo cáo dữ liệu Excel"
+            >
+              {isExporting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+              )}
+              <span>{isExporting ? 'Đang xuất...' : 'Xuất Excel'}</span>
+              <ChevronDown className="w-3.5 h-3.5 opacity-80" />
+            </button>
+
+            {showExportMenu && (
+              <div className="absolute right-0 mt-1.5 w-60 bg-white rounded-2xl shadow-2xl border border-slate-200/90 py-2 z-50 text-xs animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="px-3.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
+                  Chọn loại báo cáo
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleExport('orders')}
+                  disabled={!!isExporting}
+                  className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center justify-between text-slate-700 transition cursor-pointer disabled:opacity-50 group"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <span className="p-1.5 rounded-lg bg-blue-50 text-blue-600 group-hover:bg-blue-100 transition shrink-0">
+                      <ShoppingBag className="w-3.5 h-3.5" />
+                    </span>
+                    <span className="font-semibold text-slate-800 text-xs">Báo cáo Đơn hàng</span>
+                  </span>
+                  {isExporting === 'orders' ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 shrink-0" />
+                  ) : (
+                    <Download className="w-3 h-3 text-slate-300 group-hover:text-slate-600 transition shrink-0" />
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleExport('inventory')}
+                  disabled={!!isExporting}
+                  className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center justify-between text-slate-700 transition cursor-pointer disabled:opacity-50 group"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <span className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100 transition shrink-0">
+                      <Boxes className="w-3.5 h-3.5" />
+                    </span>
+                    <span className="font-semibold text-slate-800 text-xs">Báo cáo Tồn kho & SP</span>
+                  </span>
+                  {isExporting === 'inventory' ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 shrink-0" />
+                  ) : (
+                    <Download className="w-3 h-3 text-slate-300 group-hover:text-slate-600 transition shrink-0" />
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleExport('customers')}
+                  disabled={!!isExporting}
+                  className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center justify-between text-slate-700 transition cursor-pointer disabled:opacity-50 group"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <span className="p-1.5 rounded-lg bg-purple-50 text-purple-600 group-hover:bg-purple-100 transition shrink-0">
+                      <Users className="w-3.5 h-3.5" />
+                    </span>
+                    <span className="font-semibold text-slate-800 text-xs">Báo cáo Khách hàng</span>
+                  </span>
+                  {isExporting === 'customers' ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 shrink-0" />
+                  ) : (
+                    <Download className="w-3 h-3 text-slate-300 group-hover:text-slate-600 transition shrink-0" />
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleExport('revenue')}
+                  disabled={!!isExporting}
+                  className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center justify-between text-slate-700 transition cursor-pointer disabled:opacity-50 group"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <span className="p-1.5 rounded-lg bg-amber-50 text-amber-600 group-hover:bg-amber-100 transition shrink-0">
+                      <TrendingUp className="w-3.5 h-3.5" />
+                    </span>
+                    <span className="font-semibold text-slate-800 text-xs">Báo cáo Doanh thu</span>
+                  </span>
+                  {isExporting === 'revenue' ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 shrink-0" />
+                  ) : (
+                    <Download className="w-3 h-3 text-slate-300 group-hover:text-slate-600 transition shrink-0" />
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+
           <button
             type="button"
             onClick={loadDashboardData}
@@ -414,14 +863,107 @@ export const DashboardPage: React.FC = () => {
           >
             <RotateCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
           </button>
-          <button
-            type="button"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200/90 rounded-lg text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition cursor-pointer"
-          >
-            <Calendar className="w-3.5 h-3.5 text-slate-500" />
-            <span>Hôm nay ({new Date().toLocaleDateString('vi-VN')})</span>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-          </button>
+          {/* Bộ lọc Ngày / Tháng / Năm */}
+          <div className="relative" ref={topDateDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsTopDateDropdownOpen((prev) => !prev)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200/90 rounded-lg text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition cursor-pointer"
+              title="Chọn ngày / tháng / năm hoặc mốc thời gian"
+            >
+              <Calendar className="w-3.5 h-3.5 text-blue-600" />
+              <span>{getSelectedDateLabel()}</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isTopDateDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isTopDateDropdownOpen && (
+              <div className="absolute right-0 mt-1.5 w-80 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-3 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+                  <span>Khoảng thời gian báo cáo</span>
+                  <span className="text-[10px] text-blue-600 font-semibold">{selectedTimeRange}</span>
+                </div>
+
+                {/* Các nút mốc nhanh */}
+                <div className="grid grid-cols-2 gap-1.5 mb-3">
+                  {[
+                    { label: 'Hôm nay', desc: 'Dữ liệu 24h hôm nay' },
+                    { label: '7 ngày gần nhất', desc: '1 tuần vừa qua' },
+                    { label: '30 ngày qua', desc: 'Tháng hiện tại' },
+                    { label: 'Năm nay', desc: `Năm ${new Date().getFullYear()}` },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTimeRange(preset.label as TimeRange);
+                        setIsTopDateDropdownOpen(false);
+                      }}
+                      className={`text-left p-2 rounded-xl border text-xs transition cursor-pointer ${
+                        selectedTimeRange === preset.label
+                          ? 'border-blue-500 bg-blue-50/70 text-blue-700 font-semibold shadow-2xs'
+                          : 'border-slate-100 hover:border-slate-200 hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <div className="font-semibold text-xs">{preset.label}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">{preset.desc}</div>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Tùy chọn Ngày / Tháng / Năm cụ thể */}
+                <div className="pt-2.5 border-t border-slate-100">
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
+                    Tùy chọn ngày / tháng / năm cụ thể:
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 mb-2.5">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block mb-0.5">Từ ngày</span>
+                      <input
+                        type="date"
+                        value={customStartDate}
+                        onChange={(e) => setCustomStartDate(e.target.value)}
+                        className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-slate-50/50"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block mb-0.5">Đến ngày</span>
+                      <input
+                        type="date"
+                        value={customEndDate}
+                        onChange={(e) => setCustomEndDate(e.target.value)}
+                        className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-slate-50/50"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleApplyCustomRange}
+                      disabled={!customStartDate || !customEndDate}
+                      className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-2xs transition cursor-pointer"
+                    >
+                      Áp dụng ngày đã chọn
+                    </button>
+                    {selectedTimeRange === 'Tùy chọn' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedTimeRange('Hôm nay');
+                          setCustomStartDate(todayStr);
+                          setCustomEndDate(todayStr);
+                          setIsTopDateDropdownOpen(false);
+                        }}
+                        className="px-2.5 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-medium transition cursor-pointer"
+                      >
+                        Đặt lại
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -501,7 +1043,10 @@ export const DashboardPage: React.FC = () => {
 
               {isTimeDropdownOpen && (
                 <div className="absolute right-0 mt-1 w-36 bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-20 text-xs">
-                  {(['Hôm nay', '7 ngày gần nhất', '30 ngày qua', 'Năm nay'] as const).map((range) => (
+                  {(selectedTimeRange === 'Tùy chọn'
+                    ? (['Hôm nay', '7 ngày gần nhất', '30 ngày qua', 'Năm nay', 'Tùy chọn'] as const)
+                    : (['Hôm nay', '7 ngày gần nhất', '30 ngày qua', 'Năm nay'] as const)
+                  ).map((range) => (
                     <button
                       key={range}
                       type="button"
@@ -778,7 +1323,7 @@ export const DashboardPage: React.FC = () => {
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
                 <span className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
-                  {totalRevenue}
+                  {periodRevenueFormatted}
                 </span>
                 <span className="text-[9px] text-slate-400 font-medium">Doanh thu</span>
               </div>

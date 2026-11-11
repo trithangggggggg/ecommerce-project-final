@@ -54,4 +54,16 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Order> findActiveOrdersBetween(
             @org.springframework.data.repository.query.Param("start") java.time.LocalDateTime start,
             @org.springframework.data.repository.query.Param("end") java.time.LocalDateTime end);
+
+    @org.springframework.data.jpa.repository.Query("SELECT o FROM Order o " +
+            "LEFT JOIN FETCH o.user " +
+            "LEFT JOIN FETCH o.shippingCarrier " +
+            "WHERE (:status IS NULL OR o.status = :status) " +
+            "AND (:start IS NULL OR o.createdAt >= :start) " +
+            "AND (:end IS NULL OR o.createdAt <= :end) " +
+            "ORDER BY o.createdAt DESC")
+    List<Order> findOrdersForExport(
+            @org.springframework.data.repository.query.Param("status") OrderStatus status,
+            @org.springframework.data.repository.query.Param("start") java.time.LocalDateTime start,
+            @org.springframework.data.repository.query.Param("end") java.time.LocalDateTime end);
 }

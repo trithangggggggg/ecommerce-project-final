@@ -48,6 +48,9 @@ export interface DashboardData {
   topProducts: TopProductItem[];
   recentOrders: RecentOrderItem[];
   orders: OrderResponse[];
+  products: Product[];
+  categories: Category[];
+  customers: any[];
 }
 
 export function formatVND(amount: number): string {
@@ -328,6 +331,9 @@ export const dashboardService = {
         topProducts,
         recentOrders,
         orders,
+        products,
+        categories,
+        customers,
       };
   },
 };
