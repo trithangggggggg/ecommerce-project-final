@@ -20,6 +20,7 @@ import UnauthorizedPage from '../pages/common/UnauthorizedPage';
 import StoresPage from '../pages/guest/StoresPage';
 import ArticlesPage from '../pages/guest/ArticlesPage';
 import ArticleDetailPage from '../pages/guest/ArticleDetailPage';
+import PaymentResultPage from '../pages/payment/PaymentResultPage';
 import NotFoundPage from '../pages/common/NotFoundPage';
 
 // Lazy-loaded Admin Layout & Pages (Code Splitting để giảm bundle size trang chủ)
@@ -88,6 +89,8 @@ export const AppRoutes: React.FC = () => {
           <Route path="tin-tuc" element={<ArticlesPage />} />
           <Route path="tin-tuc/:slug" element={<ArticleDetailPage />} />
           <Route path="cart" element={<CartPage />} />
+          <Route path="payment/result" element={<PaymentResultPage />} />
+          <Route path="payment/vnpay-return" element={<PaymentResultPage />} />
 
           {/* Các route yêu cầu khách hàng đăng nhập */}
           <Route element={<ProtectedRoute />}>

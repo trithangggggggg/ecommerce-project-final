@@ -105,4 +105,8 @@ export const ENDPOINTS = {
     CUSTOMERS: '/admin/export/customers',
     REVENUE: '/admin/export/revenue',
   },
+  PAYMENT: {
+    SEPAY_CREATE: '/payment/sepay/create-payment',
+    SEPAY_RETURN: '/payment/sepay/payment-return',
+  },
 } as const;

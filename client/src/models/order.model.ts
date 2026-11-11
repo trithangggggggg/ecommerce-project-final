@@ -9,7 +9,7 @@ export type OrderStatus =
   | 'COMPLETED'
   | 'CANCELLED';
 
-export type PaymentMethod = 'COD' | 'ONLINE' | 'BANK_TRANSFER' | 'VNPAY' | 'MOMO';
+export type PaymentMethod = 'COD' | 'ONLINE' | 'BANK_TRANSFER' | 'VNPAY' | 'MOMO' | 'SEPAY';
 
 export interface OrderItemRequest {
   productId?: number;
