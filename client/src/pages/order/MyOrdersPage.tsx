@@ -382,6 +382,8 @@ export const MyOrdersPage: React.FC = () => {
                         <CreditCard className="w-3.5 h-3.5 text-blue-600" />
                         {order.paymentMethod === 'COD'
                           ? 'Thanh toán COD'
+                          : order.paymentMethod === 'SEPAY'
+                          ? 'Thanh toán qua SePay'
                           : order.paymentMethod === 'BANK_TRANSFER'
                           ? 'Chuyển khoản ngân hàng'
                           : order.paymentMethod}

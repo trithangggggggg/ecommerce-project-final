@@ -56,7 +56,7 @@ export const PaymentResultPage: React.FC = () => {
       }
 
       // Nếu không có bất kỳ param nào liên quan đến thanh toán
-      if (!paymentParam && !paramsObj['vnp_ResponseCode'] && !paramsObj['orderId']) {
+      if (!paymentParam && !paramsObj['vnp_ResponseCode'] && !paramsObj['orderId'] && !invoiceParam) {
         if (isMounted) {
           setLoading(false);
           setErrorMessage('Không tìm thấy thông tin giao dịch thanh toán trong liên kết.');
@@ -90,7 +90,7 @@ export const PaymentResultPage: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [searchParams, paymentParam]);
+  }, [searchParams, paymentParam, invoiceParam]);
 
   // Phân tích trạng thái giao dịch
   const vnpResponseCode = searchParams.get('vnp_ResponseCode');
@@ -215,7 +215,7 @@ export const PaymentResultPage: React.FC = () => {
                       <span className="text-slate-500">Cổng thanh toán:</span>
                       <span className="font-semibold text-slate-800 flex items-center gap-1.5">
                         <CreditCard className="w-4 h-4 text-blue-600" />
-                        <span>VNPAY / SePay</span>
+                        <span>Cổng thanh toán SePay</span>
                       </span>
                     </div>
 

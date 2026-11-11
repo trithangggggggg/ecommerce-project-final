@@ -21,8 +21,6 @@ import {
   Sparkles,
   Zap,
   Clock,
-  Copy,
-  QrCode,
   AlertTriangle,
   ExternalLink,
   Search,
@@ -129,7 +127,6 @@ export const CheckoutPage: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [outOfStockError, setOutOfStockError] = useState<string | null>(null);
   const [orderSuccessData, setOrderSuccessData] = useState<OrderResponse | null>(null);
-  const [copiedBankInfo, setCopiedBankInfo] = useState<string | null>(null);
 
   const receiverNameRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
@@ -361,14 +358,6 @@ export const CheckoutPage: React.FC = () => {
     const num = parseInt(minOrderStr.replace(/\D/g, ''), 10);
     return isNaN(num) ? 0 : num;
   };
-  // Copy helper
-  const handleCopyText = (text: string, label: string) => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text);
-      setCopiedBankInfo(label);
-      setTimeout(() => setCopiedBankInfo(null), 2500);
-    }
-  };
 
   // Xử lý gửi đơn hàng (Checkout)
   const handleCheckoutSubmit = async (e: React.FormEvent) => {
@@ -422,22 +411,21 @@ export const CheckoutPage: React.FC = () => {
         }
       }
 
-      // Nếu chọn VNPAY / SePay → tạo payment và redirect đến cổng thanh toán
-      if (paymentMethod === 'VNPAY' || paymentMethod === 'SEPAY') {
+      // Nếu chọn SePay → tạo form checkout đã ký và chuyển hướng sang cổng thanh toán SePay
+      if (paymentMethod === 'SEPAY' || paymentMethod === 'VNPAY') {
         try {
           const paymentData = await paymentService.createPayment({
             orderId: createdOrder.id,
-            description: `Thanh toan don hang #${createdOrder.id}`,
-            paymentMethod: 'VNPAY',
+            description: `Thanh toan don hang ${createdOrder.id}`,
           });
-          // Chuyển hướng sang URL do Backend cung cấp
+          // Tự động submit form POST (theo chuẩn SePay) sang trang thanh toán
           paymentService.redirectToGateway(paymentData.checkoutUrl, paymentData.checkoutFields);
           return; // Dừng lại — trình duyệt sẽ điều hướng sang cổng thanh toán
         } catch (payErr: unknown) {
           const payMsg =
             payErr instanceof Error
               ? payErr.message
-              : 'Không thể kết nối cổng thanh toán VNPAY. Vui lòng thử lại!';
+              : 'Đơn hàng đã được tạo nhưng chưa thể kết nối cổng thanh toán SePay. Vui lòng thử thanh toán lại trong Đơn hàng của tôi!';
           setErrorMessage(payMsg);
           setIsSubmitting(false);
           return;
@@ -480,14 +468,6 @@ export const CheckoutPage: React.FC = () => {
   // ============================================================
   if (orderSuccessData) {
     const finalPaidAmount = orderSuccessData.finalAmount ?? orderSuccessData.totalAmount ?? finalTotal;
-    const isBankTransfer = orderSuccessData.paymentMethod === 'BANK_TRANSFER';
-    const bankTransferContent = `DH${orderSuccessData.id}`;
-    const bankNumber = '0987654321';
-    const bankOwner = 'CỬA HÀNG THƯƠNG MẠI ĐIỆN TỬ';
-    const bankName = 'MB Bank (Ngân hàng TMCP Quân Đội)';
-    const qrUrl = `https://img.vietqr.io/image/MB-${bankNumber}-compact2.png?amount=${finalPaidAmount}&addInfo=${bankTransferContent}&accountName=${encodeURIComponent(
-      bankOwner
-    )}`;
 
     return (
       <div className="min-h-screen bg-[#f5f6fa] py-10 px-4 sm:px-6 lg:px-8 font-sans">
@@ -530,101 +510,6 @@ export const CheckoutPage: React.FC = () => {
               </span>
             </div>
           </div>
-
-          {/* Hướng dẫn Chuyển khoản nếu chọn BANK_TRANSFER */}
-          {isBankTransfer && (
-            <div className="bg-white rounded-2xl border-2 border-indigo-200 shadow-sm p-6 space-y-4">
-              <div className="flex items-center gap-3 pb-3 border-b border-indigo-100">
-                <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                  <QrCode className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-gray-900">
-                    Hướng dẫn thanh toán Chuyển khoản qua Ngân hàng
-                  </h3>
-                  <p className="text-xs text-gray-500">
-                    Vui lòng chuyển khoản đúng số tiền và nội dung để đơn hàng được tự động kích hoạt
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-                {/* VietQR Image */}
-                <div className="md:col-span-5 flex flex-col items-center justify-center p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
-                  <img
-                    src={qrUrl}
-                    alt="VietQR Chuyển khoản"
-                    className="w-48 h-auto rounded-lg shadow-sm bg-white p-2 border border-gray-100"
-                  />
-                  <span className="text-[11px] text-indigo-700 font-semibold mt-2">
-                    Quét mã QR bằng App Ngân hàng
-                  </span>
-                </div>
-
-                {/* Bank Account Details */}
-                <div className="md:col-span-7 space-y-2.5 text-xs">
-                  <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg">
-                    <span className="text-gray-500">Ngân hàng thụ hưởng:</span>
-                    <span className="font-bold text-gray-900">{bankName}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg">
-                    <span className="text-gray-500">Số tài khoản:</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-gray-900 text-sm">{bankNumber}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyText(bankNumber, 'stk')}
-                        className="p-1 text-gray-400 hover:text-indigo-600 transition"
-                        title="Copy số tài khoản"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg">
-                    <span className="text-gray-500">Chủ tài khoản:</span>
-                    <span className="font-bold text-gray-900">{bankOwner}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg">
-                    <span className="text-gray-500">Số tiền thanh toán:</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-black text-red-600 text-sm">
-                        {formatPrice(finalPaidAmount)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyText(finalPaidAmount.toString(), 'amount')}
-                        className="p-1 text-gray-400 hover:text-indigo-600 transition"
-                        title="Copy số tiền"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-2.5 bg-indigo-50/80 border border-indigo-200 rounded-lg">
-                    <div>
-                      <span className="text-indigo-900 font-semibold block">Nội dung chuyển khoản:</span>
-                      <span className="font-mono font-black text-indigo-700 text-sm">
-                        {bankTransferContent}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleCopyText(bankTransferContent, 'memo')}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-indigo-600 text-white text-[11px] font-bold hover:bg-indigo-700 transition"
-                    >
-                      <Copy className="w-3 h-3" />
-                      <span>{copiedBankInfo === 'memo' ? 'Đã sao chép' : 'Sao chép'}</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Chi tiết đơn hàng */}
           <div className="bg-white rounded-2xl border border-gray-200/90 shadow-sm p-6 space-y-4">
@@ -675,7 +560,9 @@ export const CheckoutPage: React.FC = () => {
                 <p className="text-gray-900 pt-1 border-t border-gray-200">
                   <span className="text-gray-500">Phương thức thanh toán: </span>
                   <span className="font-bold text-gray-900">
-                    {orderSuccessData.paymentMethod === 'BANK_TRANSFER'
+                    {orderSuccessData.paymentMethod === 'SEPAY'
+                      ? 'Thanh toán trực tuyến qua SePay'
+                      : orderSuccessData.paymentMethod === 'BANK_TRANSFER'
                       ? 'Chuyển khoản ngân hàng'
                       : 'Thanh toán khi nhận hàng (COD)'}
                   </span>
@@ -1278,41 +1165,10 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                   </label>
 
-                  {/* Chuyển khoản ngân hàng (BANK_TRANSFER) */}
+                  {/* Thanh toán trực tuyến qua SePay */}
                   <label
                     className={`flex items-start gap-3.5 p-3.5 rounded-xl border-2 transition cursor-pointer ${
-                      paymentMethod === 'BANK_TRANSFER'
-                        ? 'border-indigo-600 bg-indigo-50/40 shadow-2xs'
-                        : 'border-gray-200 hover:border-gray-300 bg-white'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="BANK_TRANSFER"
-                      checked={paymentMethod === 'BANK_TRANSFER'}
-                      onChange={() => setPaymentMethod('BANK_TRANSFER')}
-                      className="mt-1 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-gray-900">
-                          Chuyển khoản ngân hàng (VietQR / Internet Banking)
-                        </span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
-                          Xác nhận tức thì
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-gray-500 mt-0.5">
-                        Quét mã VietQR hoặc chuyển khoản qua Mobile Banking 24/7 không mất phí.
-                      </p>
-                    </div>
-                  </label>
-
-                  {/* Thanh toán qua VNPAY */}
-                  <label
-                    className={`flex items-start gap-3.5 p-3.5 rounded-xl border-2 transition cursor-pointer ${
-                      paymentMethod === 'VNPAY' || paymentMethod === 'SEPAY'
+                      paymentMethod === 'SEPAY'
                         ? 'border-blue-600 bg-blue-50/40 shadow-2xs'
                         : 'border-gray-200 hover:border-gray-300 bg-white'
                     }`}
@@ -1320,56 +1176,25 @@ export const CheckoutPage: React.FC = () => {
                     <input
                       type="radio"
                       name="paymentMethod"
-                      value="VNPAY"
-                      checked={paymentMethod === 'VNPAY' || paymentMethod === 'SEPAY'}
-                      onChange={() => setPaymentMethod('VNPAY')}
+                      value="SEPAY"
+                      checked={paymentMethod === 'SEPAY'}
+                      onChange={() => setPaymentMethod('SEPAY')}
                       className="mt-1 text-blue-600 focus:ring-blue-500"
                     />
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
-                          <span>Thanh toán qua VNPAY</span>
+                          <span>Thanh toán trực tuyến qua SePay</span>
                         </span>
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">
                           Xác nhận tức thì
                         </span>
                       </div>
                       <p className="text-[11px] text-gray-500 mt-0.5">
-                        Thanh toán trực tuyến bảo mật qua cổng VNPAY (Quét mã VNPAY-QR, Thẻ ATM nội địa, Internet Banking, Visa/Mastercard).
+                        Quét mã VietQR chuyển khoản ngân hàng, NAPAS QR hoặc thanh toán thẻ qua cổng SePay.
                       </p>
                     </div>
                   </label>
-
-                  {/* Hướng dẫn chuyển khoản ngân hàng nếu chọn BANK_TRANSFER */}
-                  {paymentMethod === 'BANK_TRANSFER' && (
-                    <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-3 animate-fade-in text-xs">
-                      <div className="flex items-center gap-2 text-indigo-900 font-bold">
-                        <QrCode className="w-4 h-4 text-indigo-600" />
-                        <span>Thông tin tài khoản nhận chuyển khoản:</span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                        <div className="p-2 bg-white rounded-lg border border-indigo-100">
-                          <span className="text-gray-500 block">Ngân hàng:</span>
-                          <span className="font-bold text-gray-900">MB Bank (Quân Đội)</span>
-                        </div>
-                        <div className="p-2 bg-white rounded-lg border border-indigo-100">
-                          <span className="text-gray-500 block">Số tài khoản:</span>
-                          <span className="font-mono font-bold text-indigo-700">0987654321</span>
-                        </div>
-                        <div className="p-2 bg-white rounded-lg border border-indigo-100">
-                          <span className="text-gray-500 block">Chủ tài khoản:</span>
-                          <span className="font-bold text-gray-900">CỬA HÀNG THƯƠNG MẠI ĐIỆN TỬ</span>
-                        </div>
-                        <div className="p-2 bg-white rounded-lg border border-indigo-100">
-                          <span className="text-gray-500 block">Số tiền cần chuyển:</span>
-                          <span className="font-black text-red-600">{formatPrice(finalTotal)}</span>
-                        </div>
-                      </div>
-                      <p className="text-[11px] text-indigo-700 italic">
-                        * Sau khi ấn <strong>Xác nhận đặt hàng</strong>, hệ thống sẽ hiển thị mã đơn và QR Code để bạn quét mã thanh toán tiện lợi.
-                      </p>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -1711,10 +1536,8 @@ export const CheckoutPage: React.FC = () => {
                   >
                     {isSubmitting
                       ? 'Đang xử lý đơn hàng...'
-                      : paymentMethod === 'BANK_TRANSFER'
-                      ? `Xác nhận & Nhận mã thanh toán (${formatPrice(finalTotal)})`
-                      : paymentMethod === 'VNPAY' || paymentMethod === 'SEPAY'
-                      ? `Thanh toán qua VNPAY (${formatPrice(finalTotal)})`
+                      : paymentMethod === 'SEPAY'
+                      ? `Thanh toán qua SePay (${formatPrice(finalTotal)})`
                       : `Xác nhận đặt hàng (${formatPrice(finalTotal)})`}
                   </Button>
                 </div>
