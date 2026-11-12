@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import AdminPagination from '../../components/admin/AdminPagination';
+import AdminSummaryStrip from '../../components/admin/AdminSummaryStrip';
 import { productService } from '../../api/services/product.service';
 import { supplierService } from '../../api/services/supplier.service';
 import { inventoryService, type ImportReceiptDto } from '../../api/services/inventory.service';
@@ -903,74 +904,37 @@ export const AdminInventoryPage: React.FC = () => {
       {/* ======================================================== */}
       {activeTab === 'INVENTORY' && (
         <>
-          {/* Stats Summary Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
-            <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-slate-500 shadow-2xs space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                Tổng thiết bị lưu kho
-              </span>
-              <span className="text-lg sm:text-xl font-bold text-slate-900 tabular-nums block">
-                {totalQuantity} chiếc
-              </span>
-              <span className="text-[11px] text-slate-500 tabular-nums block">
-                Trên {items.length} mã sản phẩm
-              </span>
-            </div>
-
-            <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-emerald-500 shadow-2xs space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                Còn hàng
-              </span>
-              <span className="text-lg sm:text-xl font-bold text-emerald-600 tabular-nums block">
-                {inStockCount} SKU
-              </span>
-              <span className="text-[11px] text-slate-500 block">
-                Tồn kho ổn định (&gt; 5)
-              </span>
-            </div>
-
-            <div
-              onClick={() => {
-                setStatusFilter(statusFilter === 'LOW_STOCK' ? 'ALL' : 'LOW_STOCK');
-                setCurrentPage(1);
-              }}
-              className={`rounded-xl p-3.5 border border-t-2 border-t-amber-500 shadow-2xs cursor-pointer transition space-y-1 ${
-                statusFilter === 'LOW_STOCK'
-                  ? 'bg-amber-50/60 border-amber-300 ring-2 ring-amber-200'
-                  : 'bg-white border-slate-200/80 hover:border-amber-200'
-              }`}
-              title="Nhấn để lọc chỉ các SKU sắp hết hàng (<= 5)"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                  Sắp hết hàng (&le; 5)
-                </span>
-                {statusFilter === 'LOW_STOCK' && (
-                  <span className="text-[10px] bg-amber-600 text-white font-bold px-1.5 py-0.5 rounded-full">
-                    Đang lọc
-                  </span>
-                )}
-              </div>
-              <span className="text-lg sm:text-xl font-bold text-amber-600 tabular-nums block">
-                {lowStockCount} SKU
-              </span>
-              <span className="text-[11px] text-slate-500 block">
-                Nhấn để lọc nhanh SKU sắp hết
-              </span>
-            </div>
-
-            <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-rose-500 shadow-2xs space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                Hết hàng
-              </span>
-              <span className="text-lg sm:text-xl font-bold text-rose-600 tabular-nums block">
-                {outOfStockCount} SKU
-              </span>
-              <span className="text-[11px] text-slate-500 block">
-                Cần lập phiếu nhập bổ sung
-              </span>
-            </div>
-          </div>
+          {/* Compact Inventory Stats Strip */}
+          <AdminSummaryStrip
+            items={[
+              {
+                label: 'Lưu kho',
+                value: `${totalQuantity} chiếc`,
+                subValue: `${items.length} SP`,
+              },
+              {
+                label: 'Còn hàng',
+                value: `${inStockCount} SKU`,
+                valueClassName: 'text-emerald-600',
+              },
+              {
+                label: 'Sắp hết (≤ 5)',
+                value: `${lowStockCount} SKU`,
+                valueClassName: 'text-amber-600',
+                active: statusFilter === 'LOW_STOCK',
+                title: 'Nhấn để lọc nhanh SKU sắp hết hàng (<= 5)',
+                onClick: () => {
+                  setStatusFilter(statusFilter === 'LOW_STOCK' ? 'ALL' : 'LOW_STOCK');
+                  setCurrentPage(1);
+                },
+              },
+              {
+                label: 'Hết hàng',
+                value: `${outOfStockCount} SKU`,
+                valueClassName: 'text-rose-600',
+              },
+            ]}
+          />
 
           {/* Main Table Card */}
           <div className="bg-white rounded-xl border border-slate-200/80 shadow-2xs flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -1246,42 +1210,25 @@ export const AdminInventoryPage: React.FC = () => {
       {/* ======================================================== */}
       {activeTab === 'RECEIPTS' && (
         <>
-          {/* Stats Summary Cards for Receipts */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0">
-            <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-slate-500 shadow-2xs space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                Tổng số phiếu nhập đã lưu
-              </span>
-              <span className="text-lg sm:text-xl font-bold text-slate-900 tabular-nums block">
-                {receiptTotalItems} phiếu
-              </span>
-              <span className="text-[11px] text-slate-500 block">
-                Lưu trữ chứng từ nhập hàng
-              </span>
-            </div>
-            <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-blue-500 shadow-2xs space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                Tổng thiết bị nhập (trang hiện tại)
-              </span>
-              <span className="text-lg sm:text-xl font-bold text-blue-600 tabular-nums block">
-                {totalReceiptItemsSum} chiếc
-              </span>
-              <span className="text-[11px] text-slate-500 block">
-                Tổng số lượng theo danh sách trang
-              </span>
-            </div>
-            <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-emerald-500 shadow-2xs space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                Tổng giá trị nhập (trang hiện tại)
-              </span>
-              <span className="text-lg sm:text-xl font-bold text-emerald-600 tabular-nums block">
-                {totalReceiptAmountSum.toLocaleString('vi-VN')} VNĐ
-              </span>
-              <span className="text-[11px] text-slate-500 block">
-                Tổng tiền nhập hàng từ nhà cung cấp
-              </span>
-            </div>
-          </div>
+          {/* Compact Receipts Stats Strip */}
+          <AdminSummaryStrip
+            items={[
+              {
+                label: 'Tổng phiếu nhập',
+                value: `${receiptTotalItems} phiếu`,
+              },
+              {
+                label: 'Số lượng (trang)',
+                value: `${totalReceiptItemsSum} chiếc`,
+                valueClassName: 'text-blue-600',
+              },
+              {
+                label: 'Giá trị nhập (trang)',
+                value: `${totalReceiptAmountSum.toLocaleString('vi-VN')} VNĐ`,
+                valueClassName: 'text-emerald-600',
+              },
+            ]}
+          />
 
           {/* Receipts Table Card */}
           <div className="bg-white rounded-xl border border-slate-200/80 shadow-2xs flex-1 flex flex-col min-h-0 overflow-hidden">

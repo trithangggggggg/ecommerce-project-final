@@ -262,45 +262,6 @@ export const AdminStoresPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0">
-        <div className="bg-white p-4 rounded-xl border border-slate-200/80 border-t-2 border-t-blue-600 shadow-2xs">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            Tổng số Showroom
-          </div>
-          <div className="text-2xl font-extrabold text-slate-900 tracking-tight tabular-nums mt-1">
-            {stores.length}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1">
-            Tổng chi nhánh trên toàn hệ thống
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200/80 border-t-2 border-t-emerald-500 shadow-2xs">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            Đang hoạt động (ACTIVE)
-          </div>
-          <div className="text-2xl font-extrabold text-emerald-600 tracking-tight tabular-nums mt-1">
-            {activeCount}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1">
-            Hiển thị công khai trên bản đồ
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200/80 border-t-2 border-t-slate-400 shadow-2xs">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            Tạm đóng cửa (INACTIVE)
-          </div>
-          <div className="text-2xl font-extrabold text-slate-600 tracking-tight tabular-nums mt-1">
-            {inactiveCount}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1">
-            Chi nhánh đang bảo trì hoặc tạm ngừng
-          </div>
-        </div>
-      </div>
-
       {/* Main Data Container */}
       <div className="bg-white rounded-xl border border-slate-200/80 shadow-2xs flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Integrated Clean Filter Bar */}

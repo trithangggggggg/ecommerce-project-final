@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminPagination from '../../components/admin/AdminPagination';
+import AdminSummaryStrip from '../../components/admin/AdminSummaryStrip';
 import { adminWheelService } from '../../api/services/adminWheel.service';
 import type {
   AdminWheelSpinHistoryItem,
@@ -377,60 +378,31 @@ export const AdminWheelPage: React.FC = () => {
         </div>
       </div>
 
-      {/* STAT CARDS / KPIS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
-        {/* Card 1: Tổng lượt quay */}
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">
-            Tổng lượt quay
-          </span>
-          <div className="text-lg font-bold text-slate-900">
-            {(stats?.totalSpins ?? 0).toLocaleString('vi-VN')}
-          </div>
-          <span className="text-[11px] text-slate-500 mt-0.5 block">
-            Toàn hệ thống từ trước đến nay
-          </span>
-        </div>
-
-        {/* Card 2: Lượt quay hôm nay */}
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">
-            Lượt quay hôm nay
-          </span>
-          <div className="text-lg font-bold text-emerald-600">
-            {(stats?.spinsToday ?? 0).toLocaleString('vi-VN')}
-          </div>
-          <span className="text-[11px] text-slate-500 mt-0.5 block">
-            Khách hàng tham gia hôm nay
-          </span>
-        </div>
-
-        {/* Card 3: Người chơi tham gia */}
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">
-            Khách hàng đã quay
-          </span>
-          <div className="text-lg font-bold text-purple-600">
-            {(stats?.uniqueUsers ?? 0).toLocaleString('vi-VN')}
-          </div>
-          <span className="text-[11px] text-slate-500 mt-0.5 block">
-            Tài khoản khách hàng duy nhất
-          </span>
-        </div>
-
-        {/* Card 4: Voucher phát hành */}
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">
-            Voucher đã trúng
-          </span>
-          <div className="text-lg font-bold text-amber-600">
-            {(stats?.vouchersIssued ?? 0).toLocaleString('vi-VN')}
-          </div>
-          <span className="text-[11px] text-slate-500 mt-0.5 block">
-            Đã sử dụng: <strong className="text-slate-800">{stats?.vouchersUsed ?? 0}</strong> mã
-          </span>
-        </div>
-      </div>
+      {/* STAT STRIP / KPIS */}
+      <AdminSummaryStrip
+        items={[
+          {
+            label: 'Tổng lượt quay',
+            value: (stats?.totalSpins ?? 0).toLocaleString('vi-VN'),
+          },
+          {
+            label: 'Hôm nay',
+            value: (stats?.spinsToday ?? 0).toLocaleString('vi-VN'),
+            valueClassName: 'text-emerald-600',
+          },
+          {
+            label: 'Người chơi',
+            value: (stats?.uniqueUsers ?? 0).toLocaleString('vi-VN'),
+            valueClassName: 'text-purple-600',
+          },
+          {
+            label: 'Voucher trúng',
+            value: (stats?.vouchersIssued ?? 0).toLocaleString('vi-VN'),
+            subValue: `Đã dùng ${stats?.vouchersUsed ?? 0}`,
+            valueClassName: 'text-amber-600',
+          },
+        ]}
+      />
 
       {/* TABS NAVIGATION */}
       <div className="flex flex-wrap items-center gap-1.5 bg-white p-1.5 rounded-xl border border-slate-200/80 shadow-2xs w-fit shrink-0">

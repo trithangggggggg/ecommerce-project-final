@@ -244,12 +244,15 @@ export const AdminSuppliersPage: React.FC = () => {
       {/* Header & Actions */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
         <div>
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
               Đối tác & Nhà cung cấp thiết bị
             </h1>
             <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 tabular-nums">
               {suppliers.length} nhà cung cấp
+            </span>
+            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 tabular-nums">
+              {uniqueBrandCount} hãng
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -272,46 +275,6 @@ export const AdminSuppliersPage: React.FC = () => {
           >
             Thêm nhà cung cấp
           </Button>
-        </div>
-      </div>
-
-      {/* Stats Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
-        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-slate-500 shadow-2xs space-y-1">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-            Tổng nhà cung cấp
-          </span>
-          <span className="text-lg sm:text-xl font-bold text-slate-900 tabular-nums block">
-            {suppliers.length}
-          </span>
-          <span className="text-[11px] text-slate-500 block">Đối tác trong danh mục</span>
-        </div>
-        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-emerald-500 shadow-2xs space-y-1">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-            Đang hợp tác
-          </span>
-          <span className="text-lg sm:text-xl font-bold text-emerald-600 tabular-nums block">
-            {activeCount}
-          </span>
-          <span className="text-[11px] text-slate-500 block">Đang cung ứng thiết bị</span>
-        </div>
-        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-blue-500 shadow-2xs space-y-1">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-            Hãng đại diện
-          </span>
-          <span className="text-lg sm:text-xl font-bold text-blue-600 tabular-nums block">
-            {uniqueBrandCount} hãng
-          </span>
-          <span className="text-[11px] text-slate-500 block">Thương hiệu phân phối chính hãng</span>
-        </div>
-        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-slate-400 shadow-2xs space-y-1">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-            Tạm dừng giao dịch
-          </span>
-          <span className="text-lg sm:text-xl font-bold text-slate-600 tabular-nums block">
-            {inactiveCount}
-          </span>
-          <span className="text-[11px] text-slate-500 block">Ngưng nhập hàng tạm thời</span>
         </div>
       </div>
 
