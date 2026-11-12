@@ -1161,7 +1161,7 @@ export const DashboardPage: React.FC = () => {
                       interval="preserveStartEnd"
                     />
                     <YAxis
-                      tickFormatter={(v) => formatShortVND(Number(v))}
+                      tickFormatter={(v: unknown) => formatShortVND(Number(v))}
                       tick={{ fontSize: 10, fill: '#94a3b8' }}
                       axisLine={false}
                       tickLine={false}

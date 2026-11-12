@@ -133,7 +133,7 @@ export const PaymentResultPage: React.FC = () => {
             <div className="space-y-2">
               <h2 className="text-xl font-bold text-slate-800">Đang đối soát giao dịch</h2>
               <p className="text-sm text-slate-500">
-                Hệ thống đang kết nối với cổng thanh toán để xác thực kết quả giao dịch. Vui lòng chờ trong giây lát...
+                Hệ thống đang kết nối với cổng thanh toán SePay để xác thực kết quả giao dịch. Vui lòng chờ trong giây lát...
               </p>
             </div>
           </div>
@@ -169,10 +169,10 @@ export const PaymentResultPage: React.FC = () => {
                 {result?.message ||
                   errorMessage ||
                   (isSuccess
-                    ? 'Đơn hàng của bạn đã được ghi nhận thanh toán thành công và đang được chuẩn bị đóng gói.'
+                    ? 'Đơn hàng của bạn đã được ghi nhận thanh toán thành công qua SePay và đang được chuẩn bị đóng gói.'
                     : isCancelled
-                    ? 'Bạn đã hủy quá trình thanh toán trực tuyến hoặc phiên làm việc đã hết hạn.'
-                    : 'Giao dịch bị từ chối hoặc gặp trục trặc kỹ thuật. Vui lòng thử lại hoặc chọn phương thức khác.')}
+                    ? 'Bạn đã hủy quá trình thanh toán qua SePay hoặc phiên làm việc đã hết hạn.'
+                    : 'Giao dịch qua SePay bị từ chối hoặc gặp trục trặc kỹ thuật. Vui lòng thử lại hoặc chọn phương thức khác.')}
               </p>
             </div>
 
@@ -215,7 +215,7 @@ export const PaymentResultPage: React.FC = () => {
                       <span className="text-slate-500">Cổng thanh toán:</span>
                       <span className="font-semibold text-slate-800 flex items-center gap-1.5">
                         <CreditCard className="w-4 h-4 text-blue-600" />
-                        <span>Cổng thanh toán SePay</span>
+                        <span>SePay</span>
                       </span>
                     </div>
 

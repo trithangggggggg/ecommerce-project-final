@@ -446,14 +446,18 @@ export const CheckoutPage: React.FC = () => {
         }
       }
 
-      // Nếu chọn thanh toán online (SePay VietQR) → hiển thị trang quét QR trực tiếp 100% tại Nexor
-      if (paymentMethod === 'SEPAY' || paymentMethod === 'VNPAY') {
+      // Nếu chọn thanh toán qua SePay
+      if (paymentMethod === 'SEPAY') {
         try {
           const paymentData = await paymentService.createPayment({
             orderId: createdOrder.id,
             description: `Thanh toan don hang ${createdOrder.id}`,
           });
           if (paymentData.checkoutUrl && paymentData.paymentMode !== 'VIETQR_DIRECT') {
+            paymentService.redirectToGateway(paymentData.checkoutUrl, paymentData.checkoutFields);
+            return;
+          }
+          if (paymentData.checkoutUrl) {
             paymentService.redirectToGateway(paymentData.checkoutUrl, paymentData.checkoutFields);
             return;
           }
@@ -1251,11 +1255,11 @@ export const CheckoutPage: React.FC = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="text-xs sm:text-sm font-bold text-gray-900">
-                            Chuyển khoản ngân hàng qua mã VietQR
+                            Thanh toán qua SePay
                           </span>
                           <div className="flex items-center gap-2 shrink-0">
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-                              QR ngay tại Nexor
+                              Xác nhận tức thì
                             </span>
                             <span
                               className={`w-4 h-4 rounded-full border flex items-center justify-center ${
@@ -1269,14 +1273,14 @@ export const CheckoutPage: React.FC = () => {
                           </div>
                         </div>
                         <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
-                          Hiển thị mã QR động trực tiếp trên website Nexor (không chuyển trang ngoài). Quét bằng app ngân hàng hoặc ví điện tử, tự động xác nhận trong 3–5 giây.
+                          Thanh toán trực tuyến qua cổng SePay (Quét mã VietQR tự động xác nhận qua ứng dụng ngân hàng hoặc ví điện tử trong 3–5 giây).
                         </p>
                         <div className="flex flex-wrap items-center gap-1.5 mt-2">
                           <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[10px] font-bold text-slate-700">
-                            NAPAS 24/7
+                            VietQR / NAPAS 24/7
                           </span>
                           <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[10px] font-bold text-slate-700">
-                            30+ Ngân hàng VN
+                            Mọi ngân hàng VN
                           </span>
                           <span className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700">
                             Xác nhận tự động
@@ -1627,7 +1631,7 @@ export const CheckoutPage: React.FC = () => {
                     {isSubmitting
                       ? 'Đang xử lý đơn hàng...'
                       : paymentMethod === 'SEPAY'
-                      ? `Tạo mã QR thanh toán (${formatPrice(finalTotal)})`
+                      ? `Thanh toán qua SePay (${formatPrice(finalTotal)})`
                       : `Xác nhận đặt hàng (${formatPrice(finalTotal)})`}
                   </Button>
                 </div>
