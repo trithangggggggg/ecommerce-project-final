@@ -557,7 +557,7 @@ public class OrderServiceImpl implements OrderService {
                     currentStatus, newStatus));
         }
 
-        // Khi hủy đơn hàng, hoàn trả lại số lượng tồn kho và lượt dùng voucher
+        // Khi hủy đơn hàng, hoàn trả lại số lượng tồn kho (stock) cho biến thể và hoàn voucher
         if (newStatus == OrderStatus.CANCELLED && currentStatus != OrderStatus.CANCELLED) {
             restoreStockForOrder(order);
             restorePromotionUsage(order);
@@ -611,7 +611,7 @@ public class OrderServiceImpl implements OrderService {
             throw new BadRequestException("Chỉ có thể hủy đơn hàng khi đơn còn ở trạng thái 'Chờ xử lý' (PENDING). Trạng thái hiện tại: " + order.getStatus().name());
         }
 
-        // Hoàn trả tồn kho và lượt dùng voucher
+        // Hoàn trả tồn kho cho biến thể sản phẩm và hoàn lại voucher
         restoreStockForOrder(order);
         restorePromotionUsage(order);
 
@@ -628,11 +628,15 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private void restorePromotionUsage(Order order) {
-        decrementPromotionUsedCount(order.getCouponCode());
-        decrementPromotionUsedCount(order.getShippingCouponCode());
+        decrementPromotionUsedCount(order.getCouponCode(), "mã giảm giá", order.getId());
+        decrementPromotionUsedCount(order.getShippingCouponCode(), "mã freeship", order.getId());
     }
 
-    private void decrementPromotionUsedCount(String code) {
+    private void restorePromotionsForOrder(Order order) {
+        restorePromotionUsage(order);
+    }
+
+    private void decrementPromotionUsedCount(String code, String promoType, Long orderId) {
         if (!StringUtils.hasText(code) || promotionRepository == null) {
             return;
         }
@@ -641,8 +645,15 @@ public class OrderServiceImpl implements OrderService {
             if (used > 0) {
                 promo.setUsedCount(used - 1);
                 promotionRepository.save(promo);
+                if (orderId != null) {
+                    log.info("Đã hoàn lại lượt sử dụng cho {} '{}' sau khi hủy đơn hàng #{}", promoType, promo.getCode(), orderId);
+                }
             }
         });
+    }
+
+    private void decrementPromotionUsedCount(String code) {
+        decrementPromotionUsedCount(code, "mã khuyến mãi", null);
     }
 
     private void restoreStockForOrder(Order order) {
