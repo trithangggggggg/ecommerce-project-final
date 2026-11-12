@@ -110,4 +110,12 @@ export const ENDPOINTS = {
     SEPAY_STATUS: (orderId: number | string) => `/payment/sepay/status/${orderId}`,
     SEPAY_RETURN: '/payment/sepay/payment-return',
   },
+  ADMIN_DASHBOARD: {
+    STATS: '/admin/dashboard/stats',
+    REVENUE_TIMELINE: '/admin/dashboard/revenue-timeline',
+    KPI_SUMMARY: '/admin/dashboard/kpi-summary',
+    TOP_PRODUCTS: '/admin/dashboard/top-products',
+    CATEGORY_REVENUE: '/admin/dashboard/category-revenue',
+    LOW_STOCK_ALERTS: '/admin/dashboard/low-stock-alerts',
+  },
 } as const;
