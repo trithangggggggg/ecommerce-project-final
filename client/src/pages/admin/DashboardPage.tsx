@@ -1,5 +1,21 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Sector,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  LabelList,
+  type PieSectorShapeProps,
+} from 'recharts';
 import {
   Calendar,
   ChevronDown,
@@ -14,17 +30,21 @@ import {
   Boxes,
   TrendingUp,
   Download,
+  AlertCircle,
 } from 'lucide-react';
 import { ROUTES } from '../../constants/routes';
 import {
   dashboardService,
   type DashboardData,
+  type DashboardTimeRange,
+  type RevenueTimelineResponse,
+  type CategoryBreakdownItem,
   formatShortVND,
 } from '../../api/services/dashboard.service';
 import { exportService } from '../../api/services/export.service';
 import { formatPrice } from '../../utils/format';
 
-type TimeRange = 'Hôm nay' | '7 ngày gần nhất' | '30 ngày qua' | 'Năm nay' | 'Tùy chọn';
+type TimeRange = 'Hôm nay' | '7 ngày gần nhất' | '30 ngày qua' | 'Tháng này' | 'Năm nay' | 'Tùy chọn';
 
 interface TimelinePoint {
   key: string;
@@ -34,6 +54,99 @@ interface TimelinePoint {
   orderCount: number;
   showLabel: boolean;
 }
+
+interface TopProductChartEntry {
+  id: string;
+  rank: number;
+  name: string;
+  shortName: string;
+  category: string;
+  totalSold: number;
+  totalRevenue: number;
+  price: string;
+}
+
+function toBeTimeRange(range: TimeRange): DashboardTimeRange | null {
+  if (range === '7 ngày gần nhất') return '7days';
+  if (range === '30 ngày qua') return '30days';
+  if (range === 'Tháng này') return 'month';
+  if (range === 'Năm nay') return 'year';
+  return null;
+}
+
+function truncateProductName(name: string, maxLen = 13): string {
+  const trimmed = name.trim();
+  if (trimmed.length <= maxLen) return trimmed;
+  return `${trimmed.slice(0, maxLen - 1)}…`;
+}
+
+function formatFullTimelineDate(dateStr: string, label: string, beRange: DashboardTimeRange): string {
+  if (beRange === 'year') {
+    const parts = dateStr.split('-');
+    if (parts.length === 2) return `Tháng ${Number(parts[1])}/${parts[0]}`;
+    return label;
+  }
+  const parts = dateStr.split('-');
+  if (parts.length === 3) return `Ngày ${parts[2]}/${parts[1]}/${parts[0]}`;
+  return label;
+}
+
+interface ChartTooltipProps<T> {
+  active?: boolean;
+  payload?: { payload?: T }[];
+}
+
+const RevenueTooltip: React.FC<ChartTooltipProps<TimelinePoint>> = ({ active, payload }) => {
+  if (!active || !payload || !payload[0]?.payload) return null;
+  const pt = payload[0].payload;
+  return (
+    <div className="rounded-lg bg-slate-900/95 border border-slate-700 px-3 py-2 shadow-lg text-white">
+      <p className="text-[10px] text-slate-300 font-medium">{pt.fullDate}</p>
+      <p className="text-xs font-bold text-white mt-0.5">{formatPrice(pt.revenue)}</p>
+      <p className="text-[10px] text-sky-400 font-medium">{pt.orderCount} đơn hàng</p>
+    </div>
+  );
+};
+
+const CategoryTooltip: React.FC<ChartTooltipProps<CategoryBreakdownItem>> = ({ active, payload }) => {
+  if (!active || !payload || !payload[0]?.payload) return null;
+  const cat = payload[0].payload;
+  return (
+    <div className="rounded-lg bg-slate-900/95 border border-slate-700 px-3 py-2 shadow-lg text-white">
+      <div className="flex items-center gap-1.5 mb-0.5">
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+        <span className="text-[11px] font-semibold">{cat.name}</span>
+      </div>
+      <p className="text-xs font-bold">{formatPrice(cat.rawRevenue || 0)}</p>
+      <p className="text-[10px] text-sky-400">
+        {cat.percentage}% &bull; {cat.soldCount || 0} đã bán
+      </p>
+    </div>
+  );
+};
+
+const TopProductTooltip: React.FC<ChartTooltipProps<TopProductChartEntry>> = ({ active, payload }) => {
+  if (!active || !payload || !payload[0]?.payload) return null;
+  const prod = payload[0].payload;
+  return (
+    <div className="rounded-lg bg-slate-900/95 border border-slate-700 px-3 py-2 shadow-lg text-white max-w-[230px]">
+      <p className="text-[10px] text-blue-300 font-semibold">
+        #{prod.rank} &bull; {prod.category}
+      </p>
+      <p className="text-[11px] font-bold text-white leading-snug mt-0.5">{prod.name}</p>
+      <div className="mt-1 pt-1 border-t border-slate-700/80 space-y-0.5 text-[10px]">
+        <p className="text-emerald-400 font-semibold">Đã bán: {prod.totalSold} sản phẩm</p>
+        <p className="text-slate-200 font-semibold">Doanh thu: {formatPrice(prod.totalRevenue)}</p>
+        {prod.price && <p className="text-slate-400">Đơn giá: {prod.price}</p>}
+      </div>
+    </div>
+  );
+};
+
+const renderCategorySector = (props: PieSectorShapeProps) => {
+  const payload = props.payload as CategoryBreakdownItem | undefined;
+  return <Sector {...props} fill={payload?.color ?? props.fill ?? '#2563eb'} />;
+};
 
 function parseOrderDate(dateStr?: string | null): Date | null {
   if (!dateStr) return null;
@@ -70,11 +183,15 @@ export const DashboardPage: React.FC = () => {
   const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false);
   const [isTopDateDropdownOpen, setIsTopDateDropdownOpen] = useState(false);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [beTimeline, setBeTimeline] = useState<RevenueTimelineResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
+  const [isTimelineLoading, setIsTimelineLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [timelineError, setTimelineError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const topDateDropdownRef = useRef<HTMLDivElement>(null);
   const exportDropdownRef = useRef<HTMLDivElement>(null);
+  const timelineRequestIdRef = useRef(0);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isExporting, setIsExporting] = useState<string | null>(null);
 
@@ -111,7 +228,10 @@ export const DashboardPage: React.FC = () => {
       return '7 ngày gần nhất';
     }
     if (selectedTimeRange === '30 ngày qua') {
-      return 'Tháng này (30 ngày)';
+      return '30 ngày qua';
+    }
+    if (selectedTimeRange === 'Tháng này') {
+      return 'Tháng này';
     }
     if (selectedTimeRange === 'Năm nay') {
       return `Năm nay (${new Date().getFullYear()})`;
@@ -156,6 +276,7 @@ export const DashboardPage: React.FC = () => {
           'Hôm nay': '7days',
           '7 ngày gần nhất': '7days',
           '30 ngày qua': '30days',
+          'Tháng này': 'month',
           'Năm nay': 'year',
         };
         await exportService.exportRevenue({ range: rangeMap[selectedTimeRange] || 'month' });
@@ -168,25 +289,102 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
-  // Gọi API lấy dữ liệu thực tế từ Backend
-  const loadDashboardData = async () => {
+  const fetchTimelineByRange = useCallback(async (range: TimeRange) => {
+    const beRange = toBeTimeRange(range);
+    const reqId = ++timelineRequestIdRef.current;
+
+    if (!beRange) {
+      setBeTimeline(null);
+      setTimelineError(null);
+      setIsTimelineLoading(false);
+      return;
+    }
+
+    try {
+      setIsTimelineLoading(true);
+      setTimelineError(null);
+      const res = await dashboardService.getRevenueTimeline(beRange);
+      if (timelineRequestIdRef.current === reqId) {
+        setBeTimeline(res);
+      }
+    } catch (err) {
+      if (timelineRequestIdRef.current === reqId) {
+        setBeTimeline(null);
+        setTimelineError(
+          err instanceof Error ? err.message : 'Không thể tải biểu đồ doanh thu từ Backend BE_18'
+        );
+      }
+    } finally {
+      if (timelineRequestIdRef.current === reqId) {
+        setIsTimelineLoading(false);
+      }
+    }
+  }, []);
+
+  // Gọi API lấy dữ liệu thực tế từ Backend (BE_18 + orders/categories)
+  const loadDashboardData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const res = await dashboardService.getDashboardData();
+      setApiError(null);
+      const [res] = await Promise.all([
+        dashboardService.getDashboardData(),
+        fetchTimelineByRange(selectedTimeRange),
+      ]);
       setDashboardData(res);
-    } catch {
-      // Ignore dashboard fetch error
+    } catch (err) {
+      setApiError(
+        err instanceof Error ? err.message : 'Không thể kết nối đến máy chủ Backend'
+      );
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [fetchTimelineByRange, selectedTimeRange]);
 
   useEffect(() => {
     loadDashboardData();
-  }, []);
+  }, [loadDashboardData]);
 
-  // Tính toán dữ liệu doanh thu theo thời gian hoàn toàn động từ danh sách đơn hàng thực tế
+  // Tính toán dữ liệu doanh thu theo thời gian từ API BE_18 (7 ngày, 30 ngày, tháng, năm) & khoảng tùy chọn
   const timelineData = useMemo(() => {
+    const beRange = toBeTimeRange(selectedTimeRange);
+    if (beRange) {
+      if (beTimeline && beTimeline.range === beRange) {
+        const pts: TimelinePoint[] = beTimeline.timeline.map((item, idx, arr) => ({
+          key: `${beRange}-${item.date || idx}`,
+          label: item.label,
+          fullDate: formatFullTimelineDate(item.date, item.label, beRange),
+          revenue: item.revenue,
+          orderCount: item.orderCount,
+          showLabel:
+            arr.length <= 12
+              ? true
+              : idx === 0 || idx === arr.length - 1 || idx % 5 === 0,
+        }));
+        const maxRevenue = Math.max(...pts.map((p) => p.revenue), 0);
+        const hasRevenue = maxRevenue > 0 || beTimeline.totalRevenue > 0;
+        let unitLabel = 'VNĐ';
+        if (maxRevenue >= 1_000_000_000) unitLabel = 'Tỷ VNĐ';
+        else if (maxRevenue >= 1_000_000) unitLabel = 'Triệu VNĐ';
+        else if (maxRevenue >= 1_000) unitLabel = 'Nghìn VNĐ';
+
+        return {
+          points: pts,
+          unitLabel,
+          totalPeriodRevenue: beTimeline.totalRevenue,
+          totalPeriodOrders: beTimeline.totalOrders,
+          hasRevenue,
+        };
+      }
+
+      return {
+        points: [] as TimelinePoint[],
+        unitLabel: beRange === 'year' ? 'Tháng' : 'VNĐ',
+        totalPeriodRevenue: 0,
+        totalPeriodOrders: 0,
+        hasRevenue: false,
+      };
+    }
+
     const activeOrders = (dashboardData?.orders || []).filter((o) => o.status !== 'CANCELLED');
     const now = new Date();
     const points: TimelinePoint[] = [];
@@ -229,57 +427,6 @@ export const DashboardPage: React.FC = () => {
           showLabel: true,
         });
       });
-    } else if (selectedTimeRange === '30 ngày qua') {
-      for (let i = 0; i < 30; i++) {
-        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (29 - i));
-        const dayLabel = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
-        const fullDate = `Ngày ${dayLabel}/${d.getFullYear()}`;
-
-        const dayOrders = activeOrders.filter((o) => {
-          const od = parseOrderDate(o.createdAt);
-          if (!od) return false;
-          return (
-            od.getFullYear() === d.getFullYear() &&
-            od.getMonth() === d.getMonth() &&
-            od.getDate() === d.getDate()
-          );
-        });
-
-        const rev = dayOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
-        const showLabel = i === 0 || i === 5 || i === 10 || i === 15 || i === 20 || i === 25 || i === 29;
-
-        points.push({
-          key: `30d-${i}`,
-          label: dayLabel,
-          fullDate,
-          revenue: rev,
-          orderCount: dayOrders.length,
-          showLabel,
-        });
-      }
-    } else if (selectedTimeRange === 'Năm nay') {
-      const curYear = now.getFullYear();
-      for (let m = 0; m < 12; m++) {
-        const label = `T${m + 1}`;
-        const fullDate = `Tháng ${m + 1}/${curYear}`;
-
-        const monthOrders = activeOrders.filter((o) => {
-          const od = parseOrderDate(o.createdAt);
-          if (!od) return false;
-          return od.getFullYear() === curYear && od.getMonth() === m;
-        });
-
-        const rev = monthOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
-
-        points.push({
-          key: `year-${m}`,
-          label,
-          fullDate,
-          revenue: rev,
-          orderCount: monthOrders.length,
-          showLabel: true,
-        });
-      }
     } else if (selectedTimeRange === 'Tùy chọn' && customStartDate && customEndDate) {
       const s = new Date(customStartDate + 'T00:00:00');
       const e = new Date(customEndDate + 'T23:59:59');
@@ -314,34 +461,6 @@ export const DashboardPage: React.FC = () => {
           showLabel,
         });
       }
-    } else {
-      // Default: '7 ngày gần nhất'
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (6 - i));
-        const dayLabel = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
-        const fullDate = `Ngày ${dayLabel}/${d.getFullYear()}`;
-
-        const dayOrders = activeOrders.filter((o) => {
-          const od = parseOrderDate(o.createdAt);
-          if (!od) return false;
-          return (
-            od.getFullYear() === d.getFullYear() &&
-            od.getMonth() === d.getMonth() &&
-            od.getDate() === d.getDate()
-          );
-        });
-
-        const rev = dayOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
-
-        points.push({
-          key: `7d-${i}`,
-          label: dayLabel,
-          fullDate,
-          revenue: rev,
-          orderCount: dayOrders.length,
-          showLabel: true,
-        });
-      }
     }
 
     const totalPeriodRevenue = points.reduce((sum, p) => sum + p.revenue, 0);
@@ -349,82 +468,19 @@ export const DashboardPage: React.FC = () => {
     const maxRevenue = Math.max(...points.map((p) => p.revenue), 0);
     const hasRevenue = maxRevenue > 0;
 
-    // Tính trần giá trị động (nice ceiling) với headroom 15%
-    let niceCeiling = 10_000_000;
-    if (hasRevenue) {
-      const target = maxRevenue * 1.15;
-      const exponent = Math.floor(Math.log10(target));
-      const power = Math.pow(10, exponent);
-      const fraction = target / power;
-
-      let niceFraction = 1;
-      if (fraction <= 1) niceFraction = 1;
-      else if (fraction <= 1.2) niceFraction = 1.2;
-      else if (fraction <= 1.6) niceFraction = 1.6;
-      else if (fraction <= 2) niceFraction = 2;
-      else if (fraction <= 2.4) niceFraction = 2.4;
-      else if (fraction <= 3) niceFraction = 3;
-      else if (fraction <= 4) niceFraction = 4;
-      else if (fraction <= 5) niceFraction = 5;
-      else if (fraction <= 6) niceFraction = 6;
-      else if (fraction <= 8) niceFraction = 8;
-      else niceFraction = 10;
-
-      niceCeiling = niceFraction * power;
-      if (niceCeiling % 4 !== 0) {
-        niceCeiling = Math.ceil(niceCeiling / 4) * 4;
-      }
-    }
-
-    // 5 mốc hiển thị trên trục Y (y: 20 -> 60 -> 100 -> 140 -> 180)
-    const yTicks = [
-      { value: niceCeiling, label: formatShortVND(niceCeiling), y: 20 },
-      { value: niceCeiling * 0.75, label: formatShortVND(niceCeiling * 0.75), y: 60 },
-      { value: niceCeiling * 0.50, label: formatShortVND(niceCeiling * 0.50), y: 100 },
-      { value: niceCeiling * 0.25, label: formatShortVND(niceCeiling * 0.25), y: 140 },
-      { value: 0, label: '0', y: 180 },
-    ];
-
     let unitLabel = 'VNĐ';
-    if (niceCeiling >= 1_000_000_000) unitLabel = 'Tỷ VNĐ';
-    else if (niceCeiling >= 1_000_000) unitLabel = 'Triệu VNĐ';
-    else if (niceCeiling >= 1_000) unitLabel = 'Nghìn VNĐ';
-
-    const xStart = 40;
-    const xEnd = 480;
-    const n = points.length;
-
-    const chartPoints = points.map((p, idx) => {
-      const x = n > 1 ? xStart + idx * ((xEnd - xStart) / (n - 1)) : 260;
-      const ratio = niceCeiling > 0 ? p.revenue / niceCeiling : 0;
-      const y = 180 - Math.min(Math.max(ratio, 0), 1) * (180 - 20);
-      return {
-        ...p,
-        x,
-        y,
-      };
-    });
-
-    const linePath = hasRevenue
-      ? createSmoothPath(chartPoints)
-      : `M ${xStart},180 L ${xEnd},180`;
-
-    const areaPath = hasRevenue && chartPoints.length > 0
-      ? `${linePath} L ${chartPoints[chartPoints.length - 1].x.toFixed(1)},180 L ${chartPoints[0].x.toFixed(1)},180 Z`
-      : null;
+    if (maxRevenue >= 1_000_000_000) unitLabel = 'Tỷ VNĐ';
+    else if (maxRevenue >= 1_000_000) unitLabel = 'Triệu VNĐ';
+    else if (maxRevenue >= 1_000) unitLabel = 'Nghìn VNĐ';
 
     return {
-      points: chartPoints,
-      niceCeiling,
-      yTicks,
+      points,
       unitLabel,
       totalPeriodRevenue,
       totalPeriodOrders,
       hasRevenue,
-      linePath,
-      areaPath,
     };
-  }, [dashboardData?.orders, selectedTimeRange, customStartDate, customEndDate]);
+  }, [dashboardData?.orders, selectedTimeRange, customStartDate, customEndDate, beTimeline]);
 
   // Mini sparkline đường cong động cho card Tổng doanh thu dựa trên xu hướng 7 ngày thực tế
   const sparkline7d = useMemo(() => {
@@ -461,35 +517,44 @@ export const DashboardPage: React.FC = () => {
   }, [dashboardData?.orders]);
 
   // Helper kiểm tra một ngày có nằm trong khoảng thời gian đang chọn không
-  const isDateInSelectedRange = (date: Date): boolean => {
-    const now = new Date();
-    if (selectedTimeRange === 'Hôm nay') {
-      return (
-        date.getFullYear() === now.getFullYear() &&
-        date.getMonth() === now.getMonth() &&
-        date.getDate() === now.getDate()
-      );
-    }
-    if (selectedTimeRange === '7 ngày gần nhất') {
-      const s = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-      s.setHours(0, 0, 0, 0);
-      return date >= s && date <= now;
-    }
-    if (selectedTimeRange === '30 ngày qua') {
-      const s = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
-      s.setHours(0, 0, 0, 0);
-      return date >= s && date <= now;
-    }
-    if (selectedTimeRange === 'Năm nay') {
-      return date.getFullYear() === now.getFullYear();
-    }
-    if (selectedTimeRange === 'Tùy chọn' && customStartDate && customEndDate) {
-      const s = new Date(customStartDate + 'T00:00:00');
-      const e = new Date(customEndDate + 'T23:59:59');
-      return date >= s && date <= e;
-    }
-    return true;
-  };
+  const isDateInSelectedRange = useCallback(
+    (date: Date): boolean => {
+      const now = new Date();
+      if (selectedTimeRange === 'Hôm nay') {
+        return (
+          date.getFullYear() === now.getFullYear() &&
+          date.getMonth() === now.getMonth() &&
+          date.getDate() === now.getDate()
+        );
+      }
+      if (selectedTimeRange === '7 ngày gần nhất') {
+        const s = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+        s.setHours(0, 0, 0, 0);
+        return date >= s && date <= now;
+      }
+      if (selectedTimeRange === '30 ngày qua') {
+        const s = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
+        s.setHours(0, 0, 0, 0);
+        return date >= s && date <= now;
+      }
+      if (selectedTimeRange === 'Tháng này') {
+        return (
+          date.getFullYear() === now.getFullYear() &&
+          date.getMonth() === now.getMonth()
+        );
+      }
+      if (selectedTimeRange === 'Năm nay') {
+        return date.getFullYear() === now.getFullYear();
+      }
+      if (selectedTimeRange === 'Tùy chọn' && customStartDate && customEndDate) {
+        const s = new Date(customStartDate + 'T00:00:00');
+        const e = new Date(customEndDate + 'T23:59:59');
+        return date >= s && date <= e;
+      }
+      return true;
+    },
+    [selectedTimeRange, customStartDate, customEndDate]
+  );
 
   // 1. Lọc đơn hàng phát sinh trong khoảng thời gian đã chọn
   const periodOrders = useMemo(() => {
@@ -499,17 +564,21 @@ export const DashboardPage: React.FC = () => {
       if (!od) return false;
       return isDateInSelectedRange(od);
     });
-  }, [dashboardData?.orders, selectedTimeRange, customStartDate, customEndDate]);
+  }, [dashboardData?.orders, isDateInSelectedRange]);
 
   // Đơn hàng hợp lệ (loại trừ CANCELLED)
   const activePeriodOrders = useMemo(() => {
     return periodOrders.filter((o) => o.status !== 'CANCELLED');
   }, [periodOrders]);
 
-  // 2. Tổng doanh thu trong kỳ
+  // 2. Tổng doanh thu trong kỳ (ưu tiên đối chiếu BE_18 khi đang chọn 7 ngày / 30 ngày / Tháng / Năm)
   const periodRevenueNumber = useMemo(() => {
+    const beRange = toBeTimeRange(selectedTimeRange);
+    if (beRange && beTimeline && beTimeline.range === beRange) {
+      return beTimeline.totalRevenue;
+    }
     return activePeriodOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
-  }, [activePeriodOrders]);
+  }, [activePeriodOrders, selectedTimeRange, beTimeline]);
 
   const periodRevenueFormatted = useMemo(() => {
     return formatPrice(periodRevenueNumber);
@@ -530,7 +599,7 @@ export const DashboardPage: React.FC = () => {
       periodOrders.map((o) => (o as any).userId || o.receiverName || o.phoneNumber).filter(Boolean)
     );
     return buyerIds.size;
-  }, [dashboardData?.customers, periodOrders, selectedTimeRange, customStartDate, customEndDate]);
+  }, [dashboardData?.customers, periodOrders, isDateInSelectedRange]);
 
   // 4. Doanh thu theo danh mục trong kỳ
   const periodCategoryStats = useMemo(() => {
@@ -646,43 +715,95 @@ export const DashboardPage: React.FC = () => {
     });
   }, [dashboardData?.categories, dashboardData?.products, activePeriodOrders, periodRevenueNumber]);
 
-  // 5. Top 8 Sản phẩm bán chạy trong kỳ
-  const periodTopProducts = useMemo(() => {
-    const products = dashboardData?.products || [];
-    const productSoldCountMap = new Map<number, number>();
+  const activeCategorySlices = useMemo(
+    () => periodCategoryStats.filter((cat) => (cat.rawRevenue || 0) > 0),
+    [periodCategoryStats]
+  );
 
-    activePeriodOrders.forEach((o) => {
-      const items = o.orderItems || (o as any).items || [];
+  // 5. Top 10 Sản phẩm bán chạy trong kỳ (tổng hợp từ orderItems theo bộ lọc & đối chiếu BE_18)
+  const periodTopProducts = useMemo<TopProductChartEntry[]>(() => {
+    const products = dashboardData?.products || [];
+    const productById = new Map(products.map((p) => [p.id, p]));
+    const beTopById = new Map(
+      (dashboardData?.beTopProducts || [])
+        .filter((b) => b.productId !== null)
+        .map((b) => [Number(b.productId), b])
+    );
+
+    const aggMap = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        category: string;
+        totalSold: number;
+        totalRevenue: number;
+        unitPrice: number;
+      }
+    >();
+
+    activePeriodOrders.forEach((order) => {
+      const items = order.orderItems || (order as { items?: typeof order.orderItems }).items || [];
       items.forEach((item) => {
         const pId = Number(item.productId);
-        if (pId) {
-          const cur = productSoldCountMap.get(pId) || 0;
-          productSoldCountMap.set(pId, cur + (Number(item.quantity) || 1));
+        const qty = Number(item.quantity) || 1;
+        const itemPrice = Number(item.price) || 0;
+        const itemRevenue = Number(item.totalPrice) || itemPrice * qty || 0;
+        const prod = pId ? productById.get(pId) : undefined;
+        const beMeta = pId ? beTopById.get(pId) : undefined;
+
+        const key = pId ? `id-${pId}` : `name-${item.productName || 'unknown'}`;
+        const existing = aggMap.get(key);
+        if (existing) {
+          existing.totalSold += qty;
+          existing.totalRevenue += itemRevenue;
+        } else {
+          aggMap.set(key, {
+            id: key,
+            name: prod?.name || beMeta?.productName || item.productName || 'Sản phẩm',
+            category: prod?.category?.name || beMeta?.categoryName || 'Thiết bị công nghệ',
+            totalSold: qty,
+            totalRevenue: itemRevenue,
+            unitPrice: Number(prod?.price) || Number(beMeta?.price) || itemPrice || 0,
+          });
         }
       });
     });
 
-    const sortedProducts = [...products].sort((a, b) => {
-      const soldA = productSoldCountMap.get(a.id) || 0;
-      const soldB = productSoldCountMap.get(b.id) || 0;
-      if (soldB !== soldA) return soldB - soldA;
-      return (Number(b.price) || 0) - (Number(a.price) || 0);
-    });
+    if (
+      aggMap.size === 0 &&
+      (dashboardData?.orders?.length || 0) === 0 &&
+      (dashboardData?.beTopProducts?.length || 0) > 0
+    ) {
+      return (dashboardData?.beTopProducts || []).slice(0, 10).map((b, idx) => ({
+        id: b.productId !== null ? `be-${b.productId}` : `be-idx-${idx}`,
+        rank: idx + 1,
+        name: b.productName,
+        shortName: truncateProductName(b.productName),
+        category: b.categoryName || 'Thiết bị công nghệ',
+        totalSold: Number(b.totalSold) || 0,
+        totalRevenue: Number(b.totalRevenue) || 0,
+        price: b.price > 0 ? formatPrice(b.price) : '',
+      }));
+    }
 
-    const displayProducts = sortedProducts.length > 0 ? sortedProducts.slice(0, 8) : [];
-    return displayProducts.map((p, index) => {
-      const sold = productSoldCountMap.get(p.id) || 0;
-      return {
-        id: p.id,
-        rank: index + 1,
-        name: p.name,
-        category: p.category?.name || 'Thiết bị công nghệ',
-        sold: `${sold} đã bán`,
-        image: p.imageUrl,
-        price: formatPrice(Number(p.price) || 0),
-      };
-    });
-  }, [dashboardData?.products, activePeriodOrders]);
+    return Array.from(aggMap.values())
+      .sort((a, b) => {
+        if (b.totalSold !== a.totalSold) return b.totalSold - a.totalSold;
+        return b.totalRevenue - a.totalRevenue;
+      })
+      .slice(0, 10)
+      .map((item, idx) => ({
+        id: item.id,
+        rank: idx + 1,
+        name: item.name,
+        shortName: truncateProductName(item.name),
+        category: item.category,
+        totalSold: item.totalSold,
+        totalRevenue: item.totalRevenue,
+        price: item.unitPrice > 0 ? formatPrice(item.unitPrice) : '',
+      }));
+  }, [dashboardData?.products, dashboardData?.orders?.length, dashboardData?.beTopProducts, activePeriodOrders]);
 
   const totalProducts = dashboardData?.totalProducts ?? 20;
 
@@ -690,6 +811,7 @@ export const DashboardPage: React.FC = () => {
     if (selectedTimeRange === 'Hôm nay') return 'hôm nay';
     if (selectedTimeRange === '7 ngày gần nhất') return '7 ngày qua';
     if (selectedTimeRange === '30 ngày qua') return '30 ngày qua';
+    if (selectedTimeRange === 'Tháng này') return 'tháng này';
     if (selectedTimeRange === 'Năm nay') return 'năm nay';
     return 'kỳ đã chọn';
   }, [selectedTimeRange]);
@@ -738,7 +860,7 @@ export const DashboardPage: React.FC = () => {
   const topProducts = periodTopProducts;
 
   return (
-    <div className="h-full flex flex-col justify-between font-sans select-none overflow-hidden space-y-3 sm:space-y-3.5">
+    <div className="h-full flex flex-col justify-between font-sans select-none overflow-y-auto no-scrollbar space-y-3 sm:space-y-3.5">
       {/* Top Header & Date Filter (Gọn gàng, cố định) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 shrink-0">
         <div>
@@ -888,7 +1010,8 @@ export const DashboardPage: React.FC = () => {
                   {[
                     { label: 'Hôm nay', desc: 'Dữ liệu 24h hôm nay' },
                     { label: '7 ngày gần nhất', desc: '1 tuần vừa qua' },
-                    { label: '30 ngày qua', desc: 'Tháng hiện tại' },
+                    { label: '30 ngày qua', desc: '30 ngày vừa qua' },
+                    { label: 'Tháng này', desc: 'Theo ngày trong tháng' },
                     { label: 'Năm nay', desc: `Năm ${new Date().getFullYear()}` },
                   ].map((preset) => (
                     <button
@@ -967,6 +1090,25 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
+      {/* API Error Alert Banner */}
+      {apiError && (
+        <div className="flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+            <span className="truncate font-medium">
+              Lỗi kết nối dữ liệu Dashboard: {apiError}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={loadDashboardData}
+            className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold text-[11px] shrink-0 transition cursor-pointer"
+          >
+            Thử lại
+          </button>
+        </div>
+      )}
+
       {/* Row 1: 4 Stat Cards with Mini Sparklines (Thu gọn chiều cao) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 shrink-0">
         {stats.map((stat, idx) => {
@@ -1013,9 +1155,9 @@ export const DashboardPage: React.FC = () => {
         })}
       </div>
 
-      {/* Row 2: Charts Section (Tự co giãn vừa khít màn hình, không tràn chiều cao) */}
+      {/* Row 2: Charts Section (Tự co giãn vừa khít màn hình, giữ nguyên bố cục Dashboard Admin) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 sm:gap-3 flex-1 min-h-0">
-        {/* Chart 1: Doanh thu theo thời gian (Span 6) - 100% dữ liệu động */}
+        {/* Chart 1: AreaChart - Doanh thu theo thời gian (Span 6) */}
         <div className="lg:col-span-6 bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/80 shadow-2xs flex flex-col justify-between min-h-0">
           <div className="flex items-center justify-between mb-1 shrink-0">
             <div>
@@ -1044,8 +1186,8 @@ export const DashboardPage: React.FC = () => {
               {isTimeDropdownOpen && (
                 <div className="absolute right-0 mt-1 w-36 bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-20 text-xs">
                   {(selectedTimeRange === 'Tùy chọn'
-                    ? (['Hôm nay', '7 ngày gần nhất', '30 ngày qua', 'Năm nay', 'Tùy chọn'] as const)
-                    : (['Hôm nay', '7 ngày gần nhất', '30 ngày qua', 'Năm nay'] as const)
+                    ? (['Hôm nay', '7 ngày gần nhất', '30 ngày qua', 'Tháng này', 'Năm nay', 'Tùy chọn'] as const)
+                    : (['Hôm nay', '7 ngày gần nhất', '30 ngày qua', 'Tháng này', 'Năm nay'] as const)
                   ).map((range) => (
                     <button
                       key={range}
@@ -1066,345 +1208,246 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
 
-          {/* SVG Line Chart */}
-          <div className="w-full flex-1 min-h-[160px] max-h-[220px] pt-1 relative">
-            <svg viewBox="0 0 500 200" className="w-full h-full overflow-visible">
-              <defs>
-                <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#2563eb" stopOpacity="0.22" />
-                  <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
-
-              {/* Horizontal Grid lines (Động theo niceCeiling) */}
-              {timelineData.yTicks.map((tick, i) => (
-                <line
-                  key={i}
-                  x1="40"
-                  y1={tick.y}
-                  x2="480"
-                  y2={tick.y}
-                  stroke="#f1f5f9"
-                  strokeDasharray={i === 4 ? undefined : '3 3'}
-                />
-              ))}
-
-              {/* Dynamic Y-Axis Labels */}
-              {timelineData.yTicks.map((tick, i) => (
-                <text
-                  key={i}
-                  x="34"
-                  y={tick.y + 3.5}
-                  fill="#94a3b8"
-                  fontSize="10"
-                  textAnchor="end"
+          {/* Recharts AreaChart Container */}
+          <div className="w-full flex-1 min-h-[160px] max-h-[220px] pt-1 relative min-w-0">
+            {timelineError ? (
+              <div className="h-full flex flex-col items-center justify-center text-center px-4 gap-2">
+                <AlertCircle className="w-5 h-5 text-rose-500" />
+                <p className="text-xs text-rose-600 font-medium">{timelineError}</p>
+                <button
+                  type="button"
+                  onClick={() => fetchTimelineByRange(selectedTimeRange)}
+                  className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-md text-[11px] font-semibold transition cursor-pointer"
                 >
-                  {tick.label}
-                </text>
-              ))}
-
-              {/* Area Gradient Fill */}
-              {timelineData.areaPath && (
-                <path
-                  d={timelineData.areaPath}
-                  fill="url(#revenueGradient)"
-                  className="transition-all duration-300"
-                />
-              )}
-
-              {/* Smooth Blue Bezier Curve */}
-              <path
-                d={timelineData.linePath}
-                fill="none"
-                stroke="#2563eb"
-                strokeWidth="2.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="transition-all duration-300"
-              />
-
-              {/* Empty state overlay when no revenue */}
-              {!timelineData.hasRevenue && (
-                <g className="pointer-events-none">
-                  <rect
-                    x="110"
-                    y="86"
-                    width="280"
-                    height="30"
-                    rx="6"
-                    fill="#f8fafc"
-                    stroke="#e2e8f0"
-                    strokeWidth="1"
-                  />
-                  <text
-                    x="250"
-                    y="105"
-                    fill="#64748b"
-                    fontSize="11"
-                    fontWeight="500"
-                    textAnchor="middle"
-                  >
-                    Chưa có doanh thu phát sinh trong kỳ này
-                  </text>
-                </g>
-              )}
-
-              {/* Data Nodes & Hit Targets */}
-              {timelineData.points.map((pt, idx) => {
-                const isHovered = hoveredPointIndex === idx;
-                const isDense = timelineData.points.length > 15;
-                const shouldShowCircle = isHovered || pt.revenue > 0 || !isDense;
-
-                return (
-                  <g key={pt.key}>
-                    {/* Hover indicator vertical line */}
-                    {isHovered && (
-                      <line
-                        x1={pt.x}
-                        y1="20"
-                        x2={pt.x}
-                        y2="180"
-                        stroke="#94a3b8"
-                        strokeDasharray="3 3"
-                        strokeWidth="1.2"
-                      />
-                    )}
-
-                    {/* Outer halo on hover */}
-                    {isHovered && (
-                      <circle
-                        cx={pt.x}
-                        cy={pt.y}
-                        r="8"
-                        fill="#2563eb"
-                        opacity="0.25"
-                      />
-                    )}
-
-                    {/* Point Circle */}
-                    {shouldShowCircle && (
-                      <circle
-                        cx={pt.x}
-                        cy={pt.y}
-                        r={isHovered ? 4.5 : 3.5}
-                        fill="#2563eb"
-                        stroke="#ffffff"
-                        strokeWidth={isHovered ? 2.5 : 2}
-                        className="transition-all duration-150"
-                      />
-                    )}
-
-                    {/* Transparent Hit target for smooth mouse/touch interaction */}
-                    <circle
-                      cx={pt.x}
-                      cy={pt.y}
-                      r="16"
-                      fill="transparent"
-                      className="cursor-pointer"
-                      onMouseEnter={() => setHoveredPointIndex(idx)}
-                      onMouseLeave={() => setHoveredPointIndex(null)}
-                      onTouchStart={() => setHoveredPointIndex(idx)}
+                  Thử lại
+                </button>
+              </div>
+            ) : (
+              <>
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={160}>
+                  <AreaChart data={timelineData.points} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="revenueAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#2563eb" stopOpacity={0.28} />
+                        <stop offset="95%" stopColor="#2563eb" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 10, fill: '#94a3b8' }}
+                      axisLine={false}
+                      tickLine={false}
+                      minTickGap={16}
+                      interval="preserveStartEnd"
                     />
-                  </g>
-                );
-              })}
-
-              {/* Interactive Tooltip Card */}
-              {hoveredPointIndex !== null && timelineData.points[hoveredPointIndex] && (() => {
-                const pt = timelineData.points[hoveredPointIndex];
-                const tooltipW = 148;
-                const tooltipH = 54;
-                let ttX = pt.x - tooltipW / 2;
-                if (ttX < 36) ttX = 36;
-                if (ttX + tooltipW > 490) ttX = 490 - tooltipW;
-
-                let ttY = pt.y - tooltipH - 12;
-                if (ttY < 15) ttY = pt.y + 14;
-
-                return (
-                  <g className="pointer-events-none transition-all duration-150">
-                    <rect
-                      x={ttX}
-                      y={ttY}
-                      width={tooltipW}
-                      height={tooltipH}
-                      rx="7"
-                      fill="#0f172a"
-                      fillOpacity="0.95"
-                      stroke="#334155"
-                      strokeWidth="1"
+                    <YAxis
+                      tickFormatter={(v) => formatShortVND(Number(v))}
+                      tick={{ fontSize: 10, fill: '#94a3b8' }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={54}
                     />
-                    <text
-                      x={ttX + 10}
-                      y={ttY + 16}
-                      fill="#94a3b8"
-                      fontSize="9.5"
-                      fontWeight="500"
-                    >
-                      {pt.fullDate}
-                    </text>
-                    <text
-                      x={ttX + 10}
-                      y={ttY + 33}
-                      fill="#ffffff"
-                      fontSize="12.5"
-                      fontWeight="700"
-                    >
-                      {formatPrice(pt.revenue)}
-                    </text>
-                    <text
-                      x={ttX + 10}
-                      y={ttY + 46}
-                      fill="#38bdf8"
-                      fontSize="9.5"
-                      fontWeight="500"
-                    >
-                      {pt.orderCount} đơn hàng
-                    </text>
-                  </g>
-                );
-              })()}
+                    <Tooltip content={<RevenueTooltip />} />
+                    <Area
+                      type="monotone"
+                      dataKey="revenue"
+                      stroke="#2563eb"
+                      strokeWidth={2.5}
+                      fill="url(#revenueAreaGradient)"
+                      activeDot={{ r: 5, fill: '#2563eb', stroke: '#ffffff', strokeWidth: 2 }}
+                      isAnimationActive={true}
+                      animationDuration={450}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
 
-              {/* Dynamic X-Axis Labels based on selected time range */}
-              {timelineData.points.map((pt) => {
-                if (!pt.showLabel) return null;
-                return (
-                  <text
-                    key={pt.key}
-                    x={pt.x}
-                    y="196"
-                    fill="#94a3b8"
-                    fontSize="10"
-                    textAnchor="middle"
-                  >
-                    {pt.label}
-                  </text>
-                );
-              })}
-            </svg>
+                {!isTimelineLoading && !isLoading && !timelineData.hasRevenue && (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <span className="px-3 py-1.5 rounded-lg bg-slate-50/95 border border-slate-200 text-[11px] font-medium text-slate-500 shadow-2xs">
+                      Chưa có doanh thu phát sinh trong kỳ này
+                    </span>
+                  </div>
+                )}
+
+                {isTimelineLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center gap-2 bg-white/75 backdrop-blur-[1px] rounded-lg z-10">
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                    <span className="text-xs font-medium text-slate-600">Đang tải dữ liệu...</span>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
 
-        {/* Chart 2: Doanh thu theo danh mục (Span 3 - Biểu đồ tròn) */}
+        {/* Chart 2: DonutChart - Cơ cấu doanh thu theo danh mục (Span 3) */}
         <div className="lg:col-span-3 bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/80 shadow-2xs flex flex-col justify-between min-h-0">
-          <div className="mb-1 shrink-0">
+          <div className="flex items-center justify-between mb-1 shrink-0">
             <h2 className="text-xs sm:text-sm font-bold text-slate-900">Doanh thu theo danh mục</h2>
+            {isLoading && dashboardData && (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600 shrink-0" />
+            )}
           </div>
 
-          {/* Donut Chart with Center Text */}
-          <div className="flex flex-col items-center justify-center my-auto py-1">
-            <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center shrink-0">
-              <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                {categoryStats.length > 0 && categoryStats.some((cat) => cat.percentage > 0) ? (
-                  categoryStats.map((cat, i) => (
-                    <circle
-                      key={i}
-                      cx="50"
-                      cy="50"
-                      r="40"
-                      fill="transparent"
-                      stroke={cat.color}
-                      strokeWidth="13"
-                      strokeDasharray={cat.strokeDash}
-                      strokeDashoffset={cat.offset}
-                      className="transition-all duration-300"
-                    />
+          {apiError && !dashboardData ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-center px-3 gap-2">
+              <AlertCircle className="w-5 h-5 text-rose-500" />
+              <p className="text-xs text-rose-600 font-medium">Không thể tải dữ liệu danh mục</p>
+              <button
+                type="button"
+                onClick={loadDashboardData}
+                className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-md text-[11px] font-semibold transition cursor-pointer"
+              >
+                Thử lại
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center my-auto py-1">
+              {/* Recharts Donut Chart with Center Text */}
+              <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center shrink-0">
+                {isLoading && !dashboardData ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                ) : activeCategorySlices.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={112}>
+                    <PieChart>
+                      <Pie
+                        data={activeCategorySlices}
+                        dataKey="rawRevenue"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius="64%"
+                        outerRadius="92%"
+                        paddingAngle={activeCategorySlices.length > 1 ? 2 : 0}
+                        stroke="none"
+                        shape={renderCategorySector}
+                        isAnimationActive={true}
+                        animationDuration={450}
+                      />
+                      <Tooltip content={<CategoryTooltip />} wrapperStyle={{ zIndex: 30 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full border-[10px] border-slate-100" />
+                )}
+
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-3">
+                  <span className="text-xs sm:text-sm font-bold text-slate-900 leading-tight max-w-full truncate">
+                    {periodRevenueFormatted}
+                  </span>
+                  <span className="text-[9px] text-slate-400 font-medium">Doanh thu</span>
+                </div>
+              </div>
+
+              {/* Category Legend List */}
+              <div className="w-full mt-2.5 space-y-1 text-xs max-h-[140px] overflow-y-auto pr-0.5">
+                {categoryStats.length > 0 ? (
+                  categoryStats.map((cat) => (
+                    <div key={cat.id} className="flex items-center justify-between text-[10px] sm:text-[11px]">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                        <span className="text-slate-600 font-medium truncate" title={cat.name}>{cat.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2 font-semibold text-slate-800 shrink-0">
+                        <span className="text-slate-400 font-normal">{cat.percentage}%</span>
+                        <span
+                          className="cursor-help"
+                          title={cat.rawRevenue !== undefined ? new Intl.NumberFormat('vi-VN').format(cat.rawRevenue) + ' ₫' : cat.value}
+                        >
+                          {cat.value}
+                        </span>
+                      </div>
+                    </div>
                   ))
                 ) : (
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="40"
-                    fill="transparent"
-                    stroke="#e2e8f0"
-                    strokeWidth="13"
-                  />
+                  <p className="text-[11px] text-slate-400 text-center py-2">
+                    Chưa có đơn hàng phát sinh theo danh mục
+                  </p>
                 )}
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                <span className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
-                  {periodRevenueFormatted}
-                </span>
-                <span className="text-[9px] text-slate-400 font-medium">Doanh thu</span>
               </div>
             </div>
-
-            {/* Category Legend List */}
-            <div className="w-full mt-2.5 space-y-1 text-xs max-h-[140px] overflow-y-auto pr-0.5">
-              {categoryStats.length > 0 ? (
-                categoryStats.map((cat, i) => (
-                  <div key={i} className="flex items-center justify-between text-[10px] sm:text-[11px]">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                      <span className="text-slate-600 font-medium truncate" title={cat.name}>{cat.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2 font-semibold text-slate-800 shrink-0">
-                      <span className="text-slate-400 font-normal">{cat.percentage}%</span>
-                      <span
-                        className="cursor-help"
-                        title={cat.rawRevenue !== undefined ? new Intl.NumberFormat('vi-VN').format(cat.rawRevenue) + ' ₫' : cat.value}
-                      >
-                        {cat.value}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-[11px] text-slate-400 text-center py-2">
-                  Chưa có đơn hàng phát sinh theo danh mục
-                </p>
-              )}
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* Chart 3: Top 8 Sản phẩm bán chạy (Span 3 - Không cuộn, vừa khít khung) */}
+        {/* Chart 3: BarChart - Top 10 sản phẩm bán chạy (Span 3) */}
         <div className="lg:col-span-3 bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/80 shadow-2xs flex flex-col justify-between min-h-0">
           <div className="flex items-center justify-between mb-2 shrink-0">
-            <h2 className="text-xs sm:text-sm font-bold text-slate-900">Top 8 sản phẩm bán chạy</h2>
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-xs sm:text-sm font-bold text-slate-900">Top 10 sản phẩm bán chạy</h2>
+              {isLoading && dashboardData && (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600 shrink-0" />
+              )}
+            </div>
             <Link
               to={ROUTES.ADMIN_PRODUCTS}
-              className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline"
+              className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline shrink-0"
             >
               Xem tất cả →
             </Link>
           </div>
 
-          {/* Top Products List - Hiển thị cố định toàn bộ 8 sản phẩm, không cuộn lên xuống */}
-          <div className="flex-1 flex flex-col justify-between py-0.5 overflow-hidden">
-            {topProducts.length > 0 ? (
-              topProducts.map((prod) => (
-                <div key={prod.id} className="flex items-center justify-between gap-2 py-0.5">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="w-4 text-[11px] font-bold text-slate-400 text-center shrink-0">
-                      {prod.rank}
-                    </span>
-                    <img
-                      src={prod.image}
-                      alt={prod.name}
-                      className="w-6 h-6 rounded-md object-cover ring-1 ring-slate-100 bg-slate-50 shrink-0"
+          <div className="flex-1 w-full min-h-[190px] lg:min-h-0 relative min-w-0">
+            {isLoading && !dashboardData ? (
+              <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-500">
+                <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                <span className="text-xs font-medium">Đang tải Top sản phẩm...</span>
+              </div>
+            ) : apiError && !dashboardData ? (
+              <div className="h-full flex flex-col items-center justify-center text-center px-3 gap-2">
+                <AlertCircle className="w-5 h-5 text-rose-500" />
+                <p className="text-xs text-rose-600 font-medium">Không thể tải Top sản phẩm</p>
+                <button
+                  type="button"
+                  onClick={loadDashboardData}
+                  className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-md text-[11px] font-semibold transition cursor-pointer"
+                >
+                  Thử lại
+                </button>
+              </div>
+            ) : topProducts.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={190}>
+                <BarChart data={topProducts} layout="vertical" margin={{ top: 2, right: 24, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                  <XAxis
+                    type="number"
+                    allowDecimals={false}
+                    tick={{ fontSize: 10, fill: '#94a3b8' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="shortName"
+                    width={92}
+                    tick={{ fontSize: 10, fill: '#334155', fontWeight: 500 }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval={0}
+                  />
+                  <Tooltip content={<TopProductTooltip />} cursor={{ fill: '#f8fafc' }} />
+                  <Bar
+                    dataKey="totalSold"
+                    fill="#2563eb"
+                    radius={[0, 4, 4, 0]}
+                    maxBarSize={14}
+                    isAnimationActive={true}
+                    animationDuration={450}
+                  >
+                    <LabelList
+                      dataKey="totalSold"
+                      position="right"
+                      style={{ fontSize: '10px', fill: '#475569', fontWeight: 600 }}
                     />
-                    <div className="min-w-0">
-                      <span
-                        title={prod.name}
-                        className="text-xs font-semibold text-slate-800 block truncate leading-tight max-w-[125px] sm:max-w-[145px]"
-                      >
-                        {prod.name}
-                      </span>
-                      <span className="text-[10px] text-slate-400 block font-normal truncate leading-none mt-0.5">
-                        {prod.category}
-                      </span>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-semibold text-slate-500 shrink-0">
-                    {prod.sold}
-                  </span>
-                </div>
-              ))
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             ) : (
-              <p className="text-xs text-slate-400 text-center py-6">
-                Chưa có sản phẩm nào phát sinh lượt bán
-              </p>
+              <div className="h-full flex items-center justify-center">
+                <p className="text-xs text-slate-400 text-center py-6">
+                  Chưa có sản phẩm nào phát sinh lượt bán
+                </p>
+              </div>
             )}
           </div>
         </div>

@@ -1,9 +1,53 @@
 import axiosClient from '../axiosClient';
+import { ENDPOINTS } from '../endpoints';
 import { productService } from './product.service';
 import { orderService } from './order.service';
 import { userService } from './user.service';
 import type { Product, Category } from '../../models/product.model';
 import type { OrderResponse } from '../../models/order.model';
+
+export type DashboardTimeRange = '7days' | '30days' | 'month' | 'year';
+
+export interface RevenueTimelineItem {
+  date: string;
+  label: string;
+  revenue: number;
+  orderCount: number;
+}
+
+export interface RevenueTimelineResponse {
+  range: string;
+  totalRevenue: number;
+  totalOrders: number;
+  averageOrderValue: number;
+  timeline: RevenueTimelineItem[];
+}
+
+export interface BeTopProductItem {
+  productId: number | null;
+  productName: string;
+  imageUrl: string | null;
+  categoryName: string;
+  price: number;
+  totalSold: number;
+  totalRevenue: number;
+}
+
+export interface KpiSummaryResponse {
+  currentMonthRevenue: number;
+  previousMonthRevenue: number;
+  revenueGrowthRate: number;
+  currentMonthOrders: number;
+  previousMonthOrders: number;
+  orderGrowthRate: number;
+  currentMonthNewCustomers: number;
+  previousMonthNewCustomers: number;
+  customerGrowthRate: number;
+  completedOrders: number;
+  cancelledOrders: number;
+  completionRate: number;
+  currentMonthAov: number;
+}
 
 export interface CategoryBreakdownItem {
   id: number;
@@ -51,6 +95,8 @@ export interface DashboardData {
   products: Product[];
   categories: Category[];
   customers: any[];
+  kpiSummary?: KpiSummaryResponse | null;
+  beTopProducts?: BeTopProductItem[];
 }
 
 export function formatVND(amount: number): string {
@@ -107,33 +153,116 @@ function getCategoryColor(catId: number, index: number): string {
 
 export const dashboardService = {
   /**
+   * [BE_18] Biểu đồ doanh thu theo mốc thời gian (7days | 30days | month | year)
+   */
+  async getRevenueTimeline(range: DashboardTimeRange): Promise<RevenueTimelineResponse> {
+    const res = await axiosClient.get(ENDPOINTS.ADMIN_DASHBOARD.REVENUE_TIMELINE, {
+      params: { range },
+    });
+    const raw = res.data?.data ?? res.data;
+    const timeline = Array.isArray(raw?.timeline) ? raw.timeline : [];
+    return {
+      range: raw?.range || range,
+      totalRevenue: Number(raw?.totalRevenue) || 0,
+      totalOrders: Number(raw?.totalOrders) || 0,
+      averageOrderValue: Number(raw?.averageOrderValue) || 0,
+      timeline: timeline.map((pt: any) => ({
+        date: String(pt.date || ''),
+        label: String(pt.label || ''),
+        revenue: Number(pt.revenue) || 0,
+        orderCount: Number(pt.orderCount) || 0,
+      })),
+    };
+  },
+
+  /**
+   * [BE_18] Top sản phẩm bán chạy từ Backend
+   */
+  async getTopProducts(limit = 10): Promise<BeTopProductItem[]> {
+    const res = await axiosClient.get(ENDPOINTS.ADMIN_DASHBOARD.TOP_PRODUCTS, {
+      params: { limit },
+    });
+    const raw = res.data?.data ?? res.data;
+    if (!Array.isArray(raw)) return [];
+    return raw.slice(0, limit).map((item: any) => ({
+      productId: item.productId ?? null,
+      productName: item.productName || 'Sản phẩm',
+      imageUrl: item.imageUrl ?? null,
+      categoryName: item.categoryName || 'Khác',
+      price: Number(item.price) || 0,
+      totalSold: Number(item.totalSold) || 0,
+      totalRevenue: Number(item.totalRevenue) || 0,
+    }));
+  },
+
+  /**
+   * [BE_18] Tóm tắt chỉ số KPI tháng hiện tại & tăng trưởng MoM
+   */
+  async getKpiSummary(): Promise<KpiSummaryResponse | null> {
+    try {
+      const res = await axiosClient.get(ENDPOINTS.ADMIN_DASHBOARD.KPI_SUMMARY);
+      const raw = res.data?.data ?? res.data;
+      if (!raw) return null;
+      return {
+        currentMonthRevenue: Number(raw.currentMonthRevenue) || 0,
+        previousMonthRevenue: Number(raw.previousMonthRevenue) || 0,
+        revenueGrowthRate: Number(raw.revenueGrowthRate) || 0,
+        currentMonthOrders: Number(raw.currentMonthOrders) || 0,
+        previousMonthOrders: Number(raw.previousMonthOrders) || 0,
+        orderGrowthRate: Number(raw.orderGrowthRate) || 0,
+        currentMonthNewCustomers: Number(raw.currentMonthNewCustomers) || 0,
+        previousMonthNewCustomers: Number(raw.previousMonthNewCustomers) || 0,
+        customerGrowthRate: Number(raw.customerGrowthRate) || 0,
+        completedOrders: Number(raw.completedOrders) || 0,
+        cancelledOrders: Number(raw.cancelledOrders) || 0,
+        completionRate: Number(raw.completionRate) || 0,
+        currentMonthAov: Number(raw.currentMonthAov) || 0,
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  /**
    * Lấy toàn bộ số liệu thống kê Dashboard từ MySQL Database
    */
   async getDashboardData(): Promise<DashboardData> {
-    // 1. Thử gọi API chuyên biệt phía Backend nếu có
+    // 1. Thử gọi API BE_18 chuyên biệt phía Backend
     let serverStats: any = null;
     try {
-      const adminStatsRes = await axiosClient.get('/admin/dashboard/stats');
+      const adminStatsRes = await axiosClient.get(ENDPOINTS.ADMIN_DASHBOARD.STATS);
       if (adminStatsRes.data?.data) {
         serverStats = adminStatsRes.data.data;
       }
     } catch {
-      // Backend chưa có endpoint riêng này, tiến hành tổng hợp từ các API có sẵn bên dưới
+      // Sẽ kiểm tra tổng thể ở bước tổng hợp bên dưới
     }
 
-    // 2. Gọi song song các API có sẵn: GET /api/products, GET /api/categories, GET /api/admin/orders, GET /api/admin/users
-    const [productListRes, categoriesRes, ordersRes, usersRes] = await Promise.allSettled([
-      productService.getProducts({ limit: 100 }),
-      productService.getCategories(),
-      orderService.getAllOrders(),
-      userService.getAdminUsers(),
-    ]);
+    // 2. Gọi song song các API BE_18 & danh mục/đơn hàng
+    const [productListRes, categoriesRes, ordersRes, usersRes, kpiSummaryRes, beTopProductsRes] =
+      await Promise.allSettled([
+        productService.getProducts({ limit: 100 }),
+        productService.getCategories(),
+        orderService.getAllOrders(),
+        userService.getAdminUsers(),
+        this.getKpiSummary(),
+        this.getTopProducts(10),
+      ]);
+
+    // Nếu cả stats và orders đều lỗi thì ném lỗi để UI hiển thị trạng thái lỗi API rõ ràng
+    if (!serverStats && ordersRes.status === 'rejected') {
+      throw ordersRes.reason instanceof Error
+        ? ordersRes.reason
+        : new Error('Không thể tải dữ liệu thống kê từ máy chủ Backend');
+    }
 
     const products: Product[] = productListRes.status === 'fulfilled' ? (productListRes.value.data || []) : [];
     const totalProductsCount = productListRes.status === 'fulfilled' ? (productListRes.value.total || products.length) : products.length;
     const categories: Category[] = categoriesRes.status === 'fulfilled' ? (categoriesRes.value || []) : [];
     const orders = ordersRes.status === 'fulfilled' ? ordersRes.value : [];
     const customers = usersRes.status === 'fulfilled' ? usersRes.value.filter((u) => u.role !== 'ADMIN') : [];
+    const kpiSummary = kpiSummaryRes.status === 'fulfilled' ? kpiSummaryRes.value : null;
+    const beTopProducts = beTopProductsRes.status === 'fulfilled' ? beTopProductsRes.value : [];
 
     // 3. Tính toán giá trị doanh thu thực tế từ orders trong MySQL (loại trừ đơn CANCELLED)
     const activeOrders = orders.filter((o) => o.status !== 'CANCELLED');
@@ -334,6 +463,8 @@ export const dashboardService = {
         products,
         categories,
         customers,
+        kpiSummary,
+        beTopProducts,
       };
   },
 };
