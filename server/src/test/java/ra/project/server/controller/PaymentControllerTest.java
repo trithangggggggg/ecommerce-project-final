@@ -52,25 +52,27 @@ class PaymentControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/payment/sepay/create-payment trả 200 OK kèm checkoutUrl và checkoutFields")
+    @DisplayName("POST /api/payment/sepay/create-payment trả 200 OK kèm thông tin VietQR trực tiếp")
     void createPayment_Success() throws Exception {
         CreatePaymentRequest req = CreatePaymentRequest.builder()
                 .orderId(10L)
-                .paymentMethod("BANK_TRANSFER")
                 .build();
-
-        Map<String, String> fields = new LinkedHashMap<>();
-        fields.put("merchant", "SP-TEST");
-        fields.put("order_invoice_number", "DH10_1762857600123");
-        fields.put("signature", "base64-signature==");
 
         SepayPaymentResponse resp = SepayPaymentResponse.builder()
                 .orderId(10L)
-                .invoiceNumber("DH10_1762857600123")
+                .invoiceNumber("DH10")
+                .paymentMode("VIETQR_DIRECT")
+                .paymentCode("DH10")
+                .transferContent("DH10")
+                .bankCode("MBBank")
+                .bankName("MB Bank")
+                .accountNumber("0123456789")
+                .accountHolder("NGUYEN TRI THANG")
                 .amount(500000L)
                 .currency("VND")
-                .checkoutUrl("https://pay-sandbox.sepay.vn/v1/checkout/init")
-                .checkoutFields(fields)
+                .qrImageUrl("https://qr.sepay.vn/img?acc=0123456789&bank=MBBank&amount=500000&des=DH10&template=qronly")
+                .qrDownloadUrl("https://qr.sepay.vn/img?acc=0123456789&bank=MBBank&amount=500000&des=DH10&template=compact&showinfo=true&download=true")
+                .timeoutSeconds(900L)
                 .build();
 
         when(sepayService.createPaymentCheckout(any())).thenReturn(resp);
@@ -81,9 +83,54 @@ class PaymentControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.orderId").value(10))
-                .andExpect(jsonPath("$.data.invoiceNumber").value("DH10_1762857600123"))
-                .andExpect(jsonPath("$.data.checkoutUrl").value("https://pay-sandbox.sepay.vn/v1/checkout/init"))
-                .andExpect(jsonPath("$.data.checkoutFields.signature").value("base64-signature=="));
+                .andExpect(jsonPath("$.data.paymentMode").value("VIETQR_DIRECT"))
+                .andExpect(jsonPath("$.data.paymentCode").value("DH10"))
+                .andExpect(jsonPath("$.data.qrImageUrl").value("https://qr.sepay.vn/img?acc=0123456789&bank=MBBank&amount=500000&des=DH10&template=qronly"));
+    }
+
+    @Test
+    @DisplayName("POST /api/payment/sepay/webhook hợp lệ trả 200 OK kèm success=true cho SePay")
+    void handleWebhook_Valid_Returns200() throws Exception {
+        Map<String, Object> webhookRes = new LinkedHashMap<>();
+        webhookRes.put("success", true);
+        webhookRes.put("message", "Webhook processed successfully");
+        webhookRes.put("orderId", 10L);
+
+        when(sepayService.handleWebhook(any(), any(), any())).thenReturn(webhookRes);
+
+        mockMvc.perform(post("/api/payment/sepay/webhook")
+                        .header("Authorization", "Apikey test-api-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"id\":92704,\"transferType\":\"in\",\"transferAmount\":500000,\"code\":\"DH10\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Webhook processed successfully"))
+                .andExpect(jsonPath("$.orderId").value(10));
+    }
+
+    @Test
+    @DisplayName("GET /api/payment/sepay/status/{orderId} trả trạng thái thanh toán thời gian thực")
+    void getPaymentStatus_ReturnsCurrentStatus() throws Exception {
+        SepayReturnResponse statusResp = SepayReturnResponse.builder()
+                .success(true)
+                .cancelled(false)
+                .status("PAID")
+                .message("Thanh toán chuyển khoản VietQR thành công")
+                .orderId(10L)
+                .invoiceNumber("DH10")
+                .amount(500000L)
+                .orderStatus(OrderStatus.PROCESSING)
+                .paymentStatus(PaymentStatus.PAID)
+                .build();
+
+        when(sepayService.getPaymentStatus(10L)).thenReturn(statusResp);
+
+        mockMvc.perform(get("/api/payment/sepay/status/10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("PAID"))
+                .andExpect(jsonPath("$.data.paymentStatus").value("PAID"));
     }
 
     @Test

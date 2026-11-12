@@ -31,6 +31,7 @@ export const ROUTES = {
   POLICIES: '/policies',
   ARTICLES: '/articles',
   ARTICLE_DETAIL: '/articles/:slug',
+  PAYMENT_QR: '/payment/qr',
   PAYMENT_RESULT: '/payment/result',
   PAYMENT_VNPAY_RETURN: '/payment/vnpay-return',
 } as const;

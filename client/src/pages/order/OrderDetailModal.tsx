@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   X,
   User,
@@ -11,11 +11,16 @@ import {
   Tag,
   CreditCard,
   AlertTriangle,
+  QrCode,
 } from 'lucide-react';
 import {
   ORDER_STATUS_CONFIG,
+  canPayOrderOnline,
+  getPaymentMethodLabel,
+  getPaymentStatusMeta,
   type OrderResponse,
 } from '../../models/order.model';
+import { ROUTES } from '../../constants/routes';
 import { formatPrice, formatDateTime } from '../../utils/format';
 import Button from '../../components/common/Button/Button';
 
@@ -32,6 +37,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   onClose,
   onCancelClick,
 }) => {
+  const navigate = useNavigate();
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   if (!isOpen || !order) return null;
@@ -105,8 +111,18 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             <span className="text-gray-500 block text-[11px]">Phương thức thanh toán:</span>
             <span className="font-bold text-gray-800 mt-0.5 flex items-center sm:justify-end gap-1.5">
               <CreditCard className="w-3.5 h-3.5 text-blue-600" />
-              {order.paymentMethod === 'COD' ? 'Thanh toán khi nhận hàng (COD)' : order.paymentMethod}
+              {getPaymentMethodLabel(order.paymentMethod)}
             </span>
+            {order.paymentMethod !== 'COD' && (() => {
+              const paymentMeta = getPaymentStatusMeta(order);
+              return (
+                <span
+                  className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${paymentMeta.className}`}
+                >
+                  {paymentMeta.label}
+                </span>
+              );
+            })()}
           </div>
         </div>
 
@@ -328,9 +344,24 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             <div />
           )}
 
-          <Button variant="dark" size="sm" onClick={onClose}>
-            Đóng
-          </Button>
+          <div className="flex items-center gap-2">
+            {canPayOrderOnline(order) && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    onClose();
+                    navigate(`${ROUTES.PAYMENT_QR}/${order.id}`);
+                  }}
+                  leftIcon={<QrCode className="w-3.5 h-3.5" />}
+                >
+                  Thanh toán QR
+                </Button>
+              )}
+            <Button variant="dark" size="sm" onClick={onClose}>
+              Đóng
+            </Button>
+          </div>
         </div>
       </div>
     </div>

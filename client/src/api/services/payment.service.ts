@@ -15,8 +15,19 @@ export interface SepayPaymentResponse {
   invoiceNumber: string;
   amount: number;
   currency: string;
-  checkoutUrl: string;
-  checkoutFields: Record<string, string>;
+  paymentMode?: string;
+  paymentCode?: string;
+  transferContent?: string;
+  bankCode?: string;
+  bankName?: string;
+  accountNumber?: string;
+  accountHolder?: string;
+  qrImageUrl?: string;
+  qrDownloadUrl?: string;
+  timeoutSeconds?: number;
+  expiresAt?: string;
+  checkoutUrl?: string | null;
+  checkoutFields?: Record<string, string>;
 }
 
 export interface SepayReturnResponse {
@@ -26,18 +37,32 @@ export interface SepayReturnResponse {
   message: string;
   orderId: number | null;
   invoiceNumber: string | null;
+  sepayOrderId?: string | null;
+  paymentReference?: string | null;
   amount: number | null;
   orderStatus: string | null;
   paymentStatus: string | null;
+  paidAt?: string | null;
 }
 
 // ============================================================
-// Payment Service
+// Helpers & Payment Service
 // ============================================================
+function unwrapApiData<T>(raw: unknown): T {
+  if (
+    raw &&
+    typeof raw === 'object' &&
+    'data' in raw &&
+    (raw as { data?: unknown }).data !== undefined
+  ) {
+    return (raw as { data: T }).data;
+  }
+  return raw as T;
+}
+
 export const paymentService = {
   /**
-   * Khởi tạo yêu cầu thanh toán (SePay / VNPAY).
-   * Backend trả về checkoutUrl + checkoutFields (chữ ký HMAC).
+   * Khởi tạo thanh toán SePay VietQR trực tiếp tại website Nexor.
    */
   async createPayment(
     data: SepayCreatePaymentRequest
@@ -46,10 +71,7 @@ export const paymentService = {
       ENDPOINTS.PAYMENT.SEPAY_CREATE,
       data
     );
-    if (response.data && 'data' in response.data && response.data.data) {
-      return response.data.data as SepayPaymentResponse;
-    }
-    return response.data as SepayPaymentResponse;
+    return unwrapApiData<SepayPaymentResponse>(response.data);
   },
 
   // Alias để tương thích
@@ -57,6 +79,18 @@ export const paymentService = {
     data: SepayCreatePaymentRequest
   ): Promise<SepayPaymentResponse> {
     return this.createPayment(data);
+  },
+
+  /**
+   * Kiểm tra trạng thái thanh toán thời gian thực của đơn hàng (dùng cho polling tại trang QR Nexor).
+   */
+  async getPaymentStatus(
+    orderId: number | string
+  ): Promise<SepayReturnResponse> {
+    const response = await axiosClient.get(
+      ENDPOINTS.PAYMENT.SEPAY_STATUS(orderId)
+    );
+    return unwrapApiData<SepayReturnResponse>(response.data);
   },
 
   /**
@@ -70,10 +104,7 @@ export const paymentService = {
       ENDPOINTS.PAYMENT.SEPAY_RETURN,
       { params }
     );
-    if (response.data && 'data' in response.data && response.data.data) {
-      return response.data.data as SepayReturnResponse;
-    }
-    return response.data as SepayReturnResponse;
+    return unwrapApiData<SepayReturnResponse>(response.data);
   },
 
   // Alias để tương thích

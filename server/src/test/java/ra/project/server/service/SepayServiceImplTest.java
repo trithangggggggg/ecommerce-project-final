@@ -41,10 +41,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("Kiểm thử SepayServiceImpl (Payment Gateway v1, HMAC-SHA256 Base64 & Idempotent IPN)")
+@DisplayName("Kiểm thử SepayServiceImpl (VietQR trực tiếp, Webhook biến động số dư & IPN idempotent)")
 class SepayServiceImplTest {
 
     private static final String SECRET_KEY = "spsk_test_1234567890abcdef1234567890abcdef";
+    private static final String WEBHOOK_API_KEY = "sepay_webhook_api_key_test_123456";
 
     @Mock
     private OrderRepository orderRepository;
@@ -65,6 +66,14 @@ class SepayServiceImplTest {
     @BeforeEach
     void setUp() {
         sepayConfig = new SepayConfig();
+        sepayConfig.setBankAccount("0123456789");
+        sepayConfig.setBankCode("MBBank");
+        sepayConfig.setAccountHolder("NGUYEN TRI THANG");
+        sepayConfig.setWebhookApiKey(WEBHOOK_API_KEY);
+        sepayConfig.setPaymentPrefix("DH");
+        sepayConfig.setQrBaseUrl("https://qr.sepay.vn/img");
+        sepayConfig.setQrTemplate("qronly");
+        sepayConfig.setQrTimeoutMinutes(15);
         sepayConfig.setMerchantId("SP-TEST-MERCHANT");
         sepayConfig.setSecretKey(SECRET_KEY);
         sepayConfig.setCheckoutUrl("https://pay-sandbox.sepay.vn/v1/checkout/init");
@@ -121,8 +130,8 @@ class SepayServiceImplTest {
     }
 
     @Test
-    @DisplayName("Tạo checkout SePay thành công: sinh invoiceNumber, signature Base64 và lưu DB")
-    void createPaymentCheckout_Success() {
+    @DisplayName("Tạo thanh toán SePay VietQR trực tiếp thành công: trả URL QR, STK, nội dung CK DH10 và lưu DB")
+    void createPaymentCheckout_ReturnsVietQrDirectDetails() {
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("buyer1", "pass", List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))));
         when(userRepository.findByUsername("buyer1")).thenReturn(Optional.of(customer));
@@ -131,7 +140,6 @@ class SepayServiceImplTest {
 
         CreatePaymentRequest request = CreatePaymentRequest.builder()
                 .orderId(10L)
-                .paymentMethod("BANK_TRANSFER")
                 .build();
 
         SepayPaymentResponse response = sepayService.createPaymentCheckout(request);
@@ -139,27 +147,41 @@ class SepayServiceImplTest {
         assertEquals(10L, response.getOrderId());
         assertEquals(500000L, response.getAmount());
         assertEquals("VND", response.getCurrency());
-        assertEquals("https://pay-sandbox.sepay.vn/v1/checkout/init", response.getCheckoutUrl());
-        assertNotNull(response.getInvoiceNumber());
-        assertTrue(response.getInvoiceNumber().startsWith("DH10_"));
-
-        Map<String, String> fields = response.getCheckoutFields();
-        assertEquals("SP-TEST-MERCHANT", fields.get("merchant"));
-        assertEquals("PURCHASE", fields.get("operation"));
-        assertEquals("BANK_TRANSFER", fields.get("payment_method"));
-        assertEquals("500000", fields.get("order_amount"));
-        assertEquals("VND", fields.get("currency"));
-        assertEquals(response.getInvoiceNumber(), fields.get("order_invoice_number"));
-        assertNotNull(fields.get("signature"));
-
-        // Verify signature khớp với toàn bộ field trừ signature
-        Map<String, String> unsignedCopy = new LinkedHashMap<>(fields);
-        String receivedSig = unsignedCopy.remove("signature");
-        assertEquals(SepayConfig.signCheckoutFields(unsignedCopy, SECRET_KEY), receivedSig);
+        assertEquals("VIETQR_DIRECT", response.getPaymentMode());
+        assertEquals("DH10", response.getInvoiceNumber());
+        assertEquals("DH10", response.getPaymentCode());
+        assertEquals("DH10", response.getTransferContent());
+        assertEquals("0123456789", response.getAccountNumber());
+        assertEquals("MBBank", response.getBankCode());
+        assertEquals("MB Bank (Ngân hàng TMCP Quân Đội)", response.getBankName());
+        assertEquals("NGUYEN TRI THANG", response.getAccountHolder());
+        assertNull(response.getCheckoutUrl());
+        assertNotNull(response.getQrImageUrl());
+        assertTrue(response.getQrImageUrl().startsWith("https://qr.sepay.vn/img?"));
+        assertTrue(response.getQrImageUrl().contains("acc=0123456789"));
+        assertTrue(response.getQrImageUrl().contains("bank=MBBank"));
+        assertTrue(response.getQrImageUrl().contains("amount=500000"));
+        assertTrue(response.getQrImageUrl().contains("des=DH10"));
+        assertTrue(response.getQrImageUrl().contains("template=qronly"));
+        assertNotNull(response.getQrDownloadUrl());
+        assertTrue(response.getQrDownloadUrl().contains("download=true"));
+        assertEquals(900L, response.getTimeoutSeconds());
+        assertNotNull(response.getExpiresAt());
 
         assertEquals(PaymentMethod.SEPAY, pendingOrder.getPaymentMethod());
         assertEquals(PaymentStatus.UNPAID, pendingOrder.getPaymentStatus());
-        assertEquals(response.getInvoiceNumber(), pendingOrder.getSepayInvoiceNumber());
+        assertEquals("DH10", pendingOrder.getSepayInvoiceNumber());
+    }
+
+    @Test
+    @DisplayName("Chặn tạo QR khi chưa cấu hình SEPAY_BANK_ACCOUNT / SEPAY_BANK_CODE")
+    void createPaymentCheckout_MissingBankConfig_ThrowsBadRequest() {
+        sepayConfig.setBankAccount("");
+        sepayConfig.setBankCode("");
+
+        assertThrows(BadRequestException.class,
+                () -> sepayService.createPaymentCheckout(CreatePaymentRequest.builder().orderId(10L).build()));
+        verify(orderRepository, never()).save(any());
     }
 
     @Test
@@ -368,6 +390,156 @@ class SepayServiceImplTest {
         assertEquals(OrderStatus.PROCESSING, result.getOrderStatus());
         assertEquals(PaymentStatus.PAID, result.getPaymentStatus());
         verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Webhook biến động số dư (Apikey đúng + code DH10) -> cập nhật PAID & PROCESSING")
+    void handleWebhook_BankTransferWithCode_MarksOrderPaid() {
+        pendingOrder.setSepayInvoiceNumber("DH10");
+        when(orderRepository.findBySepayInvoiceNumberForUpdate("DH10")).thenReturn(Optional.of(pendingOrder));
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        String webhookPayload = """
+                {
+                  "id": 92704,
+                  "gateway": "MBBank",
+                  "transactionDate": "2026-11-12 01:15:00",
+                  "accountNumber": "0123456789",
+                  "subAccount": null,
+                  "code": "DH10",
+                  "content": "MBVCB.998877.DH10.CT",
+                  "transferType": "in",
+                  "description": "NGUYEN VAN A chuyen tien DH10",
+                  "transferAmount": 500000,
+                  "accumulated": 1500000,
+                  "referenceCode": "FT261112999"
+                }
+                """;
+
+        Map<String, Object> result = sepayService.handleWebhook(null, "Apikey " + WEBHOOK_API_KEY, webhookPayload);
+
+        assertEquals(true, result.get("success"));
+        assertEquals(10L, result.get("orderId"));
+        assertEquals(OrderStatus.PROCESSING, pendingOrder.getStatus());
+        assertEquals(PaymentStatus.PAID, pendingOrder.getPaymentStatus());
+        assertEquals(PaymentMethod.SEPAY, pendingOrder.getPaymentMethod());
+        assertEquals("FT261112999", pendingOrder.getSepayOrderId());
+        assertEquals("92704", pendingOrder.getPaymentReference());
+        assertNotNull(pendingOrder.getPaidAt());
+        verify(orderRepository).save(pendingOrder);
+    }
+
+    @Test
+    @DisplayName("Webhook biến động số dư (code=null, bóc tách regex từ content) -> vẫn khớp đơn #10")
+    void handleWebhook_NullCodeExtractsFromContent_MarksOrderPaid() {
+        when(orderRepository.findBySepayInvoiceNumberForUpdate("DH10")).thenReturn(Optional.empty());
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(pendingOrder));
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        String webhookPayload = """
+                {
+                  "id": 92705,
+                  "gateway": "Vietcombank",
+                  "code": null,
+                  "content": "VCB.112233.Thanh toan DH10 tai Nexor",
+                  "transferType": "in",
+                  "transferAmount": 500000,
+                  "referenceCode": "FT261112000"
+                }
+                """;
+
+        Map<String, Object> result = sepayService.handleWebhook(null, "Apikey " + WEBHOOK_API_KEY, webhookPayload);
+
+        assertEquals(true, result.get("success"));
+        assertEquals(OrderStatus.PROCESSING, pendingOrder.getStatus());
+        assertEquals(PaymentStatus.PAID, pendingOrder.getPaymentStatus());
+        verify(orderRepository).save(pendingOrder);
+    }
+
+    @Test
+    @DisplayName("Webhook biến động số dư sai Apikey -> ném 401 Unauthorized")
+    void handleWebhook_InvalidApiKey_ThrowsUnauthorized() {
+        String webhookPayload = "{\"id\":1,\"transferType\":\"in\",\"transferAmount\":500000,\"code\":\"DH10\"}";
+        assertThrows(UnauthorizedException.class,
+                () -> sepayService.handleWebhook(null, "Apikey wrong_key", webhookPayload));
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Webhook tiền chuyển thiếu so với tổng đơn -> bỏ qua an toàn, không đánh dấu PAID")
+    void handleWebhook_Underpaid_IgnoredWithoutMarkingPaid() {
+        when(orderRepository.findBySepayInvoiceNumberForUpdate("DH10")).thenReturn(Optional.empty());
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(pendingOrder));
+
+        String webhookPayload = """
+                {
+                  "id": 92706,
+                  "gateway": "MBBank",
+                  "code": "DH10",
+                  "transferType": "in",
+                  "transferAmount": 100000
+                }
+                """;
+
+        Map<String, Object> result = sepayService.handleWebhook(null, "Apikey " + WEBHOOK_API_KEY, webhookPayload);
+
+        assertEquals(true, result.get("success"));
+        assertEquals(true, result.get("ignored"));
+        assertEquals(true, result.get("underpaid"));
+        assertEquals(PaymentStatus.UNPAID, pendingOrder.getPaymentStatus());
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Webhook với code chữ thường 'dh10' vẫn chuẩn hóa chữ hoa để khớp đơn hàng")
+    void handleWebhook_LowercaseCode_NormalizesAndMatches() {
+        pendingOrder.setSepayInvoiceNumber("DH10");
+        when(orderRepository.findBySepayInvoiceNumberForUpdate("DH10")).thenReturn(Optional.of(pendingOrder));
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        String webhookPayload = """
+                {
+                  "id": 92707,
+                  "gateway": "MBBank",
+                  "code": " dh10 ",
+                  "content": "dh10",
+                  "transferType": "in",
+                  "transferAmount": 500000
+                }
+                """;
+
+        Map<String, Object> result = sepayService.handleWebhook(null, "Apikey " + WEBHOOK_API_KEY, webhookPayload);
+
+        assertEquals(true, result.get("success"));
+        assertEquals(10L, result.get("orderId"));
+        assertEquals(PaymentStatus.PAID, pendingOrder.getPaymentStatus());
+        verify(orderRepository).findBySepayInvoiceNumberForUpdate("DH10");
+    }
+
+    @Test
+    @DisplayName("getPaymentStatus kiểm tra quyền sở hữu (IDOR -> 403) và trả trạng thái đúng")
+    void getPaymentStatus_ChecksOwnershipAndReturnsStatus() {
+        pendingOrder.setStatus(OrderStatus.PROCESSING);
+        pendingOrder.setPaymentStatus(PaymentStatus.PAID);
+        pendingOrder.setSepayInvoiceNumber("DH10");
+        pendingOrder.setPaymentReference("92704");
+
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("buyer1", "pass", List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))));
+        when(userRepository.findByUsername("buyer1")).thenReturn(Optional.of(customer));
+        when(orderRepository.findById(10L)).thenReturn(Optional.of(pendingOrder));
+
+        SepayReturnResponse status = sepayService.getPaymentStatus(10L);
+        assertTrue(status.isSuccess());
+        assertEquals("PAID", status.getStatus());
+        assertEquals(PaymentStatus.PAID, status.getPaymentStatus());
+
+        User stranger = User.builder().id(99L).username("intruder").role(Role.CUSTOMER).build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("intruder", "pass", List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))));
+        when(userRepository.findByUsername("intruder")).thenReturn(Optional.of(stranger));
+
+        assertThrows(ForbiddenException.class, () -> sepayService.getPaymentStatus(10L));
     }
 }
 
