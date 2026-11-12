@@ -90,22 +90,9 @@ public class AdminShippingCarrierController {
         seedDefaultCarriersIfEmpty();
         List<ShippingCarrier> list = shippingCarrierRepository.findAll();
 
-        // Tự động gán cước mặc định cho các đối tác chưa có shippingFee
+        // Tự động gán giá trị mặc định cho các bản ghi thiếu trường số/trạng thái
         for (ShippingCarrier carrier : list) {
-            if (carrier.getShippingFee() == null) {
-                if ("GHTK".equalsIgnoreCase(carrier.getCode())) {
-                    carrier.setShippingFee(java.math.BigDecimal.valueOf(22000));
-                } else if ("VTP".equalsIgnoreCase(carrier.getCode())) {
-                    carrier.setShippingFee(java.math.BigDecimal.valueOf(25000));
-                } else if ("JNT".equalsIgnoreCase(carrier.getCode())) {
-                    carrier.setShippingFee(java.math.BigDecimal.valueOf(28000));
-                } else if ("GHN".equalsIgnoreCase(carrier.getCode())) {
-                    carrier.setShippingFee(java.math.BigDecimal.valueOf(35000));
-                } else if ("NEXOR".equalsIgnoreCase(carrier.getCode())) {
-                    carrier.setShippingFee(java.math.BigDecimal.valueOf(50000));
-                } else {
-                    carrier.setShippingFee(java.math.BigDecimal.valueOf(30000));
-                }
+            if (carrier.applyMissingDefaults()) {
                 shippingCarrierRepository.save(carrier);
             }
         }
@@ -140,9 +127,7 @@ public class AdminShippingCarrierController {
         if (shippingCarrierRepository.existsByCodeIgnoreCase(request.getCode())) {
             throw new IllegalArgumentException("Mã đơn vị vận chuyển '" + request.getCode() + "' đã tồn tại!");
         }
-        if (request.getShippingFee() == null) {
-            request.setShippingFee(java.math.BigDecimal.valueOf(30000));
-        }
+        request.applyMissingDefaults();
         ShippingCarrier saved = shippingCarrierRepository.save(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created("Thêm đơn vị vận chuyển thành công", saved));
@@ -160,15 +145,16 @@ public class AdminShippingCarrierController {
         existing.setName(request.getName());
         existing.setServiceType(request.getServiceType());
         existing.setHotline(request.getHotline());
-        existing.setActiveOrders(request.getActiveOrders());
-        existing.setRating(request.getRating());
+        existing.setActiveOrders(request.getActiveOrders() != null ? request.getActiveOrders() : 0);
+        existing.setRating(request.getRating() != null ? request.getRating() : 5.0);
         if (request.getEstimatedDelivery() != null) {
             existing.setEstimatedDelivery(request.getEstimatedDelivery().trim());
         }
-        existing.setStatus(request.getStatus());
+        existing.setStatus(request.getStatus() != null ? request.getStatus() : "ACTIVE");
         if (request.getShippingFee() != null) {
             existing.setShippingFee(request.getShippingFee());
         }
+        existing.applyMissingDefaults();
 
         ShippingCarrier updated = shippingCarrierRepository.save(existing);
         return ResponseEntity.ok(ApiResponse.success("Cập nhật đơn vị vận chuyển thành công", updated));
