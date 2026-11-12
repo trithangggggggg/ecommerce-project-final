@@ -265,11 +265,20 @@ export const LuckyWheelModal: React.FC = () => {
     ctx.restore();
   }, [rewards]);
 
-  // Vẽ vòng quay khi mở Modal hoặc thay đổi cấu hình
+  // Vẽ vòng quay khi mở Modal hoặc thay đổi cấu hình và khóa cuộn trang nền để không hiện scrollbar
   useEffect(() => {
-    if (isOpen) {
-      drawWheel(currentRotationRef.current);
-    }
+    if (!isOpen) return;
+    drawWheel(currentRotationRef.current);
+
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = prevBodyOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+    };
   }, [isOpen, drawWheel]);
 
   // Kích hoạt quay thưởng
@@ -441,9 +450,9 @@ export const LuckyWheelModal: React.FC = () => {
       {/* 2. MODAL VÒNG QUAY MAY MẮN (GIAO DIỆN SANG TRỌNG 100% NHƯ ẢNH) */}
       {/* ========================================================= */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
           <div
-            className="relative w-full max-w-[720px] max-h-[96vh] overflow-y-auto overflow-x-hidden rounded-[30px] border border-amber-500/30 shadow-[0_0_60px_rgba(0,0,0,0.95),0_0_35px_rgba(245,158,11,0.25)] flex flex-col items-center justify-between p-4 sm:p-6"
+            className="relative w-full max-w-[700px] max-h-[96vh] overflow-y-auto overflow-x-hidden no-scrollbar rounded-[30px] border border-amber-500/30 shadow-[0_0_60px_rgba(0,0,0,0.95),0_0_35px_rgba(245,158,11,0.25)] flex flex-col items-center justify-between p-4 sm:p-5"
             style={{
               backgroundImage: `url(${wheelBg})`,
               backgroundSize: 'cover',
@@ -456,15 +465,15 @@ export const LuckyWheelModal: React.FC = () => {
               type="button"
               onClick={closeModal}
               disabled={spinning}
-              className="absolute top-4 right-5 w-8 h-8 rounded-full bg-black/40 hover:bg-black/70 text-gray-300 hover:text-white flex items-center justify-center transition border border-white/10 cursor-pointer disabled:opacity-40"
+              className="absolute top-3.5 right-4 sm:top-4 sm:right-5 w-8 h-8 rounded-full bg-black/40 hover:bg-black/70 text-gray-300 hover:text-white flex items-center justify-center transition border border-white/10 cursor-pointer disabled:opacity-40"
               title="Đóng"
             >
               <X className="w-4 h-4" />
             </button>
 
             {/* HEADER: Badge NEXOR + Tiêu đề Vòng quay may mắn */}
-            <div className="flex flex-col items-center text-center mt-1 mb-2">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-950/70 border border-amber-500/50 text-amber-300 text-xs font-black uppercase tracking-wider shadow-sm mb-1.5">
+            <div className="flex flex-col items-center text-center mt-0.5 mb-1.5">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-950/70 border border-amber-500/50 text-amber-300 text-xs font-black uppercase tracking-wider shadow-sm mb-1">
                 <Gift className="w-3.5 h-3.5 text-amber-400" />
                 <span>NEXOR</span>
                 <span className="w-1 h-1 rounded-full bg-amber-400/60" />
@@ -476,24 +485,24 @@ export const LuckyWheelModal: React.FC = () => {
               </div>
 
               <div className="flex items-center justify-center gap-2">
-                <span className="text-amber-400 text-lg">✦</span>
-                <span className="text-2xl sm:text-3xl">🎁</span>
-                <h2 className="text-xl sm:text-3xl font-black uppercase tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-yellow-200 drop-shadow-[0_2px_12px_rgba(245,158,11,0.5)]">
+                <span className="text-amber-400 text-base sm:text-lg">✦</span>
+                <span className="text-xl sm:text-2xl">🎁</span>
+                <h2 className="text-lg sm:text-2xl font-black uppercase tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-yellow-200 drop-shadow-[0_2px_12px_rgba(245,158,11,0.5)]">
                   VÒNG QUAY MAY MẮN
                 </h2>
-                <span className="text-amber-400 text-lg">✦</span>
+                <span className="text-amber-400 text-base sm:text-lg">✦</span>
               </div>
 
-              <p className="text-xs sm:text-sm text-gray-300 font-medium mt-1">
+              <p className="text-[11px] sm:text-xs text-gray-300 font-medium mt-0.5">
                 Quay mỗi ngày để nhận những phần quà hấp dẫn từ NEXOR!
               </p>
             </div>
 
             {/* CANVAS VÒNG QUAY + KIM CHỈ + NÚT QUAY TÂM */}
-            <div className="relative flex items-center justify-center my-3">
+            <div className="relative flex items-center justify-center my-2">
               {/* Kim chỉ phần thưởng (Teardrop pointer giọt nước vàng chỉ đỉnh 12h) */}
-              <div className="absolute -top-4 z-20 flex flex-col items-center pointer-events-none drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]">
-                <svg width="40" height="50" viewBox="0 0 40 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <div className="absolute -top-3.5 z-20 flex flex-col items-center pointer-events-none drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]">
+                <svg className="w-8 h-10 sm:w-9 sm:h-11" viewBox="0 0 40 50" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <defs>
                     <linearGradient id="pointerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                       <stop offset="0%" stopColor="#fef08a" />
@@ -513,12 +522,12 @@ export const LuckyWheelModal: React.FC = () => {
                 </svg>
               </div>
 
-              {/* Canvas 360x360 */}
+              {/* Canvas 360x360 co giãn vừa khung không tràn */}
               <canvas
                 ref={canvasRef}
                 width={360}
                 height={360}
-                className="rounded-full shadow-[0_0_40px_rgba(245,158,11,0.35)]"
+                className="w-[268px] h-[268px] sm:w-[310px] sm:h-[310px] rounded-full shadow-[0_0_40px_rgba(245,158,11,0.35)]"
               />
 
               {/* Nút bấm QUAY NGAY ở trung tâm vòng quay */}
@@ -526,7 +535,7 @@ export const LuckyWheelModal: React.FC = () => {
                 type="button"
                 onClick={handleSpin}
                 disabled={spinning || (wheelStatus ? !wheelStatus.canSpin : false)}
-                className={`absolute z-10 w-[78px] h-[78px] rounded-full flex flex-col items-center justify-center shadow-[0_4px_18px_rgba(0,0,0,0.6),0_0_18px_rgba(245,158,11,0.5)] transition-all cursor-pointer ${
+                className={`absolute z-10 w-[62px] h-[62px] sm:w-[70px] sm:h-[70px] rounded-full flex flex-col items-center justify-center shadow-[0_4px_18px_rgba(0,0,0,0.6),0_0_18px_rgba(245,158,11,0.5)] transition-all cursor-pointer ${
                   spinning || (wheelStatus ? !wheelStatus.canSpin : false)
                     ? 'bg-gradient-to-b from-gray-600 to-gray-800 text-gray-300 cursor-not-allowed opacity-90 ring-4 ring-gray-900/60'
                     : 'bg-gradient-to-b from-[#fef08a] via-[#f59e0b] to-[#d97706] text-[#291e0a] hover:scale-105 active:scale-95 hover:shadow-[0_0_25px_rgba(245,158,11,0.8)] ring-4 ring-amber-300/40 border-2 border-white'
@@ -536,13 +545,13 @@ export const LuckyWheelModal: React.FC = () => {
                   <RotateCw className="w-6 h-6 animate-spin text-white" />
                 ) : wheelStatus && !wheelStatus.canSpin ? (
                   <>
-                    <span className="text-[12px] font-black leading-tight tracking-wider text-gray-200">HẾT</span>
-                    <span className="text-[10px] font-bold leading-tight tracking-wider text-amber-400">LƯỢT</span>
+                    <span className="text-[11px] sm:text-[12px] font-black leading-tight tracking-wider text-gray-200">HẾT</span>
+                    <span className="text-[9px] sm:text-[10px] font-bold leading-tight tracking-wider text-amber-400">LƯỢT</span>
                   </>
                 ) : (
                   <>
-                    <span className="text-[14px] font-black leading-tight tracking-wider">QUAY</span>
-                    <span className="text-[11px] font-black leading-tight tracking-wider text-[#3d2708]">NGAY</span>
+                    <span className="text-[12px] sm:text-[14px] font-black leading-tight tracking-wider">QUAY</span>
+                    <span className="text-[10px] sm:text-[11px] font-black leading-tight tracking-wider text-[#3d2708]">NGAY</span>
                   </>
                 )}
               </button>
@@ -557,7 +566,7 @@ export const LuckyWheelModal: React.FC = () => {
             )}
 
             {/* KHUNG THÔNG TIN BÊN DƯỚI: ĐẾM NGƯỢC HOẶC MÃ VOUCHER TRÚNG THƯỞNG */}
-            <div className="w-full max-w-[500px] mt-2 mb-1 p-3 sm:p-4 rounded-2xl bg-[#12141a]/95 backdrop-blur-md border border-amber-500/30 shadow-xl flex flex-col gap-2.5">
+            <div className="w-full max-w-[500px] mt-1.5 mb-0.5 p-2.5 sm:p-3.5 rounded-2xl bg-[#12141a]/95 backdrop-blur-md border border-amber-500/30 shadow-xl flex flex-col gap-2">
               {/* Chưa đăng nhập */}
               {!isAuthenticated && (
                 <div className="flex items-center justify-between gap-3 text-xs">
