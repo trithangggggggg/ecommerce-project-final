@@ -31,12 +31,17 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import ra.project.server.mapper.OrderMapper;
+import ra.project.server.model.dto.response.OrderResponse;
 import ra.project.server.model.enums.Role;
 import java.time.LocalDateTime;
 
@@ -48,6 +53,9 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final OrderRepository orderRepository;
     private final PasswordEncoder passwordEncoder;
+
+    @Autowired(required = false)
+    private OrderMapper orderMapper;
 
     @Value("${app.admin.username:}")
     private String adminUsername;
@@ -241,14 +249,37 @@ public class UserServiceImpl implements UserService {
             users = users.stream().filter(u -> status.equals(u.getStatus())).toList();
         }
 
-        List<AdminUserResponse> responses = users.stream().map(u -> {
-            List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(u.getId());
-            BigDecimal totalSpent = orders.stream()
+        List<AdminUserResponse> responses = users.stream()
+                .map(u -> buildAdminUserResponse(u, false))
+                .toList();
+
+        return ApiResponse.success("Lấy danh sách người dùng thành công", responses);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ApiResponse<AdminUserResponse> getAdminUserById(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng", "id", userId));
+        return ApiResponse.success("Lấy thông tin chi tiết khách hàng thành công", buildAdminUserResponse(user, true));
+    }
+
+    private AdminUserResponse buildAdminUserResponse(User u, boolean includeOrders) {
+        List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(u.getId());
+        BigDecimal totalSpent = orders.stream()
                 .filter(o -> o.getStatus() != OrderStatus.CANCELLED)
                 .map(Order::getTotalAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-            return AdminUserResponse.builder()
+        List<OrderResponse> recentOrders = null;
+        if (includeOrders && orderMapper != null) {
+            recentOrders = orders.stream()
+                    .limit(20)
+                    .map(orderMapper::toResponse)
+                    .toList();
+        }
+
+        return AdminUserResponse.builder()
                 .id(u.getId())
                 .username(u.getUsername())
                 .email(u.getEmail())
@@ -260,11 +291,9 @@ public class UserServiceImpl implements UserService {
                 .status(u.getStatus() != null ? u.getStatus() : true)
                 .ordersCount(orders.size())
                 .totalSpent(totalSpent)
+                .recentOrders(recentOrders)
                 .createdAt(u.getCreatedAt())
                 .build();
-        }).toList();
-
-        return ApiResponse.success("Lấy danh sách người dùng thành công", responses);
     }
 
     @Override
@@ -292,28 +321,8 @@ public class UserServiceImpl implements UserService {
         userRepository.save(user);
         log.info("Quản trị viên đã đổi trạng thái người dùng #{} sang {}", userId, newStatus ? "ACTIVE" : "BLOCKED");
 
-        List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
-        BigDecimal totalSpent = orders.stream()
-            .filter(o -> o.getStatus() != OrderStatus.CANCELLED)
-            .map(Order::getTotalAmount)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        AdminUserResponse response = AdminUserResponse.builder()
-            .id(user.getId())
-            .username(user.getUsername())
-            .email(user.getEmail())
-            .fullName(user.getFullName())
-            .phoneNumber(user.getPhoneNumber())
-            .address(user.getAddress())
-            .avatarUrl(user.getAvatarUrl())
-            .role(user.getRole())
-            .status(user.getStatus())
-            .ordersCount(orders.size())
-            .totalSpent(totalSpent)
-            .createdAt(user.getCreatedAt())
-            .build();
-
-        String msg = Boolean.TRUE.equals(status) ? "Đã kích hoạt tài khoản thành công" : "Đã khóa tài khoản người dùng thành công";
+        AdminUserResponse response = buildAdminUserResponse(user, false);
+        String msg = newStatus ? "Đã kích hoạt tài khoản thành công" : "Đã khóa tài khoản người dùng thành công";
         return ApiResponse.success(msg, response);
     }
 
@@ -326,11 +335,13 @@ public class UserServiceImpl implements UserService {
         if (request.getEmail() == null || request.getEmail().isBlank()) {
             throw new BadRequestException("Email không được để trống");
         }
-        if (userRepository.existsByUsername(request.getUsername().trim())) {
-            throw new BadRequestException("Tên đăng nhập '" + request.getUsername().trim() + "' đã được sử dụng");
+        String trimmedUsername = request.getUsername().trim();
+        String trimmedEmail = request.getEmail().trim();
+        if (userRepository.existsByUsernameIgnoreCase(trimmedUsername)) {
+            throw new BadRequestException("Tên đăng nhập '" + trimmedUsername + "' đã được sử dụng");
         }
-        if (userRepository.existsByEmail(request.getEmail().trim())) {
-            throw new BadRequestException("Email '" + request.getEmail().trim() + "' đã được sử dụng");
+        if (userRepository.existsByEmailIgnoreCase(trimmedEmail)) {
+            throw new BadRequestException("Email '" + trimmedEmail + "' đã được sử dụng");
         }
 
         String rawPassword = (request.getPassword() != null && !request.getPassword().isBlank())
@@ -338,13 +349,13 @@ public class UserServiceImpl implements UserService {
                 : "123123123";
 
         User user = User.builder()
-                .username(request.getUsername().trim())
-                .email(request.getEmail().trim())
+                .username(trimmedUsername)
+                .email(trimmedEmail)
                 .password(passwordEncoder.encode(rawPassword))
-                .fullName(request.getFullName() != null && !request.getFullName().isBlank() ? request.getFullName().trim() : request.getUsername().trim())
+                .fullName(request.getFullName() != null && !request.getFullName().isBlank() ? request.getFullName().trim() : trimmedUsername)
                 .phoneNumber(request.getPhoneNumber() != null ? request.getPhoneNumber().trim() : null)
                 .address(request.getAddress() != null ? request.getAddress().trim() : null)
-                .avatarUrl(request.getAvatarUrl() != null && !request.getAvatarUrl().isBlank() ? request.getAvatarUrl().trim() : "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100")
+                .avatarUrl(request.getAvatarUrl() != null && !request.getAvatarUrl().isBlank() ? request.getAvatarUrl().trim() : null)
                 .role(Role.CUSTOMER)
                 .status(request.getStatus() != null ? request.getStatus() : true)
                 .build();
@@ -375,49 +386,43 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng", "id", userId));
 
+        if (request.getUsername() != null && !request.getUsername().isBlank()) {
+            String newUsername = request.getUsername().trim();
+            if (!newUsername.equalsIgnoreCase(user.getUsername()) && userRepository.existsByUsernameIgnoreCase(newUsername)) {
+                throw new BadRequestException("Tên đăng nhập '" + newUsername + "' đã được sử dụng bởi tài khoản khác");
+            }
+            user.setUsername(newUsername);
+        }
         if (request.getFullName() != null && !request.getFullName().isBlank()) {
             user.setFullName(request.getFullName().trim());
         }
         if (request.getEmail() != null && !request.getEmail().isBlank()) {
             String newEmail = request.getEmail().trim();
-            if (!newEmail.equalsIgnoreCase(user.getEmail()) && userRepository.existsByEmail(newEmail)) {
+            if (!newEmail.equalsIgnoreCase(user.getEmail()) && userRepository.existsByEmailIgnoreCase(newEmail)) {
                 throw new BadRequestException("Email '" + newEmail + "' đã được sử dụng bởi tài khoản khác");
             }
             user.setEmail(newEmail);
         }
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            user.setPassword(passwordEncoder.encode(request.getPassword().trim()));
+        }
         if (request.getPhoneNumber() != null) user.setPhoneNumber(request.getPhoneNumber().trim());
         if (request.getAddress() != null) user.setAddress(request.getAddress().trim());
-        if (request.getStatus() != null) user.setStatus(request.getStatus());
+        if (request.getAvatarUrl() != null) user.setAvatarUrl(request.getAvatarUrl().trim().isEmpty() ? null : request.getAvatarUrl().trim());
+        if (request.getStatus() != null) {
+            if (user.getRole() == Role.ADMIN && Boolean.FALSE.equals(request.getStatus())) {
+                throw new BadRequestException("Không thể khóa tài khoản Quản trị viên (ADMIN)!");
+            }
+            user.setStatus(request.getStatus());
+        }
 
         User updated = userRepository.save(user);
-
-        List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(updated.getId());
-        BigDecimal totalSpent = orders.stream()
-                .filter(o -> o.getStatus() != OrderStatus.CANCELLED)
-                .map(Order::getTotalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        AdminUserResponse response = AdminUserResponse.builder()
-                .id(updated.getId())
-                .username(updated.getUsername())
-                .email(updated.getEmail())
-                .fullName(updated.getFullName())
-                .phoneNumber(updated.getPhoneNumber())
-                .address(updated.getAddress())
-                .avatarUrl(updated.getAvatarUrl())
-                .role(updated.getRole())
-                .status(updated.getStatus())
-                .ordersCount(orders.size())
-                .totalSpent(totalSpent)
-                .createdAt(updated.getCreatedAt())
-                .build();
-
-        return ApiResponse.success("Cập nhật thông tin khách hàng thành công", response);
+        return ApiResponse.success("Cập nhật thông tin khách hàng thành công", buildAdminUserResponse(updated, false));
     }
 
     @Override
     @Transactional
-    public ApiResponse<Void> deleteAdminUser(Long userId) {
+    public ApiResponse<Map<String, Object>> deleteAdminUser(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng", "id", userId));
 
@@ -425,13 +430,25 @@ public class UserServiceImpl implements UserService {
             throw new BadRequestException("Không thể xóa tài khoản Quản trị viên (ADMIN)");
         }
 
-        try {
-            userRepository.delete(user);
-        } catch (Exception e) {
+        List<Order> userOrders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", userId);
+        result.put("ordersCount", userOrders.size());
+
+        if (!userOrders.isEmpty()) {
             user.setStatus(false);
             userRepository.save(user);
+            result.put("deleted", false);
+            result.put("locked", true);
+            return ApiResponse.success(
+                    "Khách hàng đã có " + userOrders.size() + " đơn hàng nên không thể xóa vĩnh viễn. Đã chuyển sang trạng thái Khóa tài khoản.",
+                    result
+            );
         }
 
-        return ApiResponse.success("Đã xóa khách hàng #" + userId + " thành công", null);
+        userRepository.delete(user);
+        result.put("deleted", true);
+        result.put("locked", false);
+        return ApiResponse.success("Đã xóa khách hàng #" + userId + " thành công", result);
     }
 }

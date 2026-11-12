@@ -1,33 +1,4 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  Package,
-  Plus,
-  Search,
-  RefreshCw,
-  Edit,
-  Trash2,
-  CheckCircle2,
-  ExternalLink,
-  X,
-  Sparkles,
-  AlertCircle,
-  Loader2,
-  Image as ImageIcon,
-  Check,
-  Layers,
-  Sliders,
-  ChevronRight,
-  ArrowRight,
-  Smartphone,
-  Laptop,
-  Headphones,
-  FolderPlus,
-  ChevronDown,
-  RotateCcw,
-  Filter,
-  AlertTriangle,
-  Gift,
-} from 'lucide-react';
 import { productService } from '../../api/services/product.service';
 import { aiService } from '../../api/services/ai.service';
 import { formatPrice } from '../../utils/format';
@@ -162,7 +133,11 @@ export const AdminProductsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<number | 'ALL'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | ProductStatus>('ALL');
+  const [includeDeleted, setIncludeDeleted] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
   // Detail Modal
@@ -255,17 +230,26 @@ export const AdminProductsPage: React.FC = () => {
     setIsLoading(true);
     try {
       const [prodRes, catRes] = await Promise.all([
-        productService.getProducts({ limit: 100 }),
+        productService.getAdminProducts({
+          keyword: searchQuery.trim() || undefined,
+          categoryId: selectedCategory === 'ALL' ? undefined : selectedCategory,
+          status: statusFilter === 'ALL' ? undefined : statusFilter,
+          includeDeleted,
+          page: currentPage,
+          limit: ITEMS_PER_PAGE,
+        }),
         productService.getCategories(),
       ]);
       setProducts(prodRes.data || []);
+      setTotalItems(prodRes.total || 0);
+      setServerTotalPages(Math.max(1, prodRes.totalPages || 1));
       setCategories(catRes || []);
     } catch {
       showToast('Không thể kết nối đến máy chủ để tải sản phẩm', 'error');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [searchQuery, selectedCategory, statusFilter, includeDeleted, currentPage]);
 
   useEffect(() => {
     fetchProductsAndCategories();
@@ -542,10 +526,10 @@ export const AdminProductsPage: React.FC = () => {
         ...prev,
         description: aiDesc,
       }));
-      setAiMessage('✨ AI đã tạo xong đoạn mô tả chuẩn SEO chuyên nghiệp!');
+      setAiMessage('AI đã tạo xong đoạn mô tả chuẩn SEO chuyên nghiệp!');
       setTimeout(() => setAiMessage(null), 4000);
     } catch {
-      setAiMessage('⚠️ Có lỗi khi kết nối AI, vui lòng thử lại.');
+      setAiMessage('Có lỗi khi kết nối AI, vui lòng thử lại.');
     } finally {
       setIsGeneratingAi(false);
     }
@@ -828,14 +812,13 @@ export const AdminProductsPage: React.FC = () => {
     try {
       if (formMode === 'create') {
         const newProduct = await productService.createProduct(payload);
-        setProducts((prev) => [newProduct, ...prev]);
         showToast(`Đã thêm mới sản phẩm "${newProduct.name}" thành công!`);
       } else if (formMode === 'edit' && editingId !== null) {
         const updated = await productService.updateProduct(editingId, payload);
-        setProducts((prev) => prev.map((p) => (p.id === editingId ? updated : p)));
         showToast(`Đã cập nhật sản phẩm "${updated.name}" thành công!`);
       }
       setIsFormOpen(false);
+      await fetchProductsAndCategories();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Có lỗi xảy ra khi lưu sản phẩm';
       setModalError(msg);
@@ -853,7 +836,6 @@ export const AdminProductsPage: React.FC = () => {
     try {
       const orderCount = activeOrdersForDelete.length;
       await productService.deleteProduct(deleteTarget.id);
-      setProducts((prev) => prev.filter((p) => p.id !== deleteTarget.id));
       if (orderCount > 0) {
         showToast(
           `Đã xóa sản phẩm "${deleteTarget.name}", tự động hủy ${orderCount} đơn hàng và tặng mã giảm giá 5% cho khách hàng!`
@@ -863,6 +845,7 @@ export const AdminProductsPage: React.FC = () => {
       }
       setDeleteTarget(null);
       setActiveOrdersForDelete([]);
+      await fetchProductsAndCategories();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Không thể xóa sản phẩm';
       showToast(msg, 'error');
@@ -871,90 +854,71 @@ export const AdminProductsPage: React.FC = () => {
     }
   };
 
-  // Filter products
-  const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
-      if (selectedCategory !== 'ALL' && p.categoryId !== selectedCategory) {
-        return false;
-      }
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchName = p.name.toLowerCase().includes(q);
-        const matchBrand = p.brand?.toLowerCase().includes(q) || false;
-        const matchId = p.id.toString().includes(q);
-        return matchName || matchBrand || matchId;
-      }
-      return true;
-    });
-  }, [products, selectedCategory, searchQuery]);
+  // Server-paginated list
+  const filteredProducts = products;
+  const totalPages = Math.max(1, serverTotalPages);
+  const paginatedProducts = filteredProducts;
 
-  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE) || 1;
-  const paginatedProducts = filteredProducts.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
-
-  const totalInStock = products.filter((p) => (p.stock || 0) > 0).length;
-  const totalOutOfStock = products.filter((p) => (p.stock || 0) === 0).length;
+  const totalInStock = products.filter((p) => (p.stock || 0) > 0 && !p.isDeleted).length;
+  const totalOutOfStock = products.filter((p) => (p.stock || 0) === 0 && !p.isDeleted).length;
 
   return (
-    <div className="h-full flex flex-col min-h-0 space-y-2.5 font-sans select-none overflow-hidden">
+    <div className="h-full flex flex-col min-h-0 space-y-4 font-sans overflow-hidden">
       {/* Toast Notification */}
       {toastMessage && (
         <div
-          className={`fixed top-6 right-6 z-[9999] text-white text-xs px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 max-w-md pointer-events-auto border backdrop-blur-md transition-all animate-bounce ${
+          className={`fixed top-6 right-6 z-[9999] text-white text-xs px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 max-w-md pointer-events-auto border backdrop-blur-md transition-all ${
             toastMessage.type === 'success'
               ? 'bg-slate-900/95 border-slate-700'
               : 'bg-rose-600/95 border-rose-500'
           }`}
         >
-          {toastMessage.type === 'success' ? (
-            <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
-          ) : (
-            <AlertCircle size={18} className="text-white shrink-0" />
-          )}
+          <span
+            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+              toastMessage.type === 'success' ? 'bg-emerald-400' : 'bg-white'
+            }`}
+          />
           <span className="font-medium flex-1">{toastMessage.text}</span>
           <button
             type="button"
             onClick={() => setToastMessage(null)}
-            className="p-1 hover:bg-white/20 rounded text-white/80 hover:text-white transition cursor-pointer shrink-0"
-            title="Đóng thông báo"
+            className="px-2 py-0.5 rounded bg-white/15 hover:bg-white/25 text-white text-[11px] font-semibold transition cursor-pointer shrink-0 whitespace-nowrap"
           >
-            <X size={14} />
+            Đóng
           </button>
         </div>
       )}
 
       {/* Header & Actions */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <span>Quản lý sản phẩm</span>
-            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-              {products.length} sản phẩm
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              Quản lý sản phẩm
+            </h1>
+            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 tabular-nums">
+              {totalItems} sản phẩm
             </span>
-          </h1>
+          </div>
           <p className="text-xs text-slate-500 mt-0.5">
             Quản lý đa biến thể SKU, giá theo tùy chọn (dung lượng, màu sắc), thông số kỹ thuật
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={fetchProductsAndCategories}
             disabled={isLoading}
-            className="p-2 sm:p-2.5 bg-white border border-slate-200/90 rounded-xl text-slate-600 hover:text-blue-600 hover:bg-slate-50 transition cursor-pointer shadow-2xs flex items-center gap-2 text-xs font-semibold"
+            className="px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-2xs text-xs font-semibold disabled:opacity-60"
             title="Làm mới danh sách"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
-            <span>Làm mới</span>
+            {isLoading ? 'Đang tải...' : 'Làm mới'}
           </button>
 
           <Button
             variant="primary"
             size="md"
-            leftIcon={<Plus className="w-4 h-4" />}
             onClick={handleOpenCreateModal}
           >
             Thêm sản phẩm mới
@@ -963,105 +927,174 @@ export const AdminProductsPage: React.FC = () => {
       </div>
 
       {/* Stats Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 shrink-0">
-        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Tổng sản phẩm</span>
-          <span className="text-lg font-bold text-slate-900">{products.length}</span>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
+        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-slate-700 shadow-2xs">
+          <span className="text-[11px] font-bold tracking-wider uppercase text-slate-400 block">
+            Tổng sản phẩm
+          </span>
+          <span className="text-xl font-extrabold text-slate-900 tabular-nums mt-1 block">
+            {totalItems}
+          </span>
+          <span className="text-[11px] text-slate-500 mt-1 block">
+            Tổng theo bộ lọc trên Database
+          </span>
         </div>
-        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Còn hàng</span>
-          <span className="text-lg font-bold text-emerald-600">{totalInStock}</span>
+
+        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-emerald-500 shadow-2xs">
+          <span className="text-[11px] font-bold tracking-wider uppercase text-slate-400 block">
+            Còn hàng
+          </span>
+          <span className="text-xl font-extrabold text-emerald-600 tabular-nums mt-1 block">
+            {totalInStock}
+          </span>
+          <span className="text-[11px] text-slate-500 mt-1 block">
+            Sản phẩm sẵn sàng bán
+          </span>
         </div>
-        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Hết hàng</span>
-          <span className="text-lg font-bold text-rose-600">{totalOutOfStock}</span>
+
+        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-rose-500 shadow-2xs">
+          <span className="text-[11px] font-bold tracking-wider uppercase text-slate-400 block">
+            Hết hàng
+          </span>
+          <span className="text-xl font-extrabold text-rose-600 tabular-nums mt-1 block">
+            {totalOutOfStock}
+          </span>
+          <span className="text-[11px] text-slate-500 mt-1 block">
+            Cần nhập thêm tồn kho
+          </span>
         </div>
-        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Danh mục</span>
-          <span className="text-lg font-bold text-blue-600">{categories.length}</span>
+
+        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-blue-600 shadow-2xs">
+          <span className="text-[11px] font-bold tracking-wider uppercase text-slate-400 block">
+            Danh mục
+          </span>
+          <span className="text-xl font-extrabold text-blue-600 tabular-nums mt-1 block">
+            {categories.length}
+          </span>
+          <span className="text-[11px] text-slate-500 mt-1 block">
+            Ngành hàng đang hoạt động
+          </span>
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="bg-white rounded-xl p-2.5 border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row gap-2 shrink-0">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
-            placeholder="Tìm theo tên sản phẩm, thương hiệu, ID..."
-            className="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/15 focus:border-blue-600 transition"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+      {/* Main Data Card */}
+      <div className="bg-white rounded-xl border border-slate-200/80 shadow-2xs flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* Integrated Filter Toolbar */}
+        <div className="p-3.5 border-b border-slate-100 bg-slate-50/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 flex-1 max-w-lg">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Tìm theo tên sản phẩm, thương hiệu, ID..."
+              className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/15 focus:border-blue-600 transition"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setCurrentPage(1);
+                }}
+                className="px-2.5 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap bg-slate-100 hover:bg-slate-200 text-slate-600 transition cursor-pointer shrink-0"
+              >
+                Xóa lọc
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            <select
+              value={selectedCategory}
+              onChange={(e) => {
+                setSelectedCategory(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="text-xs bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/15 cursor-pointer"
             >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+              <option value="ALL">Tất cả ngành hàng ({categories.length})</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as 'ALL' | ProductStatus);
+                setCurrentPage(1);
+              }}
+              className="text-xs bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/15 cursor-pointer"
+            >
+              <option value="ALL">Tất cả trạng thái</option>
+              <option value="ACTIVE">Đang bán (ACTIVE)</option>
+              <option value="INACTIVE">Tạm ngưng (INACTIVE)</option>
+              <option value="COMING_SOON">Sắp mở bán (COMING_SOON)</option>
+            </select>
+
+            <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg px-2.5 py-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={includeDeleted}
+                onChange={(e) => {
+                  setIncludeDeleted(e.target.checked);
+                  setCurrentPage(1);
+                }}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span>Hiện SP đã xóa</span>
+            </label>
+
+            <span className="text-xs text-slate-500 font-medium tabular-nums hidden md:inline">
+              Hiển thị <strong className="text-slate-800">{paginatedProducts.length}</strong> / {totalItems}
+            </span>
+          </div>
         </div>
 
-        <div className="flex gap-2">
-          <select
-            value={selectedCategory}
-            onChange={(e) => {
-              setSelectedCategory(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value));
-              setCurrentPage(1);
-            }}
-            className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/15 cursor-pointer"
-          >
-            <option value="ALL">Tất cả ngành hàng ({products.length})</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Main Table Container */}
-      <div className="flex-1 min-h-0 bg-white rounded-xl border border-slate-200/80 shadow-2xs flex flex-col overflow-hidden">
+        {/* Table Content */}
         {isLoading ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-slate-400 gap-3">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-            <p className="text-xs font-medium">Đang tải danh sách sản phẩm...</p>
+          <div className="flex-1 flex flex-col items-center justify-center py-12 px-4 text-center space-y-2">
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+              Đang tải...
+            </span>
+            <p className="text-xs font-medium text-slate-500">Đang tải danh sách sản phẩm...</p>
           </div>
         ) : paginatedProducts.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-slate-400 gap-3">
-            <Package className="w-10 h-10 text-slate-300 stroke-[1.5]" />
-            <p className="text-sm font-semibold text-slate-600">Không tìm thấy sản phẩm nào</p>
-            <p className="text-xs text-slate-400">Thử tìm kiếm với từ khóa khác hoặc thêm sản phẩm mới</p>
+          <div className="flex-1 flex flex-col items-center justify-center py-12 px-4 text-center space-y-1.5">
+            <p className="text-sm font-bold text-slate-700">Không tìm thấy sản phẩm nào</p>
+            <p className="text-xs text-slate-500">
+              Thử tìm kiếm với từ khóa khác, chọn lại danh mục hoặc thêm sản phẩm mới
+            </p>
           </div>
         ) : (
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto min-h-0">
             <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-slate-50/80 text-slate-500 font-semibold border-b border-slate-200 sticky top-0 z-10 backdrop-blur-xs">
+              <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs text-slate-500 font-semibold border-b border-slate-200 text-[11px] uppercase tracking-wider">
                 <tr>
-                  <th className="py-2.5 px-3">Sản phẩm</th>
-                  <th className="py-2.5 px-3">Danh mục</th>
-                  <th className="py-2.5 px-3">Giá bán</th>
-                  <th className="py-2.5 px-3">Biến thể / Tồn kho</th>
-                  <th className="py-2.5 px-3">Trạng thái</th>
-                  <th className="py-2.5 px-3 text-right">Thao tác</th>
+                  <th className="py-2.5 px-3.5">Sản phẩm</th>
+                  <th className="py-2.5 px-3.5">Danh mục</th>
+                  <th className="py-2.5 px-3.5">Giá bán</th>
+                  <th className="py-2.5 px-3.5">Biến thể / Tồn kho</th>
+                  <th className="py-2.5 px-3.5">Trạng thái</th>
+                  <th className="py-2.5 px-3.5 text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {paginatedProducts.map((p) => {
                   const stock = p.stock ?? 0;
                   const isInStock = stock > 0;
+                  const prodStatus = normalizeProductStatus(p.status);
                   const hasMultiVariants = p.variants && p.variants.length > 1;
 
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/70 transition-colors group">
                       {/* Product Name & Thumbnail */}
-                      <td className="py-2.5 px-3">
+                      <td className="py-2.5 px-3.5">
                         <div className="flex items-center gap-2.5">
                           <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-200 p-1 shrink-0 flex items-center justify-center overflow-hidden">
                             <img
@@ -1079,9 +1112,9 @@ export const AdminProductsPage: React.FC = () => {
                               {p.name}
                             </span>
                             <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className="text-[10px] text-slate-400 font-mono">#{p.id}</span>
+                              <span className="text-[10px] text-slate-400 font-mono tabular-nums">#{p.id}</span>
                               {p.brand && (
-                                <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200/60 leading-none">
+                                <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/60 leading-none">
                                   {p.brand}
                                 </span>
                               )}
@@ -1091,14 +1124,14 @@ export const AdminProductsPage: React.FC = () => {
                       </td>
 
                       {/* Category */}
-                      <td className="py-2.5 px-3 whitespace-nowrap">
+                      <td className="py-2.5 px-3.5 whitespace-nowrap">
                         <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700">
                           {p.category?.name || 'Công nghệ'}
                         </span>
                       </td>
 
                       {/* Price Range */}
-                      <td className="py-2.5 px-3 whitespace-nowrap">
+                      <td className="py-2.5 px-3.5 whitespace-nowrap tabular-nums">
                         <div className="font-bold text-slate-900">
                           {p.minPrice && p.maxPrice && p.minPrice !== p.maxPrice ? (
                             <span>
@@ -1118,7 +1151,7 @@ export const AdminProductsPage: React.FC = () => {
                       </td>
 
                       {/* Variants & Stock */}
-                      <td className="py-2.5 px-3 whitespace-nowrap">
+                      <td className="py-2.5 px-3.5 whitespace-nowrap tabular-nums">
                         <div className="flex items-center gap-2">
                           <span
                             className={`font-semibold text-xs ${
@@ -1139,46 +1172,63 @@ export const AdminProductsPage: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* Status */}
-                      <td className="py-2.5 px-3 whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                            isInStock
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-rose-50 text-rose-700 border-rose-200'
-                          }`}
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                          <span>{isInStock ? 'Đang bán' : 'Hết hàng'}</span>
-                        </span>
+                      {/* Status & Stock */}
+                      <td className="py-2.5 px-3.5 whitespace-nowrap">
+                        <div className="flex flex-col items-start gap-1">
+                          {p.isDeleted ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-rose-50 text-rose-700 border-rose-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                              <span>Đã xóa mềm</span>
+                            </span>
+                          ) : prodStatus === 'COMING_SOON' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-indigo-50 text-indigo-700 border-indigo-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                              <span>Sắp mở bán</span>
+                            </span>
+                          ) : prodStatus === 'INACTIVE' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-amber-50 text-amber-700 border-amber-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                              <span>Tạm ngưng</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                              <span>Đang bán</span>
+                            </span>
+                          )}
+                          <span
+                            className={`text-[10px] font-semibold ${
+                              isInStock ? 'text-slate-500' : 'text-rose-600'
+                            }`}
+                          >
+                            {isInStock ? `Còn ${stock} sản phẩm` : 'Hết hàng trong kho'}
+                          </span>
+                        </div>
                       </td>
 
                       {/* Actions */}
-                      <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1">
+                      <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
                           <button
                             type="button"
                             onClick={() => setSelectedProduct(p)}
-                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer"
-                            title="Xem chi tiết"
+                            className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200/70 transition cursor-pointer"
                           >
-                            <ExternalLink className="w-3.5 h-3.5" />
+                            Xem
                           </button>
                           <button
                             type="button"
                             onClick={() => handleOpenEditModal(p)}
-                            className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition cursor-pointer"
-                            title="Chỉnh sửa sản phẩm"
+                            className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200/70 transition cursor-pointer"
                           >
-                            <Edit className="w-3.5 h-3.5" />
+                            Sửa
                           </button>
                           <button
                             type="button"
                             onClick={() => handleOpenDeleteModal({ id: p.id, name: p.name })}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
-                            title="Xóa sản phẩm"
+                            className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/70 transition cursor-pointer"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            Xóa
                           </button>
                         </div>
                       </td>
@@ -1190,123 +1240,119 @@ export const AdminProductsPage: React.FC = () => {
           </div>
         )}
 
-        {/* Pagination Controls */}
-        {!isLoading && filteredProducts.length > 0 && (
-          <div className="shrink-0 border-t border-slate-100 bg-white">
-            <AdminPagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={filteredProducts.length}
-              itemsPerPage={ITEMS_PER_PAGE}
-              onPageChange={setCurrentPage}
-            />
-          </div>
-        )}
+        {/* Pagination Controls - Always pinned at bottom */}
+        <div className="shrink-0 bg-white">
+          <AdminPagination
+            currentPage={Math.min(currentPage, totalPages)}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
+          />
+        </div>
       </div>
 
       {/* ======================================================== */}
       {/* MODAL 1: FORM THÊM MỚI / CHỈNH SỬA SẢN PHẨM (4 BƯỚC / TAB) */}
       {/* ======================================================== */}
       {isFormOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-4xl w-full p-5 sm:p-6 shadow-2xl space-y-4 my-auto max-h-[95vh] flex flex-col font-sans">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
-              <div>
-                <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <Package className="w-5 h-5 text-blue-600" />
-                  <span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-5xl w-full shadow-2xl my-auto max-h-[92vh] flex flex-col overflow-hidden font-sans">
+            {/* Modal Sticky Header */}
+            <div className="px-5 sm:px-6 pt-5 pb-3 border-b border-slate-200 bg-white shrink-0 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 tabular-nums">
                     {formMode === 'create'
                       ? 'Thêm sản phẩm công nghệ mới'
                       : `Chỉnh sửa sản phẩm #${editingId}`}
-                  </span>
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Thiết lập thông tin chung, thông số kỹ thuật, tùy chọn và ma trận biến thể
-                </p>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Thiết lập thông tin chung, thông số kỹ thuật, tùy chọn và ma trận biến thể
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsFormOpen(false)}
+                  className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-slate-600 hover:bg-slate-100 border border-slate-200 transition cursor-pointer shrink-0"
+                >
+                  Đóng
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsFormOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            {/* Modal Tabs Header */}
-            <div className="flex items-center gap-1.5 border-b border-slate-200 pb-2 shrink-0 overflow-x-auto text-xs">
-              <button
-                type="button"
-                onClick={() => setActiveTab('general')}
-                className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
-                  activeTab === 'general'
-                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <span>1. Thông tin chung</span>
-              </button>
+              {/* Modal Tabs Header */}
+              <div className="flex items-center gap-1.5 overflow-x-auto text-xs pt-1 no-scrollbar">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('general')}
+                  className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                    activeTab === 'general'
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                      : 'text-slate-600 hover:bg-slate-100 border border-transparent'
+                  }`}
+                >
+                  <span>1. Thông tin chung</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setActiveTab('specs')}
-                className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
-                  activeTab === 'specs'
-                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <span>2. Thông số kỹ thuật</span>
-                {formSpecs.length > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 text-slate-700">
-                    {formSpecs.length}
-                  </span>
-                )}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('specs')}
+                  className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                    activeTab === 'specs'
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                      : 'text-slate-600 hover:bg-slate-100 border border-transparent'
+                  }`}
+                >
+                  <span>2. Thông số kỹ thuật</span>
+                  {formSpecs.length > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200 text-slate-700 tabular-nums leading-none">
+                      {formSpecs.length}
+                    </span>
+                  )}
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setActiveTab('options')}
-                className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
-                  activeTab === 'options'
-                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <span>3. Tùy chọn (Thuộc tính)</span>
-                {formOptions.length > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 text-slate-700">
-                    {formOptions.length}
-                  </span>
-                )}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('options')}
+                  className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                    activeTab === 'options'
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                      : 'text-slate-600 hover:bg-slate-100 border border-transparent'
+                  }`}
+                >
+                  <span>3. Tùy chọn (Thuộc tính)</span>
+                  {formOptions.length > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200 text-slate-700 tabular-nums leading-none">
+                      {formOptions.length}
+                    </span>
+                  )}
+                </button>
 
-              <button
-                type="button"
-                onClick={() => handleSwitchTab('variants')}
-                className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
-                  activeTab === 'variants'
-                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <span>4. Bảng biến thể</span>
-                {formVariants.length > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-blue-100 text-blue-800 font-bold">
-                    {formVariants.length}
-                  </span>
-                )}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchTab('variants')}
+                  className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                    activeTab === 'variants'
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                      : 'text-slate-600 hover:bg-slate-100 border border-transparent'
+                  }`}
+                >
+                  <span>4. Bảng biến thể</span>
+                  {formVariants.length > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-blue-100 text-blue-800 font-bold tabular-nums leading-none">
+                      {formVariants.length}
+                    </span>
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Modal Body / Tab Contents */}
-            <form onSubmit={handleFormSubmit} className="flex-1 min-h-0 flex flex-col space-y-4">
-              <div className="flex-1 overflow-y-auto pr-1 space-y-4">
+            <form onSubmit={handleFormSubmit} className="flex-1 min-h-0 flex flex-col">
+              <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-5">
                 {/* Global Error Banner */}
                 {modalError && (
-                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 animate-shake">
-                    <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-rose-600" />
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start justify-between gap-2.5">
                     <div className="flex-1 text-xs">
                       <p className="font-bold text-rose-900">Không thể lưu sản phẩm</p>
                       <p className="mt-1 leading-relaxed text-rose-700 font-medium">{modalError}</p>
@@ -1314,17 +1360,19 @@ export const AdminProductsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setModalError(null)}
-                      className="p-1 hover:bg-rose-100 rounded text-rose-500 hover:text-rose-700"
+                      className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-rose-700 hover:bg-rose-100 transition cursor-pointer shrink-0"
                     >
-                      <X className="w-4 h-4" />
+                      Đóng
                     </button>
                   </div>
                 )}
 
                 {isFormLoading && (
-                  <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-2">
-                    <Loader2 className="w-7 h-7 animate-spin text-blue-600" />
-                    <span className="text-xs">Đang nạp chi tiết sản phẩm và biến thể...</span>
+                  <div className="py-12 flex flex-col items-center justify-center text-center gap-2">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                      Đang tải...
+                    </span>
+                    <span className="text-xs text-slate-500">Đang nạp chi tiết sản phẩm và biến thể...</span>
                   </div>
                 )}
 
@@ -1365,7 +1413,7 @@ export const AdminProductsPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setFormData({ ...formData, brand: '' })}
-                            className="text-[11px] text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                            className="text-[11px] text-slate-500 hover:text-slate-700 font-medium transition cursor-pointer"
                           >
                             Xóa chọn
                           </button>
@@ -1442,7 +1490,6 @@ export const AdminProductsPage: React.FC = () => {
                           placeholder="https://images.unsplash.com/..."
                           value={formData.imageUrl}
                           onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                          leftIcon={<ImageIcon className="w-4 h-4 text-slate-400" />}
                         />
                       </div>
                     </div>
@@ -1474,17 +1521,16 @@ export const AdminProductsPage: React.FC = () => {
 
                     {/* Product Gallery Images (Bộ sưu tập ảnh chi tiết) */}
                     <div className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200/80 space-y-3">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <div>
-                          <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                            <ImageIcon className="w-4 h-4 text-blue-600" />
+                          <span className="text-xs font-bold text-slate-800 block">
                             Bộ sưu tập ảnh chi tiết (Gallery)
                           </span>
                           <span className="text-[11px] text-slate-500">
                             Thêm các góc chụp khác, phụ kiện hoặc ảnh thực tế của sản phẩm
                           </span>
                         </div>
-                        <span className="px-2 py-0.5 bg-slate-200/70 text-slate-700 text-[10px] font-bold rounded-full">
+                        <span className="px-2.5 py-0.5 bg-slate-200/70 text-slate-700 text-[10px] font-bold rounded-full tabular-nums shrink-0">
                           {formData.galleryImages.length} ảnh
                         </span>
                       </div>
@@ -1503,15 +1549,14 @@ export const AdminProductsPage: React.FC = () => {
                                 handleAddGalleryImage();
                               }
                             }}
-                            className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/15 focus:border-blue-600 transition"
+                            className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/15 focus:border-blue-600 transition"
                           />
                         </div>
                         <button
                           type="button"
                           onClick={handleAddGalleryImage}
-                          className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg flex items-center gap-1 shadow-2xs transition cursor-pointer shrink-0"
+                          className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-2xs transition cursor-pointer shrink-0 whitespace-nowrap"
                         >
-                          <Plus className="w-3.5 h-3.5" />
                           Thêm ảnh
                         </button>
                       </div>
@@ -1533,17 +1578,16 @@ export const AdminProductsPage: React.FC = () => {
                                     'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100';
                                 }}
                               />
-                              <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 p-1">
+                              <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-1">
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveGalleryImage(idx)}
-                                  className="p-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-md shadow transition cursor-pointer"
-                                  title="Xóa ảnh này"
+                                  className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap bg-rose-600 hover:bg-rose-700 text-white shadow transition cursor-pointer"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" />
+                                  Xóa
                                 </button>
                               </div>
-                              <span className="absolute bottom-1 left-1 px-1 py-0.2 bg-black/60 text-white text-[9px] font-mono rounded">
+                              <span className="absolute bottom-1 left-1 px-1 py-0.5 bg-black/60 text-white text-[9px] font-mono rounded tabular-nums leading-none">
                                 #{idx + 1}
                               </span>
                             </div>
@@ -1567,25 +1611,15 @@ export const AdminProductsPage: React.FC = () => {
                           type="button"
                           onClick={handleGenerateAiDescription}
                           disabled={isGeneratingAi}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition cursor-pointer disabled:opacity-60"
+                          className="px-3.5 py-1.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition cursor-pointer disabled:opacity-60 whitespace-nowrap"
                         >
-                          {isGeneratingAi ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              <span>AI đang soạn thảo mô tả...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-                              <span>✨ Tạo mô tả bằng AI</span>
-                            </>
-                          )}
+                          {isGeneratingAi ? 'AI đang soạn thảo mô tả...' : 'Tạo mô tả bằng AI'}
                         </button>
                       </div>
 
                       {aiMessage && (
                         <div className="p-3 bg-indigo-50 border border-indigo-200 text-indigo-800 text-xs rounded-xl flex items-center gap-2 animate-fade-in">
-                          <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 shrink-0" />
                           <span>{aiMessage}</span>
                         </div>
                       )}
@@ -1594,7 +1628,7 @@ export const AdminProductsPage: React.FC = () => {
                         rows={5}
                         value={formData.description}
                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                        placeholder="Nhập mô tả tóm tắt, tính năng nổi bật hoặc nhấn '✨ Tạo mô tả bằng AI'..."
+                        placeholder="Nhập mô tả tóm tắt, tính năng nổi bật hoặc nhấn 'Tạo mô tả bằng AI'..."
                         className="w-full px-3.5 py-2.5 bg-white border border-gray-200 hover:border-gray-300 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/15 focus:border-blue-600 transition resize-y font-mono leading-relaxed"
                       />
                     </div>
@@ -1686,20 +1720,15 @@ export const AdminProductsPage: React.FC = () => {
                     </datalist>
 
                     {/* Preset Controls Card */}
-                    <div className="bg-gradient-to-r from-slate-50 via-blue-50/30 to-indigo-50/20 p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs space-y-3">
+                    <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80 space-y-3">
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
-                            <Sliders className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <span className="text-xs font-bold text-slate-800 block">
-                              Mẫu thông số kỹ thuật chuẩn hóa
-                            </span>
-                            <span className="text-[11px] text-slate-500">
-                              Chọn mẫu nhanh cho Điện thoại & Laptop hoặc tùy chỉnh theo từng nhóm
-                            </span>
-                          </div>
+                        <div>
+                          <span className="text-xs font-bold text-slate-800 block">
+                            Mẫu thông số kỹ thuật chuẩn hóa
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            Chọn mẫu nhanh cho Điện thoại & Laptop hoặc tùy chỉnh theo từng nhóm
+                          </span>
                         </div>
 
                         {/* Mode toggle & Clear all */}
@@ -1735,18 +1764,17 @@ export const AdminProductsPage: React.FC = () => {
                             <button
                               type="button"
                               onClick={handleClearAllSpecs}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200/80 rounded-lg transition"
+                              className="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200/80 rounded-md whitespace-nowrap transition"
                               title="Xóa tất cả thông số hiện tại"
                             >
-                              <RotateCcw className="w-3 h-3" />
-                              <span>Xóa hết ({formSpecs.length})</span>
+                              Xóa hết ({formSpecs.length})
                             </button>
                           )}
                         </div>
                       </div>
 
                       {/* Quick preset buttons */}
-                      <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200/60">
+                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200/60">
                         <span className="text-[11px] font-semibold text-slate-500 mr-1">
                           Áp dụng mẫu:
                         </span>
@@ -1755,12 +1783,11 @@ export const AdminProductsPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleAddPresetSpecs('phone-full')}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-white border border-blue-200 hover:border-blue-400 hover:bg-blue-50/60 text-blue-800 rounded-xl shadow-2xs transition group"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-white border border-blue-200 hover:border-blue-400 hover:bg-blue-50/60 text-blue-800 rounded-md shadow-2xs whitespace-nowrap transition"
                           title="9 nhóm đầy đủ: Màn hình, Hiệu năng, Camera, Pin & sạc, Kết nối, Bảo mật & độ bền, Phần mềm, Âm thanh & cảm biến, Thiết kế"
                         >
-                          <Smartphone className="w-3.5 h-3.5 text-blue-600 group-hover:scale-110 transition-transform" />
-                          <span>📱 Điện thoại (Đầy đủ - 9 nhóm)</span>
-                          <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.2 rounded-full font-bold">
+                          <span>Điện thoại (Đầy đủ - 9 nhóm)</span>
+                          <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-bold tabular-nums">
                             38
                           </span>
                         </button>
@@ -1768,12 +1795,11 @@ export const AdminProductsPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleAddPresetSpecs('phone-basic')}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl shadow-2xs transition"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 rounded-md shadow-2xs whitespace-nowrap transition"
                           title="6 nhóm cơ bản: Màn hình, Chip, Camera, Pin, Kết nối, Thiết kế"
                         >
-                          <Smartphone className="w-3.5 h-3.5 text-slate-500" />
                           <span>Điện thoại (Cơ bản)</span>
-                          <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded-full font-bold">
+                          <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full font-bold tabular-nums">
                             24
                           </span>
                         </button>
@@ -1782,12 +1808,11 @@ export const AdminProductsPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleAddPresetSpecs('laptop-full')}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-white border border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50/60 text-indigo-800 rounded-xl shadow-2xs transition group"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-white border border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50/60 text-indigo-800 rounded-md shadow-2xs whitespace-nowrap transition"
                           title="11 nhóm đầy đủ (Cần có + Bổ sung): CPU, GPU, RAM, Ổ cứng, Màn hình, Kết nối, Pin, Nguồn điện, Hệ điều hành, Thiết kế, Ngoại vi"
                         >
-                          <Laptop className="w-3.5 h-3.5 text-indigo-600 group-hover:scale-110 transition-transform" />
-                          <span>💻 Laptop (Đầy đủ - Cần có + Bổ sung)</span>
-                          <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.2 rounded-full font-bold">
+                          <span>Laptop (Đầy đủ - Cần có + Bổ sung)</span>
+                          <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-bold tabular-nums">
                             33
                           </span>
                         </button>
@@ -1795,12 +1820,11 @@ export const AdminProductsPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleAddPresetSpecs('laptop-required')}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl shadow-2xs transition"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 rounded-md shadow-2xs whitespace-nowrap transition"
                           title="Chỉ gồm các trường Cần có: CPU, GPU, RAM, Ổ cứng, Màn hình, Kết nối, Pin, HĐH, Thiết kế"
                         >
-                          <Laptop className="w-3.5 h-3.5 text-slate-500" />
                           <span>Laptop (Cần có)</span>
-                          <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded-full font-bold">
+                          <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full font-bold tabular-nums">
                             22
                           </span>
                         </button>
@@ -1809,10 +1833,9 @@ export const AdminProductsPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleAddPresetSpecs('accessory')}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl shadow-2xs transition"
+                          className="px-2.5 py-1 text-xs font-semibold bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 rounded-md shadow-2xs whitespace-nowrap transition"
                         >
-                          <Headphones className="w-3.5 h-3.5 text-slate-500" />
-                          <span>Phụ kiện</span>
+                          Phụ kiện
                         </button>
 
                         {/* Dropdown: Add individual group */}
@@ -1820,12 +1843,10 @@ export const AdminProductsPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setIsGroupDropdownOpen((prev) => !prev)}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-white border border-amber-300 hover:bg-amber-50 text-amber-900 rounded-xl shadow-2xs transition"
+                            className="px-2.5 py-1 text-xs font-semibold bg-white border border-amber-300 hover:bg-amber-50 text-amber-900 rounded-md shadow-2xs whitespace-nowrap transition"
                             title="Chèn riêng lẻ từng nhóm thông số như CPU, GPU, Camera, Màn hình..."
                           >
-                            <FolderPlus className="w-3.5 h-3.5 text-amber-600" />
-                            <span>+ Thêm theo nhóm lẻ</span>
-                            <ChevronDown className="w-3 h-3 text-amber-600" />
+                            + Thêm theo nhóm lẻ
                           </button>
 
                           {isGroupDropdownOpen && (
@@ -1890,27 +1911,26 @@ export const AdminProductsPage: React.FC = () => {
                       <div className="space-y-2.5 bg-slate-50/80 p-3 rounded-xl border border-slate-200">
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
                           {/* Search bar inside specs */}
-                          <div className="relative flex-1">
-                            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <div className="flex items-center gap-1.5 flex-1">
                             <input
                               type="text"
                               value={specSearchQuery}
                               onChange={(e) => setSpecSearchQuery(e.target.value)}
                               placeholder="Tìm nhanh thông số (vd: RAM, Camera, Màn hình...)"
-                              className="w-full pl-8 pr-8 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-800 placeholder-slate-400"
+                              className="w-full px-3.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-800 placeholder-slate-400"
                             />
                             {specSearchQuery && (
                               <button
                                 type="button"
                                 onClick={() => setSpecSearchQuery('')}
-                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                                className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 transition cursor-pointer shrink-0"
                               >
-                                <X className="w-3.5 h-3.5" />
+                                Xóa lọc
                               </button>
                             )}
                           </div>
 
-                          <div className="text-[11px] text-slate-500 font-medium whitespace-nowrap self-end sm:self-auto">
+                          <div className="text-[11px] text-slate-500 font-medium whitespace-nowrap self-end sm:self-auto tabular-nums">
                             Đang hiển thị{' '}
                             <span className="font-bold text-slate-800">
                               {filteredFormSpecs.length}
@@ -1922,14 +1942,14 @@ export const AdminProductsPage: React.FC = () => {
                         {/* Group Chips Filter */}
                         {uniqueSpecGroups.length > 1 && (
                           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5 text-xs no-scrollbar">
-                            <span className="text-[10px] font-semibold text-slate-400 flex items-center gap-1 shrink-0">
-                              <Filter className="w-3 h-3" /> Lọc nhóm:
+                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider shrink-0">
+                              Lọc nhóm:
                             </span>
 
                             <button
                               type="button"
                               onClick={() => setSpecGroupFilter('ALL')}
-                              className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition ${
+                              className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-semibold tabular-nums transition ${
                                 specGroupFilter === 'ALL'
                                   ? 'bg-blue-600 text-white shadow-xs'
                                   : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
@@ -1943,7 +1963,7 @@ export const AdminProductsPage: React.FC = () => {
                                 key={group.name}
                                 type="button"
                                 onClick={() => setSpecGroupFilter(group.name)}
-                                className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition ${
+                                className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-semibold tabular-nums transition ${
                                   specGroupFilter.toLowerCase() === group.name.toLowerCase()
                                     ? 'bg-blue-600 text-white shadow-xs'
                                     : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
@@ -1959,10 +1979,7 @@ export const AdminProductsPage: React.FC = () => {
 
                     {/* Spec rows table / empty state */}
                     {formSpecs.length === 0 ? (
-                      <div className="py-12 text-center text-slate-400 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 space-y-3">
-                        <div className="w-12 h-12 mx-auto rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center">
-                          <Sliders className="w-6 h-6" />
-                        </div>
+                      <div className="py-12 px-4 text-center text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200 space-y-3">
                         <div>
                           <p className="text-sm font-bold text-slate-700">
                             Chưa có thông số kỹ thuật nào
@@ -1975,21 +1992,21 @@ export const AdminProductsPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleAddPresetSpecs('phone-full')}
-                            className="px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-xl shadow-xs hover:bg-blue-700 transition"
+                            className="px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-lg shadow-xs hover:bg-blue-700 transition"
                           >
                             + Áp dụng mẫu Điện thoại
                           </button>
                           <button
                             type="button"
                             onClick={() => handleAddPresetSpecs('laptop-full')}
-                            className="px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-xl shadow-xs hover:bg-indigo-700 transition"
+                            className="px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-lg shadow-xs hover:bg-indigo-700 transition"
                           >
                             + Áp dụng mẫu Laptop
                           </button>
                         </div>
                       </div>
                     ) : filteredFormSpecs.length === 0 ? (
-                      <div className="py-8 text-center text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                      <div className="py-12 px-4 text-center text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
                         <p className="text-xs font-medium text-slate-600">
                           Không tìm thấy thông số nào khớp với bộ lọc "{specSearchQuery}"
                         </p>
@@ -1999,7 +2016,7 @@ export const AdminProductsPage: React.FC = () => {
                             setSpecSearchQuery('');
                             setSpecGroupFilter('ALL');
                           }}
-                          className="mt-2 text-xs text-blue-600 hover:underline font-semibold"
+                          className="mt-2 px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap bg-white border border-slate-200 text-blue-600 hover:bg-slate-50 transition"
                         >
                           Xóa bộ lọc tìm kiếm
                         </button>
@@ -2011,7 +2028,7 @@ export const AdminProductsPage: React.FC = () => {
                           <div className="w-1/4">Nhóm thông số</div>
                           <div className="w-1/3">Tên thông số</div>
                           <div className="flex-1">Giá trị thông số</div>
-                          <div className="w-8"></div>
+                          <div className="w-14 text-right">Thao tác</div>
                         </div>
 
                         {filteredFormSpecs.map(({ spec, originalIndex }) => (
@@ -2060,10 +2077,10 @@ export const AdminProductsPage: React.FC = () => {
                                 copy.splice(originalIndex, 1);
                                 setFormSpecs(copy);
                               }}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
+                              className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-rose-600 hover:bg-rose-50 transition shrink-0"
                               title="Xóa thông số này"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              Xóa
                             </button>
                           </div>
                         ))}
@@ -2084,10 +2101,9 @@ export const AdminProductsPage: React.FC = () => {
                             },
                           ])
                         }
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
+                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer"
                       >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Thêm dòng thông số mới</span>
+                        + Thêm dòng thông số mới
                       </button>
 
                       {formSpecs.length > 0 && (
@@ -2140,10 +2156,9 @@ export const AdminProductsPage: React.FC = () => {
                     </div>
 
                     {formOptions.length === 0 ? (
-                      <div className="py-8 text-center text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-                        <Layers className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                      <div className="py-12 px-4 text-center text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
                         <p className="text-xs font-semibold text-slate-600">Sản phẩm chưa có tùy chọn</p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
+                        <p className="text-[11px] text-slate-400 mt-1">
                           Nếu không có tùy chọn, hệ thống sẽ tự động tạo 1 biến thể mặc định (Tiêu chuẩn).
                         </p>
                       </div>
@@ -2156,7 +2171,9 @@ export const AdminProductsPage: React.FC = () => {
                           >
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2 flex-1">
-                                <span className="text-xs font-bold text-slate-700">Tùy chọn #{optIdx + 1}:</span>
+                                <span className="text-xs font-bold text-slate-700 tabular-nums">
+                                  Tùy chọn #{optIdx + 1}:
+                                </span>
                                 <input
                                   type="text"
                                   placeholder="Tên tùy chọn (vd: Dung lượng, Màu sắc...)"
@@ -2176,10 +2193,10 @@ export const AdminProductsPage: React.FC = () => {
                                   copy.splice(optIdx, 1);
                                   setFormOptions(copy);
                                 }}
-                                className="p-1 text-slate-400 hover:text-rose-600 rounded transition"
+                                className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-rose-600 hover:bg-rose-50 transition"
                                 title="Xóa toàn bộ tùy chọn này"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                Xóa
                               </button>
                             </div>
 
@@ -2188,21 +2205,22 @@ export const AdminProductsPage: React.FC = () => {
                               {opt.values.map((val, valIdx) => (
                                 <span
                                   key={valIdx}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200"
+                                  className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200"
                                 >
                                   <span>{val}</span>
                                   <button
                                     type="button"
                                     onClick={() => handleRemoveOptionTag(optIdx, valIdx)}
-                                    className="p-0.5 hover:bg-blue-200 rounded-full text-blue-600 hover:text-blue-900"
+                                    className="px-1.5 py-0.5 rounded text-[11px] font-semibold hover:bg-blue-200 text-blue-700 hover:text-blue-950 transition"
+                                    title="Bỏ giá trị này"
                                   >
-                                    <X className="w-3 h-3" />
+                                    Bỏ
                                   </button>
                                 </span>
                               ))}
 
                               {/* Input to add tag */}
-                              <div className="inline-flex items-center gap-1">
+                              <div className="inline-flex items-center gap-1.5">
                                 <input
                                   type="text"
                                   placeholder="Nhập giá trị rồi nhấn Enter..."
@@ -2218,15 +2236,15 @@ export const AdminProductsPage: React.FC = () => {
                                       handleAddOptionTag(optIdx);
                                     }
                                   }}
-                                  className="px-2.5 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 w-44"
+                                  className="px-3 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 w-44"
                                 />
                                 <button
                                   type="button"
                                   onClick={() => handleAddOptionTag(optIdx)}
-                                  className="p-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
+                                  className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
                                   title="Thêm giá trị"
                                 >
-                                  <Plus className="w-3.5 h-3.5" />
+                                  Thêm
                                 </button>
                               </div>
                             </div>
@@ -2244,20 +2262,18 @@ export const AdminProductsPage: React.FC = () => {
                             { name: '', values: [], newTagInput: '' },
                           ])
                         }
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer"
                       >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Thêm tùy chọn mới</span>
+                        + Thêm tùy chọn mới
                       </button>
 
                       {formOptions.length > 0 && (
                         <button
                           type="button"
                           onClick={() => handleSwitchTab('variants')}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold whitespace-nowrap transition shadow-xs cursor-pointer"
                         >
-                          <span>Sang Bước 4: Tạo ma trận biến thể</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
+                          Sang Bước 4: Tạo ma trận biến thể
                         </button>
                       )}
                     </div>
@@ -2284,11 +2300,10 @@ export const AdminProductsPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={handleRegenerateVariantsFromOptions}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-white border border-slate-200 rounded-lg hover:bg-slate-100 text-slate-700 transition"
+                            className="px-2.5 py-1 text-xs font-semibold bg-white border border-slate-200 rounded-md hover:bg-slate-100 text-slate-700 whitespace-nowrap transition"
                             title="Tạo lại tổ hợp biến thể từ Tab Tùy chọn"
                           >
-                            <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
-                            <span>Đồng bộ từ Tùy chọn</span>
+                            Đồng bộ từ Tùy chọn
                           </button>
                         </div>
                       </div>
@@ -2301,26 +2316,26 @@ export const AdminProductsPage: React.FC = () => {
                           placeholder="Giá bán (VNĐ)..."
                           value={bulkPrice}
                           onChange={(e) => setBulkPrice(e.target.value)}
-                          className="w-32 px-2.5 py-1 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-36 px-2.5 py-1 text-xs tabular-nums bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
                         <input
                           type="number"
                           placeholder="Giá gốc (VNĐ)..."
                           value={bulkOriginalPrice}
                           onChange={(e) => setBulkOriginalPrice(e.target.value)}
-                          className="w-32 px-2.5 py-1 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-36 px-2.5 py-1 text-xs tabular-nums bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
                         <input
                           type="number"
                           placeholder="Tồn kho..."
                           value={bulkStock}
                           onChange={(e) => setBulkStock(e.target.value)}
-                          className="w-24 px-2.5 py-1 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-24 px-2.5 py-1 text-xs tabular-nums bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
                         <button
                           type="button"
                           onClick={handleApplyBulkToVariants}
-                          className="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition"
+                          className="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-md text-xs font-semibold whitespace-nowrap transition"
                         >
                           Áp dụng cho tất cả
                         </button>
@@ -2329,7 +2344,7 @@ export const AdminProductsPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleToggleAllVariants(true)}
-                            className="text-[11px] font-semibold text-emerald-600 hover:underline"
+                            className="text-[11px] font-semibold text-emerald-600 hover:underline whitespace-nowrap"
                           >
                             Bật tất cả
                           </button>
@@ -2337,7 +2352,7 @@ export const AdminProductsPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleToggleAllVariants(false)}
-                            className="text-[11px] font-semibold text-rose-600 hover:underline"
+                            className="text-[11px] font-semibold text-rose-600 hover:underline whitespace-nowrap"
                           >
                             Tắt tất cả
                           </button>
@@ -2346,9 +2361,8 @@ export const AdminProductsPage: React.FC = () => {
                     </div>
 
                     {formErrors.variants && (
-                      <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                        <span>{formErrors.variants}</span>
+                      <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold">
+                        {formErrors.variants}
                       </div>
                     )}
 
@@ -2357,14 +2371,22 @@ export const AdminProductsPage: React.FC = () => {
                       <table className="w-full text-left border-collapse text-xs">
                         <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                           <tr>
-                            <th className="py-2 px-2.5 w-12 text-center">Bật</th>
-                            <th className="py-2 px-2.5">Phân loại (Tùy chọn)</th>
-                            <th className="py-2 px-2.5 w-40">Mã SKU *</th>
-                            <th className="py-2 px-2.5 w-32">Giá bán (VNĐ) *</th>
-                            <th className="py-2 px-2.5 w-32">Giá gốc (VNĐ)</th>
-                            <th className="py-2 px-2.5 w-24">Tồn kho *</th>
-                            <th className="py-2 px-2.5">URL ảnh</th>
-                            <th className="py-2 px-2.5 w-10 text-center"></th>
+                            <th className="py-2.5 px-2.5 w-12 text-center whitespace-nowrap">Bật</th>
+                            <th className="py-2.5 px-2.5 min-w-[140px] whitespace-nowrap">
+                              Phân loại (Tùy chọn)
+                            </th>
+                            <th className="py-2.5 px-2.5 min-w-[175px] whitespace-nowrap">Mã SKU *</th>
+                            <th className="py-2.5 px-2.5 min-w-[130px] whitespace-nowrap">
+                              Giá bán (VNĐ) *
+                            </th>
+                            <th className="py-2.5 px-2.5 min-w-[130px] whitespace-nowrap">
+                              Giá gốc (VNĐ)
+                            </th>
+                            <th className="py-2.5 px-2.5 min-w-[96px] whitespace-nowrap">Tồn kho *</th>
+                            <th className="py-2.5 px-2.5 min-w-[190px] whitespace-nowrap">URL ảnh</th>
+                            <th className="py-2.5 px-2.5 w-16 text-center whitespace-nowrap">
+                              Thao tác
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
@@ -2403,7 +2425,7 @@ export const AdminProductsPage: React.FC = () => {
                                 </td>
 
                                 {/* SKU */}
-                                <td className="py-2 px-2.5">
+                                <td className="py-2 px-2.5 min-w-[175px]">
                                   <input
                                     type="text"
                                     value={v.sku}
@@ -2412,14 +2434,14 @@ export const AdminProductsPage: React.FC = () => {
                                       copy[idx].sku = e.target.value.toUpperCase();
                                       setFormVariants(copy);
                                     }}
-                                    className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded font-mono font-bold focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md font-mono font-bold tabular-nums focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     placeholder="SKU..."
                                     required
                                   />
                                 </td>
 
                                 {/* Price */}
-                                <td className="py-2 px-2.5">
+                                <td className="py-2 px-2.5 min-w-[130px]">
                                   <input
                                     type="number"
                                     value={v.price}
@@ -2428,7 +2450,7 @@ export const AdminProductsPage: React.FC = () => {
                                       copy[idx].price = e.target.value;
                                       setFormVariants(copy);
                                     }}
-                                    className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded font-bold text-blue-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-md font-bold tabular-nums text-blue-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     placeholder="Giá bán..."
                                     min="1000"
                                     required
@@ -2436,7 +2458,7 @@ export const AdminProductsPage: React.FC = () => {
                                 </td>
 
                                 {/* Original Price */}
-                                <td className="py-2 px-2.5">
+                                <td className="py-2 px-2.5 min-w-[130px]">
                                   <input
                                     type="number"
                                     value={v.originalPrice || ''}
@@ -2445,13 +2467,13 @@ export const AdminProductsPage: React.FC = () => {
                                       copy[idx].originalPrice = e.target.value;
                                       setFormVariants(copy);
                                     }}
-                                    className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-md tabular-nums text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     placeholder="Giá gốc..."
                                   />
                                 </td>
 
                                 {/* Stock */}
-                                <td className="py-2 px-2.5">
+                                <td className="py-2 px-2.5 min-w-[96px]">
                                   <input
                                     type="number"
                                     value={v.stock}
@@ -2460,7 +2482,7 @@ export const AdminProductsPage: React.FC = () => {
                                       copy[idx].stock = e.target.value;
                                       setFormVariants(copy);
                                     }}
-                                    className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-md font-bold tabular-nums text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     placeholder="Kho..."
                                     min="0"
                                     required
@@ -2468,7 +2490,7 @@ export const AdminProductsPage: React.FC = () => {
                                 </td>
 
                                 {/* Image URL */}
-                                <td className="py-2 px-2.5">
+                                <td className="py-2 px-2.5 min-w-[190px]">
                                   <div className="flex items-center gap-1.5">
                                     <input
                                       type="text"
@@ -2478,11 +2500,11 @@ export const AdminProductsPage: React.FC = () => {
                                         copy[idx].imageUrl = e.target.value;
                                         setFormVariants(copy);
                                       }}
-                                      className="flex-1 px-2 py-1 text-xs bg-white border border-slate-200 rounded text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      className="flex-1 min-w-0 px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-md text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                       placeholder="https://..."
                                     />
                                     {v.imageUrl && (
-                                      <div className="w-6 h-6 rounded bg-slate-100 border border-slate-200 p-0.5 shrink-0 overflow-hidden">
+                                      <div className="w-6 h-6 rounded bg-slate-100 border border-slate-200 p-0.5 shrink-0 overflow-hidden flex items-center justify-center">
                                         <img
                                           src={v.imageUrl}
                                           alt="thumb"
@@ -2505,10 +2527,10 @@ export const AdminProductsPage: React.FC = () => {
                                       copy.splice(idx, 1);
                                       setFormVariants(copy);
                                     }}
-                                    className="p-1 text-slate-400 hover:text-rose-600 rounded transition"
+                                    className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-rose-600 hover:bg-rose-50 transition"
                                     title="Xóa biến thể này"
                                   >
-                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Xóa
                                   </button>
                                 </td>
                               </tr>
@@ -2534,17 +2556,16 @@ export const AdminProductsPage: React.FC = () => {
                           },
                         ])
                       }
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer"
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Thêm dòng biến thể tùy chỉnh</span>
+                      + Thêm dòng biến thể tùy chỉnh
                     </button>
                   </div>
                 )}
               </div>
 
               {/* Modal Footer */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
+              <div className="px-5 sm:px-6 py-3.5 border-t border-slate-200 bg-slate-50/80 flex items-center justify-between gap-3 shrink-0">
                 <Button
                   type="button"
                   variant="outline"
@@ -2566,7 +2587,6 @@ export const AdminProductsPage: React.FC = () => {
                         else if (activeTab === 'specs') setActiveTab('options');
                         else if (activeTab === 'options') handleSwitchTab('variants');
                       }}
-                      rightIcon={<ChevronRight className="w-4 h-4" />}
                     >
                       Tiếp theo
                     </Button>
@@ -2576,10 +2596,13 @@ export const AdminProductsPage: React.FC = () => {
                     type="submit"
                     variant="primary"
                     size="md"
-                    isLoading={isSubmitting}
-                    leftIcon={<Check className="w-4 h-4" />}
+                    disabled={isSubmitting}
                   >
-                    {formMode === 'create' ? 'Tạo mới sản phẩm' : 'Lưu cập nhật'}
+                    {isSubmitting
+                      ? 'Đang xử lý...'
+                      : formMode === 'create'
+                        ? 'Tạo mới sản phẩm'
+                        : 'Lưu cập nhật'}
                   </Button>
                 </div>
               </div>
@@ -2597,26 +2620,23 @@ export const AdminProductsPage: React.FC = () => {
             activeOrdersForDelete.length > 0 ? 'max-w-xl' : 'max-w-md'
           }`}>
             {isLoadingActiveOrders ? (
-              <div className="py-10 text-center space-y-3">
-                <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto" />
+              <div className="py-12 px-4 text-center space-y-2.5">
+                <span className="inline-block px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700">
+                  Đang tải...
+                </span>
                 <p className="text-xs text-slate-500 font-medium">
                   Đang kiểm tra các đơn hàng đang đặt của sản phẩm...
                 </p>
               </div>
             ) : activeOrdersForDelete.length > 0 ? (
               <>
-                <div className="flex items-center gap-3 pb-3 border-b border-amber-100">
-                  <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                    <AlertTriangle className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">
-                      Sản phẩm đang có người đặt ({activeOrdersForDelete.length} đơn hàng)
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Sản phẩm <strong className="text-slate-800">"{deleteTarget.name}"</strong> hiện đang nằm trong các đơn hàng chưa hoàn thành.
-                    </p>
-                  </div>
+                <div className="pb-3 border-b border-amber-200 border-l-4 border-l-amber-500 pl-3">
+                  <h3 className="text-base font-bold text-slate-900 tabular-nums">
+                    Sản phẩm đang có người đặt ({activeOrdersForDelete.length} đơn hàng)
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Sản phẩm <strong className="text-slate-800">"{deleteTarget.name}"</strong> hiện đang nằm trong các đơn hàng chưa hoàn thành.
+                  </p>
                 </div>
 
                 {/* Danh sách đơn hàng đang đặt */}
@@ -2629,7 +2649,9 @@ export const AdminProductsPage: React.FC = () => {
                       <div key={order.id} className="p-3 flex items-center justify-between gap-3 bg-slate-50/50 hover:bg-slate-50 transition">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="font-extrabold text-slate-900">#{order.id}</span>
+                            <span className="font-extrabold text-slate-900 tabular-nums">
+                              #{order.id}
+                            </span>
                             <span className="text-slate-400">•</span>
                             <span className="font-semibold text-slate-700 truncate">
                               {order.receiverName} ({order.phoneNumber})
@@ -2640,10 +2662,10 @@ export const AdminProductsPage: React.FC = () => {
                           </p>
                         </div>
                         <div className="text-right shrink-0">
-                          <span className="font-bold text-red-600 block">
+                          <span className="font-bold text-red-600 block tabular-nums">
                             {formatPrice(order.totalAmount)}
                           </span>
-                          <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                          <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 mt-0.5">
                             {order.status === 'PENDING'
                               ? 'Chờ xử lý'
                               : order.status === 'PROCESSING'
@@ -2658,13 +2680,12 @@ export const AdminProductsPage: React.FC = () => {
 
                 {/* Hộp giải thích chính sách khi xóa */}
                 <div className="p-3.5 bg-amber-50/80 rounded-xl border border-amber-200 text-xs text-amber-950 space-y-2">
-                  <div className="flex items-center gap-1.5 font-bold text-amber-900">
-                    <Gift className="w-4 h-4 text-amber-700" />
-                    <span>Quy trình xử lý tự động khi bạn xác nhận XÓA:</span>
+                  <div className="font-bold text-amber-900">
+                    Quy trình xử lý tự động khi bạn xác nhận XÓA:
                   </div>
                   <ul className="list-disc list-inside space-y-1 text-[11px] text-amber-900/90 leading-relaxed">
                     <li>
-                      Tự động chuyển <strong>{activeOrdersForDelete.length} đơn hàng</strong> trên sang trạng thái <strong className="text-rose-700">Đã hủy</strong>.
+                      Tự động chuyển <strong className="tabular-nums">{activeOrdersForDelete.length} đơn hàng</strong> trên sang trạng thái <strong className="text-rose-700">Đã hủy</strong>.
                     </li>
                     <li>
                       Gửi thông báo lý do hủy: <em>"Sản phẩm của chúng tôi gặp vấn đề vì vậy có thể sẽ ngừng cung cấp một thời gian"</em>.
@@ -2696,21 +2717,16 @@ export const AdminProductsPage: React.FC = () => {
                     type="button"
                     variant="danger"
                     size="md"
-                    isLoading={isDeleting}
+                    disabled={isDeleting}
                     onClick={handleConfirmDelete}
-                    leftIcon={<Trash2 className="w-4 h-4" />}
                   >
-                    Xác nhận xóa & Hủy đơn
+                    {isDeleting ? 'Đang xử lý...' : 'Xác nhận xóa & Hủy đơn'}
                   </Button>
                 </div>
               </>
             ) : (
               <>
-                <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-2">
-                  <Trash2 className="w-6 h-6" />
-                </div>
-
-                <div className="text-center space-y-1">
+                <div className="pt-1 text-center space-y-1.5">
                   <h3 className="text-base font-bold text-slate-900">Xác nhận xóa sản phẩm</h3>
                   <p className="text-xs text-slate-500 leading-relaxed">
                     Sản phẩm <strong className="text-slate-800 font-bold">"{deleteTarget.name}"</strong> hiện không có đơn hàng nào đang đặt.
@@ -2720,7 +2736,7 @@ export const AdminProductsPage: React.FC = () => {
                 </div>
 
                 {/* 2 Lựa chọn rõ ràng */}
-                <div className="flex items-center justify-center gap-3 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-center gap-3 pt-3 border-t border-slate-100">
                   <Button
                     type="button"
                     variant="outline"
@@ -2737,11 +2753,10 @@ export const AdminProductsPage: React.FC = () => {
                     type="button"
                     variant="danger"
                     size="md"
-                    isLoading={isDeleting}
+                    disabled={isDeleting}
                     onClick={handleConfirmDelete}
-                    leftIcon={<Trash2 className="w-4 h-4" />}
                   >
-                    Xác nhận xóa
+                    {isDeleting ? 'Đang xử lý...' : 'Xác nhận xóa'}
                   </Button>
                 </div>
               </>
@@ -2756,17 +2771,16 @@ export const AdminProductsPage: React.FC = () => {
       {selectedProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
           <div className="bg-white rounded-2xl border border-slate-200 max-w-xl w-full p-6 shadow-2xl space-y-4 font-sans max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Package className="w-4 h-4 text-blue-600" />
-                <span>Chi tiết sản phẩm #{selectedProduct.id}</span>
+            <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 shrink-0">
+              <h3 className="text-base font-bold text-slate-900 tabular-nums">
+                Chi tiết sản phẩm #{selectedProduct.id}
               </h3>
               <button
                 type="button"
                 onClick={() => setSelectedProduct(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                Đóng
               </button>
             </div>
 
@@ -2784,12 +2798,12 @@ export const AdminProductsPage: React.FC = () => {
                   <p className="text-xs text-slate-500">
                     Danh mục: {selectedProduct.category?.name || 'Công nghệ'}
                   </p>
-                  <p className="text-base font-black text-blue-600">
+                  <p className="text-base font-black text-blue-600 tabular-nums">
                     {selectedProduct.minPrice && selectedProduct.maxPrice && selectedProduct.minPrice !== selectedProduct.maxPrice
                       ? `${formatPrice(selectedProduct.minPrice)} - ${formatPrice(selectedProduct.maxPrice)}`
                       : formatPrice(selectedProduct.price)}
                   </p>
-                  <p className="text-xs font-semibold text-emerald-600">
+                  <p className="text-xs font-semibold text-emerald-600 tabular-nums">
                     Tổng tồn kho: {selectedProduct.stock ?? 0} sản phẩm
                   </p>
                 </div>
@@ -2798,7 +2812,7 @@ export const AdminProductsPage: React.FC = () => {
               {/* Variants list if available */}
               {selectedProduct.variants && selectedProduct.variants.length > 0 && (
                 <div className="space-y-2">
-                  <span className="text-xs font-bold text-slate-800 block">
+                  <span className="text-xs font-bold text-slate-800 block tabular-nums">
                     Danh sách biến thể ({selectedProduct.variants.length})
                   </span>
                   <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100 text-xs">
@@ -2809,8 +2823,12 @@ export const AdminProductsPage: React.FC = () => {
                           <span className="text-[10px] text-slate-400 font-mono block">SKU: {v.sku}</span>
                         </div>
                         <div className="text-right">
-                          <span className="font-bold text-blue-600 block">{formatPrice(v.price)}</span>
-                          <span className="text-[10px] text-slate-500">Kho: {v.stock} chiếc</span>
+                          <span className="font-bold text-blue-600 block tabular-nums">
+                            {formatPrice(v.price)}
+                          </span>
+                          <span className="text-[10px] text-slate-500 tabular-nums">
+                            Kho: {v.stock} chiếc
+                          </span>
                         </div>
                       </div>
                     ))}
@@ -2825,11 +2843,10 @@ export const AdminProductsPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex justify-between items-center pt-2 border-t border-slate-100 shrink-0">
+            <div className="flex justify-between items-center pt-3 border-t border-slate-100 shrink-0">
               <Button
                 variant="outline"
                 size="sm"
-                leftIcon={<Edit className="w-3.5 h-3.5" />}
                 onClick={() => {
                   const p = selectedProduct;
                   setSelectedProduct(null);

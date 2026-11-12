@@ -62,6 +62,8 @@ public interface ProductService {
 
     ProductVariantResponse updateVariantStock(Long variantId, Integer quantity, Boolean isDelta, BigDecimal price, BigDecimal originalPrice);
 
+    ProductVariantResponse updateVariantLocation(Long variantId, String warehouse, String shelfLocation);
+
     ProductVariantResponse createVariant(Long productId, Map<String, Object> body);
 
     List<OrderResponse> getActiveOrdersForProduct(Long productId);

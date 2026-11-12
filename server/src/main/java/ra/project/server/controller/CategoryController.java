@@ -22,8 +22,12 @@ public class CategoryController {
     private final CategoryService categoryService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<CategoryResponse>>> getAllCategories() {
-        List<CategoryResponse> categories = categoryService.getAllCategories();
+    public ResponseEntity<ApiResponse<List<CategoryResponse>>> getAllCategories(
+            @RequestParam(required = false, defaultValue = "false") Boolean includeAll
+    ) {
+        List<CategoryResponse> categories = Boolean.TRUE.equals(includeAll)
+                ? categoryService.getAllCategories()
+                : categoryService.getActiveCategories();
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách danh mục thành công", categories));
     }
 

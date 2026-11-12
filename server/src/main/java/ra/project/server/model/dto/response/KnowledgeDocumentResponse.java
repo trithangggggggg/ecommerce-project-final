@@ -21,6 +21,7 @@ public class KnowledgeDocumentResponse {
     private String status;
     private Integer chunkCount;
     private String errorMessage;
+    private String rawContent;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

@@ -76,14 +76,13 @@ class ArticleServiceImplTest {
     @DisplayName("Nên lấy chi tiết bài viết theo slug và tự động tăng lượt xem (views)")
     void testGetArticleBySlug_IncrementsViews() {
         when(articleRepository.findBySlug("danh-gia-laptop-gaming")).thenReturn(Optional.of(sampleArticle));
-        when(articleRepository.save(any(Article.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ArticleResponse response = articleService.getArticleBySlug("danh-gia-laptop-gaming");
 
         assertNotNull(response);
         assertEquals("danh-gia-laptop-gaming", response.getSlug());
         assertEquals(11L, response.getViews());
-        verify(articleRepository, times(1)).save(sampleArticle);
+        verify(articleRepository, times(1)).incrementViews(1L);
     }
 
     @Test

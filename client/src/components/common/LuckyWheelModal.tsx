@@ -15,6 +15,7 @@ import {
 import confetti from 'canvas-confetti';
 import { wheelService } from '../../api/services/wheel.service';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useSiteConfigStore } from '../../store/useSiteConfigStore';
 import { ROUTES } from '../../constants/routes';
 import type { WheelReward, WheelStatusResponse, WheelSpinResponse } from '../../models/wheel.model';
 import wheelBg from '../../assets/images/wheel-bg-luxury.png';
@@ -48,6 +49,7 @@ const getRewardTextLines = (reward: WheelReward): [string, string] => {
 export const LuckyWheelModal: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
+  const wheelEnabled = useSiteConfigStore((s) => s.config.general.wheelEnabled);
 
   const [isOpen, setIsOpen] = useState(false);
   const [wheelStatus, setWheelStatus] = useState<WheelStatusResponse | null>(null);
@@ -62,7 +64,7 @@ export const LuckyWheelModal: React.FC = () => {
   const animationFrameIdRef = useRef<number | null>(null);
   const lastSoundTickSliceRef = useRef<number>(-1);
 
-  // 8 phần thưởng chuẩn NEXOR theo đúng palette và layout hình mẫu
+  // Phần thưởng mặc định dự phòng nếu backend chưa trả về danh sách
   const defaultRewards: WheelReward[] = [
     { id: 0, label: '10K Voucher', shortLabel: '10K', discount: '10.000', type: 'ORDER', minOrder: 'Mọi đơn hàng', weight: 30, color: '#1e40af', textColor: '#ffffff', icon: 'coupon' },
     { id: 1, label: '10% Giảm Giá', shortLabel: '10%', discount: '10%', type: 'ORDER', minOrder: '100.000₫', weight: 25, color: '#4338ca', textColor: '#ffffff', icon: 'cube' },
@@ -74,7 +76,7 @@ export const LuckyWheelModal: React.FC = () => {
     { id: 7, label: '100K VIP Voucher', shortLabel: '100K VIP', discount: '100.000', type: 'ORDER', minOrder: '800.000₫', weight: 2, color: '#f59e0b', textColor: '#1e1e24', icon: 'crown' },
   ];
 
-  const rewards = wheelStatus?.rewards && wheelStatus.rewards.length === 8
+  const rewards = wheelStatus?.rewards && wheelStatus.rewards.length > 0
     ? wheelStatus.rewards
     : defaultRewards;
 
@@ -405,6 +407,8 @@ export const LuckyWheelModal: React.FC = () => {
 
   // Xác định mã voucher hiển thị hôm nay
   const displayVoucherCode = spinResult?.voucherCode || wheelStatus?.todayVoucherCode;
+
+  if (!wheelEnabled) return null;
 
   return (
     <>

@@ -40,6 +40,10 @@ public class VariantRequest {
 
     private String imageUrl;
 
+    private String warehouse;
+
+    private String shelfLocation;
+
     @Builder.Default
     private Boolean status = true;
 }

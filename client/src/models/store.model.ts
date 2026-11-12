@@ -8,6 +8,7 @@ export interface StoreLocation {
   latitude?: number | null;
   longitude?: number | null;
   openHours?: string | null;
+  imageUrl?: string | null;
   status: 'ACTIVE' | 'INACTIVE';
   createdAt?: string;
   updatedAt?: string;
@@ -22,6 +23,7 @@ export interface StoreLocationRequest {
   latitude?: number;
   longitude?: number;
   openHours?: string;
+  imageUrl?: string;
   status?: 'ACTIVE' | 'INACTIVE';
 }
 

@@ -88,6 +88,23 @@ export interface UpdateOrderStatusRequest {
   status: OrderStatus;
   carrierId?: number;
   trackingCode?: string;
+  cancelReason?: string;
+}
+
+export interface AdminCreateOrderRequest extends CheckoutRequest {
+  userId?: number;
+}
+
+export interface AdminOrderUpdateRequest {
+  receiverName?: string;
+  phoneNumber?: string;
+  shippingAddress?: string;
+  note?: string;
+  carrierId?: number;
+  trackingCode?: string;
+  paymentMethod?: PaymentMethod;
+  paymentStatus?: PaymentStatus;
+  cancelReason?: string;
 }
 
 export const ORDER_STATUS_CONFIG: Record<
@@ -136,6 +153,8 @@ export function getPaymentMethodLabel(
       return 'Chuyển khoản VietQR (SePay)';
     case 'BANK_TRANSFER':
       return 'Chuyển khoản ngân hàng';
+    case 'ONLINE':
+      return 'Thanh toán trực tuyến';
     case 'VNPAY':
       return 'Cổng thanh toán VNPAY';
     case 'MOMO':

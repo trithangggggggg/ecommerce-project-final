@@ -21,16 +21,24 @@ public class UpdateOrderStatusRequest {
 
     private Long carrierId;
     private String trackingCode;
+    private String cancelReason;
 
     public UpdateOrderStatusRequest(OrderStatus status) {
         this.status = status;
+    }
+
+    public UpdateOrderStatusRequest(OrderStatus status, Long carrierId, String trackingCode) {
+        this.status = status;
+        this.carrierId = carrierId;
+        this.trackingCode = trackingCode;
     }
 
     @JsonCreator
     public static UpdateOrderStatusRequest create(
             @JsonProperty("status") Object statusObj,
             @JsonProperty("carrierId") Long carrierId,
-            @JsonProperty("trackingCode") String trackingCode
+            @JsonProperty("trackingCode") String trackingCode,
+            @JsonProperty("cancelReason") String cancelReason
     ) {
         OrderStatus targetStatus = null;
         if (statusObj != null) {
@@ -47,6 +55,6 @@ public class UpdateOrderStatusRequest {
                 }
             }
         }
-        return new UpdateOrderStatusRequest(targetStatus, carrierId, trackingCode);
+        return new UpdateOrderStatusRequest(targetStatus, carrierId, trackingCode, cancelReason);
     }
 }

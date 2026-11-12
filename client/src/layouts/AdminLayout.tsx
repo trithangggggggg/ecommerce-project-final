@@ -7,16 +7,16 @@ export const AdminLayout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (
-    <div className="h-screen w-full bg-[#f5f7fb] flex font-sans overflow-hidden">
-      {/* Sidebar: Cố định 100% bên trái màn hình với width w-64 */}
+    <div className="h-screen w-full bg-slate-50 flex font-sans overflow-hidden text-slate-900">
+      {/* Sidebar: Cố định bên trái với width w-60 */}
       <AdminSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-      {/* Main Workspace: Đẩy sang phải bằng lg:pl-64, cố định h-screen, không cuộn cả trang */}
-      <div className="flex-1 flex flex-col min-w-0 bg-[#f5f7fb] lg:pl-64 h-screen overflow-hidden">
+      {/* Main Workspace: Đẩy sang phải bằng lg:pl-60, cố định h-screen */}
+      <div className="flex-1 flex flex-col min-w-0 bg-slate-50 lg:pl-60 h-screen overflow-hidden">
         <AdminHeader onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
 
-        <main className="flex-1 bg-[#f5f7fb] p-3 sm:p-4 lg:p-5 overflow-hidden flex flex-col min-h-0">
-          <div className="w-full max-w-[1400px] mx-auto h-full flex flex-col min-h-0 overflow-hidden">
+        <main className="flex-1 bg-slate-50 p-3.5 sm:p-5 lg:p-6 overflow-hidden flex flex-col min-h-0">
+          <div className="w-full max-w-[1440px] mx-auto h-full flex flex-col min-h-0 overflow-hidden">
             <Outlet />
           </div>
         </main>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Newspaper,
@@ -12,41 +12,62 @@ import {
 import { articleService } from '../../api/services/article.service';
 import type { Article } from '../../models/article.model';
 
-const CATEGORIES = ['Tất cả', 'Công nghệ', 'Đánh giá', 'Tin tức', 'Thủ thuật'];
+const DEFAULT_CATEGORIES = ['Công nghệ', 'Đánh giá', 'Tin tức', 'Thủ thuật', 'Khuyến mãi'];
+const PAGE_SIZE = 10;
 
 export const ArticlesPage: React.FC = () => {
   const location = useLocation();
   const basePath = location.pathname.startsWith('/news') ? '/news' : '/articles';
   const [articles, setArticles] = useState<Article[]>([]);
+  const [categories, setCategories] = useState<string[]>(['Tất cả', ...DEFAULT_CATEGORIES]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState('Tất cả');
   const [keyword, setKeyword] = useState('');
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
-    const fetchArticles = async () => {
-      try {
-        setLoading(true);
-        const res = await articleService.getPublicArticles({
-          category: selectedCategory === 'Tất cả' ? undefined : selectedCategory,
-          keyword: keyword.trim() || undefined,
-          page: 0,
-          size: 20,
-          sort: 'createdAt,desc',
-        });
-        if (res && res.content) {
-          setArticles(res.content);
-        } else {
-          setArticles([]);
-        }
-      } catch (err) {
-        console.error('Lỗi khi tải bài viết:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
+    articleService
+      .getPublicCategories()
+      .then((serverCats) => {
+        const merged = Array.from(new Set([...DEFAULT_CATEGORIES, ...serverCats])).filter(Boolean);
+        setCategories(['Tất cả', ...merged]);
+      })
+      .catch(() => {
+        setCategories(['Tất cả', ...DEFAULT_CATEGORIES]);
+      });
+  }, []);
 
+  const fetchArticles = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await articleService.getPublicArticles({
+        category: selectedCategory === 'Tất cả' ? undefined : selectedCategory,
+        keyword: keyword.trim() || undefined,
+        page,
+        size: PAGE_SIZE,
+        sort: 'createdAt,desc',
+      });
+      if (res && res.content) {
+        setArticles(res.content);
+        setTotalPages(Math.max(1, res.totalPages || 1));
+      } else {
+        setArticles([]);
+        setTotalPages(1);
+      }
+    } catch {
+      setArticles([]);
+      setError('Không thể tải danh sách bài viết. Vui lòng thử lại.');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedCategory, keyword, page]);
+
+  useEffect(() => {
     fetchArticles();
-  }, [selectedCategory, keyword]);
+  }, [fetchArticles]);
 
   const featuredArticle = articles.length > 0 ? articles[0] : null;
   const remainingArticles = articles.length > 1 ? articles.slice(1) : [];
@@ -75,7 +96,10 @@ export const ArticlesPage: React.FC = () => {
               type="text"
               placeholder="Tìm kiếm bài viết, phân tích, thiết bị..."
               value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
+              onChange={(e) => {
+                setKeyword(e.target.value);
+                setPage(0);
+              }}
               className="w-full pl-12 pr-4 py-3.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white/20 transition"
             />
           </div>
@@ -85,11 +109,14 @@ export const ArticlesPage: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
         {/* Category Filter Pills */}
         <div className="flex items-center gap-2 overflow-x-auto pb-4 scrollbar-none">
-          {CATEGORIES.map((cat) => (
+          {categories.map((cat) => (
             <button
               key={cat}
               type="button"
-              onClick={() => setSelectedCategory(cat)}
+              onClick={() => {
+                setSelectedCategory(cat);
+                setPage(0);
+              }}
               className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition cursor-pointer ${
                 selectedCategory === cat
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
@@ -105,6 +132,21 @@ export const ArticlesPage: React.FC = () => {
           <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-3">
             <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
             <p className="text-sm font-medium">Đang cập nhật tin tức mới nhất...</p>
+          </div>
+        ) : error ? (
+          <div className="bg-white rounded-3xl p-12 text-center border border-rose-200 shadow-xs max-w-lg mx-auto mt-6">
+            <div className="w-16 h-16 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4">
+              <Newspaper className="w-8 h-8" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800">Không thể tải tin tức</h3>
+            <p className="text-xs text-slate-500 mt-1 mb-5">{error}</p>
+            <button
+              type="button"
+              onClick={fetchArticles}
+              className="px-5 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors cursor-pointer"
+            >
+              Thử lại
+            </button>
           </div>
         ) : articles.length === 0 ? (
           <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 shadow-xs max-w-lg mx-auto mt-6">
@@ -249,6 +291,29 @@ export const ArticlesPage: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* Pagination */}
+            <div className="mt-10 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                disabled={page <= 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+              >
+                Trang trước
+              </button>
+              <span className="text-xs font-semibold text-slate-600 tabular-nums">
+                Trang {page + 1} / {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={page + 1 >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+              >
+                Trang sau
+              </button>
+            </div>
           </div>
         )}
       </div>

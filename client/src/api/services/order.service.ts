@@ -7,9 +7,12 @@ import axiosClient from '../axiosClient';
 import { ENDPOINTS } from '../endpoints';
 import type { ApiResponse } from '../../models/api.model';
 import type {
+  AdminCreateOrderRequest,
+  AdminOrderUpdateRequest,
   CheckoutRequest,
   OrderResponse,
   OrderStatus,
+  PaymentMethod,
   UpdateOrderStatusRequest,
 } from '../../models/order.model';
 
@@ -63,9 +66,10 @@ export const orderService = {
   /**
    * Khách hàng hủy đơn hàng (khi đơn đang ở trạng thái PENDING)
    */
-  async cancelMyOrder(orderId: number | string): Promise<OrderResponse> {
+  async cancelMyOrder(orderId: number | string, reason?: string): Promise<OrderResponse> {
     const response = await axiosClient.put<ApiResponse<OrderResponse>>(
-      ENDPOINTS.ORDERS.CANCEL(orderId)
+      ENDPOINTS.ORDERS.CANCEL(orderId),
+      reason ? { reason } : undefined
     );
 
     const data = response.data?.data || response.data;
@@ -78,18 +82,72 @@ export const orderService = {
   /**
    * [Admin] Lấy danh sách toàn bộ đơn hàng trực tiếp từ MySQL
    */
-  async getAllOrders(status?: OrderStatus): Promise<OrderResponse[]> {
-    const url = status
-      ? `${ENDPOINTS.ADMIN_ORDERS.LIST}?status=${status}`
-      : ENDPOINTS.ADMIN_ORDERS.LIST;
+  async getAllOrders(
+    status?: OrderStatus,
+    params?: { keyword?: string; paymentMethod?: PaymentMethod }
+  ): Promise<OrderResponse[]> {
+    const queryParams: Record<string, string> = {};
+    if (status) queryParams.status = status;
+    if (params?.keyword) queryParams.keyword = params.keyword;
+    if (params?.paymentMethod) queryParams.paymentMethod = params.paymentMethod;
 
-    const response = await axiosClient.get<ApiResponse<OrderResponse[]>>(url);
+    const response = await axiosClient.get<ApiResponse<OrderResponse[]>>(
+      ENDPOINTS.ADMIN_ORDERS.LIST,
+      { params: Object.keys(queryParams).length > 0 ? queryParams : undefined }
+    );
 
     const data = response.data?.data || response.data;
     if (Array.isArray(data)) {
       return data;
     }
     return [];
+  },
+
+  /**
+   * [Admin] Lấy chi tiết 1 đơn hàng trực tiếp từ MySQL
+   */
+  async getOrderById(orderId: number | string): Promise<OrderResponse> {
+    const response = await axiosClient.get<ApiResponse<OrderResponse>>(
+      ENDPOINTS.ADMIN_ORDERS.DETAIL(orderId)
+    );
+    const data = response.data?.data || response.data;
+    if (data) {
+      return data;
+    }
+    throw new Error(`Không tìm thấy đơn hàng #${orderId}`);
+  },
+
+  /**
+   * [Admin] Tạo đơn hàng mới thay khách hàng trực tiếp trên MySQL
+   */
+  async adminCreateOrder(payload: AdminCreateOrderRequest): Promise<OrderResponse> {
+    const response = await axiosClient.post<ApiResponse<OrderResponse>>(
+      ENDPOINTS.ADMIN_ORDERS.LIST,
+      payload
+    );
+    const data = response.data?.data || response.data;
+    if (data) {
+      return data;
+    }
+    throw new Error('Không thể tạo đơn hàng mới');
+  },
+
+  /**
+   * [Admin] Cập nhật thông tin giao nhận / thanh toán / ghi chú của đơn hàng
+   */
+  async updateOrderInfo(
+    orderId: number | string,
+    payload: AdminOrderUpdateRequest
+  ): Promise<OrderResponse> {
+    const response = await axiosClient.put<ApiResponse<OrderResponse>>(
+      ENDPOINTS.ADMIN_ORDERS.DETAIL(orderId),
+      payload
+    );
+    const data = response.data?.data || response.data;
+    if (data) {
+      return data;
+    }
+    throw new Error(`Cập nhật thông tin đơn hàng #${orderId} thất bại`);
   },
 
   /**

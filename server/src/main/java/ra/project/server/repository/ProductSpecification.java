@@ -101,9 +101,13 @@ public class ProductSpecification {
                 predicates.add(cb.lessThanOrEqualTo(root.get("price"), maxPrice));
             }
 
-            // 6. Lọc theo trạng thái (ACTIVE, INACTIVE, COMING_SOON)
+            // 6. Lọc theo trạng thái (ACTIVE, INACTIVE, COMING_SOON hoặc boolean string)
             if (StringUtils.hasText(status) && !"ALL".equalsIgnoreCase(status.trim())) {
-                predicates.add(cb.equal(cb.upper(root.get("status")), status.trim().toUpperCase()));
+                String trimmedStatus = status.trim();
+                String normalizedStatus = "true".equalsIgnoreCase(trimmedStatus)
+                        ? "ACTIVE"
+                        : ("false".equalsIgnoreCase(trimmedStatus) ? "INACTIVE" : trimmedStatus.toUpperCase());
+                predicates.add(cb.equal(cb.upper(root.get("status")), normalizedStatus));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));

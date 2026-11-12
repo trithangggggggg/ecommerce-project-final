@@ -98,6 +98,7 @@ public class PromotionServiceImpl implements PromotionService {
         List<Promotion> activePromotions = promotionRepository.findAll().stream()
                 .filter(p -> "ACTIVE".equalsIgnoreCase(p.getStatus()))
                 .filter(p -> p.getMaxUsage() == null || p.getUsedCount() == null || p.getUsedCount() < p.getMaxUsage())
+                .filter(this::isWithinValidityPeriod)
                 .filter(p -> {
                     Long ownerId = p.getUserId();
                     if (ownerId == null && p.getCode().toUpperCase().startsWith("DENBU")) {
@@ -229,6 +230,29 @@ public class PromotionServiceImpl implements PromotionService {
         }
 
         return calculatedDiscount;
+    }
+
+    private boolean isWithinValidityPeriod(Promotion p) {
+        LocalDate today = LocalDate.now();
+        if (StringUtils.hasText(p.getStartDate())) {
+            try {
+                LocalDate start = LocalDate.parse(p.getStartDate().trim());
+                if (start.isAfter(today)) {
+                    return false;
+                }
+            } catch (DateTimeParseException ignored) {
+            }
+        }
+        if (StringUtils.hasText(p.getExpiry())) {
+            try {
+                LocalDate expiry = LocalDate.parse(p.getExpiry().trim());
+                if (expiry.isBefore(today)) {
+                    return false;
+                }
+            } catch (DateTimeParseException ignored) {
+            }
+        }
+        return true;
     }
 
     private BigDecimal parseMinOrderAmount(String minOrderStr) {

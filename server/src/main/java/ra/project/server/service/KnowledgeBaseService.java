@@ -20,6 +20,8 @@ public interface KnowledgeBaseService {
 
     KnowledgeDocumentResponse createManualEntry(ManualKnowledgeRequest request);
 
+    KnowledgeDocumentResponse updateManualEntry(Long id, ManualKnowledgeRequest request);
+
     void deleteDocument(Long id);
 
     KnowledgeDocumentResponse reindexDocument(Long id);
