@@ -4,6 +4,7 @@ import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import { userService, type AdminUser } from '../../api/services/user.service';
 import AdminPagination from '../../components/admin/AdminPagination';
+import ExportExcelButton from '../../components/common/ExportExcelButton';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -282,6 +283,12 @@ export const AdminCustomersPage: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <ExportExcelButton
+            exportType="customers"
+            size="sm"
+            params={searchQuery.trim() ? { keyword: searchQuery.trim() } : undefined}
+          />
+
           <Button
             type="button"
             variant="outline"

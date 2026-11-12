@@ -11,13 +11,33 @@ export const exportService = {
       responseType: 'blob',
     });
 
+    // Nếu backend trả về JSON lỗi trong blob (ví dụ 400/403/500 nhưng axios nhận blob)
+    if (response.data instanceof Blob && response.data.type?.includes('application/json')) {
+      const text = await response.data.text();
+      try {
+        const json = JSON.parse(text);
+        throw new Error(json.message || 'Lỗi khi tải file báo cáo từ máy chủ');
+      } catch {
+        throw new Error(text || 'Lỗi khi tải file báo cáo từ máy chủ');
+      }
+    }
+
     // Trích xuất filename từ Content-Disposition header nếu có
     const disposition = response.headers?.['content-disposition'];
     let filename = defaultFilename;
-    if (disposition && disposition.includes('filename=')) {
-      const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-      if (match && match[1]) {
-        filename = match[1].replace(/['"]/g, '').trim();
+    if (disposition) {
+      const utf8Match = disposition.match(/filename\*=UTF-8''([^;\n]*)/i);
+      if (utf8Match && utf8Match[1]) {
+        try {
+          filename = decodeURIComponent(utf8Match[1]);
+        } catch {
+          filename = utf8Match[1];
+        }
+      } else {
+        const standardMatch = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/i);
+        if (standardMatch && standardMatch[1]) {
+          filename = standardMatch[1].replace(/['"]/g, '').trim();
+        }
       }
     }
 
@@ -55,3 +75,4 @@ export const exportService = {
   },
 };
 
+export default exportService;

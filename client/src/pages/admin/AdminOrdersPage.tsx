@@ -18,6 +18,7 @@ import { type Product, type ProductVariant } from '../../models/product.model';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import AdminPagination from '../../components/admin/AdminPagination';
+import ExportExcelButton from '../../components/common/ExportExcelButton';
 
 type FilterTab = 'ALL' | OrderStatus;
 
@@ -888,6 +889,11 @@ export const AdminOrdersPage: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <ExportExcelButton
+            exportType="orders"
+            params={activeTab !== 'ALL' ? { status: activeTab } : undefined}
+          />
+
           <button
             type="button"
             onClick={fetchOrders}

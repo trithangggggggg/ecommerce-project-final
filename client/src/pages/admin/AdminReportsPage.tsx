@@ -12,6 +12,7 @@ import {
   getPaymentStatusMeta,
   type OrderResponse,
 } from '../../models/order.model';
+import ExportExcelButton from '../../components/common/ExportExcelButton';
 
 interface ReportTransaction {
   id: string;
@@ -358,6 +359,11 @@ export const AdminReportsPage: React.FC = () => {
           >
             {isLoading ? 'Đang tải...' : 'Làm mới'}
           </button>
+
+          <ExportExcelButton
+            exportType="reports"
+            params={dateRange !== 'all' && dateRange !== 'today' ? { range: dateRange } : undefined}
+          />
         </div>
       </div>
 

@@ -3,6 +3,7 @@ import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import AdminPagination from '../../components/admin/AdminPagination';
 import AdminSummaryStrip from '../../components/admin/AdminSummaryStrip';
+import ExportExcelButton from '../../components/common/ExportExcelButton';
 import { productService } from '../../api/services/product.service';
 import { supplierService } from '../../api/services/supplier.service';
 import { inventoryService, type ImportReceiptDto } from '../../api/services/inventory.service';
@@ -828,6 +829,7 @@ export const AdminInventoryPage: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <ExportExcelButton exportType="inventory" />
           <Button
             type="button"
             variant="outline"
