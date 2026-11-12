@@ -16,6 +16,10 @@ const POSITION_OPTIONS: Array<{ value: BannerPosition; label: string }> = [
 ];
 
 const SUGGESTED_LOCAL_IMAGES = [
+  { label: 'ASUS TUF F15 (Hero gốc)', url: 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/asus_tuf_f15_fxuvax.jpg' },
+  { label: 'Tai nghe HyperX Cloud III', url: 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/banner_tai_nghe_hyper_cloud_3_bwvebf.jpg' },
+  { label: 'Bảng vẽ XP-Pen Artist 24', url: 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/banner_bang_ve_dien_tru_r1iezy.jpg' },
+  { label: 'Chuột Razer DeathAdder', url: 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763665/chu%E1%BB%99t_gaming_razer_deathadder_essential_m5s1he.jpg' },
   { label: 'MacBook Air M3', url: '/images/macbook-hero-banner.jpg' },
   { label: 'Promo Giảm đến 50%', url: '/images/promo-discount-50.jpg' },
   { label: 'Promo Miễn phí ship', url: '/images/promo-free-shipping.jpg' },

@@ -101,8 +101,13 @@ export default function HomePage() {
   const { isAuthenticated } = useAuthStore();
   const isProductLiked = useWishlistStore((s) => s.isLiked);
   const toggleWishlistItem = useWishlistStore((s) => s.toggleItem);
-  const { banners, isLoaded: bannersLoaded, fetchBanners } = useBannerStore();
-  const { config } = useSiteConfigStore();
+  const {
+    banners,
+    isLoaded: bannersLoaded,
+    hasError: bannersError,
+    fetchBanners,
+  } = useBannerStore();
+  const { config, fetchSiteConfig } = useSiteConfigStore();
 
   useEffect(() => {
     if (!bannersLoaded) {
@@ -195,6 +200,10 @@ export default function HomePage() {
     [activeBannersSorted]
   );
 
+  const isWaitingInitialBanners = !bannersLoaded && !bannersError;
+  const showHeroPromoColumn = heroPromoBanners.length > 0 || isWaitingInitialBanners;
+  const showVerticalPromoColumn = Boolean(verticalPromoBanner) || isWaitingInitialBanners;
+
   const toggleWishlist = async (id: string | number, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -275,8 +284,8 @@ export default function HomePage() {
       {/* 1. HERO SECTION */}
       <section className="max-w-[1360px] mx-auto px-4 pt-4 pb-4">
         <div
-          className={`grid grid-cols-1 gap-3.5 items-stretch lg:h-[388px] ${
-            heroPromoBanners.length > 0 ? 'lg:grid-cols-[210px_1fr_265px]' : 'lg:grid-cols-[210px_1fr]'
+          className={`grid grid-cols-1 gap-3.5 items-stretch lg:h-[388px] lg:grid-rows-[minmax(0,388px)] lg:overflow-hidden ${
+            showHeroPromoColumn ? 'lg:grid-cols-[210px_1fr_265px]' : 'lg:grid-cols-[210px_1fr]'
           }`}
         >
           {/* COLUMN 1: Dynamic Categories Sidebar */}
@@ -288,11 +297,12 @@ export default function HomePage() {
                     const Icon = getCategoryIcon(cat.slug, cat.name);
                     const isFirst = idx === 0;
                     const categoryParam = cat.slug || String(cat.id);
+                    const rowPadding = sidebarCategories.length <= 6 ? 'py-2.5' : 'py-2';
                     return (
                       <Link
                         key={cat.id}
                         to={`/products?category=${encodeURIComponent(categoryParam)}`}
-                        className={`flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-semibold transition-colors group ${
+                        className={`flex items-center justify-between px-2.5 ${rowPadding} rounded-xl text-xs font-semibold transition-colors group ${
                           isFirst
                             ? 'bg-[#edf2f7] text-gray-900'
                             : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
@@ -320,10 +330,23 @@ export default function HomePage() {
                       </Link>
                     );
                   })
+                ) : loading ? (
+                  Array.from({ length: 7 }).map((_, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between px-2.5 py-2.5 rounded-xl animate-pulse"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-4 h-4 rounded bg-gray-200" />
+                        <div className="h-3 w-24 rounded bg-gray-200" />
+                      </div>
+                      <div className="w-3 h-3 rounded bg-gray-100" />
+                    </div>
+                  ))
                 ) : (
                   <Link
                     to="/products"
-                    className="flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-semibold text-gray-700 hover:text-blue-600 hover:bg-gray-50"
+                    className="flex items-center justify-between px-2.5 py-2.5 rounded-xl text-xs font-semibold text-gray-700 hover:text-blue-600 hover:bg-gray-50"
                   >
                     <div className="flex items-center gap-2.5">
                       <LayoutGrid size={15} className="text-gray-400" />
@@ -334,7 +357,25 @@ export default function HomePage() {
                 )}
               </div>
               {sidebarCategories.length > 0 && sidebarCategories.length < 10 && (
-                <div className="pt-1.5 mt-1 border-t border-gray-100 shrink-0">
+                <div className="pt-1.5 mt-1 border-t border-gray-100 space-y-0.5 shrink-0">
+                  {sidebarCategories.length <= 7 && (
+                    <Link
+                      to="/products?sort=discount"
+                      className="flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-semibold text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors group"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Zap
+                          size={15}
+                          className="text-gray-400 group-hover:text-blue-600 transition-colors shrink-0"
+                        />
+                        <span className="truncate">Hot Deals - Giá sốc</span>
+                      </div>
+                      <ChevronRight
+                        size={13}
+                        className="text-gray-300 group-hover:text-blue-600 transition-colors shrink-0"
+                      />
+                    </Link>
+                  )}
                   <Link
                     to="/products"
                     className="flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-semibold text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors group"
@@ -357,59 +398,88 @@ export default function HomePage() {
           </div>
 
           {/* COLUMN 2: Main Hero Banner Slider */}
-          <div className="min-w-0 h-full">
+          <div className="min-w-0 min-h-0 h-full overflow-hidden">
             <HeroBannerSlider />
           </div>
 
           {/* COLUMN 3: Right Promo Cards (from Admin Banners: HERO_PROMO) */}
-          {heroPromoBanners.length > 0 && (
+          {showHeroPromoColumn && (
             <div className="grid grid-cols-1 sm:grid-cols-3 lg:flex lg:flex-col lg:justify-between gap-3 h-full min-h-0">
-              {heroPromoBanners.map((banner) => {
-                const useNaturalPromoRatio =
-                  heroPromoBanners.length === 3 && Boolean(banner.imageUrl?.includes('/images/promo-'));
-                return renderBannerCard(
-                  banner,
-                  useNaturalPromoRatio
-                    ? 'block relative rounded-2xl overflow-hidden shadow-xs group border border-gray-200/80 hover:shadow-md transition-all bg-white h-32 sm:h-28 lg:h-auto lg:shrink-0'
-                    : 'block relative rounded-2xl overflow-hidden shadow-xs group border border-gray-200/80 hover:shadow-md transition-all bg-white h-36 sm:h-28 lg:h-auto lg:flex-1 lg:min-h-0',
-                  useNaturalPromoRatio
-                    ? 'w-full h-full lg:h-auto block object-cover group-hover:scale-[1.02] transition-transform duration-300'
-                    : 'w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300'
-                );
-              })}
+              {heroPromoBanners.length > 0
+                ? heroPromoBanners.map((banner) => {
+                    const useNaturalPromoRatio =
+                      heroPromoBanners.length === 3 && Boolean(banner.imageUrl?.includes('/images/promo-'));
+                    return renderBannerCard(
+                      banner,
+                      useNaturalPromoRatio
+                        ? 'block relative rounded-2xl overflow-hidden shadow-xs group border border-gray-200/80 hover:shadow-md transition-all bg-white h-32 sm:h-28 lg:h-auto lg:shrink-0'
+                        : 'block relative rounded-2xl overflow-hidden shadow-xs group border border-gray-200/80 hover:shadow-md transition-all bg-white h-36 sm:h-28 lg:h-auto lg:flex-1 lg:min-h-0',
+                      useNaturalPromoRatio
+                        ? 'w-full h-full lg:h-auto block object-cover group-hover:scale-[1.02] transition-transform duration-300'
+                        : 'w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300'
+                    );
+                  })
+                : [1, 2, 3].map((slot) => (
+                    <div
+                      key={slot}
+                      className="rounded-2xl bg-white border border-gray-200/80 shadow-xs h-32 sm:h-28 lg:flex-1 lg:min-h-0 animate-pulse p-3.5 flex items-center justify-between gap-3"
+                    >
+                      <div className="space-y-2 flex-1">
+                        <div className="h-3 w-20 bg-gray-200 rounded" />
+                        <div className="h-4 w-28 bg-gray-200 rounded" />
+                        <div className="h-2.5 w-24 bg-gray-100 rounded" />
+                      </div>
+                      <div className="w-14 h-14 rounded-xl bg-gray-100 shrink-0" />
+                    </div>
+                  ))}
             </div>
           )}
         </div>
       </section>
 
       {/* 2. QUICK CATEGORIES BAR (Divider Strip between Hero & Flash Sale - Dynamic from DB Categories) */}
-      {quickCategories.length > 0 && (
+      {(quickCategories.length > 0 || loading) && (
         <section className="max-w-[1360px] mx-auto px-4 mb-6">
-          <div className={`grid ${quickGridColsClass} gap-3.5`}>
-            {quickCategories.map((cat) => {
-              const Icon = getCategoryIcon(cat.slug, cat.name);
-              const categoryParam = cat.slug || String(cat.id);
-              const subtitle =
-                cat.description?.trim() || getDefaultCategorySubtitle(cat.slug, cat.name);
-              return (
-                <Link
-                  key={cat.id}
-                  to={`/products?category=${encodeURIComponent(categoryParam)}`}
-                  className="bg-white rounded-2xl border border-gray-200/80 py-4 px-3 shadow-xs hover:shadow-md hover:border-blue-200/80 transition-all flex flex-col items-center justify-center text-center group"
+          {quickCategories.length > 0 ? (
+            <div className={`grid ${quickGridColsClass} gap-3.5`}>
+              {quickCategories.map((cat) => {
+                const Icon = getCategoryIcon(cat.slug, cat.name);
+                const categoryParam = cat.slug || String(cat.id);
+                const subtitle =
+                  cat.description?.trim() || getDefaultCategorySubtitle(cat.slug, cat.name);
+                return (
+                  <Link
+                    key={cat.id}
+                    to={`/products?category=${encodeURIComponent(categoryParam)}`}
+                    className="bg-white rounded-2xl border border-gray-200/80 py-4 px-3 shadow-xs hover:shadow-md hover:border-blue-200/80 transition-all flex flex-col items-center justify-center text-center group"
+                  >
+                    <div className="text-slate-700 group-hover:text-blue-600 transition-colors mb-2">
+                      <Icon size={26} strokeWidth={1.6} />
+                    </div>
+                    <div className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1">
+                      {cat.name}
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-0.5 font-normal line-clamp-1">
+                      {subtitle}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+              {[1, 2, 3, 4, 5, 6].map((slot) => (
+                <div
+                  key={slot}
+                  className="bg-white rounded-2xl border border-gray-200/80 py-4 px-3 shadow-xs flex flex-col items-center justify-center animate-pulse h-[104px]"
                 >
-                  <div className="text-slate-700 group-hover:text-blue-600 transition-colors mb-2">
-                    <Icon size={26} strokeWidth={1.6} />
-                  </div>
-                  <div className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1">
-                    {cat.name}
-                  </div>
-                  <div className="text-[11px] text-slate-400 mt-0.5 font-normal line-clamp-1">
-                    {subtitle}
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
+                  <div className="w-7 h-7 rounded-lg bg-gray-200 mb-2" />
+                  <div className="h-3 w-20 bg-gray-200 rounded mb-1.5" />
+                  <div className="h-2.5 w-24 bg-gray-100 rounded" />
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
@@ -419,7 +489,7 @@ export default function HomePage() {
           {/* Flash Sale Block */}
           <div
             className={`${
-              verticalPromoBanner ? 'lg:col-span-9' : 'lg:col-span-12'
+              showVerticalPromoColumn ? 'lg:col-span-9' : 'lg:col-span-12'
             } bg-[#1b1e26] rounded-2xl p-4 sm:p-5 shadow-sm text-white flex flex-col justify-between`}
           >
             {/* Flash Sale Header Bar */}
@@ -478,7 +548,24 @@ export default function HomePage() {
             </div>
 
             {/* Dynamic Flash Sale Items */}
-            {flashSaleItems.length > 0 ? (
+            {loading && flashSaleItems.length === 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-3.5 flex-1">
+                {[1, 2, 3, 4].map((slot) => (
+                  <div
+                    key={slot}
+                    className="bg-white/95 rounded-xl p-3 flex flex-col justify-between h-[296px] animate-pulse"
+                  >
+                    <div className="h-4 w-14 bg-gray-200 rounded mb-2" />
+                    <div className="w-full aspect-[4/3] bg-gray-100 rounded-lg mb-2" />
+                    <div className="space-y-1.5 mb-3">
+                      <div className="h-3 w-full bg-gray-200 rounded" />
+                      <div className="h-3 w-2/3 bg-gray-200 rounded" />
+                    </div>
+                    <div className="h-8 w-full bg-gray-200 rounded-lg" />
+                  </div>
+                ))}
+              </div>
+            ) : flashSaleItems.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-3.5 flex-1">
                 {flashSaleItems.slice(0, 4).map((item) => {
                   const orig = item.originalPrice ?? 0;
@@ -595,12 +682,16 @@ export default function HomePage() {
           </div>
 
           {/* Right Vertical Tech Banner (from Admin Banners: VERTICAL_PROMO) */}
-          {verticalPromoBanner && (
+          {showVerticalPromoColumn && (
             <div className="lg:col-span-3 flex">
-              {renderBannerCard(
-                verticalPromoBanner,
-                'block relative rounded-2xl overflow-hidden shadow-sm group w-full min-h-[260px] lg:min-h-0 h-full bg-[#12141a] hover:shadow-md transition-all',
-                'w-full h-full lg:absolute lg:inset-0 object-cover group-hover:scale-[1.02] transition-transform duration-300'
+              {verticalPromoBanner ? (
+                renderBannerCard(
+                  verticalPromoBanner,
+                  'block relative rounded-2xl overflow-hidden shadow-sm group w-full min-h-[260px] lg:min-h-0 h-full bg-[#12141a] hover:shadow-md transition-all',
+                  'w-full h-full lg:absolute lg:inset-0 object-cover group-hover:scale-[1.02] transition-transform duration-300'
+                )
+              ) : (
+                <div className="rounded-2xl w-full min-h-[260px] lg:min-h-0 h-full bg-[#161820] animate-pulse" />
               )}
             </div>
           )}
@@ -637,7 +728,11 @@ export default function HomePage() {
             <p className="text-sm font-semibold text-rose-700 mb-3">{productsError}</p>
             <button
               type="button"
-              onClick={loadHomeData}
+              onClick={() => {
+                void fetchBanners(true);
+                void fetchSiteConfig(true);
+                void loadHomeData();
+              }}
               className="px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 cursor-pointer"
             >
               Thử lại
