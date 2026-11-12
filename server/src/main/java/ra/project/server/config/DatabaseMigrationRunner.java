@@ -532,9 +532,13 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
         if (count != null && count == 0) {
             jdbcTemplate.update("""
                 INSERT INTO banners (title, subtitle, badge, image_url, link_url, position, display_order, is_active, click_count, created_at, updated_at) VALUES
-                ('IPHONE 16 PRO MAX TITAN SA MẠC', 'Sức mạnh chip A18 Pro bứt phá mọi giới hạn - Trả góp 0% lãi suất, thu cũ đổi mới trợ giá đến 3 triệu', 'NEW ARRIVAL', 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=1200&q=80', '/products?keyword=iPhone', 'HERO_SLIDER', 1, TRUE, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-                ('MACBOOK AIR M3 - HIỆU NĂNG MẠNH MẼ', 'Chip M3 siêu mạnh mẽ, thời lượng pin lên đến 18 giờ, thiết kế mỏng nhẹ chỉ 1.24 kg', 'SẢN PHẨM BÁN CHẠY', '/images/macbook-hero-banner.jpg', '/products?keyword=MacBook', 'HERO_SLIDER', 2, TRUE, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-                ('SAMSUNG GALAXY S24 ULTRA AI', 'Quyền năng Galaxy AI tiếng Việt toàn diện - Màn hình chống phản chiếu đỉnh cao, tặng kèm sạc nhanh 45W', 'GALAXY AI', 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=1200&q=80', '/products?keyword=Samsung', 'HERO_SLIDER', 3, TRUE, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('ASUS TUF F15 - Chiến game mạnh mẽ', 'Hiệu năng ấn tượng, thiết kế bền bỉ dành cho game thủ', 'LAPTOP GAMING', 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/asus_tuf_f15_fxuvax.jpg', '/products', 'HERO_SLIDER', 1, TRUE, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('Tai nghe gaming HyperX Cloud III', 'Âm thanh sống động, trải nghiệm gaming đỉnh cao', 'GAMING GEAR', 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/banner_tai_nghe_hyper_cloud_3_bwvebf.jpg', '/products', 'HERO_SLIDER', 2, TRUE, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('Bảng vẽ điện tử XP-Pen Artist 24 Pro', 'Khơi nguồn sáng tạo, nâng tầm trải nghiệm thiết kế', 'SÁNG TẠO & ĐỒ HỌA', 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/banner_bang_ve_dien_tru_r1iezy.jpg', '/products', 'HERO_SLIDER', 3, TRUE, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('Chuột gaming Razer DeathAdder Essential', 'Thiết kế công thái học, kiểm soát chính xác trong từng trận đấu', 'GAMING GEAR', 'https://res.cloudinary.com/diprwc5iy/image/upload/v1792763665/chu%E1%BB%99t_gaming_razer_deathadder_essential_m5s1he.jpg', '/products', 'HERO_SLIDER', 4, TRUE, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('IPHONE 16 PRO MAX TITAN SA MẠC', 'Sức mạnh chip A18 Pro bứt phá mọi giới hạn - Trả góp 0% lãi suất, thu cũ đổi mới trợ giá đến 3 triệu', 'NEW ARRIVAL', 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=1200&q=80', '/products?keyword=iPhone', 'HERO_SLIDER', 5, FALSE, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('MACBOOK AIR M3 - HIỆU NĂNG MẠNH MẼ', 'Chip M3 siêu mạnh mẽ, thời lượng pin lên đến 18 giờ, thiết kế mỏng nhẹ chỉ 1.24 kg', 'SẢN PHẨM BÁN CHẠY', '/images/macbook-hero-banner.jpg', '/products?keyword=MacBook', 'HERO_SLIDER', 6, FALSE, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('SAMSUNG GALAXY S24 ULTRA AI', 'Quyền năng Galaxy AI tiếng Việt toàn diện - Màn hình chống phản chiếu đỉnh cao, tặng kèm sạc nhanh 45W', 'GALAXY AI', 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=1200&q=80', '/products?keyword=Samsung', 'HERO_SLIDER', 7, FALSE, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
                 ('Ưu đãi hôm nay - Giảm đến 50%', 'Cho các sản phẩm laptop, điện thoại chính hãng tại NEXOR', 'ƯU ĐÃI HÔM NAY', '/images/promo-discount-50.jpg', '/products?sort=discount', 'HERO_PROMO', 1, TRUE, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
                 ('Miễn phí vận chuyển toàn quốc', 'Áp dụng ưu đãi giao hàng nhanh trên toàn quốc', 'MIỄN PHÍ SHIP', '/images/promo-free-shipping.jpg', '/products', 'HERO_PROMO', 2, TRUE, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
                 ('Bảo hành chính hãng 12 - 24 tháng', 'Cam kết chính hãng, hỗ trợ bảo hành minh bạch tùy sản phẩm', 'BẢO HÀNH CHÍNH HÃNG', '/images/promo-warranty.jpg', '/policies/chinh-sach-bao-hanh', 'HERO_PROMO', 3, TRUE, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
@@ -647,6 +651,94 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
                     "Cờ đánh dấu đã nâng cấp bộ banner promo mặc định của NEXOR",
                     "BOOLEAN",
                     false
+            );
+        }
+
+        Integer legacyHeroMigrated = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM system_settings WHERE setting_key = 'migration.nexor_legacy_hero_slider_v1'",
+                Integer.class
+        );
+        if (legacyHeroMigrated == null || legacyHeroMigrated == 0) {
+            // Preserve the earlier seed slides cleanly in Admin (inactive) so the classic ASUS TUF F15
+            // and gaming gear hero slider banners become active without losing Admin control.
+            jdbcTemplate.update("""
+                UPDATE banners
+                SET is_active = FALSE,
+                    display_order = display_order + 4,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE position = 'HERO_SLIDER'
+                  AND image_url IN (
+                    'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=1200&q=80',
+                    '/images/macbook-hero-banner.jpg',
+                    'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=1200&q=80'
+                  )
+            """);
+
+            insertHeroBannerIfMissing(
+                    "ASUS TUF F15 - Chiến game mạnh mẽ",
+                    "Hiệu năng ấn tượng, thiết kế bền bỉ dành cho game thủ",
+                    "LAPTOP GAMING",
+                    "https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/asus_tuf_f15_fxuvax.jpg",
+                    "/products",
+                    1
+            );
+            insertHeroBannerIfMissing(
+                    "Tai nghe gaming HyperX Cloud III",
+                    "Âm thanh sống động, trải nghiệm gaming đỉnh cao",
+                    "GAMING GEAR",
+                    "https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/banner_tai_nghe_hyper_cloud_3_bwvebf.jpg",
+                    "/products",
+                    2
+            );
+            insertHeroBannerIfMissing(
+                    "Bảng vẽ điện tử XP-Pen Artist 24 Pro",
+                    "Khơi nguồn sáng tạo, nâng tầm trải nghiệm thiết kế",
+                    "SÁNG TẠO & ĐỒ HỌA",
+                    "https://res.cloudinary.com/diprwc5iy/image/upload/v1792763137/banner_bang_ve_dien_tru_r1iezy.jpg",
+                    "/products",
+                    3
+            );
+            insertHeroBannerIfMissing(
+                    "Chuột gaming Razer DeathAdder Essential",
+                    "Thiết kế công thái học, kiểm soát chính xác trong từng trận đấu",
+                    "GAMING GEAR",
+                    "https://res.cloudinary.com/diprwc5iy/image/upload/v1792763665/chu%E1%BB%99t_gaming_razer_deathadder_essential_m5s1he.jpg",
+                    "/products",
+                    4
+            );
+
+            upsertSettingIfMissing(
+                    "migration.nexor_legacy_hero_slider_v1",
+                    "true",
+                    "GENERAL",
+                    "Migration marker nexor_legacy_hero_slider_v1",
+                    "Cờ đánh dấu đã khôi phục bộ banner Hero Slider gốc (ASUS TUF F15 & Gaming Gear)",
+                    "BOOLEAN",
+                    false
+            );
+        }
+    }
+
+    private void insertHeroBannerIfMissing(
+            String title,
+            String subtitle,
+            String badge,
+            String imageUrl,
+            String linkUrl,
+            int displayOrder
+    ) {
+        Integer existing = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM banners WHERE position = 'HERO_SLIDER' AND image_url = ?",
+                Integer.class,
+                imageUrl
+        );
+        if (existing == null || existing == 0) {
+            jdbcTemplate.update(
+                    """
+                    INSERT INTO banners (title, subtitle, badge, image_url, link_url, position, display_order, is_active, click_count, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, 'HERO_SLIDER', ?, TRUE, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    """,
+                    title, subtitle, badge, imageUrl, linkUrl, displayOrder
             );
         }
     }

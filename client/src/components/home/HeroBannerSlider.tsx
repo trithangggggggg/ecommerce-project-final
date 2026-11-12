@@ -11,7 +11,7 @@ interface HeroBannerSliderProps {
 export const HeroBannerSlider: React.FC<HeroBannerSliderProps> = ({
   autoPlayInterval = 4500,
 }) => {
-  const { banners } = useBannerStore();
+  const { banners, isLoaded, hasError } = useBannerStore();
 
   // Filter active HERO_SLIDER banners and sort by displayOrder
   const activeBanners = banners
@@ -98,19 +98,28 @@ export const HeroBannerSlider: React.FC<HeroBannerSliderProps> = ({
     }, 50);
   };
 
-  // Fallback if no active banners exist
+  // Keep bounded skeleton from frame 0 until initial fetch settles so fallback image never flashes
+  if (!isLoaded && !hasError && totalSlides === 0) {
+    return (
+      <div className="min-w-0 min-h-0 w-full h-full">
+        <div className="relative rounded-2xl overflow-hidden shadow-sm w-full h-full aspect-[1300/692] lg:aspect-auto lg:h-full bg-[#161820] border border-gray-200/50 animate-pulse" />
+      </div>
+    );
+  }
+
+  // Fallback if no active banners exist (pinned inside container so image never overflows grid height)
   if (totalSlides === 0) {
     return (
-      <div className="flex flex-col min-w-0 w-full h-full">
+      <div className="min-w-0 min-h-0 w-full h-full">
         <Link
           to="/products"
-          className="block relative rounded-2xl overflow-hidden shadow-sm w-full h-full aspect-[1300/692] lg:aspect-auto group bg-[#161820]"
+          className="block relative rounded-2xl overflow-hidden shadow-sm w-full h-full aspect-[1300/692] lg:aspect-auto lg:h-full group bg-[#161820] border border-gray-200/50"
           title="Khám phá ngay"
         >
           <img
             src="/images/macbook-hero-banner.jpg"
             alt="Nexor Premium Technology"
-            className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-300"
+            className="w-full h-full lg:absolute lg:inset-0 object-cover group-hover:scale-[1.01] transition-transform duration-300"
           />
         </Link>
       </div>

@@ -63,9 +63,9 @@ export const useSiteConfigStore = create<SiteConfigStore>((set, get) => ({
         policyService.getPublicPolicies().catch(() => []),
       ]);
       set({
-        config: cfg ? { ...DEFAULT_CONFIG, ...cfg } : DEFAULT_CONFIG,
-        policies: Array.isArray(pols) ? pols : [],
-        isLoaded: true,
+        config: cfg ? { ...DEFAULT_CONFIG, ...cfg } : get().config,
+        policies: Array.isArray(pols) ? pols : get().policies,
+        isLoaded: cfg !== null,
       });
     } finally {
       set({ isLoading: false });
