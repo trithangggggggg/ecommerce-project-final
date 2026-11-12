@@ -265,12 +265,15 @@ export const AdminCustomersPage: React.FC = () => {
       {/* Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
         <div>
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
               Quản lý khách hàng
             </h1>
             <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
               {customers.length} người dùng
+            </span>
+            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 tabular-nums">
+              Doanh số: {formatPrice(totalSpentAll)}
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -298,26 +301,6 @@ export const AdminCustomersPage: React.FC = () => {
           >
             Thêm khách hàng
           </Button>
-        </div>
-      </div>
-
-      {/* Stats Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
-        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Tổng khách hàng</span>
-          <span className="text-lg font-bold text-slate-900">{customers.length}</span>
-        </div>
-        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Đang hoạt động</span>
-          <span className="text-lg font-bold text-emerald-600">{activeCount}</span>
-        </div>
-        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Bị khóa</span>
-          <span className="text-lg font-bold text-rose-600">{blockedCount}</span>
-        </div>
-        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Tổng doanh số mua</span>
-          <span className="text-lg font-bold text-blue-600">{formatPrice(totalSpentAll)}</span>
         </div>
       </div>
 

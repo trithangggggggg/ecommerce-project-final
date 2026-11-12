@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import AdminPagination from '../../components/admin/AdminPagination';
+import AdminSummaryStrip from '../../components/admin/AdminSummaryStrip';
 import {
   aiService,
   type KnowledgeDocumentItem,
@@ -376,59 +377,31 @@ export const AdminAiPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Top 4 Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
-        {/* Card 1: Tổng số tài liệu */}
-        <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-2xs">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tổng tài liệu</span>
-          <div className="text-2xl font-bold text-slate-900 mt-0.5">{stats?.totalFiles ?? documents.length}</div>
-          <div className="flex flex-wrap items-center gap-1.5 mt-2">
-            <span className="text-[10px] font-semibold text-slate-500">Định dạng:</span>
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700">
-              PDF {stats?.fileTypeDistribution?.['PDF'] ?? 1}
-            </span>
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700">
-              DOCX {stats?.fileTypeDistribution?.['DOCX'] ?? 1}
-            </span>
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
-              TXT {stats?.fileTypeDistribution?.['TXT'] ?? 2}
-            </span>
-          </div>
-        </div>
-
-        {/* Card 2: Tổng dung lượng tri thức */}
-        <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-2xs">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Dung lượng tri thức</span>
-          <div className="text-2xl font-bold text-slate-900 mt-0.5">
-            {stats?.formattedTotalSize || formatFileSize(stats?.totalSize || 45620)}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-2">
-            Được lưu & mã hóa an toàn
-          </div>
-        </div>
-
-        {/* Card 3: Tổng số Chunks (Đoạn phân rã RAG) */}
-        <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-2xs">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Số đoạn tri thức (Chunks)</span>
-          <div className="text-2xl font-bold text-slate-900 mt-0.5">
-            {stats?.totalChunks ?? documents.reduce((acc, d) => acc + (d.chunkCount || 0), 0)}
-          </div>
-          <div className="text-[11px] text-emerald-600 font-semibold mt-2">
-            100% Đã lập chỉ mục tìm kiếm
-          </div>
-        </div>
-
-        {/* Card 4: AI Model & Engine Status */}
-        <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-2xs">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Mô hình AI Active</span>
-          <div className="text-base font-bold text-slate-900 mt-1 truncate">
-            {aiConfig?.modelName || 'gemini-1.5-flash'}
-          </div>
-          <div className="text-[11px] text-blue-600 font-semibold mt-2">
-            Độ trễ: ~2-3 giây (Cam kết)
-          </div>
-        </div>
-      </div>
+      {/* Compact Stats Strip */}
+      <AdminSummaryStrip
+        items={[
+          {
+            label: 'Tài liệu',
+            value: stats?.totalFiles ?? documents.length,
+            subValue: `PDF ${stats?.fileTypeDistribution?.['PDF'] ?? 1} · DOCX ${stats?.fileTypeDistribution?.['DOCX'] ?? 1} · TXT ${stats?.fileTypeDistribution?.['TXT'] ?? 2}`,
+          },
+          {
+            label: 'Dung lượng',
+            value: stats?.formattedTotalSize || formatFileSize(stats?.totalSize || 45620),
+          },
+          {
+            label: 'Chunks',
+            value: stats?.totalChunks ?? documents.reduce((acc, d) => acc + (d.chunkCount || 0), 0),
+            subValue: '100% indexed',
+            valueClassName: 'text-emerald-600',
+          },
+          {
+            label: 'Mô hình AI',
+            value: aiConfig?.modelName || 'gemini-1.5-flash',
+            valueClassName: 'text-blue-600',
+          },
+        ]}
+      />
 
       {/* Tabs Header Navigation */}
       <div className="flex flex-wrap items-center gap-1.5 bg-white p-1.5 rounded-xl border border-slate-200/80 shadow-2xs w-fit shrink-0">

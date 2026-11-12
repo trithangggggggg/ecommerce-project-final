@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { formatPrice, formatDateTime } from '../../utils/format';
 import AdminPagination from '../../components/admin/AdminPagination';
+import AdminSummaryStrip from '../../components/admin/AdminSummaryStrip';
 import Input from '../../components/common/Input/Input';
 import Button from '../../components/common/Button/Button';
 import { orderService } from '../../api/services/order.service';
@@ -360,56 +361,34 @@ export const AdminReportsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Overview Stat Cards (Động 100%) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
-        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-blue-500 shadow-2xs space-y-1">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-            Doanh thu thuần
-          </span>
-          <span className="text-lg sm:text-xl font-bold text-slate-900 tabular-nums block">
-            {formatPrice(totalRevenue)}
-          </span>
-          <span className="text-[11px] font-semibold text-emerald-600 tabular-nums block">
-            {nonRefunded.length} đơn hợp lệ
-          </span>
-        </div>
-
-        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-emerald-500 shadow-2xs space-y-1">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-            Lợi nhuận gộp
-          </span>
-          <span className="text-lg sm:text-xl font-bold text-emerald-600 tabular-nums block">
-            {formatPrice(totalProfit)}
-          </span>
-          <span className="text-[11px] font-semibold text-emerald-600 tabular-nums block">
-            Biên lợi nhuận ~{profitMargin}%
-          </span>
-        </div>
-
-        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-purple-500 shadow-2xs space-y-1">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-            Tổng số giao dịch
-          </span>
-          <span className="text-lg sm:text-xl font-bold text-purple-600 tabular-nums block">
-            {filteredTransactions.length} giao dịch
-          </span>
-          <span className="text-[11px] font-medium text-slate-500 tabular-nums block">
-            {successCount} thành công, {settlingCount} đang xử lý
-          </span>
-        </div>
-
-        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-amber-500 shadow-2xs space-y-1">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-            Tỷ lệ hủy / hoàn tiền
-          </span>
-          <span className="text-lg sm:text-xl font-bold text-slate-900 tabular-nums block">
-            {refundRate}%
-          </span>
-          <span className="text-[11px] font-medium text-slate-500 tabular-nums block">
-            {refundCount} đơn hàng đã hủy
-          </span>
-        </div>
-      </div>
+      {/* Compact Overview Strip (Động 100%) */}
+      <AdminSummaryStrip
+        items={[
+          {
+            label: 'Doanh thu thuần',
+            value: formatPrice(totalRevenue),
+            subValue: `${nonRefunded.length} đơn hợp lệ`,
+          },
+          {
+            label: 'Lợi nhuận gộp',
+            value: formatPrice(totalProfit),
+            subValue: `Biên ~${profitMargin}%`,
+            valueClassName: 'text-emerald-600',
+          },
+          {
+            label: 'Giao dịch',
+            value: `${filteredTransactions.length}`,
+            subValue: `${successCount} OK · ${settlingCount} xử lý`,
+            valueClassName: 'text-purple-600',
+          },
+          {
+            label: 'Hủy / hoàn',
+            value: `${refundRate}%`,
+            subValue: `${refundCount} đơn`,
+            valueClassName: 'text-amber-600',
+          },
+        ]}
+      />
 
       {/* Main Table Container with Search */}
       <div className="bg-white rounded-xl border border-slate-200/80 shadow-2xs flex-1 flex flex-col min-h-0 overflow-hidden">

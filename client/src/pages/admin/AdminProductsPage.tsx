@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { productService } from '../../api/services/product.service';
 import { aiService } from '../../api/services/ai.service';
+import AdminSummaryStrip from '../../components/admin/AdminSummaryStrip';
 import { formatPrice } from '../../utils/format';
 import type {
   OrderResponse } from '../../models/order.model';
@@ -926,56 +927,15 @@ export const AdminProductsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
-        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-slate-700 shadow-2xs">
-          <span className="text-[11px] font-bold tracking-wider uppercase text-slate-400 block">
-            Tổng sản phẩm
-          </span>
-          <span className="text-xl font-extrabold text-slate-900 tabular-nums mt-1 block">
-            {totalItems}
-          </span>
-          <span className="text-[11px] text-slate-500 mt-1 block">
-            Tổng theo bộ lọc trên Database
-          </span>
-        </div>
-
-        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-emerald-500 shadow-2xs">
-          <span className="text-[11px] font-bold tracking-wider uppercase text-slate-400 block">
-            Còn hàng
-          </span>
-          <span className="text-xl font-extrabold text-emerald-600 tabular-nums mt-1 block">
-            {totalInStock}
-          </span>
-          <span className="text-[11px] text-slate-500 mt-1 block">
-            Sản phẩm sẵn sàng bán
-          </span>
-        </div>
-
-        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-rose-500 shadow-2xs">
-          <span className="text-[11px] font-bold tracking-wider uppercase text-slate-400 block">
-            Hết hàng
-          </span>
-          <span className="text-xl font-extrabold text-rose-600 tabular-nums mt-1 block">
-            {totalOutOfStock}
-          </span>
-          <span className="text-[11px] text-slate-500 mt-1 block">
-            Cần nhập thêm tồn kho
-          </span>
-        </div>
-
-        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-blue-600 shadow-2xs">
-          <span className="text-[11px] font-bold tracking-wider uppercase text-slate-400 block">
-            Danh mục
-          </span>
-          <span className="text-xl font-extrabold text-blue-600 tabular-nums mt-1 block">
-            {categories.length}
-          </span>
-          <span className="text-[11px] text-slate-500 mt-1 block">
-            Ngành hàng đang hoạt động
-          </span>
-        </div>
-      </div>
+      {/* Compact Stats Strip */}
+      <AdminSummaryStrip
+        items={[
+          { label: 'Tổng SP (lọc)', value: totalItems },
+          { label: 'Còn hàng', value: totalInStock, valueClassName: 'text-emerald-600' },
+          { label: 'Hết hàng', value: totalOutOfStock, valueClassName: 'text-rose-600' },
+          { label: 'Danh mục', value: categories.length, valueClassName: 'text-blue-600' },
+        ]}
+      />
 
       {/* Main Data Card */}
       <div className="bg-white rounded-xl border border-slate-200/80 shadow-2xs flex-1 flex flex-col min-h-0 overflow-hidden">
