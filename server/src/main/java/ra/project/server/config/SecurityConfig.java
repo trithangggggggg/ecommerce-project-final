@@ -101,8 +101,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/promotions/**").permitAll()
                         .requestMatchers("/api/wheel/status").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**", "/api/articles/**", "/api/shipping-carriers/**", "/api/stores/**").permitAll()
-                        // Cho phép SePay gọi IPN và trả kết quả Return URL (đã xác thực X-Secret-Key trên IPN)
-                        .requestMatchers("/api/payment/sepay/ipn", "/api/payment/sepay/payment-return").permitAll()
+                        // Cho phép SePay gọi Webhook biến động số dư / IPN và trả kết quả Return URL (Webhook/IPN tự xác thực API Key / X-Secret-Key)
+                        .requestMatchers("/api/payment/sepay/webhook", "/api/payment/sepay/ipn", "/api/payment/sepay/payment-return").permitAll()
                         // Phân quyền ADMIN cho các chức năng quản trị
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // Các API cá nhân, đơn hàng, thanh toán và quay thưởng yêu cầu đã đăng nhập

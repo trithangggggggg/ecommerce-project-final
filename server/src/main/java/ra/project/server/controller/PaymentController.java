@@ -24,19 +24,31 @@ public class PaymentController {
     private final SepayService sepayService;
 
     /**
-     * Khởi tạo bộ tham số form checkout đã ký HMAC-SHA256 Base64 cho đơn hàng của người dùng hiện tại.
+     * Khởi tạo thông tin thanh toán SePay VietQR trực tiếp trên website Nexor cho đơn hàng của người dùng hiện tại.
      */
     @PostMapping("/create-payment")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<SepayPaymentResponse>> createPayment(
             @Valid @RequestBody CreatePaymentRequest request) {
         SepayPaymentResponse response = sepayService.createPaymentCheckout(request);
-        return ResponseEntity.ok(ApiResponse.success("Khởi tạo thanh toán SePay thành công", response));
+        return ResponseEntity.ok(ApiResponse.success("Khởi tạo mã VietQR SePay thành công", response));
     }
 
     /**
-     * Endpoint IPN (Instant Payment Notification) nhận callback POST JSON từ SePay.
-     * Xác thực qua header X-Secret-Key / Authorization và cập nhật đơn hàng vào DB theo cơ chế idempotent.
+     * Endpoint Webhook biến động số dư từ SePay (HTTP POST JSON kèm header `Authorization: Apikey <key>`).
+     * Đối chiếu mã thanh toán, xác thực số tiền và tự động xác nhận đơn hàng idempotent.
+     */
+    @PostMapping("/webhook")
+    public ResponseEntity<Map<String, Object>> handleWebhook(
+            @RequestHeader(value = "X-Secret-Key", required = false) String xSecretKey,
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody String webhookPayload) {
+        Map<String, Object> result = sepayService.handleWebhook(xSecretKey, authorizationHeader, webhookPayload);
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Endpoint IPN (hỗ trợ cả Payment Gateway IPN lẫn Webhook biến động số dư).
      */
     @PostMapping("/ipn")
     public ResponseEntity<Map<String, Object>> handleIpn(
@@ -45,6 +57,16 @@ public class PaymentController {
             @RequestBody String ipnPayload) {
         Map<String, Object> result = sepayService.handleIpn(xSecretKey, authorizationHeader, ipnPayload);
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * API cho Frontend polling kiểm tra trạng thái thanh toán thời gian thực ngay tại trang QR của Nexor.
+     */
+    @GetMapping("/status/{orderId}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<SepayReturnResponse>> getPaymentStatus(@PathVariable Long orderId) {
+        SepayReturnResponse status = sepayService.getPaymentStatus(orderId);
+        return ResponseEntity.ok(ApiResponse.success(status.getMessage(), status));
     }
 
     /**

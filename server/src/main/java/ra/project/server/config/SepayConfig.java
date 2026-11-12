@@ -12,11 +12,14 @@ import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Cấu hình cổng thanh toán SePay Payment Gateway và tiện ích ký/xác thực HMAC-SHA256 Base64 + X-Secret-Key IPN.
+ * Cấu hình tích hợp SePay:
+ * - VietQR chuyển khoản trực tiếp tại website + Webhook biến động số dư (API Key / X-Secret-Key)
+ * - SePay Payment Gateway v1 (ký HMAC-SHA256 Base64 & IPN) để tương thích ngược
  */
 @Configuration
 @ConfigurationProperties(prefix = "sepay")
@@ -41,6 +44,7 @@ public class SepayConfig {
             "cancel_url"
     );
 
+    // Cấu hình SePay Payment Gateway v1 (tùy chọn tương thích ngược)
     private String merchantId;
     private String secretKey;
     private String ipnSecretKey;
@@ -50,18 +54,83 @@ public class SepayConfig {
     private String errorUrl = "http://localhost:5173/payment/result";
     private String cancelUrl = "http://localhost:5173/payment/result";
 
+    // Cấu hình SePay VietQR nhúng trực tiếp & Webhook biến động số dư
+    private String bankAccount;
+    private String bankCode;
+    private String bankName;
+    private String accountHolder;
+    private String webhookApiKey;
+    private String paymentPrefix = "DH";
+    private String qrBaseUrl = "https://qr.sepay.vn/img";
+    private String qrTemplate = "qronly";
+    private int qrTimeoutMinutes = 15;
+
     /**
-     * Kiểm tra đã cấu hình đủ Merchant ID và Secret Key cho SePay hay chưa.
+     * Kiểm tra đã cấu hình đủ thông tin tài khoản ngân hàng tạo VietQR trực tiếp hay chưa.
+     */
+    public boolean isQrConfigured() {
+        return isNotBlank(bankAccount) && isNotBlank(bankCode);
+    }
+
+    /**
+     * Kiểm tra đã cấu hình đủ Merchant ID và Secret Key cho SePay Payment Gateway hay chưa.
      */
     public boolean isConfigured() {
         return isNotBlank(merchantId) && isNotBlank(secretKey);
     }
 
     /**
-     * Trả về Secret Key dùng xác thực IPN (ưu tiên ipnSecretKey riêng nếu có, mặc định dùng secretKey).
+     * Trả về tiền tố mã thanh toán chuẩn chỉ gồm chữ cái in hoa (mặc định "DH") khớp cấu hình SePay.
+     */
+    public String getEffectivePaymentPrefix() {
+        if (!isNotBlank(paymentPrefix)) {
+            return "DH";
+        }
+        String sanitized = paymentPrefix.trim().toUpperCase().replaceAll("[^A-Z]", "");
+        return sanitized.isEmpty() ? "DH" : sanitized;
+    }
+
+    /**
+     * Trả về tên ngân hàng hiển thị thân thiện cho giao diện chuyển khoản.
+     */
+    public String resolveDisplayBankName() {
+        if (isNotBlank(bankName)) {
+            return bankName.trim();
+        }
+        if (!isNotBlank(bankCode)) {
+            return "";
+        }
+        String normalized = bankCode.trim().toUpperCase();
+        return switch (normalized) {
+            case "MB", "MBBANK" -> "MB Bank (Ngân hàng TMCP Quân Đội)";
+            case "VCB", "VIETCOMBANK" -> "Vietcombank (Ngân hàng Ngoại Thương)";
+            case "TCB", "TECHCOMBANK" -> "Techcombank (Ngân hàng Kỹ Thương)";
+            case "ACB" -> "ACB (Ngân hàng TMCP Á Châu)";
+            case "BIDV" -> "BIDV (Ngân hàng Đầu Tư & Phát Triển)";
+            case "VTB", "VIETINBANK", "CTG" -> "VietinBank (Ngân hàng Công Thương)";
+            case "TPB", "TPBANK" -> "TPBank (Ngân hàng Tiên Phong)";
+            case "VPB", "VPBANK" -> "VPBank (Ngân hàng Việt Nam Thịnh Vượng)";
+            case "STB", "SACOMBANK" -> "Sacombank (Ngân hàng Sài Gòn Thương Tín)";
+            case "VIB" -> "VIB (Ngân hàng Quốc Tế)";
+            case "SHB" -> "SHB (Ngân hàng Sài Gòn - Hà Nội)";
+            case "OCB" -> "OCB (Ngân hàng Phương Đông)";
+            case "MSB" -> "MSB (Ngân hàng Hàng Hải)";
+            case "HDB", "HDBANK" -> "HDBank (Ngân hàng Phát Triển TP.HCM)";
+            default -> bankCode.trim();
+        };
+    }
+
+    /**
+     * Trả về Secret Key ưu tiên dùng xác thực Webhook/IPN (ưu tiên webhookApiKey, rồi ipnSecretKey, cuối cùng secretKey).
      */
     public String getEffectiveIpnSecretKey() {
-        return isNotBlank(ipnSecretKey) ? ipnSecretKey.trim() : (secretKey != null ? secretKey.trim() : "");
+        if (isNotBlank(webhookApiKey)) {
+            return webhookApiKey.trim();
+        }
+        if (isNotBlank(ipnSecretKey)) {
+            return ipnSecretKey.trim();
+        }
+        return secretKey != null ? secretKey.trim() : "";
     }
 
     /**
@@ -74,36 +143,68 @@ public class SepayConfig {
     }
 
     /**
-     * Xác thực IPN request từ SePay theo X-Secret-Key hoặc Authorization (Apikey/Bearer/Basic) bằng so sánh constant-time.
+     * Xác thực Webhook / IPN request từ SePay theo `Authorization: Apikey <key>` (chuẩn SePay Webhook),
+     * `Authorization: Bearer <key>`, `Authorization: Basic ...` hoặc header `X-Secret-Key` bằng so sánh constant-time.
      */
     public boolean isValidIpnAuth(String xSecretKey, String authorizationHeader) {
-        String expectedSecret = getEffectiveIpnSecretKey();
-        if (!isNotBlank(expectedSecret)) {
+        String[] candidates = new String[]{
+                normalizeOrNull(webhookApiKey),
+                normalizeOrNull(ipnSecretKey),
+                normalizeOrNull(secretKey)
+        };
+
+        boolean hasAnySecret = false;
+        for (String c : candidates) {
+            if (c != null) {
+                hasAnySecret = true;
+                break;
+            }
+        }
+        if (!hasAnySecret) {
             return false;
         }
 
-        if (isNotBlank(xSecretKey)) {
-            return constantTimeEquals(expectedSecret, xSecretKey.trim());
+        if (isNotBlank(xSecretKey) && matchesAnyCandidate(xSecretKey.trim(), candidates)) {
+            return true;
         }
 
         if (isNotBlank(authorizationHeader)) {
             String trimmed = authorizationHeader.trim();
-            String lower = trimmed.toLowerCase();
-            if (lower.startsWith("apikey ")) {
-                return constantTimeEquals(expectedSecret, trimmed.substring(7).trim());
-            }
-            if (lower.startsWith("bearer ")) {
-                return constantTimeEquals(expectedSecret, trimmed.substring(7).trim());
+            String lower = trimmed.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("apikey ") || lower.startsWith("bearer ")) {
+                String token = trimmed.substring(7).trim();
+                return matchesAnyCandidate(token, candidates);
             }
             if (lower.startsWith("basic ")) {
-                String expectedBasic = buildBasicAuthHeader();
-                String expectedIpnBasic = "Basic " + Base64.getEncoder().encodeToString(
-                        ((merchantId != null ? merchantId.trim() : "") + ":" + expectedSecret)
-                                .getBytes(StandardCharsets.UTF_8));
-                return constantTimeEquals(expectedBasic, trimmed) || constantTimeEquals(expectedIpnBasic, trimmed);
+                String mId = merchantId != null ? merchantId.trim() : "";
+                for (String expected : candidates) {
+                    if (expected != null) {
+                        String expectedBasic = "Basic " + Base64.getEncoder().encodeToString(
+                                (mId + ":" + expected).getBytes(StandardCharsets.UTF_8));
+                        if (constantTimeEquals(expectedBasic, trimmed)) {
+                            return true;
+                        }
+                    }
+                }
             }
         }
         return false;
+    }
+
+    private static boolean matchesAnyCandidate(String token, String[] candidates) {
+        if (!isNotBlank(token)) {
+            return false;
+        }
+        for (String expected : candidates) {
+            if (expected != null && constantTimeEquals(expected, token)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String normalizeOrNull(String value) {
+        return isNotBlank(value) ? value.trim() : null;
     }
 
     /**

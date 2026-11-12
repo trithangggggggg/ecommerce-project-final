@@ -31,6 +31,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Optional<Order> findBySepayInvoiceNumber(String sepayInvoiceNumber);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT o FROM Order o WHERE o.id = :id")
+    Optional<Order> findByIdForUpdate(@Param("id") Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT o FROM Order o WHERE o.sepayInvoiceNumber = :sepayInvoiceNumber")
     Optional<Order> findBySepayInvoiceNumberForUpdate(@Param("sepayInvoiceNumber") String sepayInvoiceNumber);
     

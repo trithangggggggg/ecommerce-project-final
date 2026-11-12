@@ -25,6 +25,8 @@ import {
   ExternalLink,
   Search,
   Ticket,
+  QrCode,
+  Banknote,
 } from 'lucide-react';
 import { useCartStore } from '../../store/useCartStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -36,7 +38,7 @@ import { promotionService, type PromotionCheckResult } from '../../api/services/
 import type { PromoItem } from '../admin/AdminPromotionsPage';
 import { ROUTES } from '../../constants/routes';
 import { formatPrice } from '../../utils/format';
-import type { CheckoutRequest, OrderResponse, PaymentMethod } from '../../models/order.model';
+import { getPaymentMethodLabel, type CheckoutRequest, type OrderResponse, type PaymentMethod } from '../../models/order.model';
 import type { CartItem } from '../../models/product.model';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
@@ -411,23 +413,26 @@ export const CheckoutPage: React.FC = () => {
         }
       }
 
-      // Nếu chọn SePay → tạo form checkout đã ký và chuyển hướng sang cổng thanh toán SePay
+      // Nếu chọn thanh toán online (SePay VietQR) → hiển thị trang quét QR trực tiếp 100% tại Nexor
       if (paymentMethod === 'SEPAY' || paymentMethod === 'VNPAY') {
         try {
           const paymentData = await paymentService.createPayment({
             orderId: createdOrder.id,
             description: `Thanh toan don hang ${createdOrder.id}`,
           });
-          // Tự động submit form POST (theo chuẩn SePay) sang trang thanh toán
-          paymentService.redirectToGateway(paymentData.checkoutUrl, paymentData.checkoutFields);
-          return; // Dừng lại — trình duyệt sẽ điều hướng sang cổng thanh toán
-        } catch (payErr: unknown) {
-          const payMsg =
-            payErr instanceof Error
-              ? payErr.message
-              : 'Đơn hàng đã được tạo nhưng chưa thể kết nối cổng thanh toán SePay. Vui lòng thử thanh toán lại trong Đơn hàng của tôi!';
-          setErrorMessage(payMsg);
-          setIsSubmitting(false);
+          if (paymentData.checkoutUrl && paymentData.paymentMode !== 'VIETQR_DIRECT') {
+            paymentService.redirectToGateway(paymentData.checkoutUrl, paymentData.checkoutFields);
+            return;
+          }
+          navigate(`${ROUTES.PAYMENT_QR}/${createdOrder.id}`, {
+            state: { paymentData, order: createdOrder },
+          });
+          return;
+        } catch {
+          // Chuyển sang trang thanh toán QR để người dùng thử lại ngay hoặc quay về Đơn hàng của tôi (tránh đặt trùng đơn)
+          navigate(`${ROUTES.PAYMENT_QR}/${createdOrder.id}`, {
+            state: { order: createdOrder },
+          });
           return;
         }
       }
@@ -560,11 +565,7 @@ export const CheckoutPage: React.FC = () => {
                 <p className="text-gray-900 pt-1 border-t border-gray-200">
                   <span className="text-gray-500">Phương thức thanh toán: </span>
                   <span className="font-bold text-gray-900">
-                    {orderSuccessData.paymentMethod === 'SEPAY'
-                      ? 'Thanh toán trực tuyến qua SePay'
-                      : orderSuccessData.paymentMethod === 'BANK_TRANSFER'
-                      ? 'Chuyển khoản ngân hàng'
-                      : 'Thanh toán khi nhận hàng (COD)'}
+                    {getPaymentMethodLabel(orderSuccessData.paymentMethod)}
                   </span>
                 </p>
                 <p className="text-gray-900">
@@ -1122,23 +1123,28 @@ export const CheckoutPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Card 3: Payment Method (COD vs Chuyển khoản) */}
+              {/* Card 3: Payment Method (COD vs Chuyển khoản VietQR tại Nexor) */}
               <div className="bg-white rounded-2xl border border-gray-200/90 shadow-xs p-5 sm:p-6 space-y-4">
-                <div className="flex items-center gap-2.5 pb-3 border-b border-gray-100">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                    <CreditCard className="w-4 h-4" />
+                <div className="flex items-center justify-between gap-2 pb-3 border-b border-gray-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
+                      3. Phương thức thanh toán
+                    </h2>
                   </div>
-                  <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
-                    3. Phương thức thanh toán
-                  </h2>
+                  <span className="text-[11px] font-medium text-gray-400">
+                    An toàn • Bảo mật 100%
+                  </span>
                 </div>
 
                 <div className="space-y-3">
                   {/* COD Option */}
                   <label
-                    className={`flex items-start gap-3.5 p-3.5 rounded-xl border-2 transition cursor-pointer ${
+                    className={`flex items-start gap-3.5 p-4 rounded-xl border-2 transition cursor-pointer ${
                       paymentMethod === 'COD'
-                        ? 'border-blue-600 bg-blue-50/40 shadow-2xs'
+                        ? 'border-blue-600 bg-blue-50/40 shadow-xs ring-1 ring-blue-500/15'
                         : 'border-gray-200 hover:border-gray-300 bg-white'
                     }`}
                   >
@@ -1148,28 +1154,42 @@ export const CheckoutPage: React.FC = () => {
                       value="COD"
                       checked={paymentMethod === 'COD'}
                       onChange={() => setPaymentMethod('COD')}
-                      className="mt-1 text-blue-600 focus:ring-blue-500"
+                      className="sr-only"
                     />
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-gray-900">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                      <Banknote className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs sm:text-sm font-bold text-gray-900">
                           Thanh toán khi nhận hàng (COD)
                         </span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                          Khuyên dùng
-                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                            Phổ biến
+                          </span>
+                          <span
+                            className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                              paymentMethod === 'COD'
+                                ? 'border-blue-600 bg-blue-600 text-white'
+                                : 'border-gray-300 bg-white'
+                            }`}
+                          >
+                            {paymentMethod === 'COD' && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                          </span>
+                        </div>
                       </div>
-                      <p className="text-[11px] text-gray-500 mt-0.5">
-                        Bạn chỉ thanh toán tiền mặt cho nhân viên giao hàng sau khi đã kiểm tra sản phẩm.
+                      <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+                        Thanh toán tiền mặt trực tiếp cho nhân viên giao hàng sau khi kiểm tra sản phẩm.
                       </p>
                     </div>
                   </label>
 
-                  {/* Thanh toán trực tuyến qua SePay */}
+                  {/* Thanh toán Chuyển khoản VietQR trực tiếp tại Nexor */}
                   <label
-                    className={`flex items-start gap-3.5 p-3.5 rounded-xl border-2 transition cursor-pointer ${
+                    className={`flex items-start gap-3.5 p-4 rounded-xl border-2 transition cursor-pointer ${
                       paymentMethod === 'SEPAY'
-                        ? 'border-blue-600 bg-blue-50/40 shadow-2xs'
+                        ? 'border-blue-600 bg-gradient-to-br from-blue-50/60 to-indigo-50/40 shadow-xs ring-1 ring-blue-500/15'
                         : 'border-gray-200 hover:border-gray-300 bg-white'
                     }`}
                   >
@@ -1179,20 +1199,45 @@ export const CheckoutPage: React.FC = () => {
                       value="SEPAY"
                       checked={paymentMethod === 'SEPAY'}
                       onChange={() => setPaymentMethod('SEPAY')}
-                      className="mt-1 text-blue-600 focus:ring-blue-500"
+                      className="sr-only"
                     />
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
-                          <span>Thanh toán trực tuyến qua SePay</span>
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                      <QrCode className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-xs sm:text-sm font-bold text-gray-900">
+                          Chuyển khoản ngân hàng qua mã VietQR
                         </span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">
-                          Xác nhận tức thì
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                            QR ngay tại Nexor
+                          </span>
+                          <span
+                            className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                              paymentMethod === 'SEPAY'
+                                ? 'border-blue-600 bg-blue-600 text-white'
+                                : 'border-gray-300 bg-white'
+                            }`}
+                          >
+                            {paymentMethod === 'SEPAY' && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+                        Hiển thị mã QR động trực tiếp trên website Nexor (không chuyển trang ngoài). Quét bằng app ngân hàng hoặc ví điện tử, tự động xác nhận trong 3–5 giây.
+                      </p>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                        <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[10px] font-bold text-slate-700">
+                          NAPAS 24/7
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[10px] font-bold text-slate-700">
+                          30+ Ngân hàng VN
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700">
+                          Xác nhận tự động
                         </span>
                       </div>
-                      <p className="text-[11px] text-gray-500 mt-0.5">
-                        Quét mã VietQR chuyển khoản ngân hàng, NAPAS QR hoặc thanh toán thẻ qua cổng SePay.
-                      </p>
                     </div>
                   </label>
                 </div>
@@ -1537,7 +1582,7 @@ export const CheckoutPage: React.FC = () => {
                     {isSubmitting
                       ? 'Đang xử lý đơn hàng...'
                       : paymentMethod === 'SEPAY'
-                      ? `Thanh toán qua SePay (${formatPrice(finalTotal)})`
+                      ? `Tạo mã QR thanh toán (${formatPrice(finalTotal)})`
                       : `Xác nhận đặt hàng (${formatPrice(finalTotal)})`}
                   </Button>
                 </div>

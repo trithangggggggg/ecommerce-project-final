@@ -107,6 +107,7 @@ export const ENDPOINTS = {
   },
   PAYMENT: {
     SEPAY_CREATE: '/payment/sepay/create-payment',
+    SEPAY_STATUS: (orderId: number | string) => `/payment/sepay/status/${orderId}`,
     SEPAY_RETURN: '/payment/sepay/payment-return',
   },
 } as const;

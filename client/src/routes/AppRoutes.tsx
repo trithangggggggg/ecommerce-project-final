@@ -21,6 +21,7 @@ import StoresPage from '../pages/guest/StoresPage';
 import ArticlesPage from '../pages/guest/ArticlesPage';
 import ArticleDetailPage from '../pages/guest/ArticleDetailPage';
 import PaymentResultPage from '../pages/payment/PaymentResultPage';
+import SepayQrPaymentPage from '../pages/payment/SepayQrPaymentPage';
 import NotFoundPage from '../pages/common/NotFoundPage';
 
 // Lazy-loaded Admin Layout & Pages (Code Splitting để giảm bundle size trang chủ)
@@ -95,6 +96,7 @@ export const AppRoutes: React.FC = () => {
           {/* Các route yêu cầu khách hàng đăng nhập */}
           <Route element={<ProtectedRoute />}>
             <Route path="checkout" element={<CheckoutPage />} />
+            <Route path="payment/qr/:orderId" element={<SepayQrPaymentPage />} />
             <Route path="my-orders" element={<MyOrdersPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>

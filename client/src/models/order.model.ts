@@ -10,6 +10,7 @@ export type OrderStatus =
   | 'CANCELLED';
 
 export type PaymentMethod = 'COD' | 'ONLINE' | 'BANK_TRANSFER' | 'VNPAY' | 'MOMO' | 'SEPAY';
+export type PaymentStatus = 'UNPAID' | 'PAID' | 'FAILED' | 'REFUNDED';
 
 export interface OrderItemRequest {
   productId?: number;
@@ -57,6 +58,11 @@ export interface OrderResponse {
   shippingCarrierName?: string;
   status: OrderStatus;
   paymentMethod: PaymentMethod;
+  paymentStatus?: PaymentStatus;
+  sepayInvoiceNumber?: string;
+  sepayOrderId?: string;
+  paymentReference?: string;
+  paidAt?: string;
   note?: string;
   cancelReason?: string;
   compensationCoupon?: string;
@@ -119,3 +125,65 @@ export const ORDER_STATUS_CONFIG: Record<
     borderColor: 'border-rose-200',
   },
 };
+
+export function getPaymentMethodLabel(
+  method?: PaymentMethod | string | null
+): string {
+  switch (method) {
+    case 'COD':
+      return 'Thanh toán khi nhận hàng (COD)';
+    case 'SEPAY':
+      return 'Chuyển khoản VietQR (SePay)';
+    case 'BANK_TRANSFER':
+      return 'Chuyển khoản ngân hàng';
+    case 'VNPAY':
+      return 'Cổng thanh toán VNPAY';
+    case 'MOMO':
+      return 'Ví điện tử MoMo';
+    default:
+      return method || 'Chưa xác định';
+  }
+}
+
+export function getPaymentStatusMeta(
+  order: Pick<OrderResponse, 'status' | 'paymentStatus'>
+): { label: string; className: string } {
+  if (order.paymentStatus === 'PAID') {
+    return {
+      label: 'Đã thanh toán',
+      className: 'bg-emerald-100 text-emerald-700',
+    };
+  }
+  if (order.paymentStatus === 'REFUNDED') {
+    return {
+      label: 'Đã hoàn tiền',
+      className: 'bg-indigo-100 text-indigo-700',
+    };
+  }
+  if (order.paymentStatus === 'FAILED') {
+    return {
+      label: 'Thanh toán thất bại',
+      className: 'bg-rose-100 text-rose-700',
+    };
+  }
+  if (order.status === 'PENDING') {
+    return {
+      label: 'Chờ thanh toán',
+      className: 'bg-amber-100 text-amber-800',
+    };
+  }
+  return {
+    label: 'Chưa thanh toán',
+    className: 'bg-slate-100 text-slate-600',
+  };
+}
+
+export function canPayOrderOnline(
+  order: Pick<OrderResponse, 'status' | 'paymentMethod' | 'paymentStatus'>
+): boolean {
+  return (
+    order.status === 'PENDING' &&
+    order.paymentMethod !== 'COD' &&
+    order.paymentStatus !== 'PAID'
+  );
+}

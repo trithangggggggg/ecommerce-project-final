@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   X,
   Info,
+  QrCode,
 } from 'lucide-react';
 import { orderService } from '../../api/services/order.service';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -26,6 +27,9 @@ import { ROUTES } from '../../constants/routes';
 import { formatPrice, formatDateTime } from '../../utils/format';
 import {
   ORDER_STATUS_CONFIG,
+  canPayOrderOnline,
+  getPaymentMethodLabel,
+  getPaymentStatusMeta,
   type OrderResponse,
 } from '../../models/order.model';
 import Button from '../../components/common/Button/Button';
@@ -380,14 +384,18 @@ export const MyOrdersPage: React.FC = () => {
                       <span className="text-gray-400">•</span>
                       <span className="text-gray-600 font-semibold flex items-center gap-1">
                         <CreditCard className="w-3.5 h-3.5 text-blue-600" />
-                        {order.paymentMethod === 'COD'
-                          ? 'Thanh toán COD'
-                          : order.paymentMethod === 'SEPAY'
-                          ? 'Thanh toán qua SePay'
-                          : order.paymentMethod === 'BANK_TRANSFER'
-                          ? 'Chuyển khoản ngân hàng'
-                          : order.paymentMethod}
+                        {getPaymentMethodLabel(order.paymentMethod)}
                       </span>
+                      {order.paymentMethod !== 'COD' && (() => {
+                        const paymentMeta = getPaymentStatusMeta(order);
+                        return (
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${paymentMeta.className}`}
+                          >
+                            {paymentMeta.label}
+                          </span>
+                        );
+                      })()}
                     </div>
 
                     {/* Status Badge có màu */}
@@ -525,6 +533,18 @@ export const MyOrdersPage: React.FC = () => {
                           )}
                         </div>
                       )}
+
+                      {/* NÚT "THANH TOÁN QR": HIỆN VỚI ĐƠN ONLINE PENDING CHƯA THANH TOÁN */}
+                      {canPayOrderOnline(order) && (
+                          <button
+                            type="button"
+                            onClick={() => navigate(`${ROUTES.PAYMENT_QR}/${order.id}`)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-2xs transition cursor-pointer"
+                          >
+                            <QrCode className="w-3.5 h-3.5" />
+                            <span>Thanh toán QR</span>
+                          </button>
+                        )}
 
                       {/* NÚT "HỦY ĐƠN": CHỈ HIỆN VỚI PENDING */}
                       {order.status === 'PENDING' && (
