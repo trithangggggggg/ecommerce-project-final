@@ -22,6 +22,8 @@ public class ProductVariantResponse {
     private Integer discountPercent;
     private Integer stock;
     private String imageUrl;
+    private String warehouse;
+    private String shelfLocation;
     private Boolean status;
     private String title;
     @Builder.Default

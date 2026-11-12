@@ -1,5 +1,6 @@
 export interface WheelReward {
   id: number;
+  entityId?: number;
   label: string;
   shortLabel: string;
   discount: string;
@@ -10,6 +11,8 @@ export interface WheelReward {
   color: string;
   textColor: string;
   icon?: string;
+  isActive?: boolean;
+  displayOrder?: number;
 }
 
 export interface WheelStatusResponse {

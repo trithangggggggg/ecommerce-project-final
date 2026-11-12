@@ -8,6 +8,12 @@ export interface Category {
   slug: string;
   description?: string;
   imageUrl?: string;
+  displayOrder?: number;
+  showOnHome?: boolean;
+  status?: boolean;
+  productCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ProductOptionValue {
@@ -32,6 +38,8 @@ export interface ProductVariant {
   discountPercent?: number | null;
   stock: number;
   imageUrl?: string | null;
+  warehouse?: string | null;
+  shelfLocation?: string | null;
   status?: ProductStatus | string | boolean;
   title?: string;
   optionValues?: Record<string, string>; // e.g. {"Dung lượng": "256GB", "Màu sắc": "Titan Đen"}
@@ -78,6 +86,7 @@ export interface Product {
   options?: ProductOption[];
   variants?: ProductVariant[];
   status?: ProductStatus | string | boolean;
+  isDeleted?: boolean;
   isFeatured?: boolean;
   isNew?: boolean;
   isFlashSale?: boolean;
@@ -124,6 +133,8 @@ export interface VariantPayload {
   originalPrice?: number | null;
   stock: number;
   imageUrl?: string | null;
+  warehouse?: string | null;
+  shelfLocation?: string | null;
   status?: ProductStatus | string | boolean;
 }
 

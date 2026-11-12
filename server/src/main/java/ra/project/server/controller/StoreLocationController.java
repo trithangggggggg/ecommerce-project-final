@@ -199,6 +199,7 @@ public class StoreLocationController {
                 .latitude(request.getLatitude())
                 .longitude(request.getLongitude())
                 .openHours(request.getOpenHours() != null ? request.getOpenHours().trim() : "08:00 - 22:00")
+                .imageUrl(request.getImageUrl() != null && !request.getImageUrl().isBlank() ? request.getImageUrl().trim() : null)
                 .status(StringUtils.hasText(request.getStatus()) ? request.getStatus().trim().toUpperCase() : "ACTIVE")
                 .build();
 
@@ -228,6 +229,9 @@ public class StoreLocationController {
         existing.setLatitude(request.getLatitude());
         existing.setLongitude(request.getLongitude());
         existing.setOpenHours(request.getOpenHours() != null ? request.getOpenHours().trim() : existing.getOpenHours());
+        if (request.getImageUrl() != null) {
+            existing.setImageUrl(request.getImageUrl().isBlank() ? null : request.getImageUrl().trim());
+        }
         if (StringUtils.hasText(request.getStatus())) {
             existing.setStatus(request.getStatus().trim().toUpperCase());
         }

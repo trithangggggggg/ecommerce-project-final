@@ -511,81 +511,30 @@ export const aiService = {
   async getKnowledgeDocuments(params?: {
     category?: string;
     status?: string;
+    fileType?: string;
     search?: string;
   }): Promise<KnowledgeDocumentItem[]> {
-    try {
-      const response = await axiosClient.get(ENDPOINTS.ADMIN_AI.KNOWLEDGE, { params });
-      const data = response.data?.data || response.data;
-      if (Array.isArray(data)) {
-        return data;
-      }
-    } catch {
-      // Mock Fallback
-    }
-    return MOCK_KNOWLEDGE_DOCUMENTS.filter((doc) => {
-      if (params?.category && params.category !== 'ALL' && doc.category !== params.category) return false;
-      if (params?.status && params.status !== 'ALL' && doc.status !== params.status) return false;
-      if (params?.search && !doc.fileName.toLowerCase().includes(params.search.toLowerCase())) return false;
-      return true;
-    });
+    const response = await axiosClient.get(ENDPOINTS.ADMIN_AI.KNOWLEDGE, { params });
+    const data = response.data?.data || response.data;
+    return Array.isArray(data) ? data : [];
   },
 
   async getKnowledgeStats(): Promise<KnowledgeStats> {
-    try {
-      const response = await axiosClient.get(ENDPOINTS.ADMIN_AI.KNOWLEDGE_STATS);
-      const data = response.data?.data || response.data;
-      if (data?.totalFiles !== undefined) {
-        return data;
-      }
-    } catch {
-      // Mock Fallback
-    }
-    return {
-      totalFiles: 4,
-      totalSize: 45620,
-      formattedTotalSize: '44.55 KB',
-      totalChunks: 21,
-      fileTypeDistribution: { PDF: 1, DOCX: 1, TXT: 2 },
-      statusDistribution: { INDEXED: 4 },
-      categoryDistribution: {
-        STORE_POLICY: 2,
-        USER_GUIDE: 1,
-        FAQ: 1,
-      },
-    };
+    const response = await axiosClient.get(ENDPOINTS.ADMIN_AI.KNOWLEDGE_STATS);
+    return response.data?.data || response.data;
   },
 
   async uploadKnowledgeFile(file: File, category = 'GENERAL'): Promise<KnowledgeDocumentItem> {
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('category', category);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('category', category);
 
-      const response = await axiosClient.post(ENDPOINTS.ADMIN_AI.KNOWLEDGE_UPLOAD, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      const data = response.data?.data || response.data;
-      if (data?.id) return data;
-    } catch {
-      // Mock Fallback
-    }
-
-    const ext = file.name.split('.').pop()?.toUpperCase() || 'TXT';
-    const newDoc: KnowledgeDocumentItem = {
-      id: Date.now(),
-      fileName: file.name,
-      fileType: ext,
-      fileSize: file.size,
-      category,
-      status: 'INDEXED',
-      chunkCount: Math.max(1, Math.ceil(file.size / 400)),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    MOCK_KNOWLEDGE_DOCUMENTS.unshift(newDoc);
-    return newDoc;
+    const response = await axiosClient.post(ENDPOINTS.ADMIN_AI.KNOWLEDGE_UPLOAD, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data?.data || response.data;
   },
 
   async createManualKnowledge(data: {
@@ -593,84 +542,31 @@ export const aiService = {
     content: string;
     category?: string;
   }): Promise<KnowledgeDocumentItem> {
-    try {
-      const response = await axiosClient.post(ENDPOINTS.ADMIN_AI.KNOWLEDGE_MANUAL, data);
-      const res = response.data?.data || response.data;
-      if (res?.id) return res;
-    } catch {
-      // Mock Fallback
-    }
+    const response = await axiosClient.post(ENDPOINTS.ADMIN_AI.KNOWLEDGE_MANUAL, data);
+    return response.data?.data || response.data;
+  },
 
-    const newDoc: KnowledgeDocumentItem = {
-      id: Date.now(),
-      fileName: data.title.trim(),
-      fileType: 'TXT',
-      fileSize: new Blob([data.content]).size,
-      category: data.category || 'FAQ',
-      status: 'INDEXED',
-      chunkCount: Math.max(1, Math.ceil(data.content.length / 500)),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    MOCK_KNOWLEDGE_DOCUMENTS.unshift(newDoc);
-    return newDoc;
+  async updateManualKnowledge(
+    id: number | string,
+    data: { title: string; content: string; category?: string }
+  ): Promise<KnowledgeDocumentItem> {
+    const response = await axiosClient.put(ENDPOINTS.ADMIN_AI.KNOWLEDGE_DETAIL(id), data);
+    return response.data?.data || response.data;
   },
 
   async deleteKnowledgeDocument(id: number | string): Promise<void> {
-    try {
-      await axiosClient.delete(ENDPOINTS.ADMIN_AI.KNOWLEDGE_DETAIL(id));
-    } catch {
-      // Fallback
-    }
-    const idx = MOCK_KNOWLEDGE_DOCUMENTS.findIndex((d) => d.id === Number(id));
-    if (idx !== -1) {
-      MOCK_KNOWLEDGE_DOCUMENTS.splice(idx, 1);
-    }
+    await axiosClient.delete(ENDPOINTS.ADMIN_AI.KNOWLEDGE_DETAIL(id));
   },
 
   async reindexKnowledgeDocument(id: number | string): Promise<KnowledgeDocumentItem> {
-    try {
-      const response = await axiosClient.post(ENDPOINTS.ADMIN_AI.KNOWLEDGE_REINDEX(id));
-      const data = response.data?.data || response.data;
-      if (data?.id) return data;
-    } catch {
-      // Fallback
-    }
-    const doc = MOCK_KNOWLEDGE_DOCUMENTS.find((d) => d.id === Number(id));
-    if (doc) {
-      doc.status = 'INDEXED';
-      doc.updatedAt = new Date().toISOString();
-      return doc;
-    }
-    throw new Error('Không tìm thấy tài liệu');
+    const response = await axiosClient.post(ENDPOINTS.ADMIN_AI.KNOWLEDGE_REINDEX(id));
+    return response.data?.data || response.data;
   },
 
   async getKnowledgeChunks(id: number | string): Promise<KnowledgeChunkItem[]> {
-    try {
-      const response = await axiosClient.get(ENDPOINTS.ADMIN_AI.KNOWLEDGE_CHUNKS(id));
-      const data = response.data?.data || response.data;
-      if (Array.isArray(data)) return data;
-    } catch {
-      // Fallback
-    }
-    return [
-      {
-        id: 1,
-        documentId: Number(id),
-        chunkIndex: 0,
-        content: 'Chính sách bảo hành NEXOR: Sản phẩm chính hãng 100%, bảo hành 12-24 tháng 1 đổi 1 trong 30 ngày.',
-        tokenCount: 42,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 2,
-        documentId: Number(id),
-        chunkIndex: 1,
-        content: 'Điều kiện tiếp nhận đổi trả: Còn nguyên tem niêm phong, không rơi vỡ cấn móp, kèm đầy đủ phụ kiện và hóa đơn.',
-        tokenCount: 38,
-        createdAt: new Date().toISOString(),
-      },
-    ];
+    const response = await axiosClient.get(ENDPOINTS.ADMIN_AI.KNOWLEDGE_CHUNKS(id));
+    const data = response.data?.data || response.data;
+    return Array.isArray(data) ? data : [];
   },
 
   // ========================================================
@@ -678,79 +574,18 @@ export const aiService = {
   // ========================================================
 
   async getAiConfig(): Promise<AiConfigData> {
-    try {
-      const response = await axiosClient.get(ENDPOINTS.ADMIN_AI.CONFIG);
-      const data = response.data?.data || response.data;
-      if (data?.provider) return data;
-    } catch {
-      // Fallback
-    }
-    return {
-      provider: 'GOOGLE_GEMINI',
-      modelName: 'gemini-1.5-flash',
-      systemPrompt:
-        'Bạn là chuyên viên tư vấn công nghệ chuyên nghiệp của NEXOR Store (E-Commerce Tech Shop). ' +
-        'Luôn trả lời bằng tiếng Việt lịch sự, thân thiện, súc tích và chính xác. ' +
-        'Ưu tiên gợi ý và trả lời dựa trên tài liệu tri thức (Knowledge Base) và các sản phẩm đang bán tại cửa hàng.',
-      temperature: 0.7,
-      maxOutputTokens: 1000,
-      maxInputLength: 500,
-      rateLimitPerMinute: 15,
-      knowledgeBaseEnabled: true,
-      topKChunks: 4,
-      relevanceThreshold: 0.35,
-      suggestProductsEnabled: true,
-      maxSuggestedProducts: 3,
-      geminiApiKeyMasked: 'AIzaSy...****',
-      openAiApiKeyMasked: 'Chưa cấu hình',
-      status: 'ONLINE (Google Gemini Active)',
-      activeEngine: 'Google Gemini (gemini-1.5-flash)',
-      updatedAt: new Date().toISOString(),
-    };
+    const response = await axiosClient.get(ENDPOINTS.ADMIN_AI.CONFIG);
+    return response.data?.data || response.data;
   },
 
   async updateAiConfig(payload: AiConfigUpdatePayload): Promise<AiConfigData> {
-    try {
-      const response = await axiosClient.put(ENDPOINTS.ADMIN_AI.CONFIG, payload);
-      const data = response.data?.data || response.data;
-      if (data?.provider) return data;
-    } catch {
-      // Fallback
-    }
-    return {
-      provider: payload.provider || 'GOOGLE_GEMINI',
-      modelName: payload.modelName || 'gemini-1.5-flash',
-      systemPrompt: payload.systemPrompt || '',
-      temperature: payload.temperature ?? 0.7,
-      maxOutputTokens: payload.maxOutputTokens ?? 1000,
-      maxInputLength: payload.maxInputLength ?? 500,
-      rateLimitPerMinute: payload.rateLimitPerMinute ?? 15,
-      knowledgeBaseEnabled: payload.knowledgeBaseEnabled ?? true,
-      topKChunks: payload.topKChunks ?? 4,
-      relevanceThreshold: payload.relevanceThreshold ?? 0.35,
-      suggestProductsEnabled: payload.suggestProductsEnabled ?? true,
-      maxSuggestedProducts: payload.maxSuggestedProducts ?? 3,
-      status: 'ONLINE (Cấu hình đã cập nhật)',
-      activeEngine: `Engine: ${payload.provider || 'GOOGLE_GEMINI'} (${payload.modelName || 'gemini-1.5-flash'})`,
-      updatedAt: new Date().toISOString(),
-    };
+    const response = await axiosClient.put(ENDPOINTS.ADMIN_AI.CONFIG, payload);
+    return response.data?.data || response.data;
   },
 
   async testAiConnection(provider?: string, model?: string): Promise<AiConnectionTestResult> {
-    try {
-      const response = await axiosClient.post(ENDPOINTS.ADMIN_AI.CONFIG_TEST, { provider, model });
-      const data = response.data?.data || response.data;
-      if (data?.status) return data;
-    } catch {
-      // Fallback
-    }
-    return {
-      success: true,
-      provider: `${provider || 'GOOGLE_GEMINI'} (${model || 'gemini-1.5-flash'})`,
-      status: 'HEALTHY',
-      latencyMs: 145,
-      message: 'Kết nối mô hình AI hoạt động hoàn hảo! Tốc độ phản hồi cực nhanh (145ms).',
-    };
+    const response = await axiosClient.post(ENDPOINTS.ADMIN_AI.CONFIG_TEST, { provider, model });
+    return response.data?.data || response.data;
   },
 };
 
@@ -767,6 +602,7 @@ export interface KnowledgeDocumentItem {
   status: 'PENDING' | 'PROCESSING' | 'INDEXED' | 'FAILED';
   chunkCount: number;
   errorMessage?: string;
+  rawContent?: string;
   createdAt: string;
   updatedAt: string;
 }

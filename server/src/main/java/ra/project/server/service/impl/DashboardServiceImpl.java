@@ -198,8 +198,9 @@ public class DashboardServiceImpl implements DashboardService {
                 ? Math.round(((double) completedOrders / currentMonthOrders * 100.0) * 10.0) / 10.0
                 : 0.0;
 
-        BigDecimal currentMonthAov = currentMonthOrders > 0
-                ? currentMonthRevenue.divide(BigDecimal.valueOf(currentMonthOrders), 0, RoundingMode.HALF_UP)
+        long activeMonthOrders = Math.max(0L, currentMonthOrders - cancelledOrders);
+        BigDecimal currentMonthAov = activeMonthOrders > 0
+                ? currentMonthRevenue.divide(BigDecimal.valueOf(activeMonthOrders), 0, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
 
         return KpiSummaryResponse.builder()

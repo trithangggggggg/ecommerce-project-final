@@ -1,28 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import AdminPagination from '../../components/admin/AdminPagination';
 import {
-  Image as ImageIcon,
-  Plus,
-  ArrowUp,
-  ArrowDown,
-  Edit2,
-  Trash2,
-  Eye,
-  EyeOff,
-  RotateCcw,
-  ExternalLink,
-  CheckCircle2,
-  AlertCircle,
-  X,
-  Sliders,
-  Sparkles,
-  Link as LinkIcon,
-} from 'lucide-react';
+  bannerService,
+  type BannerItem,
+  type BannerPosition,
+} from '../../api/services/banner.service';
 import { useBannerStore } from '../../store/useBannerStore';
-import type { BannerItem } from '../../models/banner.model';
+
+const ITEMS_PER_PAGE = 8;
+
+const POSITION_OPTIONS: Array<{ value: BannerPosition; label: string }> = [
+  { value: 'HERO_SLIDER', label: 'Slider chính (Hero)' },
+  { value: 'HERO_PROMO', label: 'Thẻ khuyến mãi phụ (Hero Promo)' },
+  { value: 'VERTICAL_PROMO', label: 'Banner dọc trang chủ' },
+];
 
 const SUGGESTED_LOCAL_IMAGES = [
   { label: 'MacBook Air M3', url: '/images/macbook-hero-banner.jpg' },
-  { label: 'Tech Future', url: '/images/tech-future-banner.jpg' },
+  { label: 'Promo Giảm đến 50%', url: '/images/promo-discount-50.jpg' },
+  { label: 'Promo Miễn phí ship', url: '/images/promo-free-shipping.jpg' },
+  { label: 'Promo Bảo hành', url: '/images/promo-warranty.jpg' },
+  { label: 'Tech Future (Dọc)', url: '/images/tech-future-banner.jpg' },
   { label: 'ASUS ROG Strix', url: '/images/asus-rog-strix.jpg' },
   { label: 'Ecosystem Nexor', url: '/images/tech-ecosystem.jpg' },
   { label: 'iPhone 16 Pro Max', url: '/images/iphone-16-pro-max.jpg' },
@@ -39,781 +37,690 @@ const SUGGESTED_LINKS = [
   { label: 'Trang chủ', url: '/' },
 ];
 
+const getPositionLabel = (pos: string) =>
+  POSITION_OPTIONS.find((p) => p.value === pos)?.label || pos;
+
 export const AdminBannersPage: React.FC = () => {
-  const {
-    banners,
-    addBanner,
-    updateBanner,
-    deleteBanner,
-    moveBanner,
-    toggleActive,
-    resetToDefault,
-  } = useBannerStore();
+  const refreshClientBanners = useBannerStore((s) => s.fetchBanners);
+
+  const [banners, setBanners] = useState<BannerItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [positionFilter, setPositionFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
 
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingBannerId, setEditingBannerId] = useState<string | null>(null);
+  // Detail modal
+  const [detailBanner, setDetailBanner] = useState<BannerItem | null>(null);
 
-  // Form Fields
+  // Create / Edit modal
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingBanner, setEditingBanner] = useState<BannerItem | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
   const [formTitle, setFormTitle] = useState('');
   const [formSubtitle, setFormSubtitle] = useState('');
-  const [formImageUrl, setFormImageUrl] = useState('');
-  const [formLinkUrl, setFormLinkUrl] = useState('');
+  const [formBadge, setFormBadge] = useState('');
+  const [formImageUrl, setFormImageUrl] = useState('/images/macbook-hero-banner.jpg');
+  const [formLinkUrl, setFormLinkUrl] = useState('/products');
+  const [formPosition, setFormPosition] = useState<BannerPosition>('HERO_SLIDER');
+  const [formDisplayOrder, setFormDisplayOrder] = useState(0);
+  const [formStartDate, setFormStartDate] = useState('');
+  const [formEndDate, setFormEndDate] = useState('');
   const [formIsActive, setFormIsActive] = useState(true);
   const [formError, setFormError] = useState('');
 
-  // Delete Confirm Modal
-  const [deleteConfirmItem, setDeleteConfirmItem] = useState<BannerItem | null>(null);
-
-  // Reset Confirm Modal
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
-
-  // Live preview active index in the admin page
-  const [previewIndex, setPreviewIndex] = useState(0);
-
-  const activeBanners = banners.filter((b) => b.isActive).sort((a, b) => a.order - b.order);
-  const sortedBanners = [...banners].sort((a, b) => a.order - b.order);
+  // Delete confirm modal
+  const [deleteTarget, setDeleteTarget] = useState<BannerItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
-    setTimeout(() => {
-      setNotification(null);
-    }, 3500);
+    setTimeout(() => setNotification(null), 3500);
   };
 
-  const handleOpenAddModal = () => {
-    setEditingBannerId(null);
+  const fetchBanners = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await bannerService.searchAdminBanners({
+        keyword: searchQuery.trim() || undefined,
+        position: positionFilter !== 'ALL' ? positionFilter : undefined,
+        isActive: statusFilter === 'ALL' ? undefined : statusFilter === 'ACTIVE',
+        page: currentPage - 1,
+        size: ITEMS_PER_PAGE,
+      });
+      setBanners(res?.content || []);
+      setTotalPages(res?.totalPages || 1);
+      setTotalElements(res?.totalElements || 0);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Không thể tải danh sách banner từ máy chủ';
+      showToast('error', msg);
+      setBanners([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [searchQuery, positionFilter, statusFilter, currentPage]);
+
+  useEffect(() => {
+    void fetchBanners();
+  }, [fetchBanners]);
+
+  const handleOpenAdd = () => {
+    setEditingBanner(null);
     setFormTitle('');
     setFormSubtitle('');
+    setFormBadge('');
     setFormImageUrl('/images/macbook-hero-banner.jpg');
     setFormLinkUrl('/products');
+    setFormPosition('HERO_SLIDER');
+    setFormDisplayOrder(totalElements + 1);
+    setFormStartDate('');
+    setFormEndDate('');
     setFormIsActive(true);
     setFormError('');
     setIsModalOpen(true);
   };
 
-  const handleOpenEditModal = (item: BannerItem) => {
-    setEditingBannerId(item.id);
-    setFormTitle(item.title);
+  const handleOpenEdit = (item: BannerItem) => {
+    setEditingBanner(item);
+    setFormTitle(item.title || '');
     setFormSubtitle(item.subtitle || '');
-    setFormImageUrl(item.imageUrl);
-    setFormLinkUrl(item.linkUrl);
-    setFormIsActive(item.isActive);
+    setFormBadge(item.badge || '');
+    setFormImageUrl(item.imageUrl || '');
+    setFormLinkUrl(item.linkUrl || '/products');
+    setFormPosition(item.position || 'HERO_SLIDER');
+    setFormDisplayOrder(item.displayOrder ?? 0);
+    setFormStartDate(item.startDate ? item.startDate.slice(0, 10) : '');
+    setFormEndDate(item.endDate ? item.endDate.slice(0, 10) : '');
+    setFormIsActive(Boolean(item.isActive));
     setFormError('');
     setIsModalOpen(true);
   };
 
-  const handleSubmitForm = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formImageUrl.trim()) {
-      setFormError('Vui lòng nhập đường dẫn hình ảnh (URL)');
-      return;
+  const handleOpenDetail = async (item: BannerItem) => {
+    setDetailBanner(item);
+    try {
+      const fresh = await bannerService.getAdminBannerById(item.id);
+      if (fresh) setDetailBanner(fresh);
+    } catch {
+      // Keep row data if detail call fails
     }
+  };
+
+  const handleSubmitForm = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!formTitle.trim()) {
       setFormError('Vui lòng nhập tiêu đề banner');
       return;
     }
-
-    if (editingBannerId) {
-      updateBanner(editingBannerId, {
-        title: formTitle.trim(),
-        subtitle: formSubtitle.trim() || undefined,
-        imageUrl: formImageUrl.trim(),
-        linkUrl: formLinkUrl.trim() || '/products',
-        isActive: formIsActive,
-      });
-
-      // Sync live preview: jump to the edited banner in activeBanners
-      const updatedActive = banners
-        .map((b) =>
-          b.id === editingBannerId
-            ? { ...b, title: formTitle.trim(), imageUrl: formImageUrl.trim(), linkUrl: formLinkUrl.trim() || '/products', isActive: formIsActive }
-            : b
-        )
-        .filter((b) => b.isActive)
-        .sort((a, b) => a.order - b.order);
-      const newIdx = updatedActive.findIndex((b) => b.id === editingBannerId);
-      if (newIdx !== -1) setPreviewIndex(newIdx);
-
-      showToast('success', 'Đã cập nhật thông tin banner thành công!');
-    } else {
-      addBanner({
-        title: formTitle.trim(),
-        subtitle: formSubtitle.trim() || undefined,
-        imageUrl: formImageUrl.trim(),
-        linkUrl: formLinkUrl.trim() || '/products',
-        isActive: formIsActive,
-      });
-      showToast('success', 'Đã thêm banner mới thành công!');
+    if (!formImageUrl.trim()) {
+      setFormError('Vui lòng nhập đường dẫn hình ảnh (URL)');
+      return;
+    }
+    if (formStartDate && formEndDate && formEndDate < formStartDate) {
+      setFormError('Ngày kết thúc không được nhỏ hơn ngày bắt đầu');
+      return;
     }
 
-    setIsModalOpen(false);
+    setIsSaving(true);
+    setFormError('');
+    try {
+      const payload = {
+        title: formTitle.trim(),
+        subtitle: formSubtitle.trim() || undefined,
+        badge: formBadge.trim() || undefined,
+        imageUrl: formImageUrl.trim(),
+        linkUrl: formLinkUrl.trim() || '/products',
+        position: formPosition,
+        displayOrder: Number(formDisplayOrder) || 0,
+        isActive: formIsActive,
+        startDate: formStartDate || null,
+        endDate: formEndDate || null,
+      };
+      if (editingBanner) {
+        await bannerService.updateBanner(editingBanner.id, payload);
+        showToast('success', 'Đã cập nhật banner thành công!');
+      } else {
+        await bannerService.createBanner(payload);
+        showToast('success', 'Đã tạo banner mới thành công!');
+      }
+      setIsModalOpen(false);
+      await fetchBanners();
+      await refreshClientBanners(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lưu banner thất bại';
+      setFormError(msg);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleDeleteConfirm = () => {
-    if (!deleteConfirmItem) return;
-    deleteBanner(deleteConfirmItem.id);
-    setDeleteConfirmItem(null);
-    setPreviewIndex(0);
-    showToast('success', 'Đã xóa banner khỏi danh sách!');
+  const handleToggleStatus = async (item: BannerItem) => {
+    try {
+      await bannerService.toggleBannerStatus(item.id, !item.isActive);
+      showToast('success', `Đã ${item.isActive ? 'tạm ẩn' : 'kích hoạt'} banner "${item.title}"`);
+      await fetchBanners();
+      await refreshClientBanners(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Không thể đổi trạng thái banner';
+      showToast('error', msg);
+    }
   };
 
-  const handleResetConfirm = () => {
-    resetToDefault();
-    setShowResetConfirm(false);
-    setPreviewIndex(0);
-    showToast('success', 'Đã khôi phục danh sách banner về mặc định ban đầu!');
-  };
-
-  const handleMove = (id: string, direction: 'up' | 'down') => {
-    moveBanner(id, direction);
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      await bannerService.deleteBanner(deleteTarget.id);
+      showToast('success', `Đã xóa banner "${deleteTarget.title}"`);
+      setDeleteTarget(null);
+      await fetchBanners();
+      await refreshClientBanners(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Xóa banner thất bại';
+      showToast('error', msg);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Toast Notification */}
+    <div className="h-full flex flex-col min-h-0 space-y-4 font-sans overflow-hidden">
       {notification && (
         <div
-          className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium transition-all duration-300 animate-slide-in ${notification.type === 'success'
+          className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-xs font-semibold ${
+            notification.type === 'success'
               ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
               : 'bg-rose-50 text-rose-800 border-rose-200'
-            }`}
+          }`}
         >
-          {notification.type === 'success' ? (
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-          ) : (
-            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
-          )}
           <span>{notification.message}</span>
           <button
             type="button"
             onClick={() => setNotification(null)}
-            className="text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+            className="px-2 py-0.5 rounded-md bg-white text-slate-600 border border-slate-200 cursor-pointer"
           >
-            <X className="w-4 h-4" />
+            Đóng
           </button>
         </div>
       )}
 
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
-              <ImageIcon className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                Quản lý Banner Trang chủ
-              </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Tùy chỉnh danh sách ảnh trượt (Carousel) hiển thị tại vị trí trung tâm Hero Section trang chủ
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => setShowResetConfirm(true)}
-            className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
-            title="Khôi phục banner mẫu"
-          >
-            <RotateCcw className="w-4 h-4" />
-            <span>Mặc định</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleOpenAddModal}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Thêm Banner Mới</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Stats Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200/80 flex items-center justify-between shadow-2xs">
-          <div>
-            <div className="text-xs text-slate-500 font-medium">Tổng số Banner</div>
-            <div className="text-2xl font-bold text-slate-900 mt-0.5">{banners.length}</div>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-            <Sliders className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200/80 flex items-center justify-between shadow-2xs">
-          <div>
-            <div className="text-xs text-slate-500 font-medium">Đang kích hoạt hiển thị</div>
-            <div className="text-2xl font-bold text-emerald-600 mt-0.5">
-              {activeBanners.length} <span className="text-xs text-slate-400 font-normal">/ {banners.length}</span>
-            </div>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-            <Eye className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200/80 flex items-center justify-between shadow-2xs">
-          <div>
-            <div className="text-xs text-slate-500 font-medium">Chế độ hiển thị Trang chủ</div>
-            <div className="text-sm font-bold text-slate-800 mt-1 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              Carousel Tự động trượt
-            </div>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-            <Sparkles className="w-5 h-5" />
-          </div>
-        </div>
-      </div>
-
-      {/* Live Preview Box */}
-      {activeBanners.length > 0 && (
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
-              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                Xem trước thực tế trên Trang chủ (Live Preview)
-              </h2>
-            </div>
-            <span className="text-xs text-slate-400 font-medium">
-              Banner {previewIndex + 1} / {activeBanners.length}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              Quản lý Banner Trang chủ
+            </h1>
+            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 tabular-nums">
+              {totalElements} banner
             </span>
           </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Điều khiển toàn bộ slider chính, thẻ promo phụ và banner dọc trên trang chủ cửa hàng (lưu MySQL)
+          </p>
+        </div>
 
-          <div className="relative rounded-2xl overflow-hidden bg-slate-900 aspect-21/9 max-h-[300px] border border-slate-800 shadow-md group">
-            {activeBanners[previewIndex] && (
-              <>
-                <img
-                  src={activeBanners[previewIndex].imageUrl}
-                  alt={activeBanners[previewIndex].title}
-                  className="w-full h-full object-cover transition-opacity duration-500"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = '/images/macbook-hero-banner.jpg';
-                  }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-5">
-                  <span className="inline-block px-2.5 py-0.5 rounded-full bg-blue-600 text-[11px] font-bold text-white uppercase tracking-wider w-fit mb-1.5 shadow-sm">
-                    Vị trí #{previewIndex + 1}
-                  </span>
-                  <h3 className="text-base sm:text-lg font-bold text-white leading-tight drop-shadow-sm">
-                    {activeBanners[previewIndex].title}
-                  </h3>
-                  {activeBanners[previewIndex].subtitle && (
-                    <p className="text-xs text-slate-200 mt-1 line-clamp-1">
-                      {activeBanners[previewIndex].subtitle}
-                    </p>
-                  )}
-                  {/* Clickable link preview */}
-                  <div className="mt-2 flex items-center gap-2">
-                    <div className="text-[11px] text-blue-300 font-medium flex items-center gap-1">
-                      <ExternalLink className="w-3 h-3" />
-                      <span>Điều hướng đến:</span>
-                    </div>
-                    <a
-                      href={activeBanners[previewIndex].linkUrl}
-                      target={activeBanners[previewIndex].linkUrl.startsWith('http') ? '_blank' : '_self'}
-                      rel="noreferrer"
-                      className="text-[11px] font-mono text-blue-300 hover:text-white underline underline-offset-2 truncate max-w-[200px] transition-colors"
-                      title={`Mở: ${activeBanners[previewIndex].linkUrl}`}
-                    >
-                      {activeBanners[previewIndex].linkUrl}
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEditModal(activeBanners[previewIndex])}
-                      className="ml-auto text-[11px] px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/30 text-white font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-                      title="Chỉnh sửa banner này"
-                    >
-                      <Edit2 className="w-3 h-3" />
-                      Sửa banner này
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => void fetchBanners()}
+            disabled={loading}
+            className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg shadow-2xs transition cursor-pointer disabled:opacity-60"
+          >
+            {loading ? 'Đang tải...' : 'Làm mới'}
+          </button>
+          <button
+            type="button"
+            onClick={handleOpenAdd}
+            className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-2xs transition cursor-pointer"
+          >
+            Thêm banner mới
+          </button>
+        </div>
+      </div>
 
-            {/* Thumbnail dots selector */}
-            <div className="absolute bottom-3 right-4 flex items-center gap-1.5 z-10">
-              {activeBanners.map((b, idx) => (
-                <button
-                  key={b.id}
-                  type="button"
-                  onClick={() => setPreviewIndex(idx)}
-                  className={`h-2 rounded-full transition-all cursor-pointer ${previewIndex === idx ? 'w-6 bg-blue-500' : 'w-2 bg-white/50 hover:bg-white/80'
-                    }`}
-                  aria-label={`Slide ${idx + 1}`}
-                />
+      {/* Main Table Card */}
+      <div className="bg-white rounded-xl border border-slate-200/80 shadow-2xs flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* Filter bar */}
+        <div className="p-3.5 border-b border-slate-100 bg-slate-50/40 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[260px]">
+            <input
+              type="text"
+              placeholder="Tìm theo tiêu đề, mô tả, badge hoặc liên kết..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full sm:max-w-xs px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none"
+            />
+            <select
+              value={positionFilter}
+              onChange={(e) => {
+                setPositionFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:outline-none"
+            >
+              <option value="ALL">Tất cả vị trí</option>
+              {POSITION_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
               ))}
+            </select>
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as 'ALL' | 'ACTIVE' | 'INACTIVE');
+                setCurrentPage(1);
+              }}
+              className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:outline-none"
+            >
+              <option value="ALL">Tất cả trạng thái</option>
+              <option value="ACTIVE">Đang hiển thị</option>
+              <option value="INACTIVE">Đang ẩn</option>
+            </select>
+          </div>
+          <span className="text-xs text-slate-500 font-medium tabular-nums">
+            Tổng <strong className="text-slate-800">{totalElements}</strong> bản ghi
+          </span>
+        </div>
+
+        {/* Table */}
+        <div className="flex-1 overflow-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-xs border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+              <tr>
+                <th className="py-3 px-3.5">Banner</th>
+                <th className="py-3 px-3.5">Vị trí</th>
+                <th className="py-3 px-3.5">Thứ tự</th>
+                <th className="py-3 px-3.5">Lượt click</th>
+                <th className="py-3 px-3.5">Trạng thái</th>
+                <th className="py-3 px-3.5 text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-500">
+                    Đang tải danh sách banner...
+                  </td>
+                </tr>
+              ) : banners.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-500">
+                    Chưa có banner nào phù hợp bộ lọc hiện tại.
+                  </td>
+                </tr>
+              ) : (
+                banners.map((item) => (
+                  <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="py-2.5 px-3.5">
+                      <div className="flex items-center gap-3 min-w-[240px]">
+                        <img
+                          src={item.imageUrl}
+                          alt={item.title}
+                          className="w-20 h-11 rounded-lg object-cover border border-slate-200 bg-slate-100 shrink-0"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = '/images/macbook-hero-banner.jpg';
+                          }}
+                        />
+                        <div className="min-w-0">
+                          <div className="font-bold text-slate-900 truncate max-w-xs">{item.title}</div>
+                          <div className="text-[11px] text-slate-500 truncate max-w-xs">
+                            {item.subtitle || item.linkUrl || '/products'}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-3.5 whitespace-nowrap">
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700">
+                        {getPositionLabel(item.position)}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3.5 font-mono font-bold text-slate-700 tabular-nums">
+                      #{item.displayOrder}
+                    </td>
+                    <td className="py-2.5 px-3.5 font-mono text-slate-600 tabular-nums">
+                      {item.clickCount ?? 0}
+                    </td>
+                    <td className="py-2.5 px-3.5 whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => void handleToggleStatus(item)}
+                        className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition cursor-pointer ${
+                          item.isActive
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                        }`}
+                      >
+                        {item.isActive ? 'Đang bật' : 'Đang ẩn'}
+                      </button>
+                    </td>
+                    <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => void handleOpenDetail(item)}
+                          className="px-2.5 py-1 rounded-md text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200/70 transition cursor-pointer"
+                        >
+                          Xem
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(item)}
+                          className="px-2.5 py-1 rounded-md text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200/70 transition cursor-pointer"
+                        >
+                          Sửa
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(item)}
+                          className="px-2.5 py-1 rounded-md text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/70 transition cursor-pointer"
+                        >
+                          Xóa
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="shrink-0 bg-white">
+          <AdminPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalElements}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
+          />
+        </div>
+      </div>
+
+      {/* View Detail Modal */}
+      {detailBanner && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900">Chi tiết Banner #{detailBanner.id}</h3>
+              <button
+                type="button"
+                onClick={() => setDetailBanner(null)}
+                className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+            <img
+              src={detailBanner.imageUrl}
+              alt={detailBanner.title}
+              className="w-full h-44 object-cover rounded-xl border border-slate-200 bg-slate-50"
+            />
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="col-span-2">
+                <span className="text-slate-400 font-semibold block">Tiêu đề</span>
+                <span className="font-bold text-slate-900">{detailBanner.title}</span>
+              </div>
+              {detailBanner.subtitle && (
+                <div className="col-span-2">
+                  <span className="text-slate-400 font-semibold block">Mô tả phụ</span>
+                  <span className="text-slate-700">{detailBanner.subtitle}</span>
+                </div>
+              )}
+              <div>
+                <span className="text-slate-400 font-semibold block">Vị trí hiển thị</span>
+                <span className="font-semibold text-slate-800">{getPositionLabel(detailBanner.position)}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold block">Nhãn (Badge)</span>
+                <span className="font-semibold text-slate-800">{detailBanner.badge || 'Không có'}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold block">Đường dẫn đích</span>
+                <span className="font-mono text-blue-700">{detailBanner.linkUrl || '/products'}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold block">Thứ tự / Lượt click</span>
+                <span className="font-mono text-slate-800">
+                  #{detailBanner.displayOrder} / {detailBanner.clickCount ?? 0} lượt
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold block">Hiệu lực</span>
+                <span className="text-slate-700">
+                  {detailBanner.startDate || 'Luôn bật'} đến {detailBanner.endDate || 'Không giới hạn'}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold block">Trạng thái</span>
+                <span className="font-bold text-slate-800">
+                  {detailBanner.isActive ? 'Đang hiển thị' : 'Đang ẩn'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Banners List / Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-bold text-slate-900">Danh sách các Banner ({banners.length})</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Sử dụng nút mũi tên để điều chỉnh thứ tự trượt xuất hiện trên trang chủ
-            </p>
-          </div>
-        </div>
-
-        {banners.length === 0 ? (
-          <div className="text-center py-12 px-4">
-            <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
-              <ImageIcon className="w-7 h-7" />
-            </div>
-            <h3 className="text-base font-bold text-slate-800">Chưa có banner nào</h3>
-            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-              Nhấn nút Thêm Banner Mới hoặc bấm Mặc Định để khôi phục bộ banner mẫu sắc nét.
-            </p>
-            <div className="mt-4 flex items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={handleResetConfirm}
-                className="px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl"
-              >
-                Khôi phục mặc định
-              </button>
-              <button
-                type="button"
-                onClick={handleOpenAddModal}
-                className="px-3.5 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl"
-              >
-                Thêm banner ngay
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50/70 border-b border-slate-200/80 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
-                <tr>
-                  <th className="py-3.5 px-4 w-20 text-center">Thứ tự</th>
-                  <th className="py-3.5 px-4 w-44">Hình ảnh</th>
-                  <th className="py-3.5 px-4">Thông tin Banner</th>
-                  <th className="py-3.5 px-4 w-48">Liên kết điều hướng</th>
-                  <th className="py-3.5 px-4 w-32 text-center">Trạng thái</th>
-                  <th className="py-3.5 px-4 w-36 text-right">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {sortedBanners.map((item, index) => {
-                  const isFirst = index === 0;
-                  const isLast = index === sortedBanners.length - 1;
-
-                  return (
-                    <tr
-                      key={item.id}
-                      className={`hover:bg-slate-50/70 transition-colors ${!item.isActive ? 'opacity-60 bg-slate-50/30' : ''
-                        }`}
-                    >
-                      {/* Thứ tự & Nút di chuyển */}
-                      <td className="py-3.5 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <span className="font-bold text-slate-900 w-5">{item.order}</span>
-                          <div className="flex flex-col gap-0.5">
-                            <button
-                              type="button"
-                              onClick={() => handleMove(item.id, 'up')}
-                              disabled={isFirst}
-                              className={`p-1 rounded hover:bg-slate-200 transition-colors ${isFirst ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 cursor-pointer'
-                                }`}
-                              title="Di chuyển lên trước"
-                            >
-                              <ArrowUp className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleMove(item.id, 'down')}
-                              disabled={isLast}
-                              className={`p-1 rounded hover:bg-slate-200 transition-colors ${isLast ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 cursor-pointer'
-                                }`}
-                              title="Di chuyển xuống dưới"
-                            >
-                              <ArrowDown className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Ảnh Thumbnail */}
-                      <td className="py-3.5 px-4">
-                        <div className="relative rounded-xl overflow-hidden bg-slate-100 border border-slate-200 aspect-16/9 w-36 shadow-2xs group">
-                          <img
-                            src={item.imageUrl}
-                            alt={item.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = '/images/macbook-hero-banner.jpg';
-                            }}
-                          />
-                        </div>
-                      </td>
-
-                      {/* Tiêu đề & Phụ đề */}
-                      <td className="py-3.5 px-4">
-                        <div className="font-bold text-slate-900 text-sm leading-snug">
-                          {item.title}
-                        </div>
-                        {item.subtitle && (
-                          <div className="text-slate-500 text-xs mt-0.5 line-clamp-1">
-                            {item.subtitle}
-                          </div>
-                        )}
-                        <div className="text-[10px] text-slate-400 mt-1 font-mono">
-                          ID: {item.id}
-                        </div>
-                      </td>
-
-                      {/* Liên kết */}
-                      <td className="py-3.5 px-4">
-                        <a
-                          href={item.linkUrl}
-                          target={item.linkUrl.startsWith('http') ? '_blank' : '_self'}
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 font-medium text-xs max-w-full truncate transition-colors"
-                        >
-                          <ExternalLink className="w-3 h-3 shrink-0" />
-                          <span className="truncate">{item.linkUrl}</span>
-                        </a>
-                      </td>
-
-                      {/* Trạng thái Bật/Tắt */}
-                      <td className="py-3.5 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => toggleActive(item.id)}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer transition-colors ${item.isActive
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-                              : 'bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200'
-                            }`}
-                          title={item.isActive ? 'Click để tắt hiển thị' : 'Click để bật hiển thị'}
-                        >
-                          {item.isActive ? (
-                            <>
-                              <Eye className="w-3 h-3 text-emerald-600" />
-                              <span>Hiển thị</span>
-                            </>
-                          ) : (
-                            <>
-                              <EyeOff className="w-3 h-3 text-slate-400" />
-                              <span>Đã ẩn</span>
-                            </>
-                          )}
-                        </button>
-                      </td>
-
-                      {/* Thao tác */}
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {/* Nút Chỉnh sửa — có label text rõ ràng */}
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditModal(item)}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors cursor-pointer"
-                            title="Chỉnh sửa banner"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                            <span>Chỉnh sửa</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteConfirmItem(item)}
-                            className="p-1.5 rounded-lg text-slate-600 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                            title="Xóa banner"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Add / Edit Banner Modal */}
+      {/* Add/Edit Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden">
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
-                  <ImageIcon className="w-5 h-5" />
-                </div>
-                <h3 className="text-base font-bold text-slate-900">
-                  {editingBannerId ? 'Chỉnh sửa Banner' : 'Thêm Banner Mới'}
-                </h3>
-              </div>
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <form
+            onSubmit={handleSubmitForm}
+            className="bg-white rounded-2xl border border-slate-200 max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
+          >
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <h3 className="text-base font-bold text-slate-900">
+                {editingBanner ? `Chỉnh sửa Banner #${editingBanner.id}` : 'Thêm Banner Mới'}
+              </h3>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+                className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                Đóng
               </button>
             </div>
 
-            {/* Modal Form */}
-            <form onSubmit={handleSubmitForm} className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div className="p-6 overflow-y-auto space-y-4 text-xs">
               {formError && (
-                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{formError}</span>
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 font-semibold">
+                  {formError}
                 </div>
               )}
 
-              {/* URL ảnh */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Đường dẫn ảnh Banner (Image URL) <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formImageUrl}
-                  onChange={(e) => setFormImageUrl(e.target.value)}
-                  placeholder="Ví dụ: /images/macbook-hero-banner.jpg hoặc https://..."
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono"
-                  required
-                />
-
-                {/* Quick suggestions */}
-                <div className="mt-2">
-                  <span className="text-[11px] text-slate-500 font-medium block mb-1">
-                    Hoặc chọn nhanh ảnh có sẵn trong dự án:
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {SUGGESTED_LOCAL_IMAGES.map((sug) => (
-                      <button
-                        key={sug.url}
-                        type="button"
-                        onClick={() => setFormImageUrl(sug.url)}
-                        className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${formImageUrl === sug.url
-                            ? 'bg-blue-50 border-blue-300 text-blue-700 font-bold'
-                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                          }`}
-                      >
-                        {sug.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Live Image Preview in Modal */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Xem trước hình ảnh
-                </label>
-                <div className="relative rounded-xl overflow-hidden bg-slate-100 border border-slate-200 aspect-21/9 max-h-[180px] flex items-center justify-center">
-                  {formImageUrl.trim() ? (
-                    <img
-                      src={formImageUrl}
-                      alt="Banner Preview"
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = '/images/macbook-hero-banner.jpg';
-                      }}
-                    />
-                  ) : (
-                    <div className="text-center text-slate-400 text-xs">
-                      <ImageIcon className="w-8 h-8 mx-auto mb-1 opacity-50" />
-                      Chưa nhập đường dẫn ảnh
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Tiêu đề */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Tiêu đề Banner <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formTitle}
-                  onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="Ví dụ: MacBook Air M3 - Siêu mỏng nhẹ, hiệu năng đỉnh cao"
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
-                  required
-                />
-              </div>
-
-              {/* Phụ đề */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Mô tả phụ / Thông điệp khuyến mãi (Subtitle)
-                </label>
-                <input
-                  type="text"
-                  value={formSubtitle}
-                  onChange={(e) => setFormSubtitle(e.target.value)}
-                  placeholder="Ví dụ: Giảm giá đến 15% kèm gói bảo hành 24 tháng chính hãng"
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                />
-              </div>
-
-              {/* Đường dẫn điều hướng */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  <LinkIcon className="w-3.5 h-3.5 inline mr-1 text-blue-500" />
-                  Đường dẫn điều hướng khi click Banner (Link URL)
-                </label>
-                <input
-                  type="text"
-                  value={formLinkUrl}
-                  onChange={(e) => setFormLinkUrl(e.target.value)}
-                  placeholder="Ví dụ: /products/4 hoặc /products?category=laptop hoặc https://..."
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono"
-                />
-
-                {/* Quick link suggestions */}
-                <div className="mt-2">
-                  <span className="text-[11px] text-slate-500 font-medium block mb-1">
-                    Chọn nhanh đường dẫn phổ biến:
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {SUGGESTED_LINKS.map((sug) => (
-                      <button
-                        key={sug.url}
-                        type="button"
-                        onClick={() => setFormLinkUrl(sug.url)}
-                        className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all cursor-pointer font-mono ${formLinkUrl === sug.url
-                            ? 'bg-blue-50 border-blue-300 text-blue-700 font-bold'
-                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                          }`}
-                      >
-                        {sug.label} <span className="opacity-60">({sug.url})</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Live link preview */}
-                {formLinkUrl.trim() && (
-                  <div className="mt-2 flex items-center gap-1.5 p-2 rounded-lg bg-blue-50 border border-blue-100">
-                    <ExternalLink className="w-3 h-3 text-blue-500 shrink-0" />
-                    <span className="text-[11px] text-blue-600 font-medium">Khi click banner sẽ dẫn đến:</span>
-                    <span className="text-[11px] text-blue-700 font-mono font-bold truncate">{formLinkUrl}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Trạng thái kích hoạt */}
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
-                <div>
-                  <div className="text-xs font-bold text-slate-800">Hiển thị trên Trang chủ</div>
-                  <div className="text-[11px] text-slate-500">
-                    Bật để đưa banner vào danh sách trượt tự động
-                  </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="sm:col-span-2">
+                  <label className="block font-bold text-slate-700 mb-1">Tiêu đề banner *</label>
                   <input
-                    type="checkbox"
-                    checked={formIsActive}
-                    onChange={(e) => setFormIsActive(e.target.checked)}
-                    className="sr-only peer"
+                    type="text"
+                    required
+                    value={formTitle}
+                    onChange={(e) => setFormTitle(e.target.value)}
+                    placeholder="VD: MacBook Pro M4 - Đột phá hiệu năng AI"
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
                   />
-                  <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                </label>
-              </div>
+                </div>
 
-              {/* Modal Footer */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
-                >
-                  Hủy bỏ
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors cursor-pointer"
-                >
-                  {editingBannerId ? 'Cập nhật Banner' : 'Lưu Banner'}
-                </button>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Vị trí hiển thị</label>
+                  <select
+                    value={formPosition}
+                    onChange={(e) => setFormPosition(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none"
+                  >
+                    {POSITION_OPTIONS.map((p) => (
+                      <option key={p.value} value={p.value}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Nhãn nổi bật (Badge)</label>
+                  <input
+                    type="text"
+                    value={formBadge}
+                    onChange={(e) => setFormBadge(e.target.value)}
+                    placeholder="VD: HOT SALE, NEW 2026..."
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block font-bold text-slate-700 mb-1">Mô tả ngắn / Dòng phụ</label>
+                  <input
+                    type="text"
+                    value={formSubtitle}
+                    onChange={(e) => setFormSubtitle(e.target.value)}
+                    placeholder="Giảm thêm đến 2.000.000₫ khi thanh toán VietQR"
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block font-bold text-slate-700 mb-1">URL hình ảnh *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formImageUrl}
+                    onChange={(e) => setFormImageUrl(e.target.value)}
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-lg font-mono focus:outline-none focus:border-blue-500"
+                  />
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {SUGGESTED_LOCAL_IMAGES.map((img) => (
+                      <button
+                        key={img.url}
+                        type="button"
+                        onClick={() => setFormImageUrl(img.url)}
+                        className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-medium cursor-pointer"
+                      >
+                        {img.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block font-bold text-slate-700 mb-1">Liên kết khi click</label>
+                  <input
+                    type="text"
+                    value={formLinkUrl}
+                    onChange={(e) => setFormLinkUrl(e.target.value)}
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-lg font-mono focus:outline-none focus:border-blue-500"
+                  />
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {SUGGESTED_LINKS.map((l) => (
+                      <button
+                        key={l.url}
+                        type="button"
+                        onClick={() => setFormLinkUrl(l.url)}
+                        className="px-2 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-medium cursor-pointer"
+                      >
+                        {l.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Thứ tự ưu tiên</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={formDisplayOrder}
+                    onChange={(e) => setFormDisplayOrder(Number(e.target.value))}
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="flex items-end pb-2">
+                  <label className="inline-flex items-center gap-2 cursor-pointer font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={formIsActive}
+                      onChange={(e) => setFormIsActive(e.target.checked)}
+                      className="rounded border-slate-300"
+                    />
+                    <span>Hiển thị trên Trang chủ ngay</span>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Ngày bắt đầu (tùy chọn)</label>
+                  <input
+                    type="date"
+                    value={formStartDate}
+                    onChange={(e) => setFormStartDate(e.target.value)}
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Ngày kết thúc (tùy chọn)</label>
+                  <input
+                    type="date"
+                    value={formEndDate}
+                    onChange={(e) => setFormEndDate(e.target.value)}
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
+                  />
+                </div>
               </div>
-            </form>
-          </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-semibold cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer disabled:opacity-60"
+              >
+                {isSaving ? 'Đang lưu...' : editingBanner ? 'Cập nhật Banner' : 'Tạo Banner'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
       {/* Delete Confirm Modal */}
-      {deleteConfirmItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-3">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <h3 className="text-base font-bold text-slate-900">Xác nhận xóa Banner?</h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Bạn có chắc chắn muốn xóa banner <strong className="text-slate-800">"{deleteConfirmItem.title}"</strong>? Thao tác này sẽ gỡ banner khỏi thanh trượt trên trang chủ.
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <h3 className="text-base font-bold text-slate-900">Xác nhận xóa Banner</h3>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Bạn có chắc chắn muốn xóa banner <strong className="text-slate-800">{deleteTarget.title}</strong> khỏi hệ thống không?
             </p>
-
-            <div className="mt-6 flex items-center justify-center gap-2.5">
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => setDeleteConfirmItem(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+                onClick={() => setDeleteTarget(null)}
+                className="px-4 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 cursor-pointer"
               >
                 Hủy bỏ
               </button>
               <button
                 type="button"
-                onClick={handleDeleteConfirm}
-                className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+                disabled={isDeleting}
+                onClick={() => void handleDeleteConfirm()}
+                className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer disabled:opacity-60"
               >
-                Xóa vĩnh viễn
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reset to Default Confirm Modal */}
-      {showResetConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-3">
-              <RotateCcw className="w-6 h-6" />
-            </div>
-            <h3 className="text-base font-bold text-slate-900">Khôi phục về Banner mẫu?</h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Toàn bộ danh sách banner hiện tại sẽ được thay thế bằng 4 banner chất lượng cao tiêu chuẩn của hệ thống (MacBook, ROG Strix, Tech Future, Ecosystem).
-            </p>
-
-            <div className="mt-6 flex items-center justify-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => setShowResetConfirm(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
-              >
-                Hủy bỏ
-              </button>
-              <button
-                type="button"
-                onClick={handleResetConfirm}
-                className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors cursor-pointer"
-              >
-                Xác nhận khôi phục
+                {isDeleting ? 'Đang xóa...' : 'Xác nhận xóa'}
               </button>
             </div>
           </div>

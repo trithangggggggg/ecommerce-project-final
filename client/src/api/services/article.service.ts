@@ -28,6 +28,18 @@ export const articleService = {
     return response.data?.data || (response.data as unknown as Article);
   },
 
+  async getPublicCategories(): Promise<string[]> {
+    const response = await axiosClient.get<ApiResponse<string[]>>(ENDPOINTS.ARTICLE_CATEGORIES);
+    const data = response.data?.data || response.data;
+    return Array.isArray(data) ? data : [];
+  },
+
+  async getAdminCategories(): Promise<string[]> {
+    const response = await axiosClient.get<ApiResponse<string[]>>(ENDPOINTS.ADMIN_ARTICLES.CATEGORIES);
+    const data = response.data?.data || response.data;
+    return Array.isArray(data) ? data : [];
+  },
+
   /**
    * Lấy danh sách bài viết dành cho Admin (gồm cả bài ẩn/nháp)
    * GET /api/admin/articles
@@ -72,6 +84,14 @@ export const articleService = {
     const response = await axiosClient.put<ApiResponse<Article>>(
       ENDPOINTS.ADMIN_ARTICLES.UPDATE(id),
       payload
+    );
+    return response.data?.data || (response.data as unknown as Article);
+  },
+
+  async toggleArticleStatus(id: number, status?: boolean): Promise<Article> {
+    const response = await axiosClient.patch<ApiResponse<Article>>(
+      ENDPOINTS.ADMIN_ARTICLES.STATUS(id),
+      status !== undefined ? { status } : undefined
     );
     return response.data?.data || (response.data as unknown as Article);
   },

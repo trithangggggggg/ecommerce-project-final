@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -66,12 +67,24 @@ public class ArticleServiceImpl implements ArticleService {
             throw new ResourceNotFoundException("Bài viết hiện đang ở chế độ nháp hoặc tạm ẩn");
         }
 
-        // Tự động tăng lượt xem (views)
-        long currentViews = article.getViews() != null ? article.getViews() : 0L;
-        article.setViews(currentViews + 1);
-        Article saved = articleRepository.save(article);
+        // Tăng lượt xem bằng UPDATE query để không ghi đè updatedAt
+        long nextViews = (article.getViews() != null ? article.getViews() : 0L) + 1L;
+        articleRepository.incrementViews(article.getId());
+        article.setViews(nextViews);
 
-        return articleMapper.toResponse(saved);
+        return articleMapper.toResponse(article);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<String> getPublicCategories() {
+        return articleRepository.findDistinctPublicCategories();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<String> getAllCategories() {
+        return articleRepository.findDistinctAllCategories();
     }
 
     @Override
@@ -126,6 +139,18 @@ public class ArticleServiceImpl implements ArticleService {
         articleMapper.updateEntity(existing, request, newSlug);
         Article saved = articleRepository.save(existing);
         log.info(">>> Cập nhật bài viết thành công: ID={}, Slug='{}'", saved.getId(), saved.getSlug());
+        return articleMapper.toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public ArticleResponse toggleArticleStatus(Long id, Boolean status) {
+        Article existing = articleRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bài viết với ID: " + id));
+        boolean nextStatus = status != null ? status : !Boolean.TRUE.equals(existing.getStatus());
+        existing.setStatus(nextStatus);
+        Article saved = articleRepository.save(existing);
+        log.info(">>> Đổi trạng thái bài viết ID={} sang {}", id, nextStatus ? "PUBLISHED" : "DRAFT");
         return articleMapper.toResponse(saved);
     }
 

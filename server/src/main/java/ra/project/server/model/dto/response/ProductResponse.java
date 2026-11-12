@@ -29,6 +29,7 @@ public class ProductResponse {
     private Integer stock;
     private String imageUrl;
     private String status;
+    private Boolean isDeleted;
     private Long categoryId;
     private String categoryName;
     private LocalDateTime createdAt;

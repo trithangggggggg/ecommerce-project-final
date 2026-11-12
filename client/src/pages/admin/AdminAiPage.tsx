@@ -1,31 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  Brain,
-  FileText,
-  Upload,
-  RefreshCw,
-  Search,
-  CheckCircle2,
-  AlertTriangle,
-  Trash2,
-  Eye,
-  Sliders,
-  Cpu,
-  Shield,
-  Layers,
-  Sparkles,
-  Zap,
-  Bot,
-  Settings2,
-  FileUp,
-  FileCheck,
-  Plus,
-  X,
-  HardDrive,
-  Activity,
-} from 'lucide-react';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
+import AdminPagination from '../../components/admin/AdminPagination';
 import {
   aiService,
   type KnowledgeDocumentItem,
@@ -34,6 +10,8 @@ import {
   type AiConfigData,
   type AiConnectionTestResult,
 } from '../../api/services/ai.service';
+
+const ITEMS_PER_PAGE = 10;
 
 export const AdminAiPage: React.FC = () => {
   // Navigation tabs
@@ -46,11 +24,20 @@ export const AdminAiPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFileType, setSelectedFileType] = useState('ALL');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Chunk Modal state
   const [viewingDoc, setViewingDoc] = useState<KnowledgeDocumentItem | null>(null);
   const [chunks, setChunks] = useState<KnowledgeChunkItem[]>([]);
   const [loadingChunks, setLoadingChunks] = useState(false);
+
+  // Edit Manual Knowledge modal state
+  const [editingDoc, setEditingDoc] = useState<KnowledgeDocumentItem | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editCategory, setEditCategory] = useState('FAQ');
+  const [editContent, setEditContent] = useState('');
+  const [loadingEditContent, setLoadingEditContent] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // Delete modal state
   const [deletingDoc, setDeletingDoc] = useState<KnowledgeDocumentItem | null>(null);
@@ -92,8 +79,9 @@ export const AdminAiPage: React.FC = () => {
       setDocuments(docs);
       setStats(st);
       setAiConfig(cfg);
-    } catch {
-      // Handled by service fallbacks
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Không thể tải dữ liệu Tri thức & Cấu hình AI';
+      showToast(msg);
     } finally {
       setLoading(false);
     }
@@ -117,6 +105,58 @@ export const AdminAiPage: React.FC = () => {
     }
     return true;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredDocs.length / ITEMS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedDocs = filteredDocs.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
+
+  const handleOpenEditManual = async (doc: KnowledgeDocumentItem) => {
+    setEditingDoc(doc);
+    setEditTitle(doc.fileName.replace(/\.txt$/i, '').replace(/_/g, ' '));
+    setEditCategory(doc.category || 'FAQ');
+    setEditContent(doc.rawContent || '');
+
+    if (!doc.rawContent) {
+      setLoadingEditContent(true);
+      try {
+        const docChunks = await aiService.getKnowledgeChunks(doc.id);
+        setEditContent(docChunks.map((c) => c.content).join('\n\n'));
+      } catch {
+        setEditContent('');
+        showToast('Không thể tải nội dung chi tiết từ các đoạn tri thức.');
+      } finally {
+        setLoadingEditContent(false);
+      }
+    }
+  };
+
+  const handleEditManualSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDoc) return;
+    if (!editTitle.trim() || !editContent.trim()) {
+      showToast('Vui lòng nhập đầy đủ tiêu đề và nội dung tri thức!');
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      const updated = await aiService.updateManualKnowledge(editingDoc.id, {
+        title: editTitle.trim(),
+        content: editContent.trim(),
+        category: editCategory,
+      });
+      setDocuments((prev) => prev.map((d) => (d.id === editingDoc.id ? updated : d)));
+      setEditingDoc(null);
+      showToast(`Đã cập nhật và tái lập chỉ mục mục tri thức "${updated.fileName}"`);
+      const st = await aiService.getKnowledgeStats();
+      setStats(st);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lỗi khi cập nhật mục tri thức';
+      showToast(`Cập nhật thất bại: ${msg}`);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   // Handle Upload
   const handleUploadSubmit = async (e: React.FormEvent) => {
@@ -277,6 +317,9 @@ export const AdminAiPage: React.FC = () => {
     if (t === 'DOCX' || t === 'DOC') {
       return <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">DOCX</span>;
     }
+    if (t === 'MANUAL') {
+      return <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">MANUAL</span>;
+    }
     return <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200">TXT</span>;
   };
 
@@ -288,11 +331,11 @@ export const AdminAiPage: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col min-h-0 space-y-4 font-sans select-none overflow-y-auto pr-1">
+    <div className="h-full flex flex-col min-h-0 space-y-3 font-sans overflow-hidden">
       {/* Toast Alert Notification */}
       {toastMessage && (
-        <div className="fixed top-6 right-6 z-50 p-3.5 rounded-xl border border-blue-200 bg-white shadow-xl text-blue-900 text-xs font-semibold flex items-center gap-2.5 animate-in fade-in slide-in-from-top-4">
-          <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
+        <div className="fixed top-6 right-6 z-50 p-3.5 rounded-xl border border-blue-200 bg-white shadow-xl text-blue-900 text-xs font-semibold flex items-center gap-2.5">
+          <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
@@ -300,12 +343,11 @@ export const AdminAiPage: React.FC = () => {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
               Quản lý Tri thức & Cấu hình AI
             </h1>
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs">
-              <Sparkles className="w-3 h-3" />
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-600 text-white shadow-2xs">
               NEXOR RAG
             </span>
           </div>
@@ -314,202 +356,187 @@ export const AdminAiPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <Button
+            type="button"
             variant="outline"
             size="sm"
+            disabled={loading}
             onClick={fetchData}
-            leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />}
           >
-            Làm mới
+            {loading ? 'Đang tải...' : 'Làm mới'}
           </Button>
           <Button
+            type="button"
             size="sm"
             onClick={() => setActiveTab('upload')}
-            leftIcon={<Upload className="w-3.5 h-3.5" />}
           >
             Tải lên tài liệu
           </Button>
         </div>
       </div>
 
-      {/* Top 4 Stats Cards (Tương tự ảnh Customer Dashboard mẫu) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 shrink-0">
+      {/* Top 4 Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
         {/* Card 1: Tổng số tài liệu */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tổng tài liệu</span>
-            <div className="text-2xl font-black text-slate-900 mt-0.5">{stats?.totalFiles ?? documents.length}</div>
-            <div className="flex items-center gap-1.5 mt-2">
-              <span className="text-[10px] font-semibold text-slate-500">Định dạng:</span>
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700">
-                PDF {stats?.fileTypeDistribution?.['PDF'] ?? 1}
-              </span>
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700">
-                DOCX {stats?.fileTypeDistribution?.['DOCX'] ?? 1}
-              </span>
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
-                TXT {stats?.fileTypeDistribution?.['TXT'] ?? 2}
-              </span>
-            </div>
-          </div>
-          <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-            <FileText className="w-5 h-5" />
+        <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-2xs">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tổng tài liệu</span>
+          <div className="text-2xl font-bold text-slate-900 mt-0.5">{stats?.totalFiles ?? documents.length}</div>
+          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            <span className="text-[10px] font-semibold text-slate-500">Định dạng:</span>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700">
+              PDF {stats?.fileTypeDistribution?.['PDF'] ?? 1}
+            </span>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700">
+              DOCX {stats?.fileTypeDistribution?.['DOCX'] ?? 1}
+            </span>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+              TXT {stats?.fileTypeDistribution?.['TXT'] ?? 2}
+            </span>
           </div>
         </div>
 
         {/* Card 2: Tổng dung lượng tri thức */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Dung lượng tri thức</span>
-            <div className="text-2xl font-black text-slate-900 mt-0.5">
-              {stats?.formattedTotalSize || formatFileSize(stats?.totalSize || 45620)}
-            </div>
-            <div className="text-[11px] text-slate-500 mt-2 flex items-center gap-1">
-              <HardDrive className="w-3.5 h-3.5 text-slate-400" />
-              <span>Được lưu & mã hóa an toàn</span>
-            </div>
+        <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-2xs">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Dung lượng tri thức</span>
+          <div className="text-2xl font-bold text-slate-900 mt-0.5">
+            {stats?.formattedTotalSize || formatFileSize(stats?.totalSize || 45620)}
           </div>
-          <div className="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-            <HardDrive className="w-5 h-5" />
+          <div className="text-[11px] text-slate-500 mt-2">
+            Được lưu & mã hóa an toàn
           </div>
         </div>
 
         {/* Card 3: Tổng số Chunks (Đoạn phân rã RAG) */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Số đoạn tri thức (Chunks)</span>
-            <div className="text-2xl font-black text-slate-900 mt-0.5">
-              {stats?.totalChunks ?? documents.reduce((acc, d) => acc + (d.chunkCount || 0), 0)}
-            </div>
-            <div className="text-[11px] text-emerald-600 font-semibold mt-2 flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>100% Đã lập chỉ mục tìm kiếm</span>
-            </div>
+        <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-2xs">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Số đoạn tri thức (Chunks)</span>
+          <div className="text-2xl font-bold text-slate-900 mt-0.5">
+            {stats?.totalChunks ?? documents.reduce((acc, d) => acc + (d.chunkCount || 0), 0)}
           </div>
-          <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-            <Layers className="w-5 h-5" />
+          <div className="text-[11px] text-emerald-600 font-semibold mt-2">
+            100% Đã lập chỉ mục tìm kiếm
           </div>
         </div>
 
         {/* Card 4: AI Model & Engine Status */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Mô hình AI Active</span>
-            <div className="text-base font-extrabold text-slate-900 mt-0.5 truncate max-w-[170px]">
-              {aiConfig?.modelName || 'gemini-1.5-flash'}
-            </div>
-            <div className="text-[11px] text-blue-600 font-bold mt-2 flex items-center gap-1">
-              <Activity className="w-3.5 h-3.5 animate-pulse text-emerald-500" />
-              <span>Độ trễ: ~2-3 giây (Cam kết)</span>
-            </div>
+        <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-2xs">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Mô hình AI Active</span>
+          <div className="text-base font-bold text-slate-900 mt-1 truncate">
+            {aiConfig?.modelName || 'gemini-1.5-flash'}
           </div>
-          <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-            <Bot className="w-5 h-5" />
+          <div className="text-[11px] text-blue-600 font-semibold mt-2">
+            Độ trễ: ~2-3 giây (Cam kết)
           </div>
         </div>
       </div>
 
       {/* Tabs Header Navigation */}
-      <div className="flex border-b border-slate-200/80 bg-white px-3 pt-2 rounded-xl shrink-0">
+      <div className="flex flex-wrap items-center gap-1.5 bg-white p-1.5 rounded-xl border border-slate-200/80 shadow-2xs w-fit shrink-0">
         <button
           type="button"
           onClick={() => setActiveTab('files')}
-          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
             activeTab === 'files'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'bg-blue-600 text-white shadow-2xs font-bold'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
           }`}
         >
-          <FileText className="w-4 h-4" />
-          <span>Danh sách tài liệu ({filteredDocs.length})</span>
+          Danh sách tài liệu ({filteredDocs.length})
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('upload')}
-          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
             activeTab === 'upload'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'bg-blue-600 text-white shadow-2xs font-bold'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
           }`}
         >
-          <Upload className="w-4 h-4" />
-          <span>Tải tệp & Nhập thủ công</span>
+          Tải tệp & Nhập thủ công
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('config')}
-          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
             activeTab === 'config'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'bg-blue-600 text-white shadow-2xs font-bold'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
           }`}
         >
-          <Sliders className="w-4 h-4" />
-          <span>Trí thông minh & Giới hạn AI</span>
+          Trí thông minh & Giới hạn AI
         </button>
       </div>
 
       {/* TAB 1: DANH SÁCH TÀI LIỆU (KNOWLEDGE BASE FILES TABLE) */}
       {activeTab === 'files' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs space-y-4">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs flex-1 min-h-0 flex flex-col overflow-hidden">
           {/* Filter Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="p-3.5 border-b border-slate-100 bg-slate-50/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
             <div className="flex flex-wrap items-center gap-2 flex-1 max-w-2xl">
               {/* Search input */}
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <div className="flex-1 min-w-[200px]">
                 <input
                   type="text"
                   placeholder="Tìm kiếm tài liệu tri thức..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full px-3.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
                 />
               </div>
 
               {/* Type filter */}
               <select
                 value={selectedFileType}
-                onChange={(e) => setSelectedFileType(e.target.value)}
-                className="px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => {
+                  setSelectedFileType(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="ALL">Mọi loại tệp</option>
                 <option value="PDF">Tệp PDF</option>
                 <option value="DOCX">Tệp Word (DOCX)</option>
                 <option value="TXT">Tệp Văn bản (TXT)</option>
+                <option value="MANUAL">Nhập thủ công (MANUAL)</option>
               </select>
 
               {/* Category filter */}
               <select
                 value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => {
+                  setSelectedCategory(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="ALL">Mọi danh mục</option>
                 <option value="STORE_POLICY">Chính sách cửa hàng</option>
                 <option value="USER_GUIDE">Hướng dẫn mua sắm</option>
                 <option value="PRODUCT_INFO">Thông tin sản phẩm</option>
                 <option value="FAQ">Câu hỏi thường gặp</option>
+                <option value="GENERAL">Kiến thức chung</option>
               </select>
             </div>
 
             <Button
+              type="button"
               size="sm"
               variant="outline"
               onClick={() => setActiveTab('upload')}
-              leftIcon={<Plus className="w-3.5 h-3.5" />}
             >
               Thêm tài liệu mới
             </Button>
           </div>
 
           {/* Table Container */}
-          <div className="overflow-x-auto border border-slate-200/80 rounded-xl">
+          <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-left text-xs text-slate-700">
-              <thead className="bg-slate-50/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+              <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                 <tr>
                   <th className="py-3 px-4">Tên tài liệu</th>
                   <th className="py-3 px-3">Loại</th>
@@ -522,27 +549,31 @@ export const AdminAiPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredDocs.length === 0 ? (
+                {loading && documents.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-10 text-center text-slate-400">
-                      Không tìm thấy tài liệu tri thức nào phù hợp.
+                    <td colSpan={8} className="py-12 px-4 text-center text-slate-500 font-medium">
+                      Đang tải danh sách tài liệu tri thức...
+                    </td>
+                  </tr>
+                ) : filteredDocs.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-12 px-4 text-center">
+                      <p className="text-sm font-semibold text-slate-700">
+                        Không tìm thấy tài liệu tri thức nào
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Thử thay đổi từ khóa hoặc bộ lọc loại tệp, danh mục.
+                      </p>
                     </td>
                   </tr>
                 ) : (
-                  filteredDocs.map((doc) => (
+                  paginatedDocs.map((doc) => (
                     <tr key={doc.id} className="hover:bg-slate-50/60 transition-colors">
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-2.5">
-                          <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 shrink-0">
-                            <FileText className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <div className="font-semibold text-slate-900 hover:text-blue-600 transition-colors cursor-pointer" onClick={() => handleViewChunks(doc)}>
-                              {doc.fileName}
-                            </div>
-                            <span className="text-[10px] text-slate-400">ID #{doc.id}</span>
-                          </div>
+                        <div className="font-semibold text-slate-900 hover:text-blue-600 transition-colors cursor-pointer" onClick={() => handleViewChunks(doc)}>
+                          {doc.fileName}
                         </div>
+                        <span className="text-[10px] text-slate-400">ID #{doc.id}</span>
                       </td>
                       <td className="py-3 px-3">{getFileTypeBadge(doc.fileType)}</td>
                       <td className="py-3 px-3">{getCategoryBadge(doc.category)}</td>
@@ -550,45 +581,54 @@ export const AdminAiPage: React.FC = () => {
                         {formatFileSize(doc.fileSize)}
                       </td>
                       <td className="py-3 px-3">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700">
                           {doc.chunkCount || 1} chunks
                         </span>
                       </td>
                       <td className="py-3 px-3">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          INDEXED
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          {doc.status || 'INDEXED'}
                         </span>
                       </td>
                       <td className="py-3 px-3 text-slate-500 text-[11px]">
                         {new Date(doc.updatedAt || doc.createdAt).toLocaleDateString('vi-VN')}
                       </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
                           <button
                             type="button"
                             onClick={() => handleViewChunks(doc)}
                             title="Xem chi tiết các đoạn Chunks"
-                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                            className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors cursor-pointer"
                           >
-                            <Eye className="w-4 h-4" />
+                            Xem
                           </button>
+                          {(doc.fileType || '').toUpperCase() === 'MANUAL' && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditManual(doc)}
+                              title="Chỉnh sửa nội dung tri thức thủ công"
+                              className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer"
+                            >
+                              Sửa
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleReindex(doc)}
                             disabled={reindexingId === doc.id}
                             title="Lập chỉ mục lại tài liệu"
-                            className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                            className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer disabled:opacity-60"
                           >
-                            <RefreshCw className={`w-4 h-4 ${reindexingId === doc.id ? 'animate-spin text-emerald-600' : ''}`} />
+                            {reindexingId === doc.id ? 'Đang xử lý...' : 'Lập chỉ mục'}
                           </button>
                           <button
                             type="button"
                             onClick={() => setDeletingDoc(doc)}
                             title="Xóa tài liệu và tri thức vector"
-                            className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            Xóa
                           </button>
                         </div>
                       </td>
@@ -598,25 +638,31 @@ export const AdminAiPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          <div className="shrink-0 bg-white">
+            <AdminPagination
+              currentPage={safePage}
+              totalPages={totalPages}
+              totalItems={filteredDocs.length}
+              itemsPerPage={ITEMS_PER_PAGE}
+              onPageChange={setCurrentPage}
+            />
+          </div>
         </div>
       )}
 
       {/* TAB 2: NẠP TÀI LIỆU MỚI (UPLOAD FILE & MANUAL ENTRY) */}
       {activeTab === 'upload' && (
+        <div className="flex-1 min-h-0 overflow-y-auto pr-0.5">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Card Upload Tệp (PDF, DOCX, TXT) */}
           <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs flex flex-col justify-between">
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
-                  <FileUp className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900">Tải lên tệp tài liệu (PDF, DOCX, TXT)</h2>
-                  <p className="text-[11px] text-slate-500">
-                    Hệ thống sẽ tự động trích xuất nội dung và chia nhỏ thành các đoạn Chunks cho AI
-                  </p>
-                </div>
+              <div className="mb-3">
+                <h2 className="text-sm font-bold text-slate-900">Tải lên tệp tài liệu (PDF, DOCX, TXT)</h2>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Hệ thống sẽ tự động trích xuất nội dung và chia nhỏ thành các đoạn Chunks cho AI
+                </p>
               </div>
 
               <form onSubmit={handleUploadSubmit} className="space-y-4 mt-4">
@@ -636,7 +682,6 @@ export const AdminAiPage: React.FC = () => {
                       }
                     }}
                   />
-                  <Upload className="w-8 h-8 text-blue-600 mx-auto mb-2" />
                   {uploadFile ? (
                     <div>
                       <div className="text-xs font-bold text-slate-900">{uploadFile.name}</div>
@@ -663,7 +708,7 @@ export const AdminAiPage: React.FC = () => {
                   <select
                     value={uploadCategory}
                     onChange={(e) => setUploadCategory(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="STORE_POLICY">Chính sách cửa hàng (Bảo hành, Đổi trả, Freeship)</option>
                     <option value="USER_GUIDE">Hướng dẫn sử dụng & Mua sắm</option>
@@ -677,7 +722,6 @@ export const AdminAiPage: React.FC = () => {
                   type="submit"
                   disabled={uploading || !uploadFile}
                   className="w-full"
-                  leftIcon={uploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                 >
                   {uploading ? 'Đang nạp & phân đoạn tri thức...' : 'Tải lên & Tự động chia Chunks'}
                 </Button>
@@ -685,23 +729,18 @@ export const AdminAiPage: React.FC = () => {
             </div>
 
             <div className="p-3 bg-slate-50 rounded-xl text-[11px] text-slate-500 mt-4 border border-slate-100">
-              💡 <strong>Lưu ý:</strong> Nội dung sau khi tải lên sẽ được chia thành các đoạn nhỏ (mỗi đoạn ~400-500 từ). Khi khách hàng hỏi, hệ thống sẽ truy xuất các đoạn khớp nhất để nạp vào prompt cho LLM.
+              <strong>Lưu ý:</strong> Nội dung sau khi tải lên sẽ được chia thành các đoạn nhỏ (mỗi đoạn ~400-500 từ). Khi khách hàng hỏi, hệ thống sẽ truy xuất các đoạn khớp nhất để nạp vào prompt cho LLM.
             </div>
           </div>
 
           {/* Card Nhập Thủ Công (Manual Entries) */}
           <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs flex flex-col justify-between">
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
-                  <FileCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900">Nhập tri thức thủ công (Manual Entry)</h2>
-                  <p className="text-[11px] text-slate-500">
-                    Thêm trực tiếp câu hỏi thường gặp, quy định đặc thù hoặc chương trình khuyến mãi riêng
-                  </p>
-                </div>
+              <div className="mb-3">
+                <h2 className="text-sm font-bold text-slate-900">Nhập tri thức thủ công (Manual Entry)</h2>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Thêm trực tiếp câu hỏi thường gặp, quy định đặc thù hoặc chương trình khuyến mãi riêng
+                </p>
               </div>
 
               <form onSubmit={handleManualSubmit} className="space-y-3.5 mt-4">
@@ -720,7 +759,7 @@ export const AdminAiPage: React.FC = () => {
                   <select
                     value={manualCategory}
                     onChange={(e) => setManualCategory(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="FAQ">Câu hỏi thường gặp (FAQ)</option>
                     <option value="STORE_POLICY">Chính sách cửa hàng</option>
@@ -747,7 +786,6 @@ export const AdminAiPage: React.FC = () => {
                   type="submit"
                   disabled={savingManual || !manualTitle.trim() || !manualContent.trim()}
                   className="w-full"
-                  leftIcon={savingManual ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                 >
                   {savingManual ? 'Đang lưu vào Vector DB...' : 'Nạp trực tiếp vào hệ thống AI'}
                 </Button>
@@ -755,23 +793,19 @@ export const AdminAiPage: React.FC = () => {
             </div>
           </div>
         </div>
+        </div>
       )}
 
       {/* TAB 3: TRÍ THÔNG MINH & GIỚI HẠN CỦA AI (AI INTELLIGENCE & LIMITS) */}
       {activeTab === 'config' && aiConfig && (
-        <form onSubmit={handleSaveConfig} className="space-y-4">
+        <form onSubmit={handleSaveConfig} className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-0.5">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Box 1: Cấu hình Mô hình & Kết nối (Model & Provider) */}
             <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
-                    <Cpu className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-slate-900">Mô hình AI & Động cơ (Provider)</h2>
-                    <p className="text-[11px] text-slate-500">Lựa chọn nhà cung cấp và mô hình tư vấn chính thức</p>
-                  </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">Mô hình AI & Động cơ (Provider)</h2>
+                  <p className="text-[11px] text-slate-500">Lựa chọn nhà cung cấp và mô hình tư vấn chính thức</p>
                 </div>
                 <Button
                   type="button"
@@ -779,7 +813,6 @@ export const AdminAiPage: React.FC = () => {
                   size="sm"
                   disabled={testingAi}
                   onClick={handleTestAiPing}
-                  leftIcon={<Zap className={`w-3.5 h-3.5 text-amber-500 ${testingAi ? 'animate-bounce' : ''}`} />}
                 >
                   {testingAi ? 'Đang kiểm tra...' : 'Kiểm tra kết nối (Ping)'}
                 </Button>
@@ -795,11 +828,11 @@ export const AdminAiPage: React.FC = () => {
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    {testResult.success ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    ) : (
-                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                    )}
+                    <span
+                      className={`w-2 h-2 rounded-full shrink-0 ${
+                        testResult.success ? 'bg-emerald-600' : 'bg-rose-600'
+                      }`}
+                    />
                     <span>{testResult.message}</span>
                   </div>
                   <span className="font-mono font-bold text-[11px] shrink-0">
@@ -808,7 +841,7 @@ export const AdminAiPage: React.FC = () => {
                 </div>
               )}
 
-              <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Nhà cung cấp AI (Provider)
@@ -840,25 +873,23 @@ export const AdminAiPage: React.FC = () => {
                   </select>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      Gemini API Key (Masked)
-                    </label>
-                    <input
-                      type="text"
-                      disabled
-                      value={aiConfig.geminiApiKeyMasked || 'Chưa cấu hình'}
-                      className="w-full px-3 py-1.5 text-xs bg-slate-100 border border-slate-200 rounded-xl font-mono text-slate-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      Trạng thái Động cơ
-                    </label>
-                    <div className="px-3 py-1.5 text-xs bg-slate-100 border border-slate-200 rounded-xl font-semibold text-slate-700 truncate">
-                      {aiConfig.status || 'Active'}
-                    </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Gemini API Key (Masked)
+                  </label>
+                  <input
+                    type="text"
+                    disabled
+                    value={aiConfig.geminiApiKeyMasked || 'Chưa cấu hình'}
+                    className="w-full px-3.5 py-1.5 text-xs bg-slate-100 border border-slate-200 rounded-xl font-mono text-slate-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Trạng thái Động cơ
+                  </label>
+                  <div className="px-3.5 py-1.5 text-xs bg-slate-100 border border-slate-200 rounded-xl font-semibold text-slate-700 truncate">
+                    {aiConfig.status || 'Active'}
                   </div>
                 </div>
               </div>
@@ -866,14 +897,9 @@ export const AdminAiPage: React.FC = () => {
 
             {/* Box 2: Giới hạn an toàn & Chống Spam (Limits & Safety) */}
             <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs space-y-4">
-              <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
-                <div className="p-2 rounded-xl bg-rose-50 text-rose-600">
-                  <Shield className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900">Giới hạn an toàn & Chống Spam (Limits & Safety)</h2>
-                  <p className="text-[11px] text-slate-500">Bảo vệ máy chủ khỏi quá tải và kiểm soát độ dài hội thoại</p>
-                </div>
+              <div className="pb-3 border-b border-slate-100">
+                <h2 className="text-sm font-bold text-slate-900">Giới hạn an toàn & Chống Spam (Limits & Safety)</h2>
+                <p className="text-[11px] text-slate-500">Bảo vệ máy chủ khỏi quá tải và kiểm soát độ dài hội thoại</p>
               </div>
 
               <div className="space-y-4">
@@ -954,14 +980,9 @@ export const AdminAiPage: React.FC = () => {
 
           {/* Box 3: Độ thông minh, Nhiệt độ (Temperature) & System Prompt */}
           <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs space-y-4">
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
-              <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
-                <Brain className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-sm font-bold text-slate-900">Trí thông minh & Kịch bản tư vấn (System Prompt & Temperature)</h2>
-                <p className="text-[11px] text-slate-500">Thiết lập nhân cách, văn phong và mức độ sáng tạo của trợ lý AI</p>
-              </div>
+            <div className="pb-3 border-b border-slate-100">
+              <h2 className="text-sm font-bold text-slate-900">Trí thông minh & Kịch bản tư vấn (System Prompt & Temperature)</h2>
+              <p className="text-[11px] text-slate-500">Thiết lập nhân cách, văn phong và mức độ sáng tạo của trợ lý AI</p>
             </div>
 
             <div className="space-y-4">
@@ -1061,18 +1082,19 @@ export const AdminAiPage: React.FC = () => {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-3 pt-2">
+          <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
             <Button
               type="button"
               variant="outline"
+              size="sm"
               onClick={fetchData}
             >
               Hủy thay đổi
             </Button>
             <Button
               type="submit"
+              size="sm"
               disabled={configSaving}
-              leftIcon={configSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Settings2 className="w-4 h-4" />}
             >
               {configSaving ? 'Đang lưu cấu hình...' : 'Lưu cấu hình trí tuệ & giới hạn AI'}
             </Button>
@@ -1085,38 +1107,32 @@ export const AdminAiPage: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-200">
             {/* Modal Header */}
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
-                  <Layers className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 truncate max-w-md">
-                    Chi tiết phân đoạn (Chunks) - {viewingDoc.fileName}
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Tổng cộng: {chunks.length || viewingDoc.chunkCount} đoạn được lập chỉ mục vector
-                  </p>
-                </div>
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3 shrink-0">
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-slate-900 truncate max-w-md">
+                  Chi tiết phân đoạn (Chunks) - {viewingDoc.fileName}
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Tổng cộng: {chunks.length || viewingDoc.chunkCount} đoạn được lập chỉ mục vector
+                </p>
               </div>
               <button
                 type="button"
                 onClick={() => setViewingDoc(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 transition cursor-pointer shrink-0"
               >
-                <X className="w-5 h-5" />
+                Đóng
               </button>
             </div>
 
             {/* Modal Body */}
             <div className="p-5 overflow-y-auto space-y-3 flex-1">
               {loadingChunks ? (
-                <div className="py-12 text-center text-slate-400 flex flex-col items-center gap-2">
-                  <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
-                  <span className="text-xs">Đang tải các đoạn chunks...</span>
+                <div className="py-12 px-4 text-center text-slate-500">
+                  <span className="text-xs font-medium">Đang tải các đoạn chunks...</span>
                 </div>
               ) : chunks.length === 0 ? (
-                <div className="py-8 text-center text-slate-400 text-xs">
+                <div className="py-12 px-4 text-center text-slate-400 text-xs">
                   Chưa có đoạn tri thức nào cho tài liệu này.
                 </div>
               ) : (
@@ -1144,20 +1160,97 @@ export const AdminAiPage: React.FC = () => {
         </div>
       )}
 
+      {/* EDIT MANUAL KNOWLEDGE MODAL */}
+      {editingDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3 shrink-0">
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-slate-900 truncate">
+                  Chỉnh sửa mục tri thức thủ công
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  ID #{editingDoc.id} · Cập nhật nội dung và tự động tái phân đoạn RAG
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingDoc(null)}
+                className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 transition cursor-pointer shrink-0"
+              >
+                Đóng
+              </button>
+            </div>
+
+            <form onSubmit={handleEditManualSubmit} className="flex-1 min-h-0 flex flex-col text-xs">
+              <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
+                <Input
+                  label="Tiêu đề mục tri thức *"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  required
+                />
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Danh mục tri thức
+                  </label>
+                  <select
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value)}
+                    className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="STORE_POLICY">Chính sách cửa hàng</option>
+                    <option value="USER_GUIDE">Hướng dẫn sử dụng & Mua sắm</option>
+                    <option value="PRODUCT_INFO">Thông tin sản phẩm & Bảng giá</option>
+                    <option value="FAQ">Câu hỏi thường gặp & Trả góp 0%</option>
+                    <option value="GENERAL">Kiến thức chung khác</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Nội dung tri thức *
+                  </label>
+                  {loadingEditContent ? (
+                    <div className="p-6 text-center text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
+                      Đang nạp nội dung hiện tại...
+                    </div>
+                  ) : (
+                    <textarea
+                      rows={8}
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      required
+                      placeholder="Nhập nội dung kiến thức chi tiết để AI ghi nhớ..."
+                      className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white leading-relaxed"
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2 shrink-0">
+                <Button type="button" variant="outline" size="sm" onClick={() => setEditingDoc(null)}>
+                  Hủy
+                </Button>
+                <Button type="submit" size="sm" disabled={savingEdit || loadingEditContent}>
+                  {savingEdit ? 'Đang lưu...' : 'Lưu & Tái lập chỉ mục'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* DELETE CONFIRMATION MODAL */}
       {deletingDoc && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-rose-50 text-rose-600 shrink-0">
-                <AlertTriangle className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">Xác nhận xóa tài liệu</h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Bạn có chắc chắn muốn xóa tài liệu <strong>{deletingDoc.fileName}</strong>? Toàn bộ dữ liệu vector và các đoạn chunks liên quan sẽ bị xóa vĩnh viễn khỏi hệ thống AI.
-                </p>
-              </div>
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="space-y-1.5">
+              <h3 className="text-base font-bold text-slate-900">Xác nhận xóa tài liệu</h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Bạn có chắc chắn muốn xóa tài liệu <strong>{deletingDoc.fileName}</strong>? Toàn bộ dữ liệu vector và các đoạn chunks liên quan sẽ bị xóa vĩnh viễn khỏi hệ thống AI.
+              </p>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">

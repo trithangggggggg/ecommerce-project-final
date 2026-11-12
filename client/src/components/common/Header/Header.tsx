@@ -26,10 +26,27 @@ import {
 } from 'lucide-react';
 import { useCartStore } from '../../../store/useCartStore';
 import { useAuthStore } from '../../../store/useAuthStore';
+import { useWishlistStore } from '../../../store/useWishlistStore';
+import { useSiteConfigStore } from '../../../store/useSiteConfigStore';
+import { categoryApiService } from '../../../api/services/category.service';
+import type { Category } from '../../../models/product.model';
 import { ROUTES } from '../../../constants/routes';
 import { PetMascot } from '../Mascot/PetMascot';
 import { LogoutConfirmModal } from '../LogoutConfirmModal';
 import { VisualSearchModal } from '../VisualSearchModal';
+
+function getCategoryIcon(slug = '', name = '') {
+  const s = `${slug} ${name}`.toLowerCase();
+  if (s.includes('laptop') || s.includes('macbook')) return Laptop;
+  if (s.includes('dien-thoai') || s.includes('phone') || s.includes('iphone')) return Smartphone;
+  if (s.includes('may-tinh-bang') || s.includes('tablet') || s.includes('ipad')) return Tablet;
+  if (s.includes('tai-nghe') || s.includes('am-thanh') || s.includes('loa')) return Headphones;
+  if (s.includes('dong-ho') || s.includes('watch')) return Watch;
+  if (s.includes('gaming') || s.includes('game')) return Gamepad2;
+  if (s.includes('man-hinh') || s.includes('thiet-bi') || s.includes('pc')) return Monitor;
+  if (s.includes('khuyen-mai') || s.includes('deal') || s.includes('flash')) return Flame;
+  return Package;
+}
 
 export const Header: React.FC = () => {
   const navigate = useNavigate();
@@ -37,9 +54,22 @@ export const Header: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { totalItems } = useCartStore();
   const { user, isAuthenticated, logout } = useAuthStore();
+  const wishlistCount = useWishlistStore((s) => s.productIds.length);
+  const fetchWishlistIds = useWishlistStore((s) => s.fetchWishlistIds);
+  const clearWishlist = useWishlistStore((s) => s.clear);
+  const { config } = useSiteConfigStore();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchWishlistIds();
+    } else {
+      clearWishlist();
+    }
+  }, [isAuthenticated, fetchWishlistIds, clearWishlist]);
 
   const [keyword, setKeyword] = useState('');
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
+  const [dynamicCategories, setDynamicCategories] = useState<Category[]>([]);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -50,6 +80,21 @@ export const Header: React.FC = () => {
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const userAvatar = user?.avatarUrl || (user as any)?.avatar;
+
+  useEffect(() => {
+    categoryApiService
+      .getPublicCategories()
+      .then((cats) => {
+        if (Array.isArray(cats)) {
+          setDynamicCategories(
+            cats.sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
+          );
+        }
+      })
+      .catch(() => {
+        setDynamicCategories([]);
+      });
+  }, []);
 
   useEffect(() => {
     setAvatarError(false);
@@ -99,76 +144,13 @@ export const Header: React.FC = () => {
     }
   };
 
-const navItems = [
+  const navItems = [
     { name: 'Trang chủ', path: ROUTES.HOME, isHome: true },
     { name: 'Tất cả sản phẩm', path: ROUTES.PRODUCTS },
     { name: 'Hot Deals', path: '/products?category=khuyen-mai', isHot: true },
     { name: 'Tin tức công nghệ', path: ROUTES.ARTICLES },
     { name: 'Chính sách & Bảo hành', path: ROUTES.POLICIES },
     { name: 'Hệ thống Showroom', path: ROUTES.STORES },
-  ];
-
-  const dropdownCategories = [
-    {
-      name: 'Laptop & Máy tính xách tay',
-      slug: 'laptop',
-      icon: Laptop,
-      desc: 'Gaming, Văn phòng, Đồ họa',
-      badge: 'Hot',
-      badgeColor: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
-    },
-    {
-      name: 'Điện thoại di động',
-      slug: 'dien-thoai',
-      icon: Smartphone,
-      desc: 'iPhone, Samsung, Xiaomi...',
-      badge: 'Bán chạy',
-      badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
-    },
-    {
-      name: 'Máy tính bảng (Tablet)',
-      slug: 'may-tinh-bang',
-      icon: Tablet,
-      desc: 'iPad, Galaxy Tab, màn hình lớn',
-    },
-    {
-      name: 'Tai nghe & Âm thanh',
-      slug: 'tai-nghe',
-      icon: Headphones,
-      desc: 'True Wireless, loa Bluetooth',
-    },
-    {
-      name: 'Đồng hồ thông minh',
-      slug: 'dong-ho-thong-minh',
-      icon: Watch,
-      desc: 'Theo dõi sức khỏe, thể thao',
-    },
-    {
-      name: 'Phụ kiện công nghệ',
-      slug: 'phu-kien',
-      icon: Package,
-      desc: 'Củ sạc, cáp, sạc dự phòng, chuột',
-    },
-    {
-      name: 'Thiết bị điện tử & Màn hình',
-      slug: 'thiet-bi-dien-tu',
-      icon: Monitor,
-      desc: 'Màn hình máy tính, Smart Home',
-    },
-    {
-      name: 'Gaming & Phụ kiện chơi game',
-      slug: 'gaming',
-      icon: Gamepad2,
-      desc: 'Bàn phím cơ, tay cầm, chuột gaming',
-    },
-    {
-      name: 'Khuyến mãi & Flash Sale',
-      slug: 'khuyen-mai',
-      icon: Flame,
-      desc: 'Ưu đãi sốc, Flash Sale',
-      badge: 'Giảm đến 50%',
-      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-    },
   ];
 
   const isNavItemActive = (item: (typeof navItems)[0]) => {
@@ -200,6 +182,11 @@ const navItems = [
 
   return (
     <header className="bg-[#181a20] text-white sticky top-0 z-50 shadow-sm font-sans">
+      {config.general.promoTickerText && (
+        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white text-[11px] font-semibold py-1.5 px-4 text-center">
+          {config.general.promoTickerText}
+        </div>
+      )}
       {/* 1. Main Top Header */}
       <div className="max-w-[1360px] mx-auto px-4 py-3 flex items-center justify-between gap-4 relative z-40">
         {/* Left: Brand Logo (NEXOR Emblem) */}
@@ -207,16 +194,16 @@ const navItems = [
           <div className="w-10 h-10 flex items-center justify-center shrink-0">
             <img
               src="/images/nexor_logo.png"
-              alt="NEXOR Logo"
+              alt={`${config.store.shortName || 'NEXOR'} Logo`}
               className="w-10 h-10 object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-200"
             />
           </div>
           <div className="flex flex-col">
             <span className="text-xl font-black tracking-tight text-white leading-none">
-              NEXOR<span className="text-indigo-400">.</span>
+              {config.store.shortName || 'NEXOR'}<span className="text-indigo-400">.</span>
             </span>
-            <span className="text-[10px] text-gray-400 tracking-wider font-normal mt-0.5">
-              Tech for a better life
+            <span className="text-[10px] text-gray-400 tracking-wider font-normal mt-0.5 line-clamp-1 max-w-[170px]">
+              {config.store.tagline || 'Tech for a better life'}
             </span>
           </div>
         </Link>
@@ -409,11 +396,16 @@ const navItems = [
 
           {/* Wishlist */}
           <Link
-            to="/products"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-gray-300 hover:text-white hover:bg-gray-800 transition cursor-pointer"
+            to={isAuthenticated ? `${ROUTES.PROFILE}?tab=wishlist` : `${ROUTES.LOGIN}?redirect=${encodeURIComponent(`${ROUTES.PROFILE}?tab=wishlist`)}`}
+            className="relative w-8 h-8 rounded-full flex items-center justify-center text-gray-300 hover:text-white hover:bg-gray-800 transition cursor-pointer"
             title="Sản phẩm yêu thích"
           >
             <Heart className="w-4.5 h-4.5" />
+            {isAuthenticated && wishlistCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border-2 border-[#181a20]">
+                {wishlistCount > 99 ? '99+' : wishlistCount}
+              </span>
+            )}
           </Link>
 
           {/* Shopping Cart */}
@@ -478,60 +470,62 @@ const navItems = [
                   </div>
 
                   <div className="py-1 max-h-[420px] overflow-y-auto no-scrollbar">
-                    {dropdownCategories.map((cat) => {
-                      const IconComponent = cat.icon;
-                      const isCatActive =
-                        currentCategory === cat.slug ||
-                        currentCategory.includes(cat.slug);
+                    {dynamicCategories.length === 0 ? (
+                      <div className="px-3.5 py-4 text-center text-gray-400 text-[11px]">
+                        Chưa có danh mục hiển thị
+                      </div>
+                    ) : (
+                      dynamicCategories.map((cat) => {
+                        const IconComponent = getCategoryIcon(cat.slug, cat.name);
+                        const isCatActive =
+                          currentCategory === cat.slug ||
+                          currentCategory.includes(cat.slug);
 
-                      return (
-                        <Link
-                          key={cat.slug}
-                          to={`/products?category=${cat.slug}`}
-                          onClick={() => setCategoryMenuOpen(false)}
-                          className={`flex items-center justify-between px-3.5 py-2 hover:bg-[#242933] transition group ${
-                            isCatActive
-                              ? 'bg-blue-600/15 text-white font-semibold border-l-2 border-blue-500'
-                              : 'text-gray-300 hover:text-white'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div
-                              className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition ${
-                                isCatActive
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-[#232731] text-gray-400 group-hover:bg-[#2c323e] group-hover:text-blue-400'
-                              }`}
-                            >
-                              <IconComponent className="w-3.5 h-3.5" />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-xs truncate font-medium group-hover:text-white">
-                                {cat.name}
-                              </p>
-                              {cat.desc && (
-                                <p className="text-[10px] text-gray-400 truncate">
-                                  {cat.desc}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                            {cat.badge && (
-                              <span
-                                className={`text-[9px] px-1.5 py-0.2 rounded border font-semibold ${
-                                  cat.badgeColor || 'bg-gray-700 text-gray-300'
+                        return (
+                          <Link
+                            key={cat.id}
+                            to={`/products?category=${cat.slug}`}
+                            onClick={() => setCategoryMenuOpen(false)}
+                            className={`flex items-center justify-between px-3.5 py-2 hover:bg-[#242933] transition group ${
+                              isCatActive
+                                ? 'bg-blue-600/15 text-white font-semibold border-l-2 border-blue-500'
+                                : 'text-gray-300 hover:text-white'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div
+                                className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition ${
+                                  isCatActive
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-[#232731] text-gray-400 group-hover:bg-[#2c323e] group-hover:text-blue-400'
                                 }`}
                               >
-                                {cat.badge}
-                              </span>
-                            )}
-                            <ChevronRight className="w-3 h-3 text-gray-500 group-hover:text-gray-300 group-hover:translate-x-0.5 transition" />
-                          </div>
-                        </Link>
-                      );
-                    })}
+                                <IconComponent className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs truncate font-medium group-hover:text-white">
+                                  {cat.name}
+                                </p>
+                                {cat.description && (
+                                  <p className="text-[10px] text-gray-400 truncate">
+                                    {cat.description}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                              {cat.productCount != null && cat.productCount > 0 && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#232731] text-gray-400 font-medium tabular-nums">
+                                  {cat.productCount}
+                                </span>
+                              )}
+                              <ChevronRight className="w-3 h-3 text-gray-500 group-hover:text-gray-300 group-hover:translate-x-0.5 transition" />
+                            </div>
+                          </Link>
+                        );
+                      })
+                    )}
                   </div>
 
                   <div className="pt-1.5 border-t border-gray-800 px-2 mt-1">

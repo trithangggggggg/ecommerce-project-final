@@ -20,6 +20,7 @@ import UnauthorizedPage from '../pages/common/UnauthorizedPage';
 import StoresPage from '../pages/guest/StoresPage';
 import ArticlesPage from '../pages/guest/ArticlesPage';
 import ArticleDetailPage from '../pages/guest/ArticleDetailPage';
+import PoliciesPage from '../pages/guest/PoliciesPage';
 import PaymentResultPage from '../pages/payment/PaymentResultPage';
 import SepayQrPaymentPage from '../pages/payment/SepayQrPaymentPage';
 import NotFoundPage from '../pages/common/NotFoundPage';
@@ -30,11 +31,14 @@ const DashboardPage = React.lazy(() => import('../pages/admin/DashboardPage'));
 const AdminProductsPage = React.lazy(() => import('../pages/admin/AdminProductsPage'));
 const AdminArticlesPage = React.lazy(() => import('../pages/admin/AdminArticlesPage'));
 const AdminCategoriesPage = React.lazy(() => import('../pages/admin/AdminCategoriesPage'));
+const AdminBrandsPage = React.lazy(() => import('../pages/admin/AdminBrandsPage'));
 const AdminOrdersPage = React.lazy(() => import('../pages/admin/AdminOrdersPage'));
 const AdminCustomersPage = React.lazy(() => import('../pages/admin/AdminCustomersPage'));
 const AdminPromotionsPage = React.lazy(() => import('../pages/admin/AdminPromotionsPage'));
+const AdminFlashSalesPage = React.lazy(() => import('../pages/admin/AdminFlashSalesPage'));
 const AdminWheelPage = React.lazy(() => import('../pages/admin/AdminWheelPage'));
 const AdminBannersPage = React.lazy(() => import('../pages/admin/AdminBannersPage'));
+const AdminPoliciesPage = React.lazy(() => import('../pages/admin/AdminPoliciesPage'));
 const AdminStoresPage = React.lazy(() => import('../pages/admin/AdminStoresPage'));
 const AdminShippingPage = React.lazy(() => import('../pages/admin/AdminShippingPage'));
 const AdminInventoryPage = React.lazy(() => import('../pages/admin/AdminInventoryPage'));
@@ -64,7 +68,9 @@ function ScrollToTop() {
   const { pathname } = useLocation();
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'instant' });
+    if (!pathname.startsWith('/admin')) {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
   }, [pathname]);
 
   return null;
@@ -89,6 +95,8 @@ export const AppRoutes: React.FC = () => {
           <Route path="articles/:slug" element={<ArticleDetailPage />} />
           <Route path="tin-tuc" element={<ArticlesPage />} />
           <Route path="tin-tuc/:slug" element={<ArticleDetailPage />} />
+          <Route path="policies" element={<PoliciesPage />} />
+          <Route path="policies/:slug" element={<PoliciesPage />} />
           <Route path="cart" element={<CartPage />} />
           <Route path="payment/result" element={<PaymentResultPage />} />
           <Route path="payment/vnpay-return" element={<PaymentResultPage />} />
@@ -126,11 +134,14 @@ export const AppRoutes: React.FC = () => {
             <Route path="articles" element={<AdminArticlesPage />} />
             <Route path="news" element={<AdminArticlesPage />} />
             <Route path="categories" element={<AdminCategoriesPage />} />
+            <Route path="brands" element={<AdminBrandsPage />} />
             <Route path="orders" element={<AdminOrdersPage />} />
             <Route path="customers" element={<AdminCustomersPage />} />
             <Route path="promotions" element={<AdminPromotionsPage />} />
+            <Route path="flash-sales" element={<AdminFlashSalesPage />} />
             <Route path="wheel" element={<AdminWheelPage />} />
             <Route path="banners" element={<AdminBannersPage />} />
+            <Route path="policies" element={<AdminPoliciesPage />} />
             <Route path="stores" element={<AdminStoresPage />} />
             <Route path="shipping" element={<AdminShippingPage />} />
             <Route path="inventory" element={<AdminInventoryPage />} />

@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { authService } from '../api/services/auth.service';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { useCartStore } from './useCartStore';
+import { useWishlistStore } from './useWishlistStore';
 import type {
   ChangePasswordPayload,
   LoginPayload,
@@ -67,6 +68,7 @@ export const useAuthStore = create<AuthState>()(
 
           // Chuyển giỏ hàng sang tài khoản người dùng vừa đăng nhập
           useCartStore.getState().switchUser(user.id || user.email);
+          useWishlistStore.getState().fetchWishlistIds().catch(() => {});
 
           return user;
         } catch (err) {
@@ -114,6 +116,7 @@ export const useAuthStore = create<AuthState>()(
 
           // Chuyển giỏ hàng sang tài khoản người dùng vừa đăng nhập
           useCartStore.getState().switchUser(user.id || user.email);
+          useWishlistStore.getState().fetchWishlistIds().catch(() => {});
 
           return user;
         } catch (err) {
@@ -152,6 +155,7 @@ export const useAuthStore = create<AuthState>()(
         });
         // Ẩn giỏ hàng khi đăng xuất
         useCartStore.getState().switchUser(null);
+        useWishlistStore.getState().clear();
       },
 
       fetchProfile: async (): Promise<User> => {
@@ -224,6 +228,11 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: !!user,
         });
         useCartStore.getState().switchUser(user ? (user.id || user.email) : null);
+        if (user) {
+          useWishlistStore.getState().fetchWishlistIds().catch(() => {});
+        } else {
+          useWishlistStore.getState().clear();
+        }
       },
 
       clearError: () => set({ error: null }),

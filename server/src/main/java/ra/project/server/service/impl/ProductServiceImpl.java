@@ -506,6 +506,14 @@ public class ProductServiceImpl implements ProductService {
             variant.setOriginalPrice(vReq.getOriginalPrice());
             variant.setStock(vReq.getStock() != null ? vReq.getStock() : 0);
             variant.setImageUrl(vReq.getImageUrl() != null && !vReq.getImageUrl().isBlank() ? vReq.getImageUrl().trim() : product.getImageUrl());
+            if (vReq.getWarehouse() != null && !vReq.getWarehouse().isBlank()) {
+                variant.setWarehouse(vReq.getWarehouse().trim());
+            } else if (variant.getWarehouse() == null || variant.getWarehouse().isBlank()) {
+                variant.setWarehouse("Kho Trung Tâm HCM");
+            }
+            if (vReq.getShelfLocation() != null) {
+                variant.setShelfLocation(vReq.getShelfLocation().isBlank() ? null : vReq.getShelfLocation().trim());
+            }
             variant.setStatus(vReq.getStatus() != null ? vReq.getStatus() : true);
 
             List<ProductOptionValue> matchedOptionVals = new ArrayList<>();
@@ -666,6 +674,21 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
+    public ra.project.server.model.dto.response.ProductVariantResponse updateVariantLocation(Long variantId, String warehouse, String shelfLocation) {
+        ra.project.server.model.entity.ProductVariant variant = productVariantRepository.findById(variantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Biến thể sản phẩm", "id", variantId));
+        if (warehouse != null) {
+            variant.setWarehouse(warehouse.isBlank() ? "Kho Trung Tâm HCM" : warehouse.trim());
+        }
+        if (shelfLocation != null) {
+            variant.setShelfLocation(shelfLocation.isBlank() ? null : shelfLocation.trim());
+        }
+        ra.project.server.model.entity.ProductVariant savedVariant = productVariantRepository.save(variant);
+        return productMapper.toVariantResponse(savedVariant);
+    }
+
+    @Override
+    @Transactional
     public ra.project.server.model.dto.response.ProductVariantResponse createVariant(Long productId, java.util.Map<String, Object> body) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Sản phẩm", "id", productId));
@@ -701,6 +724,12 @@ public class ProductServiceImpl implements ProductService {
         }
 
         String imageUrl = body.get("imageUrl") != null ? body.get("imageUrl").toString().trim() : product.getImageUrl();
+        String warehouse = body.get("warehouse") != null && !body.get("warehouse").toString().isBlank()
+                ? body.get("warehouse").toString().trim()
+                : "Kho Trung Tâm HCM";
+        String shelfLocation = body.get("shelfLocation") != null && !body.get("shelfLocation").toString().isBlank()
+                ? body.get("shelfLocation").toString().trim()
+                : null;
 
         if (productVariantRepository.existsBySkuIgnoreCase(sku)) {
             sku = sku + "-" + (System.currentTimeMillis() % 1000);
@@ -713,6 +742,8 @@ public class ProductServiceImpl implements ProductService {
                 .originalPrice(originalPrice)
                 .stock(stock)
                 .imageUrl(imageUrl)
+                .warehouse(warehouse)
+                .shelfLocation(shelfLocation)
                 .status(true)
                 .build();
 

@@ -16,6 +16,7 @@ import ra.project.server.model.dto.response.ArticleResponse;
 import ra.project.server.service.ArticleService;
 import ra.project.server.util.PaginationUtil;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -46,6 +47,16 @@ public class ArticleController {
         Pageable pageable = PaginationUtil.createPageable(page, size, sort);
         PageResponse<ArticleResponse> response = articleService.getPublicArticles(category, searchKeyword, pageable);
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách bài viết thành công", response));
+    }
+
+    /**
+     * Lấy danh sách danh mục bài viết đang hiển thị (Public)
+     * GET /api/articles/categories
+     */
+    @GetMapping("/api/articles/categories")
+    public ResponseEntity<ApiResponse<List<String>>> getPublicCategories() {
+        List<String> categories = articleService.getPublicCategories();
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh mục bài viết thành công", categories));
     }
 
     /**
@@ -84,6 +95,16 @@ public class ArticleController {
     }
 
     /**
+     * Lấy toàn bộ danh mục bài viết dành cho Admin (bao gồm nháp)
+     */
+    @GetMapping("/api/admin/articles/categories")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('ADMIN')")
+    public ResponseEntity<ApiResponse<List<String>>> getAllAdminCategories() {
+        List<String> categories = articleService.getAllCategories();
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh mục bài viết quản trị thành công", categories));
+    }
+
+    /**
      * Lấy chi tiết bài viết theo ID dành cho Admin
      * GET /api/admin/articles/{id}
      */
@@ -118,6 +139,26 @@ public class ArticleController {
     ) {
         ArticleResponse response = articleService.updateArticle(id, request);
         return ResponseEntity.ok(ApiResponse.success("Cập nhật bài viết thành công", response));
+    }
+
+    /**
+     * Bật/tắt trạng thái hiển thị bài viết (Hiển thị / Bản nháp)
+     */
+    @PatchMapping({"/api/admin/articles/{id:[0-9]+}/status", "/api/admin/articles/{id:[0-9]+}/toggle-status"})
+    @PutMapping({"/api/admin/articles/{id:[0-9]+}/status", "/api/admin/articles/{id:[0-9]+}/toggle-status"})
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('ADMIN')")
+    public ResponseEntity<ApiResponse<ArticleResponse>> toggleArticleStatus(
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, Object> body,
+            @RequestParam(name = "status", required = false) Boolean statusParam
+    ) {
+        Boolean targetStatus = statusParam;
+        if (targetStatus == null && body != null && body.get("status") != null) {
+            Object val = body.get("status");
+            targetStatus = (val instanceof Boolean) ? (Boolean) val : Boolean.parseBoolean(val.toString());
+        }
+        ArticleResponse response = articleService.toggleArticleStatus(id, targetStatus);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật trạng thái bài viết thành công", response));
     }
 
     /**

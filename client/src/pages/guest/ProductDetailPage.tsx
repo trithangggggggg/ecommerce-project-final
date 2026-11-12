@@ -22,6 +22,8 @@ import { productService } from '../../api/services/product.service';
 import type { Product, ProductVariant } from '../../models/product.model';
 import { useCartStore } from '../../store/useCartStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useWishlistStore } from '../../store/useWishlistStore';
+import { useSiteConfigStore } from '../../store/useSiteConfigStore';
 import { ROUTES } from '../../constants/routes';
 import ProductCard from '../../components/common/Card/ProductCard';
 import { formatPrice } from '../../utils/format';
@@ -31,13 +33,16 @@ export default function ProductDetailPage() {
   const navigate = useNavigate();
   const { addItem } = useCartStore();
   const { isAuthenticated } = useAuthStore();
+  const isProductLiked = useWishlistStore((s) => s.isLiked);
+  const toggleWishlistItem = useWishlistStore((s) => s.toggleItem);
+  const { config } = useSiteConfigStore();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string>('');
-  const [liked, setLiked] = useState(false);
+  const liked = isProductLiked(product?.id);
 
   // Toast state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -331,7 +336,25 @@ export default function ProductDetailPage() {
                 )}
                 <button
                   type="button"
-                  onClick={() => setLiked(!liked)}
+                  onClick={async () => {
+                    if (!product) return;
+                    if (!isAuthenticated) {
+                      triggerToast('Vui lòng đăng nhập để lưu sản phẩm yêu thích!', 'warning');
+                      setTimeout(() => {
+                        navigate(`/login?redirect=${encodeURIComponent(`/products/${product.id}`)}`);
+                      }, 700);
+                      return;
+                    }
+                    try {
+                      const nextLiked = await toggleWishlistItem(product.id);
+                      triggerToast(
+                        nextLiked ? 'Đã thêm vào danh sách yêu thích!' : 'Đã bỏ khỏi danh sách yêu thích.',
+                        'success'
+                      );
+                    } catch {
+                      triggerToast('Không thể cập nhật danh sách yêu thích.', 'error');
+                    }
+                  }}
                   className={`absolute top-0 right-0 w-9 h-9 rounded-full flex items-center justify-center border transition-all cursor-pointer ${
                     liked
                       ? 'bg-red-50 text-red-500 border-red-200'
@@ -375,7 +398,11 @@ export default function ProductDetailPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Truck size={16} className="text-blue-600 shrink-0" />
-                  <span>Miễn phí giao hàng toàn quốc</span>
+                  <span>
+                    {config.shipping.freeshipThreshold > 0
+                      ? `Freeship từ ${formatPrice(config.shipping.freeshipThreshold)} (${config.shipping.estimatedLeadTime || '2 - 3 ngày làm việc'})`
+                      : `Miễn phí giao hàng toàn quốc (${config.shipping.estimatedLeadTime || '2 - 3 ngày làm việc'})`}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Package size={16} className="text-blue-600 shrink-0" />
@@ -483,20 +510,46 @@ export default function ProductDetailPage() {
             {/* Special Promo Box */}
             <div className="border border-blue-200 rounded-xl overflow-hidden mb-6 bg-blue-50/50">
               <div className="bg-blue-600 text-white px-3.5 py-2 text-xs font-bold flex items-center gap-2">
-                <Gift size={16} /> ƯU ĐÃI ĐẶC QUYỀN NEXOR
+                <Gift size={16} /> QUYỀN LỢI MUA HÀNG TẠI {config.store.shortName || 'NEXOR'}
               </div>
               <div className="p-3.5 space-y-2 text-xs text-gray-700">
                 <div className="flex items-start gap-2">
                   <span className="font-bold text-blue-600">•</span>
-                  <span><strong>Giảm thêm 500.000₫</strong> khi thanh toán qua ví VNPAY hoặc QR Ngân Hàng.</span>
+                  <span>
+                    <strong>Chính sách giao hàng:</strong>{' '}
+                    {config.shipping.freeshipThreshold > 0
+                      ? `Miễn phí vận chuyển cho đơn từ ${formatPrice(config.shipping.freeshipThreshold)}${
+                          config.shipping.halfShipThreshold > 0 &&
+                          config.shipping.halfShipThreshold < config.shipping.freeshipThreshold
+                            ? ` (giảm 50% từ ${formatPrice(config.shipping.halfShipThreshold)})`
+                            : ''
+                        }.`
+                      : 'Miễn phí vận chuyển toàn quốc.'}{' '}
+                    Thời gian dự kiến: {config.shipping.estimatedLeadTime || '2 - 3 ngày làm việc'}.
+                  </span>
                 </div>
                 <div className="flex items-start gap-2">
                   <span className="font-bold text-blue-600">•</span>
-                  <span><strong>Thu cũ đổi mới:</strong> Trợ giá lên tới 2.000.000₫ khi lên đời máy mới.</span>
+                  <span>
+                    <strong>Phương thức thanh toán hỗ trợ:</strong>{' '}
+                    {[
+                      config.payment.codEnabled ? 'Thanh toán khi nhận hàng (COD)' : null,
+                      config.payment.sepayEnabled ? 'Chuyển khoản QR Ngân hàng (SePay)' : null,
+                      config.payment.vnpayEnabled ? 'VNPAY' : null,
+                    ]
+                      .filter(Boolean)
+                      .join(', ') || 'Theo cấu hình cửa hàng'}
+                    .
+                  </span>
                 </div>
                 <div className="flex items-start gap-2">
                   <span className="font-bold text-blue-600">•</span>
-                  <span><strong>Tặng gói bảo hành VIP:</strong> 12 tháng 1 đổi 1 tận nơi.</span>
+                  <span>
+                    <strong>Hỗ trợ & Bảo hành:</strong> Hotline {config.store.hotlineLabel || config.store.hotline} ·{' '}
+                    <Link to={ROUTES.POLICIES} className="text-blue-600 font-semibold hover:underline">
+                      Xem chính sách bảo hành & đổi trả
+                    </Link>
+                  </span>
                 </div>
               </div>
             </div>

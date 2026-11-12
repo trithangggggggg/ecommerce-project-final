@@ -46,10 +46,20 @@ public class AdminPromotionController {
     @PostMapping
     public ResponseEntity<ApiResponse<Promotion>> createPromotion(@RequestBody Promotion request) {
         validatePromotion(request);
-        if (promotionRepository.existsByCodeIgnoreCase(request.getCode())) {
-            throw new ra.project.server.exception.BadRequestException("Mã khuyến mãi '" + request.getCode() + "' đã tồn tại!");
+        String normalizedCode = request.getCode().trim().toUpperCase();
+        if (promotionRepository.existsByCodeIgnoreCase(normalizedCode)) {
+            throw new ra.project.server.exception.BadRequestException("Mã khuyến mãi '" + normalizedCode + "' đã tồn tại!");
         }
-        if (request.getType() == null) {
+        request.setCode(normalizedCode);
+        if (request.getStatus() == null || request.getStatus().isBlank()) {
+            request.setStatus("ACTIVE");
+        } else {
+            request.setStatus("INACTIVE".equalsIgnoreCase(request.getStatus().trim()) ? "INACTIVE" : "ACTIVE");
+        }
+        if (request.getUsedCount() == null) {
+            request.setUsedCount(0);
+        }
+        if (request.getType() == null || request.getType().isBlank()) {
             request.setType(request.isShippingDiscount() ? "SHIPPING" : "ORDER");
         }
         Promotion saved = promotionRepository.save(request);
@@ -66,27 +76,39 @@ public class AdminPromotionController {
                 .orElseThrow(() -> new ResourceNotFoundException("Mã khuyến mãi", "id", id));
 
         validatePromotion(request);
-        if (request.getCode() != null && promotionRepository.existsByCodeIgnoreCaseAndIdNot(request.getCode(), id)) {
-            throw new ra.project.server.exception.BadRequestException("Mã khuyến mãi '" + request.getCode() + "' đã được sử dụng bởi chương trình khác!");
+        String normalizedCode = request.getCode().trim().toUpperCase();
+        if (promotionRepository.existsByCodeIgnoreCaseAndIdNot(normalizedCode, id)) {
+            throw new ra.project.server.exception.BadRequestException("Mã khuyến mãi '" + normalizedCode + "' đã được sử dụng bởi chương trình khác!");
         }
 
-        existing.setCode(request.getCode());
-        existing.setTitle(request.getTitle());
-        existing.setDiscount(request.getDiscount());
+        existing.setCode(normalizedCode);
+        existing.setTitle(request.getTitle() != null ? request.getTitle().trim() : existing.getTitle());
+        existing.setDiscount(request.getDiscount().trim());
         existing.setMinOrder(request.getMinOrder());
         existing.setStartDate(request.getStartDate());
         existing.setExpiry(request.getExpiry());
-        existing.setUsedCount(request.getUsedCount());
-        existing.setMaxUsage(request.getMaxUsage());
-        if (request.getStatus() != null) {
-            existing.setStatus(request.getStatus());
+        existing.setMaxDiscountAmount(request.getMaxDiscountAmount());
+        if (request.getUsedCount() != null && (request.getUsedCount() > 0 || existing.getUsedCount() == null || existing.getUsedCount() == 0)) {
+            existing.setUsedCount(request.getUsedCount());
         }
-        existing.setType(request.getType() != null ? request.getType() : (existing.isShippingDiscount() ? "SHIPPING" : "ORDER"));
+        if (request.getMaxUsage() != null) {
+            existing.setMaxUsage(request.getMaxUsage());
+        }
+        if (request.getStatus() != null && !request.getStatus().isBlank()) {
+            existing.setStatus("INACTIVE".equalsIgnoreCase(request.getStatus().trim()) ? "INACTIVE" : "ACTIVE");
+        }
+        if (request.getUserId() != null) {
+            existing.setUserId(request.getUserId());
+        }
+        existing.setType(request.getType() != null && !request.getType().isBlank()
+                ? request.getType().trim().toUpperCase()
+                : (existing.isShippingDiscount() ? "SHIPPING" : "ORDER"));
 
         Promotion updated = promotionRepository.save(existing);
         return ResponseEntity.ok(ApiResponse.success("Cập nhật mã khuyến mãi thành công", updated));
     }
 
+    @PatchMapping(value = {"/{id}/status", "/{id}/toggle-status"})
     @PutMapping(value = {"/{id}/status", "/{id}/toggle-status"})
     public ResponseEntity<ApiResponse<Promotion>> togglePromotionStatus(
             @PathVariable Long id,
@@ -125,10 +147,31 @@ public class AdminPromotionController {
             }
         }
 
-        if (p.getStartDate() != null && !p.getStartDate().isBlank() && p.getExpiry() != null && !p.getExpiry().isBlank()) {
-            if (p.getStartDate().compareTo(p.getExpiry()) > 0) {
-                throw new ra.project.server.exception.BadRequestException("Ngày bắt đầu không được lớn hơn ngày kết thúc!");
+        if (p.getMaxDiscountAmount() != null && p.getMaxDiscountAmount().compareTo(java.math.BigDecimal.ZERO) < 0) {
+            throw new ra.project.server.exception.BadRequestException("Giảm tối đa không được là số âm!");
+        }
+        if (p.getMaxUsage() != null && p.getMaxUsage() < 1) {
+            throw new ra.project.server.exception.BadRequestException("Số lượt sử dụng tối đa phải lớn hơn 0!");
+        }
+
+        java.time.LocalDate parsedStart = null;
+        java.time.LocalDate parsedExpiry = null;
+        if (p.getStartDate() != null && !p.getStartDate().isBlank()) {
+            try {
+                parsedStart = java.time.LocalDate.parse(p.getStartDate().trim());
+            } catch (java.time.format.DateTimeParseException e) {
+                throw new ra.project.server.exception.BadRequestException("Định dạng ngày bắt đầu không hợp lệ (YYYY-MM-DD)!");
             }
+        }
+        if (p.getExpiry() != null && !p.getExpiry().isBlank()) {
+            try {
+                parsedExpiry = java.time.LocalDate.parse(p.getExpiry().trim());
+            } catch (java.time.format.DateTimeParseException e) {
+                throw new ra.project.server.exception.BadRequestException("Định dạng ngày hết hạn không hợp lệ (YYYY-MM-DD)!");
+            }
+        }
+        if (parsedStart != null && parsedExpiry != null && parsedStart.isAfter(parsedExpiry)) {
+            throw new ra.project.server.exception.BadRequestException("Ngày bắt đầu không được lớn hơn ngày kết thúc!");
         }
     }
 

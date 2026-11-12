@@ -100,13 +100,26 @@ public class SecurityConfig {
                         // Cho phép xem sản phẩm, danh mục, tin tức bài viết, tra cứu mã giảm giá, vòng quay, showroom và đối tác vận chuyển công khai
                         .requestMatchers("/api/promotions/**").permitAll()
                         .requestMatchers("/api/wheel/status").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**", "/api/articles/**", "/api/shipping-carriers/**", "/api/stores/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/banners/*/click").permitAll()
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/products/**",
+                                "/api/categories/**",
+                                "/api/articles/**",
+                                "/api/shipping-carriers/**",
+                                "/api/stores/**",
+                                "/api/banners/**",
+                                "/api/settings/public",
+                                "/api/brands/**",
+                                "/api/flash-sales/**",
+                                "/api/policies/**"
+                        ).permitAll()
                         // Cho phép SePay gọi Webhook biến động số dư / IPN và trả kết quả Return URL (Webhook/IPN tự xác thực API Key / X-Secret-Key)
                         .requestMatchers("/api/payment/sepay/webhook", "/api/payment/sepay/ipn", "/api/payment/sepay/payment-return").permitAll()
                         // Phân quyền ADMIN cho các chức năng quản trị
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // Các API cá nhân, đơn hàng, thanh toán và quay thưởng yêu cầu đã đăng nhập
                         .requestMatchers("/api/wheel/spin").authenticated()
+                        .requestMatchers("/api/wishlist/**").authenticated()
                         .requestMatchers("/api/users/**").authenticated()
                         .requestMatchers("/api/orders/**").authenticated()
                         .requestMatchers("/api/payment/**").authenticated()

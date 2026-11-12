@@ -52,4 +52,14 @@ public interface WheelSpinHistoryRepository extends JpaRepository<WheelSpinHisto
             @Param("spinDate") LocalDate spinDate,
             Pageable pageable
     );
+
+    @Query("SELECT new ra.project.server.model.dto.response.AdminWheelSpinHistoryResponse(" +
+            "h.id, h.userId, u.username, u.email, u.fullName, u.avatarUrl, " +
+            "h.spinDate, h.rewardId, h.rewardLabel, h.voucherCode, h.createdAt, " +
+            "p.usedCount, p.status, p.discount, p.minOrder) " +
+            "FROM WheelSpinHistory h " +
+            "LEFT JOIN User u ON h.userId = u.id " +
+            "LEFT JOIN Promotion p ON h.voucherCode = p.code " +
+            "WHERE h.id = :id")
+    Optional<AdminWheelSpinHistoryResponse> findDetailById(@Param("id") Long id);
 }

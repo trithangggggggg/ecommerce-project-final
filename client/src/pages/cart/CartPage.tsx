@@ -20,6 +20,7 @@ import {
 import type { CartItem } from '../../models/product.model';
 import { useCartStore } from '../../store/useCartStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useSiteConfigStore } from '../../store/useSiteConfigStore';
 import { ROUTES } from '../../constants/routes';
 import { formatPrice } from '../../utils/format';
 import Button from '../../components/common/Button/Button';
@@ -58,7 +59,40 @@ export const CartPage: React.FC = () => {
   const { items, totalItems, totalPrice, subtotal, updateQuantity, removeItem, clearCart } =
     useCartStore();
   const { isAuthenticated } = useAuthStore();
+  const { config } = useSiteConfigStore();
   const { toast, showToast } = useToast();
+
+  const cartSubtotal = subtotal || totalPrice;
+  const freeshipThreshold = config.shipping.freeshipThreshold ?? 20_000_000;
+  const halfShipThreshold = config.shipping.halfShipThreshold ?? 10_000_000;
+  const defaultShippingFee = config.shipping.defaultFee ?? 30_000;
+  const estimatedLeadTime = config.shipping.estimatedLeadTime || '2 - 3 ngày làm việc';
+
+  let estimatedShippingFee = 0;
+  let shippingTierLabel = 'Miễn phí';
+  let isFreeShipping = true;
+
+  if (cartSubtotal > 0) {
+    if (freeshipThreshold <= 0 || cartSubtotal >= freeshipThreshold) {
+      estimatedShippingFee = 0;
+      shippingTierLabel = 'Miễn phí';
+      isFreeShipping = true;
+    } else if (halfShipThreshold > 0 && cartSubtotal >= halfShipThreshold) {
+      estimatedShippingFee = Math.round(defaultShippingFee / 2);
+      shippingTierLabel = 'Giảm 50%';
+      isFreeShipping = false;
+    } else {
+      estimatedShippingFee = defaultShippingFee;
+      shippingTierLabel = 'Tiêu chuẩn';
+      isFreeShipping = false;
+    }
+  }
+  const estimatedTotal = cartSubtotal + estimatedShippingFee;
+  const enabledPaymentLabels = [
+    config.payment.codEnabled ? 'COD khi nhận hàng' : null,
+    config.payment.sepayEnabled ? 'QR Ngân hàng (SePay)' : null,
+    config.payment.vnpayEnabled ? 'VNPAY' : null,
+  ].filter(Boolean);
 
   // ----------------------------------------------------------------
   // Handlers
@@ -459,18 +493,26 @@ export const CartPage: React.FC = () => {
                 <div className="flex justify-between text-gray-600">
                   <span>Tạm tính ({totalItems} sản phẩm)</span>
                   <span className="font-semibold text-gray-900">
-                    {formatPrice(subtotal || totalPrice)}
+                    {formatPrice(cartSubtotal)}
                   </span>
                 </div>
 
                 <div className="flex justify-between text-gray-600">
                   <span className="flex items-center gap-1.5">
-                    <span>Phí giao hàng</span>
-                    <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-semibold border border-emerald-200">
-                      Miễn phí
+                    <span>Phí giao hàng (tạm tính)</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded font-semibold border ${
+                        isFreeShipping
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-blue-50 text-blue-700 border-blue-200'
+                      }`}
+                    >
+                      {shippingTierLabel}
                     </span>
                   </span>
-                  <span className="font-semibold text-emerald-600">0₫</span>
+                  <span className={`font-semibold ${isFreeShipping ? 'text-emerald-600' : 'text-gray-900'}`}>
+                    {estimatedShippingFee === 0 ? '0₫' : formatPrice(estimatedShippingFee)}
+                  </span>
                 </div>
 
                 <div className="flex justify-between text-gray-600">
@@ -484,7 +526,7 @@ export const CartPage: React.FC = () => {
                     <span className="text-[10px] text-gray-400">(Đã bao gồm thuế VAT)</span>
                   </div>
                   <span className="text-xl font-black text-red-600">
-                    {formatPrice(subtotal || totalPrice)}
+                    {formatPrice(estimatedTotal)}
                   </span>
                 </div>
               </div>
@@ -510,9 +552,11 @@ export const CartPage: React.FC = () => {
                 )}
               </div>
 
-              <div className="text-[11px] text-gray-500 text-center">
-                Hỗ trợ thanh toán nhận hàng (COD) tận nơi tiện lợi
-              </div>
+              {enabledPaymentLabels.length > 0 && (
+                <div className="text-[11px] text-gray-500 text-center">
+                  Hỗ trợ: {enabledPaymentLabels.join(' · ')}
+                </div>
+              )}
             </div>
 
             {/* Shopping Guarantees */}
@@ -523,7 +567,11 @@ export const CartPage: React.FC = () => {
                 </div>
                 <div>
                   <h4 className="font-bold text-gray-800 text-[11px]">Giao hàng toàn quốc</h4>
-                  <p className="text-[10px] text-gray-500">Miễn phí giao hàng cho mọi đơn công nghệ</p>
+                  <p className="text-[10px] text-gray-500">
+                    {freeshipThreshold > 0
+                      ? `Freeship đơn từ ${formatPrice(freeshipThreshold)} · ${estimatedLeadTime}`
+                      : `Miễn phí giao hàng toàn quốc · ${estimatedLeadTime}`}
+                  </p>
                 </div>
               </div>
 

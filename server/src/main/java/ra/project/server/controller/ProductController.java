@@ -24,6 +24,26 @@ public class ProductController {
 
     private final ProductService productService;
 
+    private Pageable buildProductPageable(Integer page, Integer size, String sort) {
+        String normalized = "createdAt,desc";
+        if (org.springframework.util.StringUtils.hasText(sort)) {
+            String s = sort.trim().toLowerCase();
+            normalized = switch (s) {
+                case "price_asc", "price,asc", "price-asc" -> "price,asc";
+                case "price_desc", "price,desc", "price-desc" -> "price,desc";
+                case "name_asc", "name,asc", "name-asc" -> "name,asc";
+                case "name_desc", "name,desc", "name-desc" -> "name,desc";
+                case "oldest", "createdat,asc", "id,asc" -> "createdAt,asc";
+                case "popular", "bestseller", "id,desc" -> "id,desc";
+                case "newest", "createdat,desc" -> "createdAt,desc";
+                default -> (s.startsWith("price,") || s.startsWith("name,") || s.startsWith("createdat,") || s.startsWith("id,") || s.startsWith("stock,"))
+                        ? sort.trim()
+                        : "createdAt,desc";
+            };
+        }
+        return PaginationUtil.createPageable(page, size, normalized);
+    }
+
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> getAllProducts(
             @RequestParam(name = "keyword", required = false) String keyword,
@@ -36,7 +56,7 @@ public class ProductController {
             @RequestParam(name = "sort", defaultValue = "createdAt,desc") String sort
     ) {
         String searchKeyword = org.springframework.util.StringUtils.hasText(keyword) ? keyword : q;
-        Pageable pageable = PaginationUtil.createPageable(page, size, sort);
+        Pageable pageable = buildProductPageable(page, size, sort);
         PageResponse<ProductResponse> products = productService.getAllProducts(searchKeyword, categoryId, brand, status, pageable);
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách sản phẩm thành công", products));
     }
@@ -54,7 +74,7 @@ public class ProductController {
             @RequestParam(name = "size", defaultValue = "10") Integer size,
             @RequestParam(name = "sort", defaultValue = "createdAt,desc") String sort
     ) {
-        Pageable pageable = PaginationUtil.createPageable(page, size, sort);
+        Pageable pageable = buildProductPageable(page, size, sort);
         PageResponse<ProductResponse> products = productService.getProductsByCategoryId(categoryId, pageable);
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách sản phẩm theo danh mục thành công", products));
     }
@@ -73,7 +93,7 @@ public class ProductController {
             @RequestParam(name = "sort", defaultValue = "createdAt,desc") String sort
     ) {
         String searchKeyword = org.springframework.util.StringUtils.hasText(keyword) ? keyword : q;
-        Pageable pageable = PaginationUtil.createPageable(page, size, sort);
+        Pageable pageable = buildProductPageable(page, size, sort);
         PageResponse<ProductResponse> products = productService.searchProducts(searchKeyword, categoryId, brand, minPrice, maxPrice, status, pageable);
         return ResponseEntity.ok(ApiResponse.success("Tìm kiếm sản phẩm thành công", products));
     }

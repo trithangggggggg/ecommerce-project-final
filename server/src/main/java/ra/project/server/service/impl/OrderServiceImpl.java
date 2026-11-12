@@ -13,12 +13,15 @@ import ra.project.server.exception.ForbiddenException;
 import ra.project.server.exception.ResourceNotFoundException;
 import ra.project.server.exception.UnauthorizedException;
 import ra.project.server.mapper.OrderMapper;
+import ra.project.server.model.dto.request.AdminCreateOrderRequest;
+import ra.project.server.model.dto.request.AdminOrderUpdateRequest;
 import ra.project.server.model.dto.request.CheckoutRequest;
 import ra.project.server.model.dto.request.OrderItemRequest;
 import ra.project.server.model.dto.response.OrderResponse;
 import ra.project.server.model.entity.*;
 import ra.project.server.model.enums.OrderStatus;
 import ra.project.server.model.enums.PaymentMethod;
+import ra.project.server.model.enums.PaymentStatus;
 import ra.project.server.model.enums.Role;
 import ra.project.server.repository.OrderRepository;
 import ra.project.server.repository.ProductRepository;
@@ -31,13 +34,16 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import ra.project.server.model.entity.ShippingCarrier;
 import ra.project.server.repository.ShippingCarrierRepository;
+import ra.project.server.service.SystemSettingService;
 
 @Slf4j
 @Service
@@ -51,6 +57,9 @@ public class OrderServiceImpl implements OrderService {
     private final UserRepository userRepository;
     private final OrderMapper orderMapper;
     private final ShippingCarrierRepository shippingCarrierRepository;
+
+    @Autowired(required = false)
+    private SystemSettingService systemSettingService;
 
     private User getCurrentAuthenticatedUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -73,6 +82,33 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public ApiResponse<OrderResponse> checkout(CheckoutRequest request) {
         User user = getCurrentAuthenticatedUser();
+        return createOrderForUser(user, request, true);
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<OrderResponse> adminCreateOrder(AdminCreateOrderRequest request) {
+        User user = request.getUserId() != null
+                ? userRepository.findById(request.getUserId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Khách hàng", "id", request.getUserId()))
+                : getCurrentAuthenticatedUser();
+
+        CheckoutRequest checkoutReq = CheckoutRequest.builder()
+                .receiverName(request.getReceiverName())
+                .phoneNumber(request.getPhoneNumber())
+                .shippingAddress(request.getShippingAddress())
+                .note(request.getNote())
+                .couponCode(request.getCouponCode())
+                .shippingCouponCode(request.getShippingCouponCode())
+                .carrierId(request.getCarrierId())
+                .paymentMethod(request.getPaymentMethod())
+                .items(request.getItems())
+                .build();
+
+        return createOrderForUser(user, checkoutReq, false);
+    }
+
+    private ApiResponse<OrderResponse> createOrderForUser(User user, CheckoutRequest request, boolean enforcePublicPaymentSettings) {
 
         if (request.getItems() == null || request.getItems().isEmpty()) {
             throw new BadRequestException("Danh sách sản phẩm đặt hàng không được để trống");
@@ -196,23 +232,36 @@ public class OrderServiceImpl implements OrderService {
             selectedCarrier = shippingCarrierRepository.findById(request.getCarrierId()).orElse(null);
         }
 
-        // Tính cước vận chuyển theo chính sách ưu đãi tự động:
-        // - Cước gốc theo Hãng vận chuyển được chọn (mặc định 30.000₫ nếu chưa có)
-        // - Đơn hàng >= 20.000.000₫: Miễn phí 100% cước vận chuyển (Freeship 0₫)
-        // - Đơn hàng >= 10.000.000₫: Giảm 50% cước vận chuyển
-        // - Đơn hàng < 10.000.000₫: Thu 100% cước hãng
-        BigDecimal baseShippingFee = BigDecimal.valueOf(30000);
+        PaymentMethod chosenPayment = request.getPaymentMethod() != null ? request.getPaymentMethod() : PaymentMethod.COD;
+        if (enforcePublicPaymentSettings && systemSettingService != null) {
+            if (chosenPayment == PaymentMethod.COD && !systemSettingService.getBoolean("payment.codEnabled", true)) {
+                throw new BadRequestException("Phương thức thanh toán khi nhận hàng (COD) hiện đang tạm ngưng bởi quản trị viên.");
+            }
+            if (chosenPayment == PaymentMethod.SEPAY && !systemSettingService.getBoolean("payment.sepayEnabled", true)) {
+                throw new BadRequestException("Phương thức thanh toán chuyển khoản VietQR / SePay hiện đang tạm ngưng bởi quản trị viên.");
+            }
+        }
+
+        // Tính cước vận chuyển theo cấu hình hệ thống (SystemSetting DB) & chính sách ưu đãi tự động:
+        BigDecimal defaultFeeConfig = systemSettingService != null
+                ? systemSettingService.getDecimal("shipping.defaultFee", BigDecimal.valueOf(30000))
+                : BigDecimal.valueOf(30000);
+        BigDecimal baseShippingFee = defaultFeeConfig;
         if (selectedCarrier != null && selectedCarrier.getShippingFee() != null) {
             baseShippingFee = selectedCarrier.getShippingFee();
         }
 
-        BigDecimal actualShippingFee;
-        BigDecimal twentyMillion = BigDecimal.valueOf(20_000_000);
-        BigDecimal tenMillion = BigDecimal.valueOf(10_000_000);
+        BigDecimal freeshipThreshold = systemSettingService != null
+                ? systemSettingService.getDecimal("shipping.freeshipThreshold", BigDecimal.valueOf(20_000_000))
+                : BigDecimal.valueOf(20_000_000);
+        BigDecimal halfShipThreshold = systemSettingService != null
+                ? systemSettingService.getDecimal("shipping.halfShipThreshold", BigDecimal.valueOf(10_000_000))
+                : BigDecimal.valueOf(10_000_000);
 
-        if (subtotalAfterDiscount.compareTo(twentyMillion) >= 0) {
+        BigDecimal actualShippingFee;
+        if (freeshipThreshold.compareTo(BigDecimal.ZERO) > 0 && subtotalAfterDiscount.compareTo(freeshipThreshold) >= 0) {
             actualShippingFee = BigDecimal.ZERO;
-        } else if (subtotalAfterDiscount.compareTo(tenMillion) >= 0) {
+        } else if (halfShipThreshold.compareTo(BigDecimal.ZERO) > 0 && subtotalAfterDiscount.compareTo(halfShipThreshold) >= 0) {
             actualShippingFee = baseShippingFee.divide(BigDecimal.valueOf(2), 0, RoundingMode.HALF_UP);
         } else {
             actualShippingFee = baseShippingFee;
@@ -346,11 +395,36 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public ApiResponse<List<OrderResponse>> getAllOrders(OrderStatus status) {
+        return getAllOrders(status, null, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ApiResponse<List<OrderResponse>> getAllOrders(OrderStatus status, String keyword, PaymentMethod paymentMethod) {
         List<Order> orders;
         if (status != null) {
             orders = orderRepository.findByStatusOrderByCreatedAtDesc(status);
         } else {
             orders = orderRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
+        }
+
+        if (paymentMethod != null) {
+            orders = orders.stream()
+                    .filter(o -> paymentMethod == o.getPaymentMethod())
+                    .toList();
+        }
+
+        if (StringUtils.hasText(keyword)) {
+            String kw = keyword.trim().toLowerCase();
+            orders = orders.stream()
+                    .filter(o -> String.valueOf(o.getId()).contains(kw)
+                            || (o.getReceiverName() != null && o.getReceiverName().toLowerCase().contains(kw))
+                            || (o.getPhoneNumber() != null && o.getPhoneNumber().toLowerCase().contains(kw))
+                            || (o.getShippingAddress() != null && o.getShippingAddress().toLowerCase().contains(kw))
+                            || (o.getTrackingCode() != null && o.getTrackingCode().toLowerCase().contains(kw))
+                            || (o.getUser() != null && o.getUser().getUsername() != null && o.getUser().getUsername().toLowerCase().contains(kw))
+                            || (o.getUser() != null && o.getUser().getFullName() != null && o.getUser().getFullName().toLowerCase().contains(kw)))
+                    .toList();
         }
 
         List<OrderResponse> responses = orders.stream()
@@ -371,33 +445,103 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
+    public ApiResponse<OrderResponse> updateOrderInfo(Long orderId, AdminOrderUpdateRequest request) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Đơn hàng", "id", orderId));
+
+        if (request == null) {
+            throw new BadRequestException("Dữ liệu cập nhật đơn hàng không được để trống");
+        }
+
+        if (request.getReceiverName() != null) {
+            if (request.getReceiverName().isBlank()) {
+                throw new BadRequestException("Tên người nhận không được để trống");
+            }
+            order.setReceiverName(request.getReceiverName().trim());
+        }
+        if (request.getPhoneNumber() != null) {
+            if (request.getPhoneNumber().isBlank()) {
+                throw new BadRequestException("Số điện thoại không được để trống");
+            }
+            order.setPhoneNumber(request.getPhoneNumber().trim());
+        }
+        if (request.getShippingAddress() != null) {
+            if (request.getShippingAddress().isBlank()) {
+                throw new BadRequestException("Địa chỉ nhận hàng không được để trống");
+            }
+            order.setShippingAddress(request.getShippingAddress().trim());
+        }
+        if (request.getNote() != null) {
+            order.setNote(request.getNote().trim().isEmpty() ? null : request.getNote().trim());
+        }
+        if (request.getCarrierId() != null) {
+            if (request.getCarrierId() <= 0) {
+                order.setShippingCarrier(null);
+            } else {
+                ShippingCarrier carrier = shippingCarrierRepository.findById(request.getCarrierId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Đơn vị vận chuyển", "id", request.getCarrierId()));
+                order.setShippingCarrier(carrier);
+            }
+        }
+        if (request.getTrackingCode() != null) {
+            order.setTrackingCode(request.getTrackingCode().trim().isEmpty() ? null : request.getTrackingCode().trim().toUpperCase());
+        }
+        if (request.getPaymentMethod() != null) {
+            order.setPaymentMethod(request.getPaymentMethod());
+        }
+        if (request.getPaymentStatus() != null) {
+            order.setPaymentStatus(request.getPaymentStatus());
+            if (request.getPaymentStatus() == PaymentStatus.PAID && order.getPaidAt() == null) {
+                order.setPaidAt(LocalDateTime.now());
+            }
+        }
+        if (request.getCancelReason() != null) {
+            order.setCancelReason(request.getCancelReason().trim().isEmpty() ? null : request.getCancelReason().trim());
+        }
+
+        Order updated = orderRepository.save(order);
+        return ApiResponse.success("Cập nhật thông tin đơn hàng thành công", orderMapper.toResponse(updated));
+    }
+
+    @Override
+    @Transactional
     public ApiResponse<OrderResponse> updateOrderStatus(Long orderId, OrderStatus newStatus) {
-        return updateOrderStatus(orderId, newStatus, null, null);
+        return updateOrderStatus(orderId, newStatus, null, null, null);
     }
 
     @Override
     @Transactional
     public ApiResponse<OrderResponse> updateOrderStatus(Long orderId, OrderStatus newStatus, Long carrierId, String trackingCode) {
+        return updateOrderStatus(orderId, newStatus, carrierId, trackingCode, null);
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<OrderResponse> updateOrderStatus(Long orderId, OrderStatus newStatus, Long carrierId, String trackingCode, String cancelReason) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Đơn hàng", "id", orderId));
 
         OrderStatus currentStatus = order.getStatus();
 
-        if (currentStatus == newStatus && carrierId == null && (trackingCode == null || trackingCode.trim().isEmpty())) {
+        if (currentStatus == newStatus
+                && carrierId == null
+                && (trackingCode == null || trackingCode.trim().isEmpty())
+                && !StringUtils.hasText(cancelReason)) {
             return ApiResponse.success("Trạng thái đơn hàng không thay đổi", orderMapper.toResponse(order));
         }
 
         boolean isValidTransition = switch (currentStatus) {
-            case PENDING -> newStatus == OrderStatus.PROCESSING 
-                    || newStatus == OrderStatus.SHIPPING 
-                    || newStatus == OrderStatus.COMPLETED 
+            case PENDING -> newStatus == OrderStatus.PROCESSING
+                    || newStatus == OrderStatus.SHIPPING
+                    || newStatus == OrderStatus.COMPLETED
                     || newStatus == OrderStatus.CANCELLED;
-            case PROCESSING -> newStatus == OrderStatus.SHIPPING 
-                    || newStatus == OrderStatus.COMPLETED 
-                    || newStatus == OrderStatus.CANCELLED;
-            case SHIPPING -> newStatus == OrderStatus.COMPLETED 
+            case PROCESSING -> newStatus == OrderStatus.SHIPPING
+                    || newStatus == OrderStatus.COMPLETED
                     || newStatus == OrderStatus.CANCELLED
-                    || newStatus == OrderStatus.SHIPPING; // cho phép cập nhật lại thông tin vận đơn khi đang giao
+                    || newStatus == OrderStatus.PROCESSING;
+            case SHIPPING -> newStatus == OrderStatus.COMPLETED
+                    || newStatus == OrderStatus.CANCELLED
+                    || newStatus == OrderStatus.SHIPPING;
             case COMPLETED, CANCELLED -> false;
         };
 
@@ -413,24 +557,29 @@ public class OrderServiceImpl implements OrderService {
                     currentStatus, newStatus));
         }
 
-        // Khi hủy đơn hàng, hoàn trả lại số lượng tồn kho (stock) cho biến thể
-        if (newStatus == OrderStatus.CANCELLED) {
+        // Khi hủy đơn hàng, hoàn trả lại số lượng tồn kho và lượt dùng voucher
+        if (newStatus == OrderStatus.CANCELLED && currentStatus != OrderStatus.CANCELLED) {
             restoreStockForOrder(order);
+            restorePromotionUsage(order);
+            if (StringUtils.hasText(cancelReason)) {
+                order.setCancelReason(cancelReason.trim());
+            } else if (!StringUtils.hasText(order.getCancelReason())) {
+                order.setCancelReason("Hủy bởi quản trị viên");
+            }
         }
 
-        // Khi chuyển sang hoặc cập nhật SHIPPING: gán đơn vị vận chuyển và mã vận đơn
-        if (newStatus == OrderStatus.SHIPPING) {
-            if (carrierId != null && shippingCarrierRepository != null) {
-                ShippingCarrier carrier = shippingCarrierRepository.findById(carrierId).orElse(null);
-                if (carrier != null) {
-                    order.setShippingCarrier(carrier);
-                }
-            }
-            if (trackingCode != null && !trackingCode.trim().isEmpty()) {
-                order.setTrackingCode(trackingCode.trim().toUpperCase());
-            } else if (order.getShippingCarrier() != null && (order.getTrackingCode() == null || order.getTrackingCode().isEmpty())) {
-                order.setTrackingCode(order.getShippingCarrier().getCode() + "-" + (System.currentTimeMillis() % 100000000));
-            }
+        // Cập nhật đơn vị vận chuyển và mã vận đơn (cho phép khi PROCESSING hoặc SHIPPING)
+        if (carrierId != null && shippingCarrierRepository != null) {
+            ShippingCarrier carrier = shippingCarrierRepository.findById(carrierId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Đơn vị vận chuyển", "id", carrierId));
+            order.setShippingCarrier(carrier);
+        }
+        if (StringUtils.hasText(trackingCode)) {
+            order.setTrackingCode(trackingCode.trim().toUpperCase());
+        } else if (newStatus == OrderStatus.SHIPPING
+                && order.getShippingCarrier() != null
+                && !StringUtils.hasText(order.getTrackingCode())) {
+            order.setTrackingCode(order.getShippingCarrier().getCode() + "-" + (System.currentTimeMillis() % 100000000));
         }
 
         order.setStatus(newStatus);
@@ -443,6 +592,12 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public ApiResponse<OrderResponse> cancelMyOrder(Long orderId) {
+        return cancelMyOrder(orderId, null);
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<OrderResponse> cancelMyOrder(Long orderId, String reason) {
         User user = getCurrentAuthenticatedUser();
 
         Order order = orderRepository.findById(orderId)
@@ -456,14 +611,38 @@ public class OrderServiceImpl implements OrderService {
             throw new BadRequestException("Chỉ có thể hủy đơn hàng khi đơn còn ở trạng thái 'Chờ xử lý' (PENDING). Trạng thái hiện tại: " + order.getStatus().name());
         }
 
-        // Hoàn trả tồn kho cho biến thể sản phẩm
+        // Hoàn trả tồn kho và lượt dùng voucher
         restoreStockForOrder(order);
+        restorePromotionUsage(order);
 
         order.setStatus(OrderStatus.CANCELLED);
+        if (StringUtils.hasText(reason)) {
+            order.setCancelReason(reason.trim());
+        } else if (!StringUtils.hasText(order.getCancelReason())) {
+            order.setCancelReason("Khách hàng chủ động hủy đơn");
+        }
         Order cancelledOrder = orderRepository.save(order);
-        log.info("Khách hàng '{}' đã hủy thành công đơn hàng #{}", user.getUsername(), orderId);
+        log.info("Khách hàng '{}' đã hủy thành công đơn hàng #{} (Lý do: {})", user.getUsername(), orderId, order.getCancelReason());
 
         return ApiResponse.success("Đã hủy đơn hàng #" + orderId + " thành công", orderMapper.toResponse(cancelledOrder));
+    }
+
+    private void restorePromotionUsage(Order order) {
+        decrementPromotionUsedCount(order.getCouponCode());
+        decrementPromotionUsedCount(order.getShippingCouponCode());
+    }
+
+    private void decrementPromotionUsedCount(String code) {
+        if (!StringUtils.hasText(code) || promotionRepository == null) {
+            return;
+        }
+        promotionRepository.findByCodeIgnoreCase(code.trim()).ifPresent(promo -> {
+            int used = promo.getUsedCount() != null ? promo.getUsedCount() : 0;
+            if (used > 0) {
+                promo.setUsedCount(used - 1);
+                promotionRepository.save(promo);
+            }
+        });
     }
 
     private void restoreStockForOrder(Order order) {

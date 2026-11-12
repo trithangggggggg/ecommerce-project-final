@@ -57,9 +57,15 @@ public class AdminAiController {
     public ResponseEntity<ApiResponse<List<KnowledgeDocumentResponse>>> getAllDocuments(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String fileType,
             @RequestParam(required = false) String search
     ) {
         List<KnowledgeDocumentResponse> list = knowledgeBaseService.getAllDocuments(category, status, search);
+        if (fileType != null && !fileType.isBlank() && !"ALL".equalsIgnoreCase(fileType)) {
+            list = list.stream()
+                    .filter(d -> d.getFileType() != null && fileType.trim().equalsIgnoreCase(d.getFileType()))
+                    .toList();
+        }
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách tài liệu tri thức thành công", list));
     }
 
@@ -90,6 +96,15 @@ public class AdminAiController {
     ) {
         KnowledgeDocumentResponse doc = knowledgeBaseService.createManualEntry(request);
         return ResponseEntity.ok(ApiResponse.success("Tạo mục tri thức thủ công thành công", doc));
+    }
+
+    @PutMapping("/knowledge/{id}")
+    public ResponseEntity<ApiResponse<KnowledgeDocumentResponse>> updateManualKnowledge(
+            @PathVariable Long id,
+            @Valid @RequestBody ManualKnowledgeRequest request
+    ) {
+        KnowledgeDocumentResponse doc = knowledgeBaseService.updateManualEntry(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật tài liệu tri thức thành công", doc));
     }
 
     @DeleteMapping("/knowledge/{id}")

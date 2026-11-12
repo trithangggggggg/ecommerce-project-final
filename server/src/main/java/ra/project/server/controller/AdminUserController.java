@@ -30,6 +30,13 @@ public class AdminUserController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<AdminUserResponse>> getUserById(@PathVariable Long id) {
+        ApiResponse<AdminUserResponse> response = userService.getAdminUserById(id);
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping(value = {"/{id}/status", "/{id}/toggle-status"})
     @PutMapping(value = {"/{id}/status", "/{id}/toggle-status"})
     public ResponseEntity<ApiResponse<AdminUserResponse>> updateUserStatus(
             @PathVariable Long id,
@@ -70,8 +77,8 @@ public class AdminUserController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteAdminUser(@PathVariable Long id) {
-        ApiResponse<Void> response = userService.deleteAdminUser(id);
+    public ResponseEntity<ApiResponse<Map<String, Object>>> deleteAdminUser(@PathVariable Long id) {
+        ApiResponse<Map<String, Object>> response = userService.deleteAdminUser(id);
         return ResponseEntity.ok(response);
     }
 }

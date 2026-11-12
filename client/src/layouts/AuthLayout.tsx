@@ -1,10 +1,20 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link, Outlet } from 'react-router-dom';
 import { Headphones, ShieldCheck, Sparkles, Truck } from 'lucide-react';
 import authBgImage from '../assets/images/auth-bg.jpg';
 import nexorLogo from '../assets/images/nexor_logo.png';
+import { useSiteConfigStore } from '../store/useSiteConfigStore';
 
 export const AuthLayout: React.FC = () => {
+  const { config, fetchSiteConfig } = useSiteConfigStore();
+
+  useEffect(() => {
+    fetchSiteConfig();
+  }, [fetchSiteConfig]);
+
+  const brandName = config.store.shortName || 'Nexor';
+  const brandTagline = config.store.tagline || 'Tech for a Better Tomorrow';
+  const copyrightText = config.store.copyright || `© ${new Date().getFullYear()} ${brandName}. Bảo lưu mọi quyền.`;
   return (
     <div
       className="min-h-screen relative font-sans text-gray-900 overflow-x-hidden flex flex-col justify-between bg-slate-950 bg-cover bg-center bg-no-repeat"
@@ -31,7 +41,7 @@ export const AuthLayout: React.FC = () => {
             alt="Nexor"
             className="h-9 w-auto object-contain drop-shadow-md"
           />
-          <span className="text-2xl font-black text-white tracking-tight">Nexor</span>
+          <span className="text-2xl font-black text-white tracking-tight">{brandName}</span>
         </Link>
 
         {/* Desktop Top Right Service Bar */}
@@ -53,7 +63,7 @@ export const AuthLayout: React.FC = () => {
         </div>
       </header>
 
-      {/* 3. Main Stage: 2-Column Split matching Mockup (Ảnh 1) */}
+      {/* 3. Main Stage: 2-Column Split */}
       <main className="relative z-10 flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-8 py-2 sm:py-4 flex items-center">
         <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-8 items-start lg:items-center">
           {/* CỘT TRÁI (Hero Text & Badges - ĐƯỢC ĐẨY LÊN CAO, KHÔNG CHE THIẾT BỊ NỀN) */}
@@ -66,15 +76,15 @@ export const AuthLayout: React.FC = () => {
                   onError={(e) => {
                     (e.target as HTMLImageElement).src = '/images/nexor_logo.png';
                   }}
-                  alt="Nexor Logo"
+                  alt={`${brandName} Logo`}
                   className="h-10 sm:h-11 w-auto object-contain drop-shadow-md group-hover:scale-105 transition-transform"
                 />
                 <div className="flex flex-col">
                   <span className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none group-hover:text-blue-100 transition-colors">
-                    Nexor
+                    {brandName}
                   </span>
                   <span className="text-xs text-gray-300 tracking-normal mt-1 font-medium">
-                    Tech for a Better Tomorrow
+                    {brandTagline}
                   </span>
                 </div>
               </Link>
@@ -134,7 +144,7 @@ export const AuthLayout: React.FC = () => {
 
       {/* 4. Bottom Footer Note */}
       <footer className="relative z-10 w-full text-center py-2 text-[10px] sm:text-xs text-gray-500/80 pointer-events-none select-none">
-        © {new Date().getFullYear()} Nexor Store. All rights reserved.
+        {copyrightText}
       </footer>
     </div>
   );

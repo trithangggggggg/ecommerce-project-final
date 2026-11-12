@@ -193,6 +193,35 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     @Override
     @Transactional
+    public KnowledgeDocumentResponse updateManualEntry(Long id, ManualKnowledgeRequest request) {
+        KnowledgeDocument doc = documentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài liệu tri thức ID: " + id));
+
+        String title = request.getTitle().trim();
+        String content = request.getContent().trim();
+        String category = StringUtils.hasText(request.getCategory()) ? request.getCategory().toUpperCase() : doc.getCategory();
+        long estimatedSize = content.getBytes(StandardCharsets.UTF_8).length;
+
+        doc.setFileName(title);
+        doc.setCategory(category);
+        doc.setRawContent(content);
+        doc.setFileSize(estimatedSize);
+        doc.setStatus("INDEXED");
+        doc.setErrorMessage(null);
+
+        chunkRepository.deleteAllByDocumentId(id);
+        List<KnowledgeChunk> chunks = splitIntoChunks(content, doc);
+        chunkRepository.saveAll(chunks);
+
+        doc.setChunkCount(chunks.size());
+        doc = documentRepository.save(doc);
+
+        log.info("Cập nhật tri thức ID {}: [{}] -> {} chunks", id, title, chunks.size());
+        return toDocumentResponse(doc);
+    }
+
+    @Override
+    @Transactional
     public void deleteDocument(Long id) {
         KnowledgeDocument doc = documentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài liệu tri thức ID: " + id));
@@ -429,6 +458,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 .status(doc.getStatus())
                 .chunkCount(doc.getChunkCount())
                 .errorMessage(doc.getErrorMessage())
+                .rawContent(doc.getRawContent())
                 .createdAt(doc.getCreatedAt())
                 .updatedAt(doc.getUpdatedAt())
                 .build();

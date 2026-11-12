@@ -2,11 +2,14 @@ package ra.project.server.service.impl;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import ra.project.server.model.dto.request.AiConfigRequest;
 import ra.project.server.model.dto.response.AiConfigResponse;
+import ra.project.server.model.entity.SystemSetting;
+import ra.project.server.repository.SystemSettingRepository;
 import ra.project.server.service.AiConfigService;
 
 import java.net.URI;
@@ -72,6 +75,9 @@ public class AiConfigServiceImpl implements AiConfigService {
             .connectTimeout(Duration.ofSeconds(3))
             .build();
 
+    @Autowired(required = false)
+    private SystemSettingRepository systemSettingRepository;
+
     @PostConstruct
     public void init() {
         if (StringUtils.hasText(envGeminiModel)) {
@@ -80,7 +86,61 @@ public class AiConfigServiceImpl implements AiConfigService {
         if (StringUtils.hasText(envOpenAiModel)) {
             openAiModelRef.set(envOpenAiModel);
         }
-        log.info("Khởi tạo AiConfigService: Gemini Model [{}], OpenAI Model [{}]", geminiModelRef.get(), openAiModelRef.get());
+        loadFromDatabase();
+        log.info("Khởi tạo AiConfigService: Provider={}, Gemini Model [{}], OpenAI Model [{}]", providerRef.get(), geminiModelRef.get(), openAiModelRef.get());
+    }
+
+    private void loadFromDatabase() {
+        if (systemSettingRepository == null) return;
+        try {
+            var rows = systemSettingRepository.findBySettingGroupIgnoreCaseOrderByIdAsc("AI");
+            for (SystemSetting s : rows) {
+                String k = s.getSettingKey();
+                String v = s.getSettingValue();
+                if (!StringUtils.hasText(v)) continue;
+                switch (k) {
+                    case "ai.provider" -> providerRef.set(v.trim());
+                    case "ai.geminiModel" -> geminiModelRef.set(v.trim());
+                    case "ai.openAiModel" -> openAiModelRef.set(v.trim());
+                    case "ai.systemPrompt" -> systemPromptRef.set(v.trim());
+                    case "ai.temperature" -> temperatureRef.set(Double.parseDouble(v.trim()));
+                    case "ai.maxOutputTokens" -> maxOutputTokensRef.set(Integer.parseInt(v.trim()));
+                    case "ai.maxInputLength" -> maxInputLengthRef.set(Integer.parseInt(v.trim()));
+                    case "ai.rateLimitPerMinute" -> rateLimitPerMinuteRef.set(Integer.parseInt(v.trim()));
+                    case "ai.knowledgeBaseEnabled" -> knowledgeBaseEnabledRef.set(Boolean.parseBoolean(v.trim()));
+                    case "ai.topKChunks" -> topKChunksRef.set(Integer.parseInt(v.trim()));
+                    case "ai.relevanceThreshold" -> relevanceThresholdRef.set(Double.parseDouble(v.trim()));
+                    case "ai.suggestProductsEnabled" -> suggestProductsEnabledRef.set(Boolean.parseBoolean(v.trim()));
+                    case "ai.maxSuggestedProducts" -> maxSuggestedProductsRef.set(Integer.parseInt(v.trim()));
+                    case "ai.customGeminiApiKey" -> customGeminiKeyRef.set(v.trim());
+                    case "ai.customOpenAiApiKey" -> customOpenAiKeyRef.set(v.trim());
+                    default -> {}
+                }
+                if (s.getUpdatedAt() != null) {
+                    lastUpdated = s.getUpdatedAt();
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Không thể tải cấu hình AI từ DB (sẽ dùng mặc định): {}", ex.getMessage());
+        }
+    }
+
+    private void saveAiSetting(String key, String value, String label, String valueType) {
+        if (systemSettingRepository == null || value == null) return;
+        try {
+            SystemSetting setting = systemSettingRepository.findBySettingKeyIgnoreCase(key)
+                    .orElseGet(() -> SystemSetting.builder()
+                            .settingKey(key)
+                            .settingGroup("AI")
+                            .label(label)
+                            .valueType(valueType)
+                            .isPublic(false)
+                            .build());
+            setting.setSettingValue(value);
+            systemSettingRepository.save(setting);
+        } catch (Exception ex) {
+            log.warn("Không thể lưu cấu hình AI '{}': {}", key, ex.getMessage());
+        }
     }
 
     @Override
@@ -181,7 +241,26 @@ public class AiConfigServiceImpl implements AiConfigService {
         }
 
         lastUpdated = LocalDateTime.now();
-        log.info("Cập nhật AI Config thành công: Provider={}, Model={}, RateLimit={}/min, MaxInput={}",
+        saveAiSetting("ai.provider", providerRef.get(), "AI Provider", "STRING");
+        saveAiSetting("ai.geminiModel", geminiModelRef.get(), "Gemini Model", "STRING");
+        saveAiSetting("ai.openAiModel", openAiModelRef.get(), "OpenAI Model", "STRING");
+        saveAiSetting("ai.systemPrompt", systemPromptRef.get(), "System Prompt", "TEXT");
+        saveAiSetting("ai.temperature", String.valueOf(temperatureRef.get()), "Temperature", "NUMBER");
+        saveAiSetting("ai.maxOutputTokens", String.valueOf(maxOutputTokensRef.get()), "Max Output Tokens", "NUMBER");
+        saveAiSetting("ai.maxInputLength", String.valueOf(maxInputLengthRef.get()), "Max Input Length", "NUMBER");
+        saveAiSetting("ai.rateLimitPerMinute", String.valueOf(rateLimitPerMinuteRef.get()), "Rate Limit Per Minute", "NUMBER");
+        saveAiSetting("ai.knowledgeBaseEnabled", String.valueOf(knowledgeBaseEnabledRef.get()), "Knowledge Base Enabled", "BOOLEAN");
+        saveAiSetting("ai.topKChunks", String.valueOf(topKChunksRef.get()), "Top K Chunks", "NUMBER");
+        saveAiSetting("ai.relevanceThreshold", String.valueOf(relevanceThresholdRef.get()), "Relevance Threshold", "NUMBER");
+        saveAiSetting("ai.suggestProductsEnabled", String.valueOf(suggestProductsEnabledRef.get()), "Suggest Products Enabled", "BOOLEAN");
+        saveAiSetting("ai.maxSuggestedProducts", String.valueOf(maxSuggestedProductsRef.get()), "Max Suggested Products", "NUMBER");
+        if (StringUtils.hasText(customGeminiKeyRef.get())) {
+            saveAiSetting("ai.customGeminiApiKey", customGeminiKeyRef.get(), "Custom Gemini API Key", "STRING");
+        }
+        if (StringUtils.hasText(customOpenAiKeyRef.get())) {
+            saveAiSetting("ai.customOpenAiApiKey", customOpenAiKeyRef.get(), "Custom OpenAI API Key", "STRING");
+        }
+        log.info("Cập nhật & lưu AI Config vào DB thành công: Provider={}, Model={}, RateLimit={}/min, MaxInput={}",
                 providerRef.get(), geminiModelRef.get(), rateLimitPerMinuteRef.get(), maxInputLengthRef.get());
 
         return getConfig();

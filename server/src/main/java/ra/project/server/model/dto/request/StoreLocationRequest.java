@@ -35,6 +35,9 @@ public class StoreLocationRequest {
     @Size(max = 100, message = "Giờ mở cửa tối đa 100 ký tự")
     private String openHours;
 
+    @Size(max = 500, message = "URL ảnh tối đa 500 ký tự")
+    private String imageUrl;
+
     @Builder.Default
     private String status = "ACTIVE";
 }

@@ -4,6 +4,7 @@ import { ShoppingCart, Heart, Check, Zap, Clock } from 'lucide-react';
 import type { Product } from '../../../models/product.model';
 import { useCartStore } from '../../../store/useCartStore';
 import { useAuthStore } from '../../../store/useAuthStore';
+import { useWishlistStore } from '../../../store/useWishlistStore';
 import { ROUTES } from '../../../constants/routes';
 import { formatPrice } from '../../../utils/format';
 
@@ -15,10 +16,11 @@ interface ProductCardProps {
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
   const { addItem } = useCartStore();
   const { isAuthenticated } = useAuthStore();
+  const liked = useWishlistStore((s) => s.isLiked(product.id));
+  const toggleWishlistItem = useWishlistStore((s) => s.toggleItem);
   const navigate = useNavigate();
   const location = useLocation();
   const [added, setAdded] = useState(false);
-  const [liked, setLiked] = useState(false);
 
   const discount = product.discountPercent ?? (
     product.originalPrice && product.originalPrice > product.price
@@ -68,10 +70,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }
     });
   };
 
-  const handleToggleLike = (e: React.MouseEvent) => {
+  const handleToggleLike = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setLiked(!liked);
+    if (!isAuthenticated) {
+      const currentUrl = location.pathname + (location.search || '');
+      navigate(`/login?redirect=${encodeURIComponent(currentUrl)}`);
+      return;
+    }
+    try {
+      await toggleWishlistItem(product.id);
+    } catch {
+      // Ignore error or silently fallback
+    }
   };
 
   return (

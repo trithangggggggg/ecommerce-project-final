@@ -123,12 +123,12 @@ export const MyOrdersPage: React.FC = () => {
     fetchOrders();
   }, [isAuthenticated, navigate, fetchOrders]);
 
-  // Xử lý xác nhận hủy đơn (Có modal xác nhận + Cập nhật tại chỗ + Toast)
-  const handleConfirmCancelOrder = async (orderId: number) => {
+  // Xử lý xác nhận hủy đơn (Có modal xác nhận + Lưu lý do + Cập nhật tại chỗ + Toast)
+  const handleConfirmCancelOrder = async (orderId: number, reason?: string) => {
     setIsCancelling(true);
 
     try {
-      const updated = await orderService.cancelMyOrder(orderId);
+      const updated = await orderService.cancelMyOrder(orderId, reason);
 
       // Cập nhật trạng thái tại chỗ (in-place) trong state orders
       setOrders((prev) =>

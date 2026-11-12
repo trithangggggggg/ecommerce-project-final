@@ -8,6 +8,7 @@ export interface LogoutConfirmModalProps {
   onConfirm: () => void;
   title?: string;
   message?: string;
+  hideIcons?: boolean;
 }
 
 export const LogoutConfirmModal: React.FC<LogoutConfirmModalProps> = ({
@@ -16,6 +17,7 @@ export const LogoutConfirmModal: React.FC<LogoutConfirmModalProps> = ({
   onConfirm,
   title = 'Xác nhận đăng xuất',
   message = 'Bạn có chắc chắn muốn đăng xuất khỏi tài khoản không?',
+  hideIcons = false,
 }) => {
   // Đóng modal khi bấm phím ESC
   useEffect(() => {
@@ -40,11 +42,13 @@ export const LogoutConfirmModal: React.FC<LogoutConfirmModalProps> = ({
     >
       <div className="bg-white rounded-2xl border border-gray-100 max-w-sm w-full shadow-2xl p-6 space-y-4">
         {/* Header */}
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600 shrink-0">
-              <LogOut className="w-5 h-5 stroke-[2]" />
-            </div>
+            {!hideIcons && (
+              <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+                <LogOut className="w-5 h-5 stroke-[2]" />
+              </div>
+            )}
             <div>
               <h3 className="text-base font-bold text-gray-900">{title}</h3>
               <p className="text-[11px] text-gray-500">Tài khoản & Phiên đăng nhập</p>
@@ -54,10 +58,10 @@ export const LogoutConfirmModal: React.FC<LogoutConfirmModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition cursor-pointer"
+            className="px-2 py-1 rounded-lg text-xs font-semibold text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition cursor-pointer"
             aria-label="Đóng"
           >
-            <X className="w-5 h-5" />
+            {hideIcons ? 'Đóng' : <X className="w-5 h-5" />}
           </button>
         </div>
 
@@ -79,7 +83,7 @@ export const LogoutConfirmModal: React.FC<LogoutConfirmModalProps> = ({
               onConfirm();
               onClose();
             }}
-            leftIcon={<LogOut className="w-3.5 h-3.5" />}
+            leftIcon={hideIcons ? undefined : <LogOut className="w-3.5 h-3.5" />}
           >
             Đăng xuất
           </Button>

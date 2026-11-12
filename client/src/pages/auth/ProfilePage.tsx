@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
   Camera,
   CheckCircle2,
   Eye,
   EyeOff,
+  Heart,
   Info,
   KeyRound,
   Lock,
@@ -15,12 +16,17 @@ import {
   Phone,
   Save,
   ShieldCheck,
+  ShoppingCart,
   Sparkles,
+  Trash2,
   User as UserIcon,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useCartStore } from '../../store/useCartStore';
+import { useWishlistStore } from '../../store/useWishlistStore';
 import { ROLES } from '../../constants/roles';
 import { ROUTES } from '../../constants/routes';
+import { formatPrice } from '../../utils/format';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import LogoutConfirmModal from '../../components/common/LogoutConfirmModal';
@@ -30,6 +36,7 @@ const VN_PHONE_REGEX = /^(0|\+84)(3[2-9]|5[25689]|7[06-9]|8[1-9]|9[0-9])[0-9]{7}
 
 export const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const {
     user,
     isAuthenticated,
@@ -39,8 +46,22 @@ export const ProfilePage: React.FC = () => {
     logout,
     isLoading,
   } = useAuthStore();
+  const { addItem } = useCartStore();
+  const {
+    items: wishlistItems,
+    isLoading: wishlistLoading,
+    fetchWishlistItems,
+    removeItem: removeWishlistItem,
+  } = useWishlistStore();
 
-  const [activeTab, setActiveTab] = useState<'info' | 'password'>('info');
+  const initialTabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<'info' | 'password' | 'wishlist'>(
+    initialTabParam === 'password'
+      ? 'password'
+      : initialTabParam === 'wishlist'
+        ? 'wishlist'
+        : 'info'
+  );
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Form State: Thông tin cá nhân
@@ -81,14 +102,22 @@ export const ProfilePage: React.FC = () => {
     }
   }, [isAuthenticated, navigate]);
 
-  // Tải dữ liệu hồ sơ mới nhất từ backend khi vào trang
+  // Tải dữ liệu hồ sơ mới nhất & danh sách yêu thích từ backend khi vào trang
   useEffect(() => {
     if (isAuthenticated) {
       fetchProfile().catch(() => {
         // Nếu fetch thất bại thì dùng dữ liệu sẵn có trong store
       });
+      fetchWishlistItems().catch(() => {});
     }
-  }, [isAuthenticated, fetchProfile]);
+  }, [isAuthenticated, fetchProfile, fetchWishlistItems]);
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'wishlist' || tabParam === 'password' || tabParam === 'info') {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   // Đồng bộ state form khi user trong store cập nhật
   useEffect(() => {
@@ -333,14 +362,15 @@ export const ProfilePage: React.FC = () => {
           </div>
 
           {/* Navigation Tabs */}
-          <div className="border-t border-gray-100 px-6 flex gap-6 text-xs">
+          <div className="border-t border-gray-100 px-6 flex gap-6 text-xs overflow-x-auto">
             <button
               type="button"
               onClick={() => {
                 setActiveTab('info');
+                setSearchParams({});
                 setFeedback(null);
               }}
-              className={`py-3 font-bold border-b-2 transition flex items-center gap-2 cursor-pointer ${
+              className={`py-3 font-bold border-b-2 transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
                 activeTab === 'info'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-800'
@@ -352,10 +382,28 @@ export const ProfilePage: React.FC = () => {
             <button
               type="button"
               onClick={() => {
+                setActiveTab('wishlist');
+                setSearchParams({ tab: 'wishlist' });
+                setFeedback(null);
+                fetchWishlistItems();
+              }}
+              className={`py-3 font-bold border-b-2 transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                activeTab === 'wishlist'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              <Heart className="w-4 h-4" />
+              Sản phẩm yêu thích ({wishlistItems.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
                 setActiveTab('password');
+                setSearchParams({ tab: 'password' });
                 setFeedback(null);
               }}
-              className={`py-3 font-bold border-b-2 transition flex items-center gap-2 cursor-pointer ${
+              className={`py-3 font-bold border-b-2 transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
                 activeTab === 'password'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-800'
@@ -663,6 +711,135 @@ export const ProfilePage: React.FC = () => {
                 </Button>
               </div>
             </form>
+          </div>
+        )}
+
+        {/* Tab 3: Wishlist */}
+        {activeTab === 'wishlist' && (
+          <div className="bg-white rounded-2xl shadow-xs border border-gray-200 p-6 sm:p-8 space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-bold text-gray-900">
+                  Sản phẩm yêu thích ({wishlistItems.length})
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Danh sách được lưu đồng bộ theo tài khoản của bạn trên hệ thống
+                </p>
+              </div>
+              <Link
+                to={ROUTES.PRODUCTS}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+              >
+                Khám phá thêm sản phẩm →
+              </Link>
+            </div>
+
+            {wishlistLoading ? (
+              <div className="py-12 text-center text-xs text-gray-500">
+                Đang tải danh sách yêu thích...
+              </div>
+            ) : wishlistItems.length === 0 ? (
+              <div className="py-12 text-center border border-dashed border-gray-200 rounded-2xl space-y-3">
+                <Heart className="w-10 h-10 text-gray-300 mx-auto" />
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">
+                    Bạn chưa lưu sản phẩm yêu thích nào
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Nhấn biểu tượng trái tim trên sản phẩm bất kỳ để lưu vào đây.
+                  </p>
+                </div>
+                <Link
+                  to={ROUTES.PRODUCTS}
+                  className="inline-flex items-center px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition"
+                >
+                  Xem sản phẩm ngay
+                </Link>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {wishlistItems.map((item) => {
+                  const defaultVariant =
+                    item.variants && item.variants.length > 0 ? item.variants[0] : undefined;
+                  const outOfStock = (item.stock ?? 0) <= 0;
+                  return (
+                    <div
+                      key={item.id}
+                      className="border border-gray-200 rounded-xl p-3.5 flex flex-col justify-between gap-3 hover:border-blue-200 hover:shadow-xs transition"
+                    >
+                      <Link
+                        to={`/products/${item.id}`}
+                        className="flex gap-3 items-start group"
+                      >
+                        <img
+                          src={item.imageUrl || '/images/tech-future-banner.jpg'}
+                          alt={item.name}
+                          className="w-20 h-20 rounded-lg object-contain bg-gray-50 border border-gray-100 p-1 shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-600">
+                            {item.category?.name || 'Công nghệ'}
+                          </span>
+                          <h3 className="text-xs font-bold text-gray-900 group-hover:text-blue-600 transition line-clamp-2 mt-0.5">
+                            {item.name}
+                          </h3>
+                          <p className="text-sm font-extrabold text-red-600 mt-1.5">
+                            {formatPrice(item.price)}
+                          </p>
+                        </div>
+                      </Link>
+
+                      <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                        <button
+                          type="button"
+                          disabled={outOfStock}
+                          onClick={() => {
+                            if (item.variants && item.variants.length > 1) {
+                              navigate(`/products/${item.id}`);
+                              return;
+                            }
+                            addItem(item, defaultVariant, 1);
+                            setFeedback({
+                              type: 'success',
+                              message: `Đã thêm "${item.name}" vào giỏ hàng!`,
+                            });
+                          }}
+                          className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+                            outOfStock
+                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              : 'bg-slate-900 text-white hover:bg-slate-800'
+                          }`}
+                        >
+                          <ShoppingCart className="w-3.5 h-3.5" />
+                          {outOfStock ? 'Hết hàng' : 'Thêm giỏ'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await removeWishlistItem(item.id);
+                              setFeedback({
+                                type: 'success',
+                                message: `Đã bỏ "${item.name}" khỏi danh sách yêu thích.`,
+                              });
+                            } catch {
+                              setFeedback({
+                                type: 'error',
+                                message: 'Không thể cập nhật danh sách yêu thích.',
+                              });
+                            }
+                          }}
+                          className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition cursor-pointer"
+                          title="Xóa khỏi yêu thích"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>

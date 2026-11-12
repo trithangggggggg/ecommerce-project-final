@@ -41,8 +41,17 @@ public class OrderController {
     }
 
     @PutMapping("/{id}/cancel")
-    public ResponseEntity<ApiResponse<OrderResponse>> cancelMyOrder(@PathVariable Long id) {
-        ApiResponse<OrderResponse> response = orderService.cancelMyOrder(id);
+    public ResponseEntity<ApiResponse<OrderResponse>> cancelMyOrder(
+            @PathVariable Long id,
+            @RequestBody(required = false) java.util.Map<String, String> body
+    ) {
+        String reason = null;
+        if (body != null) {
+            reason = body.containsKey("reason") ? body.get("reason") : body.get("cancelReason");
+        }
+        ApiResponse<OrderResponse> response = reason != null
+                ? orderService.cancelMyOrder(id, reason)
+                : orderService.cancelMyOrder(id);
         return ResponseEntity.ok(response);
     }
 }

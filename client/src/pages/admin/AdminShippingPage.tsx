@@ -1,16 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Truck,
-  Plus,
-  Search,
-  Phone,
-  Star,
-  Edit,
-  Trash2,
-  X,
-  CheckCircle2,
-  RefreshCw,
-} from 'lucide-react';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import AdminPagination from '../../components/admin/AdminPagination';
@@ -22,6 +10,7 @@ export interface ShippingCarrier {
   code: string;
   name: string;
   serviceType: string;
+  estimatedDelivery?: string;
   hotline: string;
   shippingFee: number;
   activeOrders: number;
@@ -45,6 +34,7 @@ export const AdminShippingPage: React.FC = () => {
       setCarriers(data);
     } catch {
       setCarriers([]);
+      showToast('Không thể tải danh sách đối tác vận chuyển từ máy chủ.');
     } finally {
       setIsLoading(false);
     }
@@ -59,6 +49,7 @@ export const AdminShippingPage: React.FC = () => {
 
   // Modals state
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [detailCarrier, setDetailCarrier] = useState<ShippingCarrier | null>(null);
   const [editingCarrier, setEditingCarrier] = useState<ShippingCarrier | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ShippingCarrier | null>(null);
 
@@ -67,6 +58,7 @@ export const AdminShippingPage: React.FC = () => {
     code: '',
     name: '',
     serviceType: '',
+    estimatedDelivery: '2 - 3 ngày làm việc',
     hotline: '',
     shippingFee: 30000,
     rating: 5.0,
@@ -77,6 +69,7 @@ export const AdminShippingPage: React.FC = () => {
     code: '',
     name: '',
     serviceType: '',
+    estimatedDelivery: '2 - 3 ngày làm việc',
     hotline: '',
     shippingFee: 30000,
     rating: 5.0,
@@ -101,6 +94,7 @@ export const AdminShippingPage: React.FC = () => {
         code: addForm.code.trim().toUpperCase(),
         name: addForm.name.trim(),
         serviceType: addForm.serviceType.trim() || 'Chuyển phát nhanh',
+        estimatedDelivery: addForm.estimatedDelivery.trim() || '2 - 3 ngày làm việc',
         hotline: addForm.hotline.trim() || '1900 0000',
         shippingFee: Number(addForm.shippingFee) || 30000,
         activeOrders: 0,
@@ -114,6 +108,7 @@ export const AdminShippingPage: React.FC = () => {
         code: '',
         name: '',
         serviceType: '',
+        estimatedDelivery: '2 - 3 ngày làm việc',
         hotline: '',
         shippingFee: 30000,
         rating: 5.0,
@@ -133,6 +128,7 @@ export const AdminShippingPage: React.FC = () => {
       code: c.code,
       name: c.name,
       serviceType: c.serviceType,
+      estimatedDelivery: c.estimatedDelivery || '2 - 3 ngày làm việc',
       hotline: c.hotline,
       shippingFee: c.shippingFee || 30000,
       rating: c.rating,
@@ -150,6 +146,7 @@ export const AdminShippingPage: React.FC = () => {
         code: editForm.code.trim().toUpperCase(),
         name: editForm.name.trim(),
         serviceType: editForm.serviceType.trim(),
+        estimatedDelivery: editForm.estimatedDelivery.trim() || '2 - 3 ngày làm việc',
         hotline: editForm.hotline.trim(),
         shippingFee: Number(editForm.shippingFee) || 30000,
         rating: Number(editForm.rating) || 5.0,
@@ -209,11 +206,11 @@ export const AdminShippingPage: React.FC = () => {
   );
 
   return (
-    <div className="h-full flex flex-col min-h-0 space-y-2.5 font-sans select-none overflow-hidden">
+    <div className="h-full flex flex-col min-h-0 space-y-4 font-sans select-none overflow-hidden">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-6 right-6 z-[9999] bg-slate-900/95 border border-slate-700 backdrop-blur-md text-white text-xs px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2 animate-bounce">
-          <CheckCircle2 size={16} className="text-emerald-400" />
+        <div className="fixed top-6 right-6 z-[9999] bg-slate-900/95 border border-slate-700 backdrop-blur-md text-white text-xs font-medium px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
@@ -221,30 +218,30 @@ export const AdminShippingPage: React.FC = () => {
       {/* Header & Actions */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <Truck className="w-6 h-6 text-blue-600" />
-            <span>Đối tác & Dịch vụ vận chuyển</span>
-            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              Đối tác & Dịch vụ vận chuyển
+            </h1>
+            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 tabular-nums">
               {carriers.length} đối tác
             </span>
-          </h1>
+          </div>
           <p className="text-xs text-slate-500 mt-0.5">
             Quản trị các đơn vị giao hàng, cấu hình API liên kết và theo dõi hiệu suất giao vận
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <Button
             variant="outline"
             size="md"
-            leftIcon={<RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
             onClick={fetchCarriers}
+            disabled={isLoading}
           >
-            Làm mới
+            {isLoading ? 'Đang tải...' : 'Làm mới'}
           </Button>
           <Button
             variant="primary"
             size="md"
-            leftIcon={<Plus className="w-4 h-4" />}
             onClick={() => setIsAddOpen(true)}
           >
             Thêm đối tác
@@ -253,30 +250,50 @@ export const AdminShippingPage: React.FC = () => {
       </div>
 
       {/* Stats Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 shrink-0">
-        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Tổng đơn vị</span>
-          <span className="text-lg font-bold text-slate-900">{carriers.length}</span>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
+        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-slate-500 shadow-2xs space-y-1">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+            Tổng đơn vị
+          </span>
+          <span className="text-lg sm:text-xl font-bold text-slate-900 tabular-nums block">
+            {carriers.length}
+          </span>
+          <span className="text-[11px] text-slate-500 block">Đơn vị vận chuyển liên kết</span>
         </div>
-        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Đang kết nối</span>
-          <span className="text-lg font-bold text-emerald-600">{activeCount}</span>
+        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-emerald-500 shadow-2xs space-y-1">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+            Đang kết nối
+          </span>
+          <span className="text-lg sm:text-xl font-bold text-emerald-600 tabular-nums block">
+            {activeCount}
+          </span>
+          <span className="text-[11px] text-slate-500 block">Sẵn sàng tiếp nhận đơn</span>
         </div>
-        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Đơn đang luân chuyển</span>
-          <span className="text-lg font-bold text-blue-600">{totalActiveOrders} đơn</span>
+        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-blue-500 shadow-2xs space-y-1">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+            Đơn đang luân chuyển
+          </span>
+          <span className="text-lg sm:text-xl font-bold text-blue-600 tabular-nums block">
+            {totalActiveOrders} đơn
+          </span>
+          <span className="text-[11px] text-slate-500 block">Tổng đơn đang giao hiện tại</span>
         </div>
-        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Tạm dừng kết nối</span>
-          <span className="text-lg font-bold text-slate-500">{inactiveCount}</span>
+        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 border-t-2 border-t-slate-400 shadow-2xs space-y-1">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+            Tạm dừng kết nối
+          </span>
+          <span className="text-lg sm:text-xl font-bold text-slate-600 tabular-nums block">
+            {inactiveCount}
+          </span>
+          <span className="text-[11px] text-slate-500 block">Tạm ngưng tiếp nhận đơn</span>
         </div>
       </div>
 
       {/* Main Table Card (Dạng bảng) */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden flex-1 min-h-0 flex flex-col">
+      <div className="bg-white rounded-xl border border-slate-200/80 shadow-2xs flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Search & Filter Bar */}
-        <div className="p-3 sm:p-3.5 border-b border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
-          <div className="flex flex-col sm:flex-row items-center gap-3 flex-1 max-w-xl">
+        <div className="p-3.5 border-b border-slate-100 bg-slate-50/40 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 shrink-0">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 max-w-2xl">
             <div className="w-full sm:w-72">
               <Input
                 type="text"
@@ -286,18 +303,17 @@ export const AdminShippingPage: React.FC = () => {
                   setSearchQuery(e.target.value);
                   setCurrentPage(1);
                 }}
-                leftIcon={<Search className="w-4 h-4 text-slate-400" />}
               />
             </div>
 
-            <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl self-start sm:self-auto text-xs font-semibold">
+            <div className="flex flex-wrap items-center gap-1 bg-slate-100/90 p-1 rounded-lg self-start sm:self-auto text-xs font-semibold">
               <button
                 type="button"
                 onClick={() => {
                   setStatusFilter('ALL');
                   setCurrentPage(1);
                 }}
-                className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md transition cursor-pointer tabular-nums ${
                   statusFilter === 'ALL'
                     ? 'bg-white text-slate-900 shadow-2xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
@@ -311,7 +327,7 @@ export const AdminShippingPage: React.FC = () => {
                   setStatusFilter('ACTIVE');
                   setCurrentPage(1);
                 }}
-                className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md transition cursor-pointer tabular-nums ${
                   statusFilter === 'ACTIVE'
                     ? 'bg-white text-emerald-600 shadow-2xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
@@ -325,7 +341,7 @@ export const AdminShippingPage: React.FC = () => {
                   setStatusFilter('INACTIVE');
                   setCurrentPage(1);
                 }}
-                className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md transition cursor-pointer tabular-nums ${
                   statusFilter === 'INACTIVE'
                     ? 'bg-white text-rose-600 shadow-2xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
@@ -336,98 +352,104 @@ export const AdminShippingPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="text-xs text-slate-500 font-medium self-end sm:self-center">
-            Hiển thị <strong>{filteredCarriers.length}</strong> / {carriers.length} đối tác
+          <div className="text-xs text-slate-500 font-medium self-end lg:self-center tabular-nums">
+            Hiển thị <strong className="text-slate-800">{filteredCarriers.length}</strong> / {carriers.length} đối tác
           </div>
         </div>
 
         {/* Table View */}
-        <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto no-scrollbar">
+        <div className="flex-1 min-h-0 overflow-auto">
           <table className="w-full text-left text-xs text-slate-600 border-collapse">
-            <thead>
-              <tr className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 backdrop-blur-xs text-[11px] font-bold text-slate-500 uppercase tracking-wider shadow-2xs">
-                <th className="py-2.5 px-3 bg-slate-50/95">Mã đối tác</th>
-                <th className="py-2.5 px-3 bg-slate-50/95">Đơn vị vận chuyển</th>
-                <th className="py-2.5 px-3 bg-slate-50/95">Dịch vụ</th>
-                <th className="py-2.5 px-3 bg-slate-50/95">Cước phí</th>
-                <th className="py-2.5 px-3 bg-slate-50/95">Hotline</th>
-                <th className="py-2.5 px-3 bg-slate-50/95 text-center">Đơn đang giao</th>
-                <th className="py-2.5 px-3 bg-slate-50/95">Đánh giá</th>
-                <th className="py-2.5 px-3 bg-slate-50/95">Trạng thái</th>
-                <th className="py-2.5 px-3 bg-slate-50/95 text-right">Thao tác</th>
+            <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              <tr>
+                <th className="py-2.5 px-3.5">Mã đối tác</th>
+                <th className="py-2.5 px-3.5">Đơn vị vận chuyển</th>
+                <th className="py-2.5 px-3.5">Dịch vụ</th>
+                <th className="py-2.5 px-3.5 text-right">Cước phí</th>
+                <th className="py-2.5 px-3.5">Hotline</th>
+                <th className="py-2.5 px-3.5 text-center">Đơn đang giao</th>
+                <th className="py-2.5 px-3.5 text-center">Đánh giá</th>
+                <th className="py-2.5 px-3.5">Trạng thái</th>
+                <th className="py-2.5 px-3.5 text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredCarriers.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-400">
-                    Không tìm thấy đối tác vận chuyển nào phù hợp.
+                  <td colSpan={9} className="py-12 px-4 text-center">
+                    <p className="text-sm font-semibold text-slate-600">
+                      {isLoading
+                        ? 'Đang tải danh sách đối tác vận chuyển...'
+                        : 'Không tìm thấy đối tác vận chuyển nào phù hợp.'}
+                    </p>
+                    {!isLoading && (
+                      <p className="text-xs text-slate-400 mt-1">
+                        Thử thay đổi bộ lọc trạng thái hoặc từ khóa tìm kiếm, hoặc nhấn "Thêm đối tác".
+                      </p>
+                    )}
                   </td>
                 </tr>
               ) : (
                 paginatedCarriers.map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-50/60 transition group">
+                  <tr key={c.id} className="hover:bg-slate-50/70 transition group">
                     {/* Code */}
-                    <td className="py-2 px-3 whitespace-nowrap">
-                      <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200 text-xs">
+                    <td className="py-2.5 px-3.5 whitespace-nowrap">
+                      <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 text-xs tabular-nums">
                         {c.code}
                       </span>
                     </td>
 
                     {/* Name */}
-                    <td className="py-2 px-3 max-w-[200px]">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded bg-blue-50 text-blue-600 flex items-center justify-center font-bold shrink-0">
-                          <Truck className="w-3.5 h-3.5" />
-                        </div>
-                        <span className="font-bold text-slate-900 group-hover:text-blue-600 transition truncate" title={c.name}>
-                          {c.name}
-                        </span>
-                      </div>
+                    <td className="py-2.5 px-3.5 max-w-[220px]">
+                      <span
+                        className="font-bold text-slate-900 group-hover:text-blue-600 transition truncate block"
+                        title={c.name}
+                      >
+                        {c.name}
+                      </span>
                     </td>
 
                     {/* Service */}
-                    <td className="py-2 px-3 text-slate-600 font-medium whitespace-nowrap">
-                      {c.serviceType}
+                    <td className="py-2.5 px-3.5 text-slate-600 font-medium whitespace-nowrap">
+                      <span className="block text-slate-700">{c.serviceType}</span>
+                      <span className="text-[11px] text-slate-400 font-normal">
+                        {c.estimatedDelivery || '2 - 3 ngày làm việc'}
+                      </span>
                     </td>
 
                     {/* Shipping Fee */}
-                    <td className="py-2 px-3 whitespace-nowrap">
-                      <span className="font-bold text-slate-800 text-xs">
+                    <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
+                      <span className="font-bold text-slate-800 text-xs tabular-nums">
                         {formatPrice(c.shippingFee || 30000)}
                       </span>
                     </td>
 
                     {/* Hotline */}
-                    <td className="py-2 px-3 whitespace-nowrap">
-                      <div className="flex items-center gap-1 text-slate-700 font-medium">
-                        <Phone className="w-3 h-3 text-slate-400" />
-                        <span>{c.hotline}</span>
-                      </div>
+                    <td className="py-2.5 px-3.5 whitespace-nowrap">
+                      <span className="text-slate-700 font-medium tabular-nums">{c.hotline}</span>
                     </td>
 
                     {/* Active orders */}
-                    <td className="py-2 px-3 text-center whitespace-nowrap">
-                      <span className="font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-200 text-[11px]">
+                    <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
+                      <span className="font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 text-[11px] tabular-nums">
                         {c.activeOrders} đơn
                       </span>
                     </td>
 
                     {/* Rating */}
-                    <td className="py-2 px-3 whitespace-nowrap">
-                      <div className="flex items-center gap-1 text-amber-500 font-bold text-xs">
-                        <Star className="w-3 h-3 fill-current" />
-                        <span>{c.rating.toFixed(1)}</span>
-                      </div>
+                    <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
+                      <span className="font-bold text-amber-600 text-xs tabular-nums">
+                        {c.rating.toFixed(1)} / 5
+                      </span>
                     </td>
 
                     {/* Status */}
-                    <td className="py-2 px-3 whitespace-nowrap">
+                    <td className="py-2.5 px-3.5 whitespace-nowrap">
                       <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
                           c.status === 'ACTIVE'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-slate-100 text-slate-500 border-slate-200'
+                            : 'bg-slate-100 text-slate-600 border-slate-200'
                         }`}
                       >
                         <span className="w-1.5 h-1.5 rounded-full bg-current" />
@@ -436,23 +458,31 @@ export const AdminShippingPage: React.FC = () => {
                     </td>
 
                     {/* Actions */}
-                    <td className="py-2 px-3 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1">
+                    <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
+                      <div className="inline-flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setDetailCarrier(c)}
+                          className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition cursor-pointer"
+                          title="Xem chi tiết đối tác vận chuyển"
+                        >
+                          Xem
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleOpenEdit(c)}
-                          className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition cursor-pointer"
+                          className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition cursor-pointer"
                           title="Chỉnh sửa thông tin đối tác"
                         >
-                          <Edit className="w-3.5 h-3.5" />
+                          Sửa
                         </button>
                         <button
                           type="button"
                           onClick={() => setDeleteTarget(c)}
-                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                          className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer"
                           title="Xóa đối tác"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          Xóa
                         </button>
                       </div>
                     </td>
@@ -464,17 +494,13 @@ export const AdminShippingPage: React.FC = () => {
         </div>
 
         {/* Pagination Controls - 10 rows per page - Pinned to bottom */}
-        {filteredCarriers.length > 0 && (
-          <div className="shrink-0 border-t border-slate-100 bg-white">
-            <AdminPagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={filteredCarriers.length}
-              itemsPerPage={ITEMS_PER_PAGE}
-              onPageChange={setCurrentPage}
-            />
-          </div>
-        )}
+        <AdminPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredCarriers.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       {/* ======================================================== */}
@@ -482,96 +508,110 @@ export const AdminShippingPage: React.FC = () => {
       {/* ======================================================== */}
       {isAddOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4 font-sans">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Truck className="w-5 h-5 text-blue-600" />
-                <span>Thêm đối tác vận chuyển mới</span>
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full shadow-2xl font-sans max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3 shrink-0 bg-white">
+              <h3 className="text-base font-bold text-slate-900">
+                Thêm đối tác vận chuyển mới
               </h3>
               <button
                 type="button"
                 onClick={() => setIsAddOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                Đóng
               </button>
             </div>
 
-            <form onSubmit={handleAddSubmit} className="space-y-3.5 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Mã đối tác (Code) *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="VD: FAST-EXPRESS"
-                    value={addForm.code}
-                    onChange={(e) => setAddForm({ ...addForm, code: e.target.value.toUpperCase() })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono uppercase focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                  />
+            <form onSubmit={handleAddSubmit} className="flex-1 min-h-0 flex flex-col text-xs">
+              <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Mã đối tác (Code) *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="VD: FAST-EXPRESS"
+                      value={addForm.code}
+                      onChange={(e) => setAddForm({ ...addForm, code: e.target.value.toUpperCase() })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl font-mono uppercase focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Tên đơn vị vận chuyển *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="VD: Kerry Express Việt Nam"
+                      value={addForm.name}
+                      onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
                 </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Loại hình dịch vụ giao nhận</label>
+                    <input
+                      type="text"
+                      placeholder="VD: Chuyển phát hỏa tốc, Tiết kiệm..."
+                      value={addForm.serviceType}
+                      onChange={(e) => setAddForm({ ...addForm, serviceType: e.target.value })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Cước phí cơ bản (VNĐ) *</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1000"
+                      required
+                      placeholder="30000"
+                      value={addForm.shippingFee}
+                      onChange={(e) => setAddForm({ ...addForm, shippingFee: Number(e.target.value) || 0 })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl font-semibold text-blue-600 tabular-nums focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Hotline CSKH</label>
+                    <input
+                      type="text"
+                      placeholder="1900 1234"
+                      value={addForm.hotline}
+                      onChange={(e) => setAddForm({ ...addForm, hotline: e.target.value })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl tabular-nums focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Trạng thái kết nối</label>
+                    <select
+                      value={addForm.status}
+                      onChange={(e) => setAddForm({ ...addForm, status: e.target.value as 'ACTIVE' | 'INACTIVE' })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-semibold"
+                    >
+                      <option value="ACTIVE">Đang kết nối</option>
+                      <option value="INACTIVE">Tạm ngưng</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Tên đơn vị vận chuyển *</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Thời gian giao hàng dự kiến</label>
                   <input
                     type="text"
-                    required
-                    placeholder="VD: Kerry Express Việt Nam"
-                    value={addForm.name}
-                    onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    placeholder="VD: 1 - 2 ngày (24h nội thành)"
+                    value={addForm.estimatedDelivery}
+                    onChange={(e) => setAddForm({ ...addForm, estimatedDelivery: e.target.value })}
+                    className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">Loại hình dịch vụ giao nhận</label>
-                <input
-                  type="text"
-                  placeholder="VD: Chuyển phát hỏa tốc, Tiết kiệm liên tỉnh..."
-                  value={addForm.serviceType}
-                  onChange={(e) => setAddForm({ ...addForm, serviceType: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Cước phí cơ bản (VNĐ) *</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    required
-                    placeholder="30000"
-                    value={addForm.shippingFee}
-                    onChange={(e) => setAddForm({ ...addForm, shippingFee: Number(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-semibold text-blue-600 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Hotline CSKH</label>
-                  <input
-                    type="text"
-                    placeholder="1900 1234"
-                    value={addForm.hotline}
-                    onChange={(e) => setAddForm({ ...addForm, hotline: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Trạng thái kết nối</label>
-                  <select
-                    value={addForm.status}
-                    onChange={(e) => setAddForm({ ...addForm, status: e.target.value as 'ACTIVE' | 'INACTIVE' })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-bold"
-                  >
-                    <option value="ACTIVE">Đang kết nối</option>
-                    <option value="INACTIVE">Tạm ngưng</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2 shrink-0">
                 <Button type="button" variant="outline" size="sm" onClick={() => setIsAddOpen(false)}>
                   Hủy
                 </Button>
@@ -589,92 +629,109 @@ export const AdminShippingPage: React.FC = () => {
       {/* ======================================================== */}
       {editingCarrier && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4 font-sans">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Edit className="w-5 h-5 text-amber-600" />
-                <span>Chỉnh sửa đối tác {editingCarrier.name}</span>
-              </h3>
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full shadow-2xl font-sans max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3 shrink-0 bg-white">
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-slate-900 truncate">
+                  Chỉnh sửa đối tác {editingCarrier.name}
+                </h3>
+                <p className="text-[11px] font-mono text-slate-500 mt-0.5">{editingCarrier.code}</p>
+              </div>
               <button
                 type="button"
                 onClick={() => setEditingCarrier(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition cursor-pointer shrink-0"
               >
-                <X className="w-5 h-5" />
+                Đóng
               </button>
             </div>
 
-            <form onSubmit={handleEditSubmit} className="space-y-3.5 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Mã đối tác (Code) *</label>
-                  <input
-                    type="text"
-                    required
-                    value={editForm.code}
-                    onChange={(e) => setEditForm({ ...editForm, code: e.target.value.toUpperCase() })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono uppercase focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                  />
+            <form onSubmit={handleEditSubmit} className="flex-1 min-h-0 flex flex-col text-xs">
+              <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Mã đối tác (Code) *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editForm.code}
+                      onChange={(e) => setEditForm({ ...editForm, code: e.target.value.toUpperCase() })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl font-mono uppercase focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Tên đơn vị vận chuyển *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editForm.name}
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
                 </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Loại hình dịch vụ</label>
+                    <input
+                      type="text"
+                      value={editForm.serviceType}
+                      onChange={(e) => setEditForm({ ...editForm, serviceType: e.target.value })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Cước phí cơ bản (VNĐ) *</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1000"
+                      required
+                      placeholder="30000"
+                      value={editForm.shippingFee}
+                      onChange={(e) => setEditForm({ ...editForm, shippingFee: Number(e.target.value) || 0 })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl font-semibold text-blue-600 tabular-nums focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Hotline CSKH</label>
+                    <input
+                      type="text"
+                      value={editForm.hotline}
+                      onChange={(e) => setEditForm({ ...editForm, hotline: e.target.value })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl tabular-nums focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Trạng thái kết nối</label>
+                    <select
+                      value={editForm.status}
+                      onChange={(e) => setEditForm({ ...editForm, status: e.target.value as 'ACTIVE' | 'INACTIVE' })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-semibold"
+                    >
+                      <option value="ACTIVE">Đang kết nối</option>
+                      <option value="INACTIVE">Tạm ngưng</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Tên đơn vị vận chuyển *</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Thời gian giao hàng dự kiến</label>
                   <input
                     type="text"
-                    required
-                    value={editForm.name}
-                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    placeholder="VD: 1 - 2 ngày (24h nội thành)"
+                    value={editForm.estimatedDelivery}
+                    onChange={(e) => setEditForm({ ...editForm, estimatedDelivery: e.target.value })}
+                    className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">Loại hình dịch vụ</label>
-                <input
-                  type="text"
-                  value={editForm.serviceType}
-                  onChange={(e) => setEditForm({ ...editForm, serviceType: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Cước phí cơ bản (VNĐ) *</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    required
-                    placeholder="30000"
-                    value={editForm.shippingFee}
-                    onChange={(e) => setEditForm({ ...editForm, shippingFee: Number(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-semibold text-blue-600 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Hotline CSKH</label>
-                  <input
-                    type="text"
-                    value={editForm.hotline}
-                    onChange={(e) => setEditForm({ ...editForm, hotline: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Trạng thái kết nối</label>
-                  <select
-                    value={editForm.status}
-                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value as 'ACTIVE' | 'INACTIVE' })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-bold"
-                  >
-                    <option value="ACTIVE">Đang kết nối</option>
-                    <option value="INACTIVE">Tạm ngưng</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2 shrink-0">
                 <Button type="button" variant="outline" size="sm" onClick={() => setEditingCarrier(null)}>
                   Hủy
                 </Button>
@@ -692,27 +749,125 @@ export const AdminShippingPage: React.FC = () => {
       {/* ======================================================== */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-sm w-full p-5 shadow-2xl space-y-4 font-sans text-center">
-            <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <div>
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-sm w-full shadow-2xl font-sans overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-2">
               <h3 className="text-base font-bold text-slate-900">Xóa đối tác này?</h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Bạn có chắc chắn muốn ngắt kết nối và xóa <strong>{deleteTarget.name}</strong> khỏi hệ thống?
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+            <div className="p-5">
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Bạn có chắc chắn muốn ngắt kết nối và xóa{' '}
+                <strong className="text-slate-900">{deleteTarget.name}</strong> ({deleteTarget.code}) khỏi hệ thống?
               </p>
             </div>
-            <div className="flex justify-center gap-2 pt-2">
+            <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2">
               <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)}>
                 Hủy bỏ
               </Button>
               <Button
-                variant="primary"
+                variant="danger"
                 size="sm"
-                className="bg-rose-600 hover:bg-rose-700 text-white border-transparent"
                 onClick={handleDeleteConfirm}
               >
                 Xác nhận xóa
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 4: XEM CHI TIẾT ĐỐI TÁC VẬN CHUYỂN                 */}
+      {/* ======================================================== */}
+      {detailCarrier && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full shadow-2xl font-sans overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-slate-900 truncate">{detailCarrier.name}</h3>
+                <p className="text-[11px] font-mono text-slate-500 mt-0.5">
+                  ID #{detailCarrier.id} · Mã đối tác: {detailCarrier.code}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailCarrier(null)}
+                className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition cursor-pointer shrink-0"
+              >
+                Đóng
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200/70">
+                <div>
+                  <span className="text-[11px] font-semibold text-slate-400 block">Loại dịch vụ</span>
+                  <span className="font-bold text-slate-800 mt-0.5 block">{detailCarrier.serviceType}</span>
+                </div>
+                <div>
+                  <span className="text-[11px] font-semibold text-slate-400 block">Thời gian giao dự kiến</span>
+                  <span className="font-bold text-blue-700 mt-0.5 block">
+                    {detailCarrier.estimatedDelivery || '2 - 3 ngày làm việc'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[11px] font-semibold text-slate-400 block">Cước phí cơ bản</span>
+                  <span className="font-bold text-slate-900 tabular-nums mt-0.5 block">
+                    {formatPrice(detailCarrier.shippingFee || 30000)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[11px] font-semibold text-slate-400 block">Hotline CSKH</span>
+                  <span className="font-bold text-slate-800 tabular-nums mt-0.5 block">{detailCarrier.hotline}</span>
+                </div>
+                <div>
+                  <span className="text-[11px] font-semibold text-slate-400 block">Đơn đang giao</span>
+                  <span className="font-bold text-blue-700 tabular-nums mt-0.5 block">
+                    {detailCarrier.activeOrders} đơn
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[11px] font-semibold text-slate-400 block">Đánh giá dịch vụ</span>
+                  <span className="font-bold text-amber-600 tabular-nums mt-0.5 block">
+                    {detailCarrier.rating.toFixed(1)} / 5.0
+                  </span>
+                </div>
+                <div className="col-span-2 pt-2 border-t border-slate-200/80 flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-slate-500">Trạng thái kết nối</span>
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
+                      detailCarrier.status === 'ACTIVE'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-slate-100 text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                    <span>{detailCarrier.status === 'ACTIVE' ? 'Đang kết nối' : 'Tạm ngưng'}</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setDetailCarrier(null)}>
+                Đóng
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  const target = detailCarrier;
+                  setDetailCarrier(null);
+                  handleOpenEdit(target);
+                }}
+              >
+                Chỉnh sửa đối tác
               </Button>
             </div>
           </div>

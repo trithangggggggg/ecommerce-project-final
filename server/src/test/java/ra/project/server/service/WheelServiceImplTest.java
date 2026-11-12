@@ -9,6 +9,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.util.ReflectionTestUtils;
+import ra.project.server.model.entity.WheelRewardEntity;
+import ra.project.server.repository.WheelRewardRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -237,6 +240,34 @@ class WheelServiceImplTest {
 
         BadRequestException ex = assertThrows(BadRequestException.class, () -> wheelService.spinWheel());
         assertTrue(ex.getMessage().contains("Bạn đã sử dụng lượt quay may mắn"));
+    }
+
+    @Test
+    @DisplayName("getDefaultRewards ưu tiên đọc phần thưởng đang kích hoạt từ bảng wheel_rewards")
+    void whenDbHasActiveRewards_thenGetDefaultRewardsReturnsFromDb() {
+        WheelRewardRepository rewardRepo = mock(WheelRewardRepository.class);
+        ReflectionTestUtils.setField(wheelService, "wheelRewardRepository", rewardRepo);
+
+        WheelRewardEntity dbEntity = WheelRewardEntity.builder()
+                .id(11L)
+                .label("VIP 500K")
+                .shortLabel("500K")
+                .discount("500.000")
+                .type("ORDER")
+                .minOrder("5.000.000đ")
+                .weight(40)
+                .color("#000000")
+                .textColor("#ffffff")
+                .icon("gift")
+                .displayOrder(1)
+                .isActive(true)
+                .build();
+        when(rewardRepo.findByIsActiveTrueOrderByDisplayOrderAscIdAsc()).thenReturn(List.of(dbEntity));
+
+        List<WheelReward> rewards = wheelService.getDefaultRewards();
+        assertEquals(1, rewards.size());
+        assertEquals(11L, rewards.get(0).getEntityId());
+        assertEquals("VIP 500K", rewards.get(0).getLabel());
     }
 }
 

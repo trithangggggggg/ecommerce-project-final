@@ -223,14 +223,35 @@ public class AdminProductController {
             isDelta = isDeltaParam;
         }
 
-        if (targetQty == null) {
+        String warehouse = (body != null && body.get("warehouse") != null) ? body.get("warehouse").toString() : null;
+        String shelfLocation = (body != null && body.get("shelfLocation") != null) ? body.get("shelfLocation").toString() : null;
+        boolean hasLocationUpdate = warehouse != null || shelfLocation != null;
+
+        if (targetQty == null && !hasLocationUpdate) {
             throw new BadRequestException("Số lượng biến thể không hợp lệ");
         }
 
-        ProductVariantResponse response = productService.updateVariantStock(
-                variantId, targetQty, isDelta, targetPrice, targetOriginalPrice
-        );
-        return ResponseEntity.ok(ApiResponse.success("Cập nhật số lượng tồn kho biến thể thành công", response));
+        ProductVariantResponse response = null;
+        if (targetQty != null) {
+            response = productService.updateVariantStock(
+                    variantId, targetQty, isDelta, targetPrice, targetOriginalPrice
+            );
+        }
+        if (hasLocationUpdate) {
+            response = productService.updateVariantLocation(variantId, warehouse, shelfLocation);
+        }
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật biến thể kho hàng thành công", response));
+    }
+
+    @PutMapping("/variants/{variantId}/location")
+    public ResponseEntity<ApiResponse<ProductVariantResponse>> updateVariantLocation(
+            @PathVariable Long variantId,
+            @RequestBody(required = false) Map<String, String> body
+    ) {
+        String warehouse = body != null ? body.get("warehouse") : null;
+        String shelfLocation = body != null ? body.get("shelfLocation") : null;
+        ProductVariantResponse response = productService.updateVariantLocation(variantId, warehouse, shelfLocation);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật vị trí kho & mã kệ thành công", response));
     }
 
     @PostMapping("/{productId}/variants")

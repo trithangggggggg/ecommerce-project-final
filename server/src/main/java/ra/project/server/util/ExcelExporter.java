@@ -494,6 +494,7 @@ public class ExcelExporter {
         if (method == null) return "—";
         return switch (method) {
             case COD -> "Thanh toán khi nhận hàng (COD)";
+            case SEPAY -> "Chuyển khoản VietQR (SePay)";
             case VNPAY -> "Cổng VNPAY";
             case MOMO -> "Ví MoMo";
             case ONLINE -> "Thanh toán trực tuyến";

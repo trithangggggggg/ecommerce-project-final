@@ -1,25 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Newspaper,
-  Plus,
-  Search,
-  Edit,
-  Trash2,
-  X,
-  CheckCircle2,
-  AlertCircle,
-  Eye,
-  ExternalLink,
-  Copy,
-  Check,
-  Upload,
-  Calendar,
-  Sparkles,
-  FileText,
-  RefreshCw,
-  Image as ImageIcon,
-  Loader2,
-} from 'lucide-react';
 import Button from '../../components/common/Button/Button';
 import AdminPagination from '../../components/admin/AdminPagination';
 import CKEditor5 from '../../components/common/CKEditor5';
@@ -39,6 +18,7 @@ const SUGGESTED_THUMBNAILS = [
 
 export const AdminArticlesPage: React.FC = () => {
   const [articles, setArticles] = useState<Article[]>([]);
+  const [categories, setCategories] = useState<string[]>(CATEGORY_SUGGESTIONS);
   const [loading, setLoading] = useState(true);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -53,6 +33,8 @@ export const AdminArticlesPage: React.FC = () => {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingArticle, setEditingArticle] = useState<Article | null>(null);
+  const [detailArticle, setDetailArticle] = useState<Article | null>(null);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingThumb, setUploadingThumb] = useState(false);
 
@@ -125,9 +107,46 @@ export const AdminArticlesPage: React.FC = () => {
     }
   }, [searchKeyword, selectedCategory, selectedStatus, currentPage]);
 
+  const fetchCategories = useCallback(async () => {
+    try {
+      const serverCats = await articleService.getAdminCategories();
+      const merged = Array.from(new Set([...CATEGORY_SUGGESTIONS, ...serverCats])).filter(Boolean);
+      setCategories(merged);
+    } catch {
+      setCategories(CATEGORY_SUGGESTIONS);
+    }
+  }, []);
+
   useEffect(() => {
     fetchArticles();
   }, [fetchArticles]);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
+
+  const handleOpenDetailModal = async (article: Article) => {
+    setDetailArticle(article);
+    setIsDetailLoading(true);
+    try {
+      const fresh = await articleService.getAdminArticleById(article.id);
+      setDetailArticle(fresh);
+    } catch {
+      // Giữ nguyên dữ liệu hiện có
+    } finally {
+      setIsDetailLoading(false);
+    }
+  };
+
+  const handleToggleStatus = async (article: Article) => {
+    try {
+      const updated = await articleService.toggleArticleStatus(article.id);
+      setArticles((prev) => prev.map((a) => (a.id === article.id ? updated : a)));
+      showToast(updated.status ? 'Đã xuất bản bài viết!' : 'Đã chuyển bài viết sang Bản nháp');
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || 'Không thể đổi trạng thái bài viết', 'error');
+    }
+  };
 
   const handleOpenAddModal = () => {
     setEditingArticle(null);
@@ -179,11 +198,11 @@ export const AdminArticlesPage: React.FC = () => {
       if (!formSummary.trim() && result.summary) {
         setFormSummary(result.summary);
       }
-      setAiMessage('✨ AI đã tạo bài viết và tóm tắt chuẩn SEO thành công!');
+      setAiMessage('AI đã tạo bài viết và tóm tắt chuẩn SEO thành công!');
       setTimeout(() => setAiMessage(null), 5000);
       showToast('Tạo nội dung bài viết bằng AI thành công!');
     } catch {
-      setAiMessage('⚠️ Có lỗi khi kết nối AI, vui lòng thử lại.');
+      setAiMessage('Có lỗi khi kết nối AI, vui lòng thử lại.');
       showToast('Không thể tạo nội dung bằng AI', 'error');
     } finally {
       setIsGeneratingAi(false);
@@ -279,74 +298,62 @@ export const AdminArticlesPage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden space-y-4">
+    <div className="h-full flex flex-col min-h-0 space-y-4 font-sans overflow-hidden">
       {/* Toast Alert */}
       {toast && (
         <div
-          className={`fixed top-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all duration-300 animate-in fade-in slide-in-from-top-3 ${
+          className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-xs font-semibold border transition-all duration-300 ${
             toast.type === 'success'
-              ? 'bg-emerald-600 text-white shadow-emerald-500/20'
-              : 'bg-rose-600 text-white shadow-rose-500/20'
+              ? 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-500/20'
+              : 'bg-rose-600 text-white border-rose-500 shadow-rose-500/20'
           }`}
         >
-          {toast.type === 'success' ? (
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-          ) : (
-            <AlertCircle className="w-4 h-4 shrink-0" />
-          )}
           <span>{toast.message}</span>
         </div>
       )}
 
-      {/* Top Header Card */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs shrink-0">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shadow-xs shrink-0">
-              <Newspaper className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2.5">
-                <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                  Quản lý Bài viết & Tin tức Công nghệ
-                </h1>
-                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                  {totalItems} tin tức, bài viết
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Soạn thảo rich text chuyên nghiệp, tự sinh slug chuẩn SEO và quản lý xuất bản tin tức
-              </p>
-            </div>
+      {/* Clean Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+        <div>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              Quản lý Bài viết &amp; Tin tức Công nghệ
+            </h1>
+            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 tabular-nums">
+              {totalItems} bài viết
+            </span>
           </div>
-
-          <div className="flex items-center gap-2.5 shrink-0">
-            <Button
-              variant="outline"
-              size="md"
-              leftIcon={<RefreshCw className={`w-4 h-4 shrink-0 ${loading ? 'animate-spin' : ''}`} />}
-              onClick={fetchArticles}
-              disabled={loading}
-              className="whitespace-nowrap shrink-0 flex-row"
-            >
-              Làm mới
-            </Button>
-            <Button
-              variant="primary"
-              size="md"
-              leftIcon={<Plus className="w-5 h-5 shrink-0" />}
-              onClick={handleOpenAddModal}
-              className="whitespace-nowrap shrink-0 flex-row shadow-sm font-bold"
-            >
-              Bài viết mới
-            </Button>
-          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Soạn thảo rich text chuyên nghiệp, tự sinh slug chuẩn SEO và quản lý xuất bản tin tức
+          </p>
         </div>
 
-        {/* Filter and Search Bar */}
-        <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          <div className="relative sm:col-span-2">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchArticles}
+            disabled={loading}
+            className="whitespace-nowrap px-3.5 py-2 rounded-lg text-xs font-semibold shadow-2xs"
+          >
+            {loading ? 'Đang tải...' : 'Làm mới'}
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleOpenAddModal}
+            className="whitespace-nowrap px-3.5 py-2 rounded-lg text-xs font-semibold shadow-2xs"
+          >
+            Bài viết mới
+          </Button>
+        </div>
+      </div>
+
+      {/* Main Data Container */}
+      <div className="bg-white rounded-xl border border-slate-200/80 shadow-2xs flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* Integrated Filter Bar */}
+        <div className="p-3.5 border-b border-slate-100 bg-slate-50/40 shrink-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="sm:col-span-2">
             <input
               type="text"
               placeholder="Tìm theo tiêu đề bài viết, tóm tắt..."
@@ -355,7 +362,7 @@ export const AdminArticlesPage: React.FC = () => {
                 setSearchKeyword(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
+              className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition text-slate-800 placeholder:text-slate-400"
             />
           </div>
 
@@ -366,10 +373,10 @@ export const AdminArticlesPage: React.FC = () => {
                 setSelectedCategory(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700"
+              className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700 font-medium cursor-pointer"
             >
               <option value="">Tất cả chuyên mục</option>
-              {CATEGORY_SUGGESTIONS.map((cat) => (
+              {categories.map((cat) => (
                 <option key={cat} value={cat}>
                   {cat}
                 </option>
@@ -384,7 +391,7 @@ export const AdminArticlesPage: React.FC = () => {
                 setSelectedStatus(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700"
+              className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700 font-medium cursor-pointer"
             >
               <option value="">Tất cả trạng thái</option>
               <option value="true">Đang hiển thị (Public)</option>
@@ -392,43 +399,38 @@ export const AdminArticlesPage: React.FC = () => {
             </select>
           </div>
         </div>
-      </div>
 
-      {/* Main Table Card */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="flex-1 overflow-auto">
+        {/* Scrollable Table */}
+        <div className="flex-1 overflow-auto min-h-0 no-scrollbar">
           {loading ? (
-            <div className="flex flex-col items-center justify-center h-64 text-slate-400 gap-3">
-              <RefreshCw className="w-8 h-8 animate-spin text-blue-500" />
-              <p className="text-sm">Đang tải danh sách bài viết...</p>
+            <div className="py-12 px-4 text-center text-slate-500">
+              <p className="text-sm font-medium">Đang tải...</p>
+              <p className="text-xs text-slate-400 mt-1">Đang lấy danh sách bài viết từ máy chủ</p>
             </div>
           ) : articles.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-slate-400 gap-3 text-center px-4">
-              <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400">
-                <FileText className="w-7 h-7" />
+            <div className="py-12 px-4 text-center">
+              <p className="text-sm font-bold text-slate-800">Chưa có bài viết nào</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Nhấn &quot;Bài viết mới&quot; để tạo bài viết đầu tiên cho hệ thống
+              </p>
+              <div className="mt-4">
+                <Button size="sm" variant="outline" onClick={handleOpenAddModal}>
+                  Tạo bài viết ngay
+                </Button>
               </div>
-              <div>
-                <p className="font-semibold text-slate-700">Chưa có bài viết nào</p>
-                <p className="text-xs text-slate-400 mt-1">
-                  Nhấn &quot;Bài viết mới&quot; để tạo bài viết đầu tiên cho hệ thống
-                </p>
-              </div>
-              <Button size="sm" variant="outline" onClick={handleOpenAddModal} className="mt-1">
-                Tạo bài viết ngay
-              </Button>
             </div>
           ) : (
             <table className="w-full text-left border-collapse text-xs">
-              <thead className="sticky top-0 z-10 bg-slate-50/90 backdrop-blur-xs border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+              <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
                 <tr>
                   <th className="py-3 px-4 w-12 text-center">#</th>
                   <th className="py-3 px-4 w-20">Ảnh</th>
                   <th className="py-3 px-4">Tiêu đề &amp; Slug SEO</th>
                   <th className="py-3 px-4 w-32">Chuyên mục</th>
-                  <th className="py-3 px-4 w-28 text-center">Lượt xem</th>
+                  <th className="py-3 px-4 w-24 text-center">Lượt xem</th>
                   <th className="py-3 px-4 w-28 text-center">Trạng thái</th>
-                  <th className="py-3 px-4 w-32">Ngày tạo</th>
-                  <th className="py-3 px-4 w-28 text-right">Thao tác</th>
+                  <th className="py-3 px-4 w-28">Ngày tạo</th>
+                  <th className="py-3 px-4 w-44 text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -437,7 +439,7 @@ export const AdminArticlesPage: React.FC = () => {
                     key={item.id}
                     className="hover:bg-slate-50/80 transition-colors group"
                   >
-                    <td className="py-3 px-4 text-center text-slate-400 font-mono">
+                    <td className="py-3 px-4 text-center text-slate-400 font-mono tabular-nums">
                       {(currentPage - 1) * pageSize + idx + 1}
                     </td>
                     <td className="py-3 px-4">
@@ -452,8 +454,8 @@ export const AdminArticlesPage: React.FC = () => {
                             }}
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-slate-300">
-                            <ImageIcon className="w-5 h-5" />
+                          <div className="w-full h-full flex items-center justify-center text-[10px] font-medium text-slate-400">
+                            Trống
                           </div>
                         )}
                       </div>
@@ -462,82 +464,87 @@ export const AdminArticlesPage: React.FC = () => {
                       <div className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1 text-sm">
                         {item.title}
                       </div>
-                      <div className="flex items-center gap-1.5 mt-1 text-slate-400">
+                      <div className="flex items-center gap-2 mt-1 text-slate-400">
                         <span className="font-mono text-[11px] truncate max-w-xs">
                           /{item.slug}
                         </span>
                         <button
                           type="button"
                           onClick={() => handleCopySlug(item.slug)}
-                          className="hover:text-blue-600 transition p-0.5"
+                          className={`px-2 py-0.5 rounded-md text-[11px] font-semibold whitespace-nowrap border transition cursor-pointer ${
+                            copiedSlug === item.slug
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-700 border-slate-200/80'
+                          }`}
                           title="Copy đường dẫn bài viết"
                         >
-                          {copiedSlug === item.slug ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-600" />
-                          ) : (
-                            <Copy className="w-3.5 h-3.5" />
-                          )}
+                          {copiedSlug === item.slug ? 'Đã chép' : 'Chép'}
                         </button>
                       </div>
                     </td>
                     <td className="py-3 px-4">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200/80">
                         {item.category || 'Tin tức'}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <div className="inline-flex items-center gap-1 text-slate-600 font-semibold bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
-                        <Eye className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{item.views ?? 0}</span>
-                      </div>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold tabular-nums bg-slate-100 text-slate-700">
+                        {item.views ?? 0}
+                      </span>
                     </td>
                     <td className="py-3 px-4 text-center">
                       {item.status ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
                           Hiển thị
                         </span>
                       ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80">
                           Bản nháp
                         </span>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-slate-500 whitespace-nowrap">
-                      {item.createdAt ? (
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{new Date(item.createdAt).toLocaleDateString('vi-VN')}</span>
-                        </div>
-                      ) : (
-                        '—'
-                      )}
+                    <td className="py-3 px-4 text-slate-500 whitespace-nowrap tabular-nums">
+                      {item.createdAt
+                        ? new Date(item.createdAt).toLocaleDateString('vi-VN')
+                        : '—'}
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        <a
-                          href={`/articles/${item.slug}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                          title="Xem trước bài viết trên web"
+                        <button
+                          type="button"
+                          onClick={() => handleOpenDetailModal(item)}
+                          className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap bg-blue-50 text-blue-700 hover:bg-blue-100 transition cursor-pointer"
+                          title="Xem chi tiết nội dung bài viết"
                         >
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
+                          Xem
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStatus(item)}
+                          className={`px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                            item.status
+                              ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                              : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                          }`}
+                          title={item.status ? 'Chuyển sang bản nháp' : 'Xuất bản công khai'}
+                        >
+                          {item.status ? 'Ẩn nháp' : 'Xuất bản'}
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleOpenEditModal(item)}
-                          className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                          className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap bg-amber-50 text-amber-700 hover:bg-amber-100 transition cursor-pointer"
                           title="Chỉnh sửa bài viết"
                         >
-                          <Edit className="w-4 h-4" />
+                          Sửa
                         </button>
                         <button
                           type="button"
                           onClick={() => setDeleteTarget(item)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                          className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap bg-rose-50 text-rose-700 hover:bg-rose-100 transition cursor-pointer"
                           title="Xóa bài viết"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          Xóa
                         </button>
                       </div>
                     </td>
@@ -548,45 +555,38 @@ export const AdminArticlesPage: React.FC = () => {
           )}
         </div>
 
-        {/* Bottom Pagination */}
-        {totalPages > 1 && (
-          <div className="p-3 border-t border-slate-100 bg-slate-50/50">
-            <AdminPagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={totalItems}
-              itemsPerPage={pageSize}
-              onPageChange={setCurrentPage}
-            />
-          </div>
-        )}
+        {/* Bottom Pagination - Always pinned to bottom */}
+        <div className="shrink-0 bg-white">
+          <AdminPagination
+            currentPage={Math.min(currentPage, Math.max(1, totalPages))}
+            totalPages={Math.max(1, totalPages)}
+            totalItems={totalItems}
+            itemsPerPage={pageSize}
+            onPageChange={setCurrentPage}
+          />
+        </div>
       </div>
 
       {/* Modal Thêm / Chỉnh Sửa Bài Viết (Tích hợp CKEditor 5) */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl w-full max-w-5xl h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0 bg-slate-50/70">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
-                  <FileText className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-900 text-base">
-                    {editingArticle ? 'Chỉnh sửa bài viết' : 'Soạn bài viết mới'}
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Soạn thảo nội dung định dạng phong phú và chèn hình ảnh minh họa
-                  </p>
-                </div>
+          <div className="bg-white rounded-2xl w-full max-w-5xl h-[92vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200">
+            {/* Sticky Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-4 shrink-0 bg-white sticky top-0 z-10">
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">
+                  {editingArticle ? 'Chỉnh sửa bài viết' : 'Soạn bài viết mới'}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Soạn thảo nội dung định dạng phong phú và chèn hình ảnh minh họa
+                </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition"
+                className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap bg-slate-100 text-slate-700 hover:bg-slate-200 transition cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                Đóng
               </button>
             </div>
 
@@ -619,14 +619,13 @@ export const AdminArticlesPage: React.FC = () => {
                         setIsSlugManual(false);
                         setFormSlug(generateSlugPreview(formTitle));
                       }}
-                      className="text-[11px] text-blue-600 hover:underline flex items-center gap-1"
+                      className="text-[11px] font-semibold text-blue-600 hover:underline cursor-pointer"
                     >
-                      <Sparkles className="w-3 h-3" />
                       Tự sinh theo tiêu đề
                     </button>
                   </div>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-mono">
+                  <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:bg-white transition">
+                    <span className="pl-3.5 pr-1 text-xs text-slate-400 font-mono select-none shrink-0">
                       /articles/
                     </span>
                     <input
@@ -637,34 +636,32 @@ export const AdminArticlesPage: React.FC = () => {
                         setIsSlugManual(true);
                         setFormSlug(e.target.value);
                       }}
-                      className="w-full pl-22 pr-3.5 py-2.5 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-800"
+                      className="w-full pr-3.5 py-2.5 text-xs font-mono bg-transparent focus:outline-none text-slate-800"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Chuyên mục, Trạng thái & Tóm tắt */}
+              {/* Chuyên mục, Trạng thái & Thumbnail */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                     Chuyên mục
                   </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={formCategory}
-                      onChange={(e) => setFormCategory(e.target.value)}
-                      placeholder="Nhập hoặc chọn chuyên mục"
-                      className="flex-1 px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    value={formCategory}
+                    onChange={(e) => setFormCategory(e.target.value)}
+                    placeholder="Nhập hoặc chọn chuyên mục"
+                    className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                  />
                   <div className="flex flex-wrap gap-1 mt-1.5">
-                    {CATEGORY_SUGGESTIONS.map((cat) => (
+                    {categories.map((cat) => (
                       <button
                         type="button"
                         key={cat}
                         onClick={() => setFormCategory(cat)}
-                        className={`text-[10px] px-2 py-0.5 rounded-md border transition ${
+                        className={`text-[10px] px-2 py-0.5 rounded-md border transition cursor-pointer ${
                           formCategory === cat
                             ? 'bg-blue-50 border-blue-300 text-blue-700 font-bold'
                             : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
@@ -706,10 +703,9 @@ export const AdminArticlesPage: React.FC = () => {
                       placeholder="URL hình ảnh..."
                       value={formThumbnail}
                       onChange={(e) => setFormThumbnail(e.target.value)}
-                      className="flex-1 px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="flex-1 px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
                     />
-                    <label className="px-3 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-xs font-medium cursor-pointer flex items-center gap-1.5 transition text-slate-700">
-                      <Upload className="w-3.5 h-3.5" />
+                    <label className="px-3 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-xs font-semibold cursor-pointer flex items-center transition text-slate-700 whitespace-nowrap">
                       <span>{uploadingThumb ? 'Đang tải...' : 'Tải lên'}</span>
                       <input
                         type="file"
@@ -726,7 +722,7 @@ export const AdminArticlesPage: React.FC = () => {
                         type="button"
                         key={sug.url}
                         onClick={() => setFormThumbnail(sug.url)}
-                        className="text-[10px] px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100"
+                        className="text-[10px] px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
                       >
                         {sug.label}
                       </button>
@@ -765,26 +761,15 @@ export const AdminArticlesPage: React.FC = () => {
                     type="button"
                     onClick={handleGenerateAiContent}
                     disabled={isGeneratingAi}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition cursor-pointer disabled:opacity-60"
+                    className="inline-flex items-center px-3.5 py-1.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg text-xs font-bold shadow-xs transition cursor-pointer disabled:opacity-60 whitespace-nowrap"
                   >
-                    {isGeneratingAi ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>AI đang soạn thảo bài viết...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-                        <span>✨ Tạo nội dung bằng AI</span>
-                      </>
-                    )}
+                    {isGeneratingAi ? 'AI đang soạn thảo bài viết...' : 'Tạo nội dung bằng AI'}
                   </button>
                 </div>
 
                 {aiMessage && (
-                  <div className="mb-2.5 p-3 bg-indigo-50 border border-indigo-200 text-indigo-800 text-xs rounded-xl flex items-center gap-2 animate-fade-in">
-                    <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
-                    <span>{aiMessage}</span>
+                  <div className="mb-2.5 p-3 bg-indigo-50 border border-indigo-200 text-indigo-800 text-xs font-medium rounded-xl">
+                    {aiMessage}
                   </div>
                 )}
 
@@ -792,18 +777,18 @@ export const AdminArticlesPage: React.FC = () => {
                   <CKEditor5
                     value={formContent}
                     onChange={setFormContent}
-                    placeholder="Bắt đầu viết nội dung bài viết công nghệ hoặc nhấn '✨ Tạo nội dung bằng AI'..."
+                    placeholder="Bắt đầu viết nội dung bài viết công nghệ hoặc nhấn 'Tạo nội dung bằng AI'..."
                   />
                 </div>
               </div>
             </form>
 
-            {/* Modal Footer */}
-            <div className="px-6 py-3.5 border-t border-slate-200 flex items-center justify-between shrink-0 bg-slate-50/70">
+            {/* Sticky Modal Footer */}
+            <div className="px-6 py-3.5 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0 bg-slate-50/70 sticky bottom-0 z-10">
               <span className="text-xs text-slate-400">
                 Slug SEO sẽ tự động chuẩn hóa khi lưu bài viết
               </span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <Button
                   type="button"
                   variant="outline"
@@ -811,7 +796,7 @@ export const AdminArticlesPage: React.FC = () => {
                   onClick={() => setIsModalOpen(false)}
                   disabled={submitting}
                 >
-                  Hủy bỏ
+                  Hủy
                 </Button>
                 <Button
                   type="button"
@@ -819,10 +804,83 @@ export const AdminArticlesPage: React.FC = () => {
                   size="sm"
                   onClick={handleSubmitForm}
                   disabled={submitting}
-                  className="gap-1.5 shadow-sm"
+                  className="shadow-xs"
                 >
-                  {submitting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                  <span>{editingArticle ? 'Lưu thay đổi' : 'Đăng bài viết'}</span>
+                  {submitting
+                    ? 'Đang xử lý...'
+                    : editingArticle
+                      ? 'Lưu thay đổi'
+                      : 'Đăng bài viết'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detail Preview Modal */}
+      {detailArticle && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col border border-slate-200 shadow-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-3 shrink-0">
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-slate-900 truncate">{detailArticle.title}</h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Chuyên mục: <strong>{detailArticle.category || 'Tin tức'}</strong> •{' '}
+                  {detailArticle.status ? 'Đang hiển thị' : 'Bản nháp'} • {detailArticle.views ?? 0} lượt xem
+                  {isDetailLoading ? ' • Đang tải mới nhất...' : ''}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailArticle(null)}
+                className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap bg-slate-100 text-slate-700 hover:bg-slate-200 transition cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4 text-xs">
+              {detailArticle.thumbnail && (
+                <img
+                  src={detailArticle.thumbnail}
+                  alt={detailArticle.title}
+                  className="w-full max-h-60 object-cover rounded-xl border border-slate-200"
+                />
+              )}
+              {detailArticle.summary && (
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-medium leading-relaxed">
+                  {detailArticle.summary}
+                </div>
+              )}
+              <div className="p-4 rounded-xl border border-slate-200 bg-white prose prose-sm max-w-none text-slate-800">
+                {detailArticle.content ? (
+                  <div dangerouslySetInnerHTML={{ __html: detailArticle.content }} />
+                ) : (
+                  <p className="text-slate-400 italic">Bài viết chưa có nội dung chi tiết.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50/70 flex items-center justify-between gap-2 shrink-0">
+              <span className="text-[11px] font-mono text-slate-500 truncate">
+                /articles/{detailArticle.slug}
+              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button type="button" variant="outline" size="sm" onClick={() => setDetailArticle(null)}>
+                  Đóng
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    const target = detailArticle;
+                    setDetailArticle(null);
+                    handleOpenEditModal(target);
+                  }}
+                >
+                  Chỉnh sửa
                 </Button>
               </div>
             </div>
@@ -833,17 +891,28 @@ export const AdminArticlesPage: React.FC = () => {
       {/* Delete Confirmation Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-            <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mb-4">
-              <Trash2 className="w-6 h-6" />
+          <div className="bg-white rounded-2xl w-full max-w-md border border-slate-200 shadow-2xl overflow-hidden flex flex-col">
+            <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-3 bg-white">
+              <h3 className="text-base font-bold text-slate-900">Xác nhận xóa bài viết</h3>
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap bg-slate-100 text-slate-700 hover:bg-slate-200 transition cursor-pointer"
+              >
+                Đóng
+              </button>
             </div>
-            <h3 className="text-base font-bold text-slate-900">Xác nhận xóa bài viết</h3>
-            <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-              Bạn có chắc chắn muốn xóa bài viết{' '}
-              <strong className="text-slate-800">&quot;{deleteTarget.title}&quot;</strong>?
-              Hành động này không thể hoàn tác.
-            </p>
-            <div className="mt-6 flex items-center justify-end gap-2">
+
+            <div className="p-5">
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Bạn có chắc chắn muốn xóa bài viết{' '}
+                <strong className="text-slate-900">&quot;{deleteTarget.title}&quot;</strong>?
+                Hành động này không thể hoàn tác.
+              </p>
+            </div>
+
+            <div className="px-5 py-3.5 border-t border-slate-200 bg-slate-50/70 flex items-center justify-end gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -857,10 +926,8 @@ export const AdminArticlesPage: React.FC = () => {
                 size="sm"
                 onClick={handleDeleteConfirm}
                 disabled={deleting}
-                className="gap-1.5"
               >
-                {deleting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                <span>Xóa bài viết</span>
+                {deleting ? 'Đang xử lý...' : 'Xóa bài viết'}
               </Button>
             </div>
           </div>

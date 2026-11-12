@@ -15,7 +15,7 @@ import {
 import { storeService } from '../../api/services/store.service';
 
 // ---------------------------------------------------------------------------
-// Types & Sample Data
+// Types
 // ---------------------------------------------------------------------------
 export interface Showroom {
   id: number;
@@ -30,127 +30,7 @@ export interface Showroom {
   distance?: number;
 }
 
-const STORE_IMAGES = [
-  'https://images.unsplash.com/photo-1531297484001-80022131f5a1?auto=format&fit=crop&w=600&q=80',
-  'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=600&q=80',
-  'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=600&q=80',
-  'https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&w=600&q=80',
-  'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=600&q=80',
-  'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=600&q=80',
-];
-
-const SHOWROOMS: Showroom[] = [
-  {
-    id: 1,
-    name: 'NEXOR Hà Nội – Cầu Giấy',
-    province: 'Hà Nội',
-    address: '215 Trần Duy Hưng, Cầu Giấy, Hà Nội',
-    phone: '024 3200 1001',
-    lat: 21.0066,
-    lng: 105.7901,
-    openHours: '08:00 – 21:00',
-    image: STORE_IMAGES[0],
-  },
-  {
-    id: 2,
-    name: 'NEXOR Hà Nội – Hoàn Kiếm',
-    province: 'Hà Nội',
-    address: '52 Lý Thái Tổ, Hoàn Kiếm, Hà Nội',
-    phone: '024 3200 1002',
-    lat: 21.0286,
-    lng: 105.8521,
-    openHours: '08:30 – 21:30',
-    image: STORE_IMAGES[1],
-  },
-  {
-    id: 3,
-    name: 'NEXOR TP.HCM – Quận 1',
-    province: 'TP. Hồ Chí Minh',
-    address: '187 Điện Biên Phủ, Phường 15, Quận 1, TP.HCM',
-    phone: '028 3900 2001',
-    lat: 10.7769,
-    lng: 106.6951,
-    openHours: '08:00 – 22:00',
-    image: STORE_IMAGES[2],
-  },
-  {
-    id: 4,
-    name: 'NEXOR TP.HCM – Thủ Đức',
-    province: 'TP. Hồ Chí Minh',
-    address: '10 Võ Văn Ngân, Bình Thọ, TP. Thủ Đức, TP.HCM',
-    phone: '028 3900 2002',
-    lat: 10.8509,
-    lng: 106.7721,
-    openHours: '08:00 – 21:30',
-    image: STORE_IMAGES[3],
-  },
-  {
-    id: 5,
-    name: 'NEXOR Đà Nẵng – Hải Châu',
-    province: 'Đà Nẵng',
-    address: '74 Hùng Vương, Hải Châu, Đà Nẵng',
-    phone: '0236 3600 500',
-    lat: 16.0544,
-    lng: 108.2022,
-    openHours: '08:00 – 21:00',
-    image: STORE_IMAGES[4],
-  },
-  {
-    id: 6,
-    name: 'NEXOR Đà Nẵng – Thanh Khê',
-    province: 'Đà Nẵng',
-    address: '168 Điện Biên Phủ, Thanh Khê, Đà Nẵng',
-    phone: '0236 3600 501',
-    lat: 16.0693,
-    lng: 108.1797,
-    openHours: '08:30 – 21:00',
-    image: STORE_IMAGES[5],
-  },
-  {
-    id: 7,
-    name: 'NEXOR Hải Phòng – Lê Chân',
-    province: 'Hải Phòng',
-    address: '34 Lạch Tray, Lê Chân, Hải Phòng',
-    phone: '0225 3800 700',
-    lat: 20.8449,
-    lng: 106.6881,
-    openHours: '08:00 – 21:00',
-    image: STORE_IMAGES[0],
-  },
-  {
-    id: 8,
-    name: 'NEXOR Cần Thơ – Ninh Kiều',
-    province: 'Cần Thơ',
-    address: '58 3 Tháng 2, Hưng Lợi, Ninh Kiều, Cần Thơ',
-    phone: '0292 3900 800',
-    lat: 10.0333,
-    lng: 105.7881,
-    openHours: '08:00 – 21:00',
-    image: STORE_IMAGES[1],
-  },
-  {
-    id: 9,
-    name: 'NEXOR Nha Trang – Vĩnh Hải',
-    province: 'Khánh Hòa',
-    address: '12 Trần Phú, Lộc Thọ, Nha Trang, Khánh Hòa',
-    phone: '0258 3700 900',
-    lat: 12.2451,
-    lng: 109.1951,
-    openHours: '08:00 – 21:00',
-    image: STORE_IMAGES[2],
-  },
-  {
-    id: 10,
-    name: 'NEXOR Huế – Thành phố Huế',
-    province: 'Thừa Thiên Huế',
-    address: '25 Trần Hưng Đạo, Phú Hội, TP. Huế',
-    phone: '0234 3600 100',
-    lat: 16.4674,
-    lng: 107.5951,
-    openHours: '08:00 – 20:30',
-    image: STORE_IMAGES[3],
-  },
-];
+const DEFAULT_STORE_IMAGE = '/images/tech-future-banner.jpg';
 
 // Tính khoảng cách Haversine (km)
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -265,7 +145,9 @@ const MapController: React.FC<MapControllerProps> = ({ selected }) => {
 // Main Page Component
 // ---------------------------------------------------------------------------
 const StoresPage: React.FC = () => {
-  const [storesList, setStoresList] = useState<Showroom[]>(SHOWROOMS);
+  const [storesList, setStoresList] = useState<Showroom[]>([]);
+  const [isLoadingStores, setIsLoadingStores] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedProvince, setSelectedProvince] = useState<string>('');
   const [sortBy, setSortBy] = useState<'default' | 'distance' | 'name'>('default');
@@ -317,10 +199,12 @@ const StoresPage: React.FC = () => {
   // Lấy danh sách showroom từ API backend
   useEffect(() => {
     const fetchApiStores = async () => {
+      setIsLoadingStores(true);
+      setLoadError(null);
       try {
         const data = await storeService.getPublicStores();
-        if (Array.isArray(data) && data.length > 0) {
-          const mapped: Showroom[] = data.map((item, index) => ({
+        if (Array.isArray(data)) {
+          const mapped: Showroom[] = data.map((item) => ({
             id: item.id,
             name: item.name,
             province: item.province,
@@ -329,12 +213,17 @@ const StoresPage: React.FC = () => {
             lat: item.latitude != null ? item.latitude : 21.0285,
             lng: item.longitude != null ? item.longitude : 105.8542,
             openHours: item.openHours || '08:00 – 21:30',
-            image: STORE_IMAGES[index % STORE_IMAGES.length],
+            image: item.imageUrl?.trim() || DEFAULT_STORE_IMAGE,
           }));
           setStoresList(mapped);
+        } else {
+          setStoresList([]);
         }
       } catch {
-        // Fallback danh sách mặc định nếu server chưa chạy
+        setStoresList([]);
+        setLoadError('Không thể tải danh sách showroom từ máy chủ.');
+      } finally {
+        setIsLoadingStores(false);
       }
     };
     fetchApiStores();
@@ -636,12 +525,12 @@ const StoresPage: React.FC = () => {
                           {/* Ảnh Showroom */}
                           <div className="h-24 w-full overflow-hidden relative bg-slate-100">
                             <img
-                              src={
-                                showroom.image ||
-                                STORE_IMAGES[(showroom.id - 1) % STORE_IMAGES.length]
-                              }
+                              src={showroom.image || DEFAULT_STORE_IMAGE}
                               alt={showroom.name}
                               className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = DEFAULT_STORE_IMAGE;
+                              }}
                             />
                             <span className="absolute bottom-1.5 left-2 text-[9px] font-bold text-white px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-xs">
                               {showroom.province}
@@ -688,7 +577,17 @@ const StoresPage: React.FC = () => {
             ---------------------------------------------------------------- */}
             <div className="lg:col-span-5 xl:col-span-4 h-full min-h-0 flex flex-col overflow-hidden">
               <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                {filteredAndSortedShowrooms.length === 0 ? (
+                {isLoadingStores ? (
+                  <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400 bg-slate-50/60 rounded-2xl border border-dashed border-slate-200">
+                    <p className="text-xs font-semibold text-slate-600">
+                      Đang tải hệ thống showroom từ máy chủ...
+                    </p>
+                  </div>
+                ) : loadError ? (
+                  <div className="h-full flex flex-col items-center justify-center p-6 text-center text-rose-500 bg-rose-50/50 rounded-2xl border border-dashed border-rose-200">
+                    <p className="text-xs font-semibold">{loadError}</p>
+                  </div>
+                ) : filteredAndSortedShowrooms.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400 bg-slate-50/60 rounded-2xl border border-dashed border-slate-200">
                     <MapPin className="w-7 h-7 text-slate-300 mb-1.5" />
                     <p className="text-xs font-semibold text-slate-600">

@@ -40,6 +40,10 @@ public class ShippingCarrier extends BaseEntity {
     @Builder.Default
     private java.math.BigDecimal shippingFee = java.math.BigDecimal.valueOf(30000);
 
+    @Column(name = "estimated_delivery", length = 100)
+    @Builder.Default
+    private String estimatedDelivery = "2 - 3 ngày làm việc";
+
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
     private String status = "ACTIVE";

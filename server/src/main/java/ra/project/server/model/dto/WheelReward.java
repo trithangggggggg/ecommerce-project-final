@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class WheelReward {
     private Integer id;
+    private Long entityId;
     private String label;
     private String shortLabel;
     private String discount;
@@ -23,5 +24,7 @@ public class WheelReward {
     private String color;
     private String textColor;
     private String icon;
+    private Boolean isActive;
+    private Integer displayOrder;
 }
 

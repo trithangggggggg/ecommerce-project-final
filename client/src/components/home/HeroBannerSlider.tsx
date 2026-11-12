@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useBannerStore } from '../../store/useBannerStore';
+import { bannerService } from '../../api/services/banner.service';
 
 interface HeroBannerSliderProps {
   autoPlayInterval?: number;
@@ -12,10 +13,10 @@ export const HeroBannerSlider: React.FC<HeroBannerSliderProps> = ({
 }) => {
   const { banners } = useBannerStore();
 
-  // Filter active banners and sort by order
+  // Filter active HERO_SLIDER banners and sort by displayOrder
   const activeBanners = banners
-    .filter((b) => b.isActive)
-    .sort((a, b) => a.order - b.order);
+    .filter((b) => b.isActive && (!b.position || b.position === 'HERO_SLIDER'))
+    .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -132,7 +133,9 @@ export const HeroBannerSlider: React.FC<HeroBannerSliderProps> = ({
           style={{ transform: `translate3d(-${currentIndex * 100}%, 0, 0)` }}
         >
           {activeBanners.map((banner, index) => {
-            const isExternal = banner.linkUrl.startsWith('http://') || banner.linkUrl.startsWith('https://');
+            const targetLink = banner.linkUrl?.trim() || '/products';
+            const isExternal = targetLink.startsWith('http://') || targetLink.startsWith('https://');
+            const hasBakedArtwork = /\/images\/(macbook-|promo-|tech-future-banner)/.test(banner.imageUrl || '');
 
             const slideContent = (
               <div className="relative w-full h-full min-w-full overflow-hidden shrink-0">
@@ -145,9 +148,13 @@ export const HeroBannerSlider: React.FC<HeroBannerSliderProps> = ({
                     (e.target as HTMLImageElement).src = '/images/macbook-hero-banner.jpg';
                   }}
                 />
-                {/* Gradient overlay for title/subtitle readability */}
-                {(banner.title || banner.subtitle) && (
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent pt-12 pb-5 px-6 pointer-events-none">
+                {/* Gradient overlay for title/subtitle readability, safely cleared above slider dots */}
+                {!hasBakedArtwork && (banner.title || banner.subtitle) && (
+                  <div
+                    className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent pt-14 px-6 pointer-events-none ${
+                      totalSlides > 1 ? 'pb-11 sm:pb-12' : 'pb-5'
+                    }`}
+                  >
                     <h3 className="text-white text-base sm:text-lg font-bold drop-shadow-md leading-tight line-clamp-1">
                       {banner.title}
                     </h3>
@@ -161,17 +168,21 @@ export const HeroBannerSlider: React.FC<HeroBannerSliderProps> = ({
               </div>
             );
 
-            // Handle click: block navigation if a swipe was in progress
+            // Handle click: block navigation if a swipe was in progress, else track click
             const handleLinkClick = (e: React.MouseEvent) => {
               if (isSwiping.current) {
                 e.preventDefault();
+                return;
+              }
+              if (banner.id > 0) {
+                bannerService.trackClick(banner.id);
               }
             };
 
             return isExternal ? (
               <a
                 key={banner.id}
-                href={banner.linkUrl}
+                href={targetLink}
                 target="_blank"
                 rel="noreferrer"
                 className="block w-full h-full min-w-full"
@@ -183,7 +194,7 @@ export const HeroBannerSlider: React.FC<HeroBannerSliderProps> = ({
             ) : (
               <Link
                 key={banner.id}
-                to={banner.linkUrl}
+                to={targetLink}
                 className="block w-full h-full min-w-full"
                 title={banner.title}
                 onClick={handleLinkClick}

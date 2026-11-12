@@ -41,5 +41,11 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Modifying
     @Query("UPDATE Article a SET a.views = COALESCE(a.views, 0) + 1 WHERE a.id = :id")
     void incrementViews(@Param("id") Long id);
+
+    @Query("SELECT DISTINCT a.category FROM Article a WHERE a.status = true AND a.category IS NOT NULL AND TRIM(a.category) <> '' ORDER BY a.category ASC")
+    java.util.List<String> findDistinctPublicCategories();
+
+    @Query("SELECT DISTINCT a.category FROM Article a WHERE a.category IS NOT NULL AND TRIM(a.category) <> '' ORDER BY a.category ASC")
+    java.util.List<String> findDistinctAllCategories();
 }
 

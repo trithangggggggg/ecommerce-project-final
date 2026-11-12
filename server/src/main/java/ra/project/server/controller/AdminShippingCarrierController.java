@@ -162,6 +162,9 @@ public class AdminShippingCarrierController {
         existing.setHotline(request.getHotline());
         existing.setActiveOrders(request.getActiveOrders());
         existing.setRating(request.getRating());
+        if (request.getEstimatedDelivery() != null) {
+            existing.setEstimatedDelivery(request.getEstimatedDelivery().trim());
+        }
         existing.setStatus(request.getStatus());
         if (request.getShippingFee() != null) {
             existing.setShippingFee(request.getShippingFee());

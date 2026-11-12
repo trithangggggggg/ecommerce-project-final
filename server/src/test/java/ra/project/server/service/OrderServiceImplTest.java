@@ -11,6 +11,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.data.domain.Sort;
+import org.springframework.test.util.ReflectionTestUtils;
 import ra.project.server.common.response.ApiResponse;
 import ra.project.server.exception.BadRequestException;
 import ra.project.server.exception.ResourceNotFoundException;
@@ -672,5 +673,69 @@ class OrderServiceImplTest {
                 assertNotNull(result);
                 assertEquals(1, shipPromo.getUsedCount());
                 verify(promotionRepository, times(1)).save(shipPromo);
+        }
+
+        @Test
+        void whenCheckout_withDynamicSystemSettings_thenAppliesFreeshipThresholdAndBlocksDisabledPayment() {
+                mockAuthentication("customer1");
+                when(userRepository.findByUsername("customer1")).thenReturn(Optional.of(customer));
+                when(productVariantRepository.findById(101L)).thenReturn(Optional.of(variant1));
+                when(productVariantRepository.deductStock(101L, 2)).thenReturn(1);
+
+                ra.project.server.service.SystemSettingService mockSettingService = mock(ra.project.server.service.SystemSettingService.class);
+                ReflectionTestUtils.setField(orderService, "systemSettingService", mockSettingService);
+
+                when(mockSettingService.getBoolean("payment.codEnabled", true)).thenReturn(false);
+                CheckoutRequest codBlockedRequest = CheckoutRequest.builder()
+                                .receiverName("Khach Hang")
+                                .phoneNumber("0912345678")
+                                .shippingAddress("123 Duong ABC")
+                                .paymentMethod(PaymentMethod.COD)
+                                .items(List.of(OrderItemRequest.builder().variantId(101L).quantity(2).build()))
+                                .build();
+                assertThrows(BadRequestException.class, () -> orderService.checkout(codBlockedRequest));
+
+                when(mockSettingService.getBoolean("payment.sepayEnabled", true)).thenReturn(true);
+                when(mockSettingService.getDecimal("shipping.defaultFee", BigDecimal.valueOf(30000))).thenReturn(BigDecimal.valueOf(45000));
+                when(mockSettingService.getDecimal("shipping.freeshipThreshold", BigDecimal.valueOf(20_000_000))).thenReturn(BigDecimal.valueOf(1_000_000));
+                when(mockSettingService.getDecimal("shipping.halfShipThreshold", BigDecimal.valueOf(10_000_000))).thenReturn(BigDecimal.valueOf(500_000));
+
+                when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+                when(orderMapper.toResponse(any(Order.class))).thenAnswer(i -> {
+                        Order o = i.getArgument(0);
+                        return OrderResponse.builder().id(99L).shippingFee(o.getShippingFee()).totalAmount(o.getTotalAmount()).build();
+                });
+
+                CheckoutRequest freeshipRequest = CheckoutRequest.builder()
+                                .receiverName("Khach Hang")
+                                .phoneNumber("0912345678")
+                                .shippingAddress("123 Duong ABC")
+                                .paymentMethod(PaymentMethod.SEPAY)
+                                .items(List.of(OrderItemRequest.builder().variantId(101L).quantity(2).build()))
+                                .build();
+                ApiResponse<OrderResponse> res = orderService.checkout(freeshipRequest);
+                assertEquals(BigDecimal.ZERO, res.getData().getShippingFee());
+        }
+
+        @Test
+        void whenCancelMyOrder_withReason_thenPersistsReason() {
+                mockAuthentication("customer1");
+                when(userRepository.findByUsername("customer1")).thenReturn(Optional.of(customer));
+                Order order = Order.builder()
+                                .id(77L)
+                                .user(customer)
+                                .status(OrderStatus.PENDING)
+                                .build();
+                when(orderRepository.findById(77L)).thenReturn(Optional.of(order));
+                when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+                when(orderMapper.toResponse(any(Order.class))).thenAnswer(i -> {
+                        Order o = i.getArgument(0);
+                        return OrderResponse.builder().id(o.getId()).status(o.getStatus()).build();
+                });
+
+                orderService.cancelMyOrder(77L, "Đặt nhầm màu sản phẩm");
+
+                assertEquals(OrderStatus.CANCELLED, order.getStatus());
+                assertEquals("Đặt nhầm màu sản phẩm", order.getCancelReason());
         }
 }

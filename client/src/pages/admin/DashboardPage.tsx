@@ -16,22 +16,6 @@ import {
   LabelList,
   type PieSectorShapeProps,
 } from 'recharts';
-import {
-  Calendar,
-  ChevronDown,
-  ShoppingCart,
-  Package,
-  Users,
-  PackageCheck,
-  RotateCw,
-  FileSpreadsheet,
-  Loader2,
-  ShoppingBag,
-  Boxes,
-  TrendingUp,
-  Download,
-  AlertCircle,
-} from 'lucide-react';
 import { ROUTES } from '../../constants/routes';
 import {
   dashboardService,
@@ -820,37 +804,41 @@ export const DashboardPage: React.FC = () => {
   const stats = [
     {
       title: 'Tổng doanh thu',
+      tag: 'Doanh thu',
       value: periodRevenueFormatted,
-      change: periodRevenueNumber > 0 ? `Doanh thu ${periodLabel}` : `0 ₫ ${periodLabel}`,
-      icon: ShoppingCart,
-      color: 'bg-blue-50 text-blue-600 border border-blue-100',
+      change: periodRevenueNumber > 0 ? `Phát sinh ${periodLabel}` : `0 ₫ ${periodLabel}`,
+      accentClass: 'border-t-2 border-t-blue-600',
+      tagClass: 'bg-blue-50 text-blue-700',
       sparklineColor: '#2563eb',
       sparklinePath: sparkline7d,
     },
     {
       title: 'Đơn hàng mới',
+      tag: 'Đơn hàng',
       value: `${periodOrders.length} đơn`,
       change: periodOrders.length > 0 ? `+${periodOrders.length} đơn ${periodLabel}` : `0 đơn ${periodLabel}`,
-      icon: Package,
-      color: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
+      accentClass: 'border-t-2 border-t-emerald-500',
+      tagClass: 'bg-emerald-50 text-emerald-700',
       sparklineColor: '#10b981',
       sparklinePath: periodOrders.length > 0 ? 'M 0,26 C 20,24 35,28 50,15 C 65,5 80,18 100,6' : 'M 0,26 L 100,26',
     },
     {
       title: 'Khách hàng mới',
+      tag: 'Khách hàng',
       value: `${periodCustomersCount} người`,
       change: periodCustomersCount > 0 ? `+${periodCustomersCount} người ${periodLabel}` : `0 người ${periodLabel}`,
-      icon: Users,
-      color: 'bg-sky-50 text-sky-600 border border-sky-100',
+      accentClass: 'border-t-2 border-t-sky-500',
+      tagClass: 'bg-sky-50 text-sky-700',
       sparklineColor: '#0284c7',
       sparklinePath: 'M 0,28 C 25,24 40,20 60,18 C 75,16 85,8 100,4',
     },
     {
       title: 'Sản phẩm đang bán',
+      tag: 'Danh mục SP',
       value: `${totalProducts} sp`,
       change: `${totalProducts} sản phẩm sẵn có`,
-      icon: PackageCheck,
-      color: 'bg-amber-50 text-amber-600 border border-amber-100',
+      accentClass: 'border-t-2 border-t-amber-500',
+      tagClass: 'bg-amber-50 text-amber-700',
       sparklineColor: '#f59e0b',
       sparklinePath: 'M 0,25 C 20,22 35,24 55,16 C 70,8 85,14 100,7',
     },
@@ -860,118 +848,58 @@ export const DashboardPage: React.FC = () => {
   const topProducts = periodTopProducts;
 
   return (
-    <div className="h-full flex flex-col justify-between font-sans select-none overflow-y-auto no-scrollbar space-y-3 sm:space-y-3.5">
-      {/* Top Header & Date Filter (Gọn gàng, cố định) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 shrink-0">
+    <div className="h-full flex flex-col min-h-0 font-sans overflow-y-auto lg:overflow-hidden space-y-3">
+      {/* Top Header & Action Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">
             Tổng quan hệ thống
           </h1>
-          <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
-            Tổng quan hoạt động và hiệu suất bán hàng của cửa hàng trong ngày
+          <p className="text-xs text-slate-500 mt-0.5">
+            Theo dõi doanh thu, đơn hàng, cơ cấu danh mục và sản phẩm nổi bật theo thời gian thực
           </p>
         </div>
 
-        {/* Date Selector Pill, Refresh & Export Excel */}
-        <div className="flex items-center gap-2">
-          {/* Nút Xuất Báo Cáo Excel */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Xuất Báo Cáo Excel */}
           <div className="relative" ref={exportDropdownRef}>
             <button
               type="button"
               onClick={() => setShowExportMenu((prev) => !prev)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition cursor-pointer"
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition cursor-pointer"
               title="Xuất báo cáo dữ liệu Excel"
             >
-              {isExporting ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <FileSpreadsheet className="w-3.5 h-3.5" />
-              )}
-              <span>{isExporting ? 'Đang xuất...' : 'Xuất Excel'}</span>
-              <ChevronDown className="w-3.5 h-3.5 opacity-80" />
+              {isExporting ? 'Đang xuất Excel...' : 'Xuất Excel'}
             </button>
 
             {showExportMenu && (
-              <div className="absolute right-0 mt-1.5 w-60 bg-white rounded-2xl shadow-2xl border border-slate-200/90 py-2 z-50 text-xs animate-in fade-in slide-in-from-top-1 duration-150">
-                <div className="px-3.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
-                  Chọn loại báo cáo
+              <div className="absolute right-0 mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 text-xs">
+                <div className="px-3.5 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
+                  Chọn loại báo cáo (.xlsx)
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleExport('orders')}
-                  disabled={!!isExporting}
-                  className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center justify-between text-slate-700 transition cursor-pointer disabled:opacity-50 group"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <span className="p-1.5 rounded-lg bg-blue-50 text-blue-600 group-hover:bg-blue-100 transition shrink-0">
-                      <ShoppingBag className="w-3.5 h-3.5" />
+                {[
+                  { key: 'orders' as const, label: 'Báo cáo Đơn hàng', dot: 'bg-blue-600' },
+                  { key: 'inventory' as const, label: 'Báo cáo Tồn kho & SP', dot: 'bg-emerald-600' },
+                  { key: 'customers' as const, label: 'Báo cáo Khách hàng', dot: 'bg-purple-600' },
+                  { key: 'revenue' as const, label: 'Báo cáo Doanh thu', dot: 'bg-amber-500' },
+                ].map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => handleExport(opt.key)}
+                    disabled={!!isExporting}
+                    className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center justify-between text-slate-700 transition cursor-pointer disabled:opacity-50"
+                  >
+                    <span className="flex items-center gap-2 font-semibold text-slate-800">
+                      <span className={`w-2 h-2 rounded-full ${opt.dot} shrink-0`} />
+                      <span>{opt.label}</span>
                     </span>
-                    <span className="font-semibold text-slate-800 text-xs">Báo cáo Đơn hàng</span>
-                  </span>
-                  {isExporting === 'orders' ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 shrink-0" />
-                  ) : (
-                    <Download className="w-3 h-3 text-slate-300 group-hover:text-slate-600 transition shrink-0" />
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleExport('inventory')}
-                  disabled={!!isExporting}
-                  className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center justify-between text-slate-700 transition cursor-pointer disabled:opacity-50 group"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <span className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100 transition shrink-0">
-                      <Boxes className="w-3.5 h-3.5" />
+                    <span className="text-[11px] font-medium text-slate-400">
+                      {isExporting === opt.key ? 'Đang tải...' : 'Tải về'}
                     </span>
-                    <span className="font-semibold text-slate-800 text-xs">Báo cáo Tồn kho & SP</span>
-                  </span>
-                  {isExporting === 'inventory' ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 shrink-0" />
-                  ) : (
-                    <Download className="w-3 h-3 text-slate-300 group-hover:text-slate-600 transition shrink-0" />
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleExport('customers')}
-                  disabled={!!isExporting}
-                  className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center justify-between text-slate-700 transition cursor-pointer disabled:opacity-50 group"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <span className="p-1.5 rounded-lg bg-purple-50 text-purple-600 group-hover:bg-purple-100 transition shrink-0">
-                      <Users className="w-3.5 h-3.5" />
-                    </span>
-                    <span className="font-semibold text-slate-800 text-xs">Báo cáo Khách hàng</span>
-                  </span>
-                  {isExporting === 'customers' ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 shrink-0" />
-                  ) : (
-                    <Download className="w-3 h-3 text-slate-300 group-hover:text-slate-600 transition shrink-0" />
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleExport('revenue')}
-                  disabled={!!isExporting}
-                  className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center justify-between text-slate-700 transition cursor-pointer disabled:opacity-50 group"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <span className="p-1.5 rounded-lg bg-amber-50 text-amber-600 group-hover:bg-amber-100 transition shrink-0">
-                      <TrendingUp className="w-3.5 h-3.5" />
-                    </span>
-                    <span className="font-semibold text-slate-800 text-xs">Báo cáo Doanh thu</span>
-                  </span>
-                  {isExporting === 'revenue' ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 shrink-0" />
-                  ) : (
-                    <Download className="w-3 h-3 text-slate-300 group-hover:text-slate-600 transition shrink-0" />
-                  )}
-                </button>
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -980,32 +908,30 @@ export const DashboardPage: React.FC = () => {
             type="button"
             onClick={loadDashboardData}
             disabled={isLoading}
-            className="p-1.5 sm:p-2 bg-white border border-slate-200/90 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-slate-50 transition cursor-pointer shadow-2xs"
-            title="Làm mới dữ liệu từ máy chủ"
+            className="px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:text-blue-600 hover:bg-slate-50 disabled:opacity-60 transition cursor-pointer shadow-2xs"
           >
-            <RotateCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
+            {isLoading ? 'Đang tải...' : 'Làm mới'}
           </button>
+
           {/* Bộ lọc Ngày / Tháng / Năm */}
           <div className="relative" ref={topDateDropdownRef}>
             <button
               type="button"
               onClick={() => setIsTopDateDropdownOpen((prev) => !prev)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200/90 rounded-lg text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition cursor-pointer"
-              title="Chọn ngày / tháng / năm hoặc mốc thời gian"
+              className="px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition cursor-pointer"
+              title="Chọn khoảng thời gian thống kê"
             >
-              <Calendar className="w-3.5 h-3.5 text-blue-600" />
+              <span className="text-slate-400 font-medium mr-1">Kỳ:</span>
               <span>{getSelectedDateLabel()}</span>
-              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isTopDateDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {isTopDateDropdownOpen && (
-              <div className="absolute right-0 mt-1.5 w-80 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-3 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+              <div className="absolute right-0 mt-1.5 w-80 bg-white rounded-xl shadow-xl border border-slate-200 p-3.5 z-50">
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
                   <span>Khoảng thời gian báo cáo</span>
                   <span className="text-[10px] text-blue-600 font-semibold">{selectedTimeRange}</span>
                 </div>
 
-                {/* Các nút mốc nhanh */}
                 <div className="grid grid-cols-2 gap-1.5 mb-3">
                   {[
                     { label: 'Hôm nay', desc: 'Dữ liệu 24h hôm nay' },
@@ -1021,9 +947,9 @@ export const DashboardPage: React.FC = () => {
                         setSelectedTimeRange(preset.label as TimeRange);
                         setIsTopDateDropdownOpen(false);
                       }}
-                      className={`text-left p-2 rounded-xl border text-xs transition cursor-pointer ${
+                      className={`text-left p-2 rounded-lg border text-xs transition cursor-pointer ${
                         selectedTimeRange === preset.label
-                          ? 'border-blue-500 bg-blue-50/70 text-blue-700 font-semibold shadow-2xs'
+                          ? 'border-blue-500 bg-blue-50/70 text-blue-700 font-semibold'
                           : 'border-slate-100 hover:border-slate-200 hover:bg-slate-50 text-slate-700'
                       }`}
                     >
@@ -1033,10 +959,9 @@ export const DashboardPage: React.FC = () => {
                   ))}
                 </div>
 
-                {/* Tùy chọn Ngày / Tháng / Năm cụ thể */}
                 <div className="pt-2.5 border-t border-slate-100">
                   <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
-                    Tùy chọn ngày / tháng / năm cụ thể:
+                    Tùy chọn ngày cụ thể:
                   </label>
                   <div className="grid grid-cols-2 gap-2 mb-2.5">
                     <div>
@@ -1064,9 +989,9 @@ export const DashboardPage: React.FC = () => {
                       type="button"
                       onClick={handleApplyCustomRange}
                       disabled={!customStartDate || !customEndDate}
-                      className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-2xs transition cursor-pointer"
+                      className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition cursor-pointer"
                     >
-                      Áp dụng ngày đã chọn
+                      Áp dụng
                     </button>
                     {selectedTimeRange === 'Tùy chọn' && (
                       <button
@@ -1092,99 +1017,92 @@ export const DashboardPage: React.FC = () => {
 
       {/* API Error Alert Banner */}
       {apiError && (
-        <div className="flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-            <span className="truncate font-medium">
-              Lỗi kết nối dữ liệu Dashboard: {apiError}
-            </span>
-          </div>
+        <div className="flex items-center justify-between gap-2 px-4 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs shrink-0">
+          <span className="truncate font-semibold">
+            Lỗi kết nối dữ liệu Dashboard: {apiError}
+          </span>
           <button
             type="button"
             onClick={loadDashboardData}
-            className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold text-[11px] shrink-0 transition cursor-pointer"
+            className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold text-[11px] shrink-0 transition cursor-pointer"
           >
             Thử lại
           </button>
         </div>
       )}
 
-      {/* Row 1: 4 Stat Cards with Mini Sparklines (Thu gọn chiều cao) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 shrink-0">
-        {stats.map((stat, idx) => {
-          const Icon = stat.icon;
-          return (
-            <div
-              key={idx}
-              className="bg-white rounded-xl p-3 sm:p-3.5 border border-slate-200/80 shadow-2xs hover:shadow-xs transition flex flex-col justify-between"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <span className="text-[11px] font-semibold text-slate-400 block mb-0.5">
-                    {stat.title}
-                  </span>
-                  <div className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
-                    {stat.value}
-                  </div>
-                </div>
-                <div className={`p-2 rounded-lg ${stat.color} shadow-2xs`}>
-                  <Icon className="w-4 h-4" />
-                </div>
-              </div>
+      {/* Row 1: 4 Stat Cards (Icon-Free, Typographic Hierarchy + Sparklines) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
+        {stats.map((stat, idx) => (
+          <div
+            key={idx}
+            className={`bg-white rounded-xl p-4 border border-slate-200/80 ${stat.accentClass} shadow-2xs hover:shadow-xs transition flex flex-col justify-between`}
+          >
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                {stat.title}
+              </span>
+              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${stat.tagClass}`}>
+                {stat.tag}
+              </span>
+            </div>
 
-              <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-[10px] font-semibold text-emerald-600">
-                  {stat.change}
-                </span>
+            <div className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight tabular-nums">
+              {stat.value}
+            </div>
 
-                {/* Micro SVG Sparkline Chart */}
-                <div className="w-16 h-4">
-                  <svg viewBox="0 0 100 30" className="w-full h-full overflow-visible">
-                    <path
-                      d={stat.sparklinePath}
-                      fill="none"
-                      stroke={stat.sparklineColor}
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </div>
+            <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold text-emerald-600 truncate">
+                {stat.change}
+              </span>
+
+              <div className="w-16 h-4 shrink-0">
+                <svg viewBox="0 0 100 30" className="w-full h-full overflow-visible">
+                  <path
+                    d={stat.sparklinePath}
+                    fill="none"
+                    stroke={stat.sparklineColor}
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                  />
+                </svg>
               </div>
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
 
-      {/* Row 2: Charts Section (Tự co giãn vừa khít màn hình, giữ nguyên bố cục Dashboard Admin) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 sm:gap-3 flex-1 min-h-0">
+      {/* Row 2: Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 flex-1 min-h-0">
         {/* Chart 1: AreaChart - Doanh thu theo thời gian (Span 6) */}
-        <div className="lg:col-span-6 bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/80 shadow-2xs flex flex-col justify-between min-h-0">
-          <div className="flex items-center justify-between mb-1 shrink-0">
+        <div className="lg:col-span-6 bg-white rounded-xl p-4 border border-slate-200/80 shadow-2xs flex flex-col justify-between min-h-[240px] lg:min-h-0 overflow-hidden">
+          <div className="flex items-start justify-between gap-3 mb-2 shrink-0">
             <div>
-              <h2 className="text-xs sm:text-sm font-bold text-slate-900">Doanh thu theo thời gian</h2>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="text-[10px] text-slate-400">Đơn vị: {timelineData.unitLabel}</span>
-                <span className="text-[10px] text-slate-300">•</span>
-                <span className="text-[10px] text-slate-500 font-medium">
-                  Tổng kỳ: <strong className="text-blue-600 font-semibold">{formatPrice(timelineData.totalPeriodRevenue)}</strong>
-                  {' '}({timelineData.totalPeriodOrders} đơn)
+              <h2 className="text-sm font-bold text-slate-900">Doanh thu theo thời gian</h2>
+              <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[11px] text-slate-500">
+                <span>Đơn vị: {timelineData.unitLabel}</span>
+                <span className="text-slate-300">|</span>
+                <span className="font-medium">
+                  Tổng kỳ:{' '}
+                  <strong className="text-blue-600 font-bold tabular-nums">
+                    {formatPrice(timelineData.totalPeriodRevenue)}
+                  </strong>{' '}
+                  ({timelineData.totalPeriodOrders} đơn)
                 </span>
               </div>
             </div>
 
-            {/* Range Dropdown Toggle */}
-            <div className="relative" ref={dropdownRef}>
+            <div className="relative shrink-0" ref={dropdownRef}>
               <button
                 type="button"
                 onClick={() => setIsTimeDropdownOpen(!isTimeDropdownOpen)}
-                className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-md text-[11px] font-medium text-slate-700 transition cursor-pointer"
+                className="px-2.5 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-700 transition cursor-pointer"
               >
-                <span>{selectedTimeRange}</span>
-                <ChevronDown className="w-3 h-3 text-slate-500" />
+                {selectedTimeRange}
               </button>
 
               {isTimeDropdownOpen && (
-                <div className="absolute right-0 mt-1 w-36 bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-20 text-xs">
+                <div className="absolute right-0 mt-1 w-40 bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-20 text-xs">
                   {(selectedTimeRange === 'Tùy chọn'
                     ? (['Hôm nay', '7 ngày gần nhất', '30 ngày qua', 'Tháng này', 'Năm nay', 'Tùy chọn'] as const)
                     : (['Hôm nay', '7 ngày gần nhất', '30 ngày qua', 'Tháng này', 'Năm nay'] as const)
@@ -1208,23 +1126,24 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Recharts AreaChart Container */}
-          <div className="w-full flex-1 min-h-[160px] max-h-[220px] pt-1 relative min-w-0">
+          <div className="w-full flex-1 min-h-[200px] pt-1 relative min-w-0">
             {timelineError ? (
               <div className="h-full flex flex-col items-center justify-center text-center px-4 gap-2">
-                <AlertCircle className="w-5 h-5 text-rose-500" />
+                <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 text-[10px] font-bold uppercase tracking-wider">
+                  Lỗi biểu đồ
+                </span>
                 <p className="text-xs text-rose-600 font-medium">{timelineError}</p>
                 <button
                   type="button"
                   onClick={() => fetchTimelineByRange(selectedTimeRange)}
-                  className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-md text-[11px] font-semibold transition cursor-pointer"
+                  className="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-md text-[11px] font-semibold transition cursor-pointer"
                 >
                   Thử lại
                 </button>
               </div>
             ) : (
               <>
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={160}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
                   <AreaChart data={timelineData.points} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="revenueAreaGradient" x1="0" y1="0" x2="0" y2="1">
@@ -1271,9 +1190,10 @@ export const DashboardPage: React.FC = () => {
                 )}
 
                 {isTimelineLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center gap-2 bg-white/75 backdrop-blur-[1px] rounded-lg z-10">
-                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                    <span className="text-xs font-medium text-slate-600">Đang tải dữ liệu...</span>
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/75 backdrop-blur-[1px] rounded-lg z-10">
+                    <span className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold">
+                      Đang tải dữ liệu...
+                    </span>
                   </div>
                 )}
               </>
@@ -1282,34 +1202,32 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* Chart 2: DonutChart - Cơ cấu doanh thu theo danh mục (Span 3) */}
-        <div className="lg:col-span-3 bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/80 shadow-2xs flex flex-col justify-between min-h-0">
-          <div className="flex items-center justify-between mb-1 shrink-0">
-            <h2 className="text-xs sm:text-sm font-bold text-slate-900">Doanh thu theo danh mục</h2>
+        <div className="lg:col-span-3 bg-white rounded-xl p-4 border border-slate-200/80 shadow-2xs flex flex-col justify-between min-h-[240px] lg:min-h-0 overflow-hidden">
+          <div className="flex items-center justify-between mb-2 shrink-0">
+            <h2 className="text-sm font-bold text-slate-900">Doanh thu theo danh mục</h2>
             {isLoading && dashboardData && (
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600 shrink-0" />
+              <span className="text-[10px] font-semibold text-blue-600">Đang cập nhật</span>
             )}
           </div>
 
           {apiError && !dashboardData ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center px-3 gap-2">
-              <AlertCircle className="w-5 h-5 text-rose-500" />
               <p className="text-xs text-rose-600 font-medium">Không thể tải dữ liệu danh mục</p>
               <button
                 type="button"
                 onClick={loadDashboardData}
-                className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-md text-[11px] font-semibold transition cursor-pointer"
+                className="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-md text-[11px] font-semibold transition cursor-pointer"
               >
                 Thử lại
               </button>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center my-auto py-1">
-              {/* Recharts Donut Chart with Center Text */}
-              <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center shrink-0">
+              <div className="relative w-32 h-32 flex items-center justify-center shrink-0">
                 {isLoading && !dashboardData ? (
-                  <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                  <span className="text-xs font-medium text-slate-400">Đang tải...</span>
                 ) : activeCategorySlices.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={112}>
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={128}>
                     <PieChart>
                       <Pie
                         data={activeCategorySlices}
@@ -1329,27 +1247,26 @@ export const DashboardPage: React.FC = () => {
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full border-[10px] border-slate-100" />
+                  <div className="w-28 h-28 rounded-full border-[10px] border-slate-100" />
                 )}
 
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-3">
-                  <span className="text-xs sm:text-sm font-bold text-slate-900 leading-tight max-w-full truncate">
+                  <span className="text-xs sm:text-sm font-bold text-slate-900 leading-tight max-w-full truncate tabular-nums">
                     {periodRevenueFormatted}
                   </span>
                   <span className="text-[9px] text-slate-400 font-medium">Doanh thu</span>
                 </div>
               </div>
 
-              {/* Category Legend List */}
-              <div className="w-full mt-2.5 space-y-1 text-xs max-h-[140px] overflow-y-auto pr-0.5">
+              <div className="w-full mt-3 space-y-1.5 text-xs max-h-[150px] overflow-y-auto pr-0.5">
                 {categoryStats.length > 0 ? (
                   categoryStats.map((cat) => (
-                    <div key={cat.id} className="flex items-center justify-between text-[10px] sm:text-[11px]">
+                    <div key={cat.id} className="flex items-center justify-between text-[11px] gap-2">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
                         <span className="text-slate-600 font-medium truncate" title={cat.name}>{cat.name}</span>
                       </div>
-                      <div className="flex items-center gap-2 font-semibold text-slate-800 shrink-0">
+                      <div className="flex items-center gap-2 font-semibold text-slate-800 shrink-0 tabular-nums">
                         <span className="text-slate-400 font-normal">{cat.percentage}%</span>
                         <span
                           className="cursor-help"
@@ -1371,42 +1288,35 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* Chart 3: BarChart - Top 10 sản phẩm bán chạy (Span 3) */}
-        <div className="lg:col-span-3 bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/80 shadow-2xs flex flex-col justify-between min-h-0">
-          <div className="flex items-center justify-between mb-2 shrink-0">
-            <div className="flex items-center gap-1.5">
-              <h2 className="text-xs sm:text-sm font-bold text-slate-900">Top 10 sản phẩm bán chạy</h2>
-              {isLoading && dashboardData && (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600 shrink-0" />
-              )}
-            </div>
+        <div className="lg:col-span-3 bg-white rounded-xl p-4 border border-slate-200/80 shadow-2xs flex flex-col justify-between min-h-[240px] lg:min-h-0 overflow-hidden">
+          <div className="flex items-center justify-between gap-2 mb-2 shrink-0">
+            <h2 className="text-sm font-bold text-slate-900">Top 10 bán chạy</h2>
             <Link
               to={ROUTES.ADMIN_PRODUCTS}
               className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline shrink-0"
             >
-              Xem tất cả →
+              Xem tất cả
             </Link>
           </div>
 
-          <div className="flex-1 w-full min-h-[190px] lg:min-h-0 relative min-w-0">
+          <div className="flex-1 w-full min-h-[210px] lg:min-h-0 relative min-w-0">
             {isLoading && !dashboardData ? (
-              <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-500">
-                <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+              <div className="h-full flex items-center justify-center text-slate-500">
                 <span className="text-xs font-medium">Đang tải Top sản phẩm...</span>
               </div>
             ) : apiError && !dashboardData ? (
               <div className="h-full flex flex-col items-center justify-center text-center px-3 gap-2">
-                <AlertCircle className="w-5 h-5 text-rose-500" />
                 <p className="text-xs text-rose-600 font-medium">Không thể tải Top sản phẩm</p>
                 <button
                   type="button"
                   onClick={loadDashboardData}
-                  className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-md text-[11px] font-semibold transition cursor-pointer"
+                  className="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-md text-[11px] font-semibold transition cursor-pointer"
                 >
                   Thử lại
                 </button>
               </div>
             ) : topProducts.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={190}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={210}>
                 <BarChart data={topProducts} layout="vertical" margin={{ top: 2, right: 24, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                   <XAxis

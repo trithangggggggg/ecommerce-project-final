@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { useCartStore } from '../../store/useCartStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useSiteConfigStore } from '../../store/useSiteConfigStore';
 import { orderService } from '../../api/services/order.service';
 import { shippingService } from '../../api/services/shipping.service';
 import paymentService from '../../api/services/payment.service';
@@ -44,8 +45,14 @@ import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 
 // Helper: Tính thời gian giao hàng dự kiến theo đơn vị vận chuyển
-const getEstimatedDeliveryTime = (carrier?: ShippingCarrier | null): string => {
-  if (!carrier) return '2 - 3 ngày làm việc';
+const getEstimatedDeliveryTime = (
+  carrier?: ShippingCarrier | null,
+  defaultLeadTime = '2 - 3 ngày làm việc'
+): string => {
+  if (carrier?.estimatedDelivery?.trim()) {
+    return carrier.estimatedDelivery.trim();
+  }
+  if (!carrier) return defaultLeadTime;
   const code = (carrier.code || '').toUpperCase();
   const service = (carrier.serviceType || '').toLowerCase();
   if (
@@ -63,7 +70,7 @@ const getEstimatedDeliveryTime = (carrier?: ShippingCarrier | null): string => {
   if (code.includes('VNPOST') || code.includes('VIETTEL') || service.includes('tiết kiệm')) {
     return '2 - 4 ngày làm việc';
   }
-  return '2 - 3 ngày làm việc';
+  return defaultLeadTime;
 };
 
 // Regex chuẩn số điện thoại di động Việt Nam (10 chữ số bắt đầu bằng 03, 05, 07, 08, 09 hoặc tiền tố +84 / 84)
@@ -75,6 +82,13 @@ export const CheckoutPage: React.FC = () => {
 
   const { items, totalItems, totalPrice, clearCart } = useCartStore();
   const { user, isAuthenticated } = useAuthStore();
+  const { config } = useSiteConfigStore();
+  const codEnabled = config.payment.codEnabled;
+  const sepayEnabled = config.payment.sepayEnabled;
+  const freeshipThreshold = config.shipping.freeshipThreshold ?? 20_000_000;
+  const halfShipThreshold = config.shipping.halfShipThreshold ?? 10_000_000;
+  const defaultShippingFee = config.shipping.defaultFee ?? 30_000;
+  const defaultLeadTime = config.shipping.estimatedLeadTime || '2 - 3 ngày làm việc';
 
   // Nhận thông tin sản phẩm Mua Ngay (nếu đi từ nút Mua Ngay)
   const buyNowItem = (location.state as { buyNowItem?: CartItem } | null)?.buyNowItem;
@@ -143,6 +157,14 @@ export const CheckoutPage: React.FC = () => {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (paymentMethod === 'COD' && !codEnabled && sepayEnabled) {
+      setPaymentMethod('SEPAY');
+    } else if (paymentMethod === 'SEPAY' && !sepayEnabled && codEnabled) {
+      setPaymentMethod('COD');
+    }
+  }, [paymentMethod, codEnabled, sepayEnabled]);
+
   // Lấy danh sách đối tác vận chuyển khả dụng
   useEffect(() => {
     setIsLoadingCarriers(true);
@@ -182,20 +204,22 @@ export const CheckoutPage: React.FC = () => {
 
   // Đối tác vận chuyển được khách chọn
   const selectedCarrier = carriers.find((c) => c.id === selectedCarrierId) || carriers[0];
-  const baseShippingFee = selectedCarrier ? (selectedCarrier.shippingFee ?? 30000) : 30000;
+  const baseShippingFee = selectedCarrier ? (selectedCarrier.shippingFee ?? defaultShippingFee) : defaultShippingFee;
 
-  // 1. Tính mức cước theo chính sách giá trị đơn hàng:
-  // - Đơn hàng >= 20.000.000₫: Miễn phí 100% phí ship (Freeship 0₫)
-  // - Đơn hàng >= 10.000.000₫: Giảm 50% phí ship
-  // - Đơn hàng < 10.000.000₫: Phí cước gốc của hãng
+  // 1. Tính mức cước theo chính sách giá trị đơn hàng cấu hình từ Admin:
   let tierShippingFee = baseShippingFee;
   let shippingBadge = '';
-  if (subtotalAfterDiscount >= 20000000) {
+  let shippingDiscountLabel = '';
+  if (freeshipThreshold <= 0 || subtotalAfterDiscount >= freeshipThreshold) {
     tierShippingFee = 0;
-    shippingBadge = 'Freeship 100% (Đơn ≥ 20tr)';
-  } else if (subtotalAfterDiscount >= 10000000) {
+    shippingBadge = freeshipThreshold > 0
+      ? `Freeship 100% (Đơn ≥ ${formatPrice(freeshipThreshold)})`
+      : 'Freeship 100%';
+    shippingDiscountLabel = freeshipThreshold > 0 ? `Đơn ≥ ${formatPrice(freeshipThreshold)}` : 'Freeship toàn quốc';
+  } else if (halfShipThreshold > 0 && subtotalAfterDiscount >= halfShipThreshold) {
     tierShippingFee = Math.round(baseShippingFee / 2);
-    shippingBadge = 'Giảm 50% ship (Đơn ≥ 10tr)';
+    shippingBadge = `Giảm 50% ship (Đơn ≥ ${formatPrice(halfShipThreshold)})`;
+    shippingDiscountLabel = `Đơn ≥ ${formatPrice(halfShipThreshold)}`;
   }
   const shippingTierDiscount = baseShippingFee - tierShippingFee;
 
@@ -381,6 +405,15 @@ export const CheckoutPage: React.FC = () => {
       return;
     }
 
+    if (!codEnabled && !sepayEnabled) {
+      setErrorMessage('Hệ thống đang tạm khóa thanh toán. Vui lòng thử lại sau.');
+      return;
+    }
+    if ((paymentMethod === 'COD' && !codEnabled) || (paymentMethod === 'SEPAY' && !sepayEnabled)) {
+      setErrorMessage('Phương thức thanh toán đã chọn hiện đang tạm ngưng.');
+      return;
+    }
+
     const payload: CheckoutRequest = {
       receiverName: receiverName.trim(),
       phoneNumber: phoneNumber.trim().replace(/\s+/g, ''),
@@ -560,7 +593,7 @@ export const CheckoutPage: React.FC = () => {
                 </p>
                 <p className="text-indigo-700 flex items-center gap-1 font-medium">
                   <Clock className="w-3 h-3" />
-                  <span>Dự kiến giao: {getEstimatedDeliveryTime(selectedCarrier)}</span>
+                  <span>Dự kiến giao: {getEstimatedDeliveryTime(selectedCarrier, defaultLeadTime)}</span>
                 </p>
                 <p className="text-gray-900 pt-1 border-t border-gray-200">
                   <span className="text-gray-500">Phương thức thanh toán: </span>
@@ -1041,14 +1074,16 @@ export const CheckoutPage: React.FC = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {carriers.map((c) => {
                       const isSelected = selectedCarrierId === c.id;
-                      const cFee = c.shippingFee ?? 30000;
-                      let carrierActualFee = cFee;
-                      if (subtotalAfterDiscount >= 20000000) {
-                        carrierActualFee = 0;
-                      } else if (subtotalAfterDiscount >= 10000000) {
-                        carrierActualFee = Math.round(cFee / 2);
-                      }
-                      const estTime = getEstimatedDeliveryTime(c);
+                      const cFee = c.shippingFee ?? defaultShippingFee;
+                      const isCarrierFree = freeshipThreshold <= 0 || subtotalAfterDiscount >= freeshipThreshold;
+                      const isCarrierHalf =
+                        !isCarrierFree && halfShipThreshold > 0 && subtotalAfterDiscount >= halfShipThreshold;
+                      const carrierActualFee = isCarrierFree
+                        ? 0
+                        : isCarrierHalf
+                          ? Math.round(cFee / 2)
+                          : cFee;
+                      const estTime = getEstimatedDeliveryTime(c, defaultLeadTime);
 
                       return (
                         <div
@@ -1092,14 +1127,14 @@ export const CheckoutPage: React.FC = () => {
                           </div>
 
                           <div className="flex items-center justify-between pt-1 border-t border-gray-100/80 text-[10px]">
-                            {subtotalAfterDiscount >= 20000000 ? (
+                            {isCarrierFree ? (
                               <span className="text-emerald-700 font-bold flex items-center gap-1">
                                 <span>Freeship 0₫</span>
                                 <span className="line-through text-gray-400 font-normal text-[9px]">
                                   {formatPrice(cFee)}
                                 </span>
                               </span>
-                            ) : subtotalAfterDiscount >= 10000000 ? (
+                            ) : isCarrierHalf ? (
                               <span className="text-blue-700 font-bold flex items-center gap-1">
                                 <span>{formatPrice(carrierActualFee)}</span>
                                 <span className="line-through text-gray-400 font-normal text-[9px]">
@@ -1140,106 +1175,116 @@ export const CheckoutPage: React.FC = () => {
                 </div>
 
                 <div className="space-y-3">
+                  {!codEnabled && !sepayEnabled && (
+                    <div className="p-4 rounded-xl border border-amber-200 bg-amber-50 text-xs text-amber-800 font-medium">
+                      Hệ thống hiện tạm khóa tất cả phương thức thanh toán theo cấu hình quản trị. Vui lòng quay lại sau.
+                    </div>
+                  )}
+
                   {/* COD Option */}
-                  <label
-                    className={`flex items-start gap-3.5 p-4 rounded-xl border-2 transition cursor-pointer ${
-                      paymentMethod === 'COD'
-                        ? 'border-blue-600 bg-blue-50/40 shadow-xs ring-1 ring-blue-500/15'
-                        : 'border-gray-200 hover:border-gray-300 bg-white'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="COD"
-                      checked={paymentMethod === 'COD'}
-                      onChange={() => setPaymentMethod('COD')}
-                      className="sr-only"
-                    />
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                      <Banknote className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs sm:text-sm font-bold text-gray-900">
-                          Thanh toán khi nhận hàng (COD)
-                        </span>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                            Phổ biến
-                          </span>
-                          <span
-                            className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                              paymentMethod === 'COD'
-                                ? 'border-blue-600 bg-blue-600 text-white'
-                                : 'border-gray-300 bg-white'
-                            }`}
-                          >
-                            {paymentMethod === 'COD' && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-                          </span>
-                        </div>
+                  {codEnabled && (
+                    <label
+                      className={`flex items-start gap-3.5 p-4 rounded-xl border-2 transition cursor-pointer ${
+                        paymentMethod === 'COD'
+                          ? 'border-blue-600 bg-blue-50/40 shadow-xs ring-1 ring-blue-500/15'
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="COD"
+                        checked={paymentMethod === 'COD'}
+                        onChange={() => setPaymentMethod('COD')}
+                        className="sr-only"
+                      />
+                      <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                        <Banknote className="w-5 h-5" />
                       </div>
-                      <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
-                        Thanh toán tiền mặt trực tiếp cho nhân viên giao hàng sau khi kiểm tra sản phẩm.
-                      </p>
-                    </div>
-                  </label>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs sm:text-sm font-bold text-gray-900">
+                            Thanh toán khi nhận hàng (COD)
+                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                              Phổ biến
+                            </span>
+                            <span
+                              className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                paymentMethod === 'COD'
+                                  ? 'border-blue-600 bg-blue-600 text-white'
+                                  : 'border-gray-300 bg-white'
+                              }`}
+                            >
+                              {paymentMethod === 'COD' && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+                          Thanh toán tiền mặt trực tiếp cho nhân viên giao hàng sau khi kiểm tra sản phẩm.
+                        </p>
+                      </div>
+                    </label>
+                  )}
 
                   {/* Thanh toán Chuyển khoản VietQR trực tiếp tại Nexor */}
-                  <label
-                    className={`flex items-start gap-3.5 p-4 rounded-xl border-2 transition cursor-pointer ${
-                      paymentMethod === 'SEPAY'
-                        ? 'border-blue-600 bg-gradient-to-br from-blue-50/60 to-indigo-50/40 shadow-xs ring-1 ring-blue-500/15'
-                        : 'border-gray-200 hover:border-gray-300 bg-white'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="SEPAY"
-                      checked={paymentMethod === 'SEPAY'}
-                      onChange={() => setPaymentMethod('SEPAY')}
-                      className="sr-only"
-                    />
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-                      <QrCode className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-xs sm:text-sm font-bold text-gray-900">
-                          Chuyển khoản ngân hàng qua mã VietQR
-                        </span>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-                            QR ngay tại Nexor
+                  {sepayEnabled && (
+                    <label
+                      className={`flex items-start gap-3.5 p-4 rounded-xl border-2 transition cursor-pointer ${
+                        paymentMethod === 'SEPAY'
+                          ? 'border-blue-600 bg-gradient-to-br from-blue-50/60 to-indigo-50/40 shadow-xs ring-1 ring-blue-500/15'
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="SEPAY"
+                        checked={paymentMethod === 'SEPAY'}
+                        onChange={() => setPaymentMethod('SEPAY')}
+                        className="sr-only"
+                      />
+                      <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                        <QrCode className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-xs sm:text-sm font-bold text-gray-900">
+                            Chuyển khoản ngân hàng qua mã VietQR
                           </span>
-                          <span
-                            className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                              paymentMethod === 'SEPAY'
-                                ? 'border-blue-600 bg-blue-600 text-white'
-                                : 'border-gray-300 bg-white'
-                            }`}
-                          >
-                            {paymentMethod === 'SEPAY' && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                              QR ngay tại Nexor
+                            </span>
+                            <span
+                              className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                paymentMethod === 'SEPAY'
+                                  ? 'border-blue-600 bg-blue-600 text-white'
+                                  : 'border-gray-300 bg-white'
+                              }`}
+                            >
+                              {paymentMethod === 'SEPAY' && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+                          Hiển thị mã QR động trực tiếp trên website Nexor (không chuyển trang ngoài). Quét bằng app ngân hàng hoặc ví điện tử, tự động xác nhận trong 3–5 giây.
+                        </p>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                          <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[10px] font-bold text-slate-700">
+                            NAPAS 24/7
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[10px] font-bold text-slate-700">
+                            30+ Ngân hàng VN
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700">
+                            Xác nhận tự động
                           </span>
                         </div>
                       </div>
-                      <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
-                        Hiển thị mã QR động trực tiếp trên website Nexor (không chuyển trang ngoài). Quét bằng app ngân hàng hoặc ví điện tử, tự động xác nhận trong 3–5 giây.
-                      </p>
-                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                        <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[10px] font-bold text-slate-700">
-                          NAPAS 24/7
-                        </span>
-                        <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[10px] font-bold text-slate-700">
-                          30+ Ngân hàng VN
-                        </span>
-                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700">
-                          Xác nhận tự động
-                        </span>
-                      </div>
-                    </div>
-                  </label>
+                    </label>
+                  )}
                 </div>
               </div>
             </div>
@@ -1524,7 +1569,7 @@ export const CheckoutPage: React.FC = () => {
                     <div className="flex justify-between text-blue-700 font-medium">
                       <span className="flex items-center gap-1">
                         <Sparkles className="w-3 h-3 text-blue-500" />
-                        Ưu đãi giá trị đơn ({subtotalAfterDiscount >= 20000000 ? 'Đơn ≥ 20tr' : 'Đơn ≥ 10tr'})
+                        Ưu đãi giá trị đơn ({shippingDiscountLabel})
                       </span>
                       <span className="font-bold">
                         -{formatPrice(shippingTierDiscount)}

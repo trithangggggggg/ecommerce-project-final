@@ -25,6 +25,9 @@ import ra.project.server.model.entity.User;
 import ra.project.server.model.entity.WheelSpinHistory;
 import ra.project.server.repository.PromotionRepository;
 import ra.project.server.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import ra.project.server.model.entity.WheelRewardEntity;
+import ra.project.server.repository.WheelRewardRepository;
 import ra.project.server.repository.WheelSpinHistoryRepository;
 import ra.project.server.service.WheelService;
 
@@ -41,6 +44,9 @@ public class WheelServiceImpl implements WheelService {
     private final WheelSpinHistoryRepository wheelSpinHistoryRepository;
     private final PromotionRepository promotionRepository;
     private final UserRepository userRepository;
+
+    @Autowired(required = false)
+    private WheelRewardRepository wheelRewardRepository;
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final String ALPHANUMERIC = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -154,7 +160,36 @@ public class WheelServiceImpl implements WheelService {
 
     @Override
     public List<WheelReward> getDefaultRewards() {
+        if (wheelRewardRepository != null) {
+            List<WheelRewardEntity> active = wheelRewardRepository.findByIsActiveTrueOrderByDisplayOrderAscIdAsc();
+            if (active != null && !active.isEmpty()) {
+                List<WheelReward> mapped = new ArrayList<>();
+                for (int i = 0; i < active.size(); i++) {
+                    mapped.add(toRewardDto(active.get(i), i));
+                }
+                return mapped;
+            }
+        }
         return Collections.unmodifiableList(DEFAULT_REWARDS);
+    }
+
+    private WheelReward toRewardDto(WheelRewardEntity entity, int slotIndex) {
+        return WheelReward.builder()
+                .id(slotIndex)
+                .entityId(entity.getId())
+                .label(entity.getLabel())
+                .shortLabel(entity.getShortLabel())
+                .discount(entity.getDiscount())
+                .type(entity.getType())
+                .minOrder(entity.getMinOrder())
+                .maxDiscountAmount(entity.getMaxDiscountAmount())
+                .weight(entity.getWeight())
+                .color(entity.getColor())
+                .textColor(entity.getTextColor())
+                .icon(entity.getIcon())
+                .isActive(entity.getIsActive())
+                .displayOrder(entity.getDisplayOrder())
+                .build();
     }
 
     private User getOptionalCurrentUser() {
@@ -379,6 +414,138 @@ public class WheelServiceImpl implements WheelService {
         LocalDate today = LocalDate.now();
         wheelSpinHistoryRepository.deleteByUserIdAndSpinDate(userId, today);
         return ApiResponse.success("Đã đặt lại lượt quay hôm nay cho người dùng thành công", null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ApiResponse<AdminWheelSpinHistoryResponse> getSpinHistoryById(Long id) {
+        AdminWheelSpinHistoryResponse detail = wheelSpinHistoryRepository.findDetailById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Lịch sử quay thưởng", "id", id));
+        return ApiResponse.success("Lấy chi tiết lượt quay thành công", detail);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<WheelReward> searchAdminRewards(String keyword, Boolean isActive, Pageable pageable) {
+        if (wheelRewardRepository == null) {
+            return PageResponse.<WheelReward>builder().content(Collections.emptyList()).totalElements(0).totalPages(0).pageNumber(0).pageSize(10).build();
+        }
+        String cleanKeyword = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
+        Page<WheelRewardEntity> page = wheelRewardRepository.searchAdminRewards(cleanKeyword, isActive, pageable);
+        List<WheelReward> all = wheelRewardRepository.findAllByOrderByDisplayOrderAscIdAsc()
+                .stream().map(e -> toRewardDto(e, e.getDisplayOrder() != null ? e.getDisplayOrder() : 0)).toList();
+        Map<Long, Integer> indexMap = new HashMap<>();
+        for (int i = 0; i < all.size(); i++) {
+            indexMap.put(all.get(i).getEntityId(), i);
+        }
+        return PageResponse.from(page.map(entity -> toRewardDto(entity, indexMap.getOrDefault(entity.getId(), 0))));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<WheelReward> getAllRewardsAdmin() {
+        if (wheelRewardRepository == null) return getDefaultRewards();
+        List<WheelRewardEntity> list = wheelRewardRepository.findAllByOrderByDisplayOrderAscIdAsc();
+        List<WheelReward> res = new ArrayList<>();
+        for (int i = 0; i < list.size(); i++) {
+            res.add(toRewardDto(list.get(i), i));
+        }
+        return res;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public WheelReward getRewardById(Long id) {
+        WheelRewardEntity entity = wheelRewardRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Phần thưởng vòng quay", "id", id));
+        return toRewardDto(entity, entity.getDisplayOrder() != null ? entity.getDisplayOrder() : 0);
+    }
+
+    @Override
+    @Transactional
+    public WheelReward createReward(WheelReward request) {
+        if (request == null || request.getLabel() == null || request.getLabel().isBlank()) {
+            throw new BadRequestException("Tên phần thưởng không được để trống");
+        }
+        if (request.getShortLabel() == null || request.getShortLabel().isBlank()) {
+            throw new BadRequestException("Nhãn ngắn trên vòng quay không được để trống");
+        }
+        if (request.getDiscount() == null || request.getDiscount().isBlank()) {
+            throw new BadRequestException("Giá trị ưu đãi không được để trống");
+        }
+        WheelRewardEntity entity = WheelRewardEntity.builder()
+                .label(request.getLabel().trim())
+                .shortLabel(request.getShortLabel().trim())
+                .discount(request.getDiscount().trim())
+                .type(request.getType() != null && !request.getType().isBlank() ? request.getType().trim().toUpperCase() : "ORDER")
+                .minOrder(request.getMinOrder() != null ? request.getMinOrder().trim() : "Mọi đơn hàng")
+                .maxDiscountAmount(request.getMaxDiscountAmount())
+                .weight(request.getWeight() != null && request.getWeight() >= 0 ? request.getWeight() : 10)
+                .color(request.getColor() != null && !request.getColor().isBlank() ? request.getColor().trim() : "#1e40af")
+                .textColor(request.getTextColor() != null && !request.getTextColor().isBlank() ? request.getTextColor().trim() : "#ffffff")
+                .icon(request.getIcon() != null ? request.getIcon().trim() : "coupon")
+                .displayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : 0)
+                .isActive(request.getIsActive() != null ? request.getIsActive() : true)
+                .build();
+        WheelRewardEntity saved = wheelRewardRepository.save(entity);
+        return toRewardDto(saved, saved.getDisplayOrder());
+    }
+
+    @Override
+    @Transactional
+    public WheelReward updateReward(Long id, WheelReward request) {
+        WheelRewardEntity existing = wheelRewardRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Phần thưởng vòng quay", "id", id));
+        if (request.getLabel() != null && !request.getLabel().isBlank()) {
+            existing.setLabel(request.getLabel().trim());
+        }
+        if (request.getShortLabel() != null && !request.getShortLabel().isBlank()) {
+            existing.setShortLabel(request.getShortLabel().trim());
+        }
+        if (request.getDiscount() != null && !request.getDiscount().isBlank()) {
+            existing.setDiscount(request.getDiscount().trim());
+        }
+        if (request.getType() != null && !request.getType().isBlank()) {
+            existing.setType(request.getType().trim().toUpperCase());
+        }
+        existing.setMinOrder(request.getMinOrder() != null ? request.getMinOrder().trim() : existing.getMinOrder());
+        existing.setMaxDiscountAmount(request.getMaxDiscountAmount());
+        if (request.getWeight() != null && request.getWeight() >= 0) {
+            existing.setWeight(request.getWeight());
+        }
+        if (request.getColor() != null && !request.getColor().isBlank()) {
+            existing.setColor(request.getColor().trim());
+        }
+        if (request.getTextColor() != null && !request.getTextColor().isBlank()) {
+            existing.setTextColor(request.getTextColor().trim());
+        }
+        if (request.getDisplayOrder() != null) {
+            existing.setDisplayOrder(request.getDisplayOrder());
+        }
+        if (request.getIsActive() != null) {
+            existing.setIsActive(request.getIsActive());
+        }
+        WheelRewardEntity updated = wheelRewardRepository.save(existing);
+        return toRewardDto(updated, updated.getDisplayOrder());
+    }
+
+    @Override
+    @Transactional
+    public WheelReward toggleRewardStatus(Long id, Boolean isActive) {
+        WheelRewardEntity existing = wheelRewardRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Phần thưởng vòng quay", "id", id));
+        existing.setIsActive(isActive != null ? isActive : !Boolean.TRUE.equals(existing.getIsActive()));
+        WheelRewardEntity saved = wheelRewardRepository.save(existing);
+        return toRewardDto(saved, saved.getDisplayOrder());
+    }
+
+    @Override
+    @Transactional
+    public void deleteReward(Long id) {
+        if (!wheelRewardRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Phần thưởng vòng quay", "id", id);
+        }
+        wheelRewardRepository.deleteById(id);
     }
 
     private String generateUniqueVoucherCode(String prefix) {
