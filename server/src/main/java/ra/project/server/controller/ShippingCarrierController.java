@@ -83,22 +83,9 @@ public class ShippingCarrierController {
         seedDefaultCarriersIfEmpty();
         List<ShippingCarrier> activeCarriers = shippingCarrierRepository.findByStatusIgnoreCase("ACTIVE");
 
-        // Tự động gán cước mặc định cho các đối tác chưa có shippingFee
+        // Tự động gán giá trị mặc định cho các đối tác cũ chưa đủ thông tin
         for (ShippingCarrier carrier : activeCarriers) {
-            if (carrier.getShippingFee() == null) {
-                if ("GHTK".equalsIgnoreCase(carrier.getCode())) {
-                    carrier.setShippingFee(java.math.BigDecimal.valueOf(22000));
-                } else if ("VTP".equalsIgnoreCase(carrier.getCode())) {
-                    carrier.setShippingFee(java.math.BigDecimal.valueOf(25000));
-                } else if ("JNT".equalsIgnoreCase(carrier.getCode())) {
-                    carrier.setShippingFee(java.math.BigDecimal.valueOf(28000));
-                } else if ("GHN".equalsIgnoreCase(carrier.getCode())) {
-                    carrier.setShippingFee(java.math.BigDecimal.valueOf(35000));
-                } else if ("NEXOR".equalsIgnoreCase(carrier.getCode())) {
-                    carrier.setShippingFee(java.math.BigDecimal.valueOf(50000));
-                } else {
-                    carrier.setShippingFee(java.math.BigDecimal.valueOf(30000));
-                }
+            if (carrier.applyMissingDefaults()) {
                 shippingCarrierRepository.save(carrier);
             }
         }

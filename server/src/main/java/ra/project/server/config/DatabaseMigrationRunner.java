@@ -495,14 +495,29 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
             jdbcTemplate.execute("ALTER TABLE store_locations ADD COLUMN image_url VARCHAR(500) NULL");
         }
         Set<String> carrierCols = getTableColumns("shipping_carriers");
-        if (!carrierCols.isEmpty() && !carrierCols.contains("estimated_delivery")) {
-            jdbcTemplate.execute("ALTER TABLE shipping_carriers ADD COLUMN estimated_delivery VARCHAR(100) NULL DEFAULT '2 - 3 ngày làm việc'");
-            jdbcTemplate.update("UPDATE shipping_carriers SET estimated_delivery = '1 - 2 ngày (24h nội thành)' WHERE UPPER(code) = 'GHN' AND (estimated_delivery IS NULL OR estimated_delivery = '')");
-            jdbcTemplate.update("UPDATE shipping_carriers SET estimated_delivery = '2 - 4 ngày toàn quốc' WHERE UPPER(code) = 'GHTK' AND (estimated_delivery IS NULL OR estimated_delivery = '')");
-            jdbcTemplate.update("UPDATE shipping_carriers SET estimated_delivery = '2 - 3 ngày liên tỉnh' WHERE UPPER(code) = 'VTP' AND (estimated_delivery IS NULL OR estimated_delivery = '')");
-            jdbcTemplate.update("UPDATE shipping_carriers SET estimated_delivery = '2 - 3 ngày TMĐT' WHERE UPPER(code) = 'JNT' AND (estimated_delivery IS NULL OR estimated_delivery = '')");
-            jdbcTemplate.update("UPDATE shipping_carriers SET estimated_delivery = 'Trong ngày (Hỏa tốc 2H)' WHERE UPPER(code) = 'NEXOR' AND (estimated_delivery IS NULL OR estimated_delivery = '')");
-            jdbcTemplate.update("UPDATE shipping_carriers SET estimated_delivery = '2 - 3 ngày làm việc' WHERE estimated_delivery IS NULL OR estimated_delivery = ''");
+        if (!carrierCols.isEmpty()) {
+            if (!carrierCols.contains("estimated_delivery")) {
+                jdbcTemplate.execute("ALTER TABLE shipping_carriers ADD COLUMN estimated_delivery VARCHAR(100) NULL DEFAULT '2 - 3 ngày làm việc'");
+            }
+            jdbcTemplate.update("UPDATE shipping_carriers SET estimated_delivery = '1 - 2 ngày (24h nội thành)' WHERE UPPER(code) = 'GHN' AND (estimated_delivery IS NULL OR TRIM(estimated_delivery) = '')");
+            jdbcTemplate.update("UPDATE shipping_carriers SET estimated_delivery = '2 - 4 ngày toàn quốc' WHERE UPPER(code) = 'GHTK' AND (estimated_delivery IS NULL OR TRIM(estimated_delivery) = '')");
+            jdbcTemplate.update("UPDATE shipping_carriers SET estimated_delivery = '2 - 3 ngày liên tỉnh' WHERE UPPER(code) IN ('VTP', 'VIETTEL_POST', 'VNPOST') AND (estimated_delivery IS NULL OR TRIM(estimated_delivery) = '')");
+            jdbcTemplate.update("UPDATE shipping_carriers SET estimated_delivery = '2 - 3 ngày TMĐT' WHERE UPPER(code) IN ('JNT', 'SPX') AND (estimated_delivery IS NULL OR TRIM(estimated_delivery) = '')");
+            jdbcTemplate.update("UPDATE shipping_carriers SET estimated_delivery = 'Trong ngày (Hỏa tốc 2H)' WHERE UPPER(code) = 'NEXOR' AND (estimated_delivery IS NULL OR TRIM(estimated_delivery) = '')");
+            jdbcTemplate.update("UPDATE shipping_carriers SET estimated_delivery = '2 - 3 ngày làm việc' WHERE estimated_delivery IS NULL OR TRIM(estimated_delivery) = ''");
+
+            jdbcTemplate.update("UPDATE shipping_carriers SET rating = 5.0 WHERE rating IS NULL");
+            jdbcTemplate.update("UPDATE shipping_carriers SET active_orders = 0 WHERE active_orders IS NULL");
+            jdbcTemplate.update("UPDATE shipping_carriers SET service_type = 'Chuyển phát nhanh 24h' WHERE UPPER(code) = 'GHN' AND (service_type IS NULL OR TRIM(service_type) = '')");
+            jdbcTemplate.update("UPDATE shipping_carriers SET service_type = 'Giao hàng tiêu chuẩn toàn quốc' WHERE UPPER(code) IN ('GHTK', 'VNPOST') AND (service_type IS NULL OR TRIM(service_type) = '')");
+            jdbcTemplate.update("UPDATE shipping_carriers SET service_type = 'Vận chuyển nhanh TMĐT' WHERE UPPER(code) = 'SPX' AND (service_type IS NULL OR TRIM(service_type) = '')");
+            jdbcTemplate.update("UPDATE shipping_carriers SET service_type = 'Bưu chính chuyển phát liên tỉnh' WHERE UPPER(code) IN ('VTP', 'VIETTEL_POST') AND (service_type IS NULL OR TRIM(service_type) = '')");
+            jdbcTemplate.update("UPDATE shipping_carriers SET service_type = 'Chuyển phát tiêu chuẩn' WHERE service_type IS NULL OR TRIM(service_type) = ''");
+            jdbcTemplate.update("UPDATE shipping_carriers SET hotline = '1900 636677' WHERE UPPER(code) = 'GHN' AND (hotline IS NULL OR TRIM(hotline) = '')");
+            jdbcTemplate.update("UPDATE shipping_carriers SET hotline = '1900 6092' WHERE UPPER(code) = 'GHTK' AND (hotline IS NULL OR TRIM(hotline) = '')");
+            jdbcTemplate.update("UPDATE shipping_carriers SET hotline = '1900 1221' WHERE UPPER(code) = 'SPX' AND (hotline IS NULL OR TRIM(hotline) = '')");
+            jdbcTemplate.update("UPDATE shipping_carriers SET hotline = '1900 8095' WHERE UPPER(code) IN ('VTP', 'VIETTEL_POST') AND (hotline IS NULL OR TRIM(hotline) = '')");
+            jdbcTemplate.update("UPDATE shipping_carriers SET hotline = '1900 545481' WHERE UPPER(code) = 'VNPOST' AND (hotline IS NULL OR TRIM(hotline) = '')");
         }
     }
 

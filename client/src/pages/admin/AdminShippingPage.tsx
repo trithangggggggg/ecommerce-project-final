@@ -18,6 +18,11 @@ export interface ShippingCarrier {
   status: 'ACTIVE' | 'INACTIVE';
 }
 
+const formatCarrierRating = (rating?: number | null) => {
+  const num = Number(rating);
+  return (rating != null && Number.isFinite(num) ? num : 5.0).toFixed(1);
+};
+
 const ITEMS_PER_PAGE = 10;
 
 export const AdminShippingPage: React.FC = () => {
@@ -125,14 +130,14 @@ export const AdminShippingPage: React.FC = () => {
   const handleOpenEdit = (c: ShippingCarrier) => {
     setEditingCarrier(c);
     setEditForm({
-      code: c.code,
-      name: c.name,
-      serviceType: c.serviceType,
+      code: c.code || '',
+      name: c.name || '',
+      serviceType: c.serviceType || '',
       estimatedDelivery: c.estimatedDelivery || '2 - 3 ngày làm việc',
-      hotline: c.hotline,
-      shippingFee: c.shippingFee || 30000,
-      rating: c.rating,
-      status: c.status,
+      hotline: c.hotline || '',
+      shippingFee: Number(c.shippingFee) || 30000,
+      rating: c.rating != null && Number.isFinite(Number(c.rating)) ? Number(c.rating) : 5.0,
+      status: c.status || 'ACTIVE',
     });
   };
 
@@ -185,10 +190,10 @@ export const AdminShippingPage: React.FC = () => {
     if (statusFilter !== 'ALL' && c.status !== statusFilter) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const matchCode = c.code.toLowerCase().includes(q);
-      const matchName = c.name.toLowerCase().includes(q);
-      const matchService = c.serviceType.toLowerCase().includes(q);
-      const matchPhone = c.hotline.includes(q);
+      const matchCode = (c.code || '').toLowerCase().includes(q);
+      const matchName = (c.name || '').toLowerCase().includes(q);
+      const matchService = (c.serviceType || '').toLowerCase().includes(q);
+      const matchPhone = (c.hotline || '').includes(q);
       return matchCode || matchName || matchService || matchPhone;
     }
     return true;
@@ -196,7 +201,7 @@ export const AdminShippingPage: React.FC = () => {
 
   const activeCount = carriers.filter((c) => c.status === 'ACTIVE').length;
   const inactiveCount = carriers.filter((c) => c.status === 'INACTIVE').length;
-  const totalActiveOrders = carriers.reduce((sum, c) => sum + c.activeOrders, 0);
+  const totalActiveOrders = carriers.reduce((sum, c) => sum + Number(c.activeOrders ?? 0), 0);
 
   // Pagination calculation
   const totalPages = Math.ceil(filteredCarriers.length / ITEMS_PER_PAGE) || 1;
@@ -411,7 +416,7 @@ export const AdminShippingPage: React.FC = () => {
 
                     {/* Service */}
                     <td className="py-2.5 px-3.5 text-slate-600 font-medium whitespace-nowrap">
-                      <span className="block text-slate-700">{c.serviceType}</span>
+                      <span className="block text-slate-700">{c.serviceType || 'Chuyển phát tiêu chuẩn'}</span>
                       <span className="text-[11px] text-slate-400 font-normal">
                         {c.estimatedDelivery || '2 - 3 ngày làm việc'}
                       </span>
@@ -420,26 +425,26 @@ export const AdminShippingPage: React.FC = () => {
                     {/* Shipping Fee */}
                     <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
                       <span className="font-bold text-slate-800 text-xs tabular-nums">
-                        {formatPrice(c.shippingFee || 30000)}
+                        {formatPrice(Number(c.shippingFee) || 30000)}
                       </span>
                     </td>
 
                     {/* Hotline */}
                     <td className="py-2.5 px-3.5 whitespace-nowrap">
-                      <span className="text-slate-700 font-medium tabular-nums">{c.hotline}</span>
+                      <span className="text-slate-700 font-medium tabular-nums">{c.hotline || 'Chưa cập nhật'}</span>
                     </td>
 
                     {/* Active orders */}
                     <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
                       <span className="font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 text-[11px] tabular-nums">
-                        {c.activeOrders} đơn
+                        {Number(c.activeOrders ?? 0)} đơn
                       </span>
                     </td>
 
                     {/* Rating */}
                     <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
                       <span className="font-bold text-amber-600 text-xs tabular-nums">
-                        {c.rating.toFixed(1)} / 5
+                        {formatCarrierRating(c.rating)} / 5
                       </span>
                     </td>
 
@@ -808,7 +813,9 @@ export const AdminShippingPage: React.FC = () => {
               <div className="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200/70">
                 <div>
                   <span className="text-[11px] font-semibold text-slate-400 block">Loại dịch vụ</span>
-                  <span className="font-bold text-slate-800 mt-0.5 block">{detailCarrier.serviceType}</span>
+                  <span className="font-bold text-slate-800 mt-0.5 block">
+                    {detailCarrier.serviceType || 'Chuyển phát tiêu chuẩn'}
+                  </span>
                 </div>
                 <div>
                   <span className="text-[11px] font-semibold text-slate-400 block">Thời gian giao dự kiến</span>
@@ -819,23 +826,25 @@ export const AdminShippingPage: React.FC = () => {
                 <div>
                   <span className="text-[11px] font-semibold text-slate-400 block">Cước phí cơ bản</span>
                   <span className="font-bold text-slate-900 tabular-nums mt-0.5 block">
-                    {formatPrice(detailCarrier.shippingFee || 30000)}
+                    {formatPrice(Number(detailCarrier.shippingFee) || 30000)}
                   </span>
                 </div>
                 <div>
                   <span className="text-[11px] font-semibold text-slate-400 block">Hotline CSKH</span>
-                  <span className="font-bold text-slate-800 tabular-nums mt-0.5 block">{detailCarrier.hotline}</span>
+                  <span className="font-bold text-slate-800 tabular-nums mt-0.5 block">
+                    {detailCarrier.hotline || 'Chưa cập nhật'}
+                  </span>
                 </div>
                 <div>
                   <span className="text-[11px] font-semibold text-slate-400 block">Đơn đang giao</span>
                   <span className="font-bold text-blue-700 tabular-nums mt-0.5 block">
-                    {detailCarrier.activeOrders} đơn
+                    {Number(detailCarrier.activeOrders ?? 0)} đơn
                   </span>
                 </div>
                 <div>
                   <span className="text-[11px] font-semibold text-slate-400 block">Đánh giá dịch vụ</span>
                   <span className="font-bold text-amber-600 tabular-nums mt-0.5 block">
-                    {detailCarrier.rating.toFixed(1)} / 5.0
+                    {formatCarrierRating(detailCarrier.rating)} / 5.0
                   </span>
                 </div>
                 <div className="col-span-2 pt-2 border-t border-slate-200/80 flex items-center justify-between">
