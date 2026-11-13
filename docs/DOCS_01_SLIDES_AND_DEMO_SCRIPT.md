@@ -5,7 +5,7 @@
 > **Đơn vị thực hiện**: Nhóm phát triển NEXOR  
 > **Thành viên tham gia & phân công**:
 > - **Trí Thắng**: Trưởng nhóm, Thiết kế Kiến trúc Hệ thống, DevOps & Điều phối Demo Quản trị
-> - **Quốc Hùng**: Frontend Lead, Trực quan hóa Dữ liệu (Recharts), Gamification Wheel & Tối ưu UI/UX
+> - **Quốc Hưng**: Frontend Lead, Trực quan hóa Dữ liệu (Recharts), Gamification Wheel & Tối ưu UI/UX
 > - **Quốc Lộc**: Frontend Specialist, Luồng Giỏ hàng, Cổng thanh toán VietQR & Theo dõi đơn hàng
 > - **Tuấn Minh**: Backend Lead, Tích hợp Trí tuệ Nhân tạo Gemini AI, Xử lý Giao dịch & Xuất Báo cáo Excel
 > **Thời lượng báo cáo dự kiến**: 25 phút (10 phút Slide Thuyết trình + 12-15 phút Demo Trực tiếp + Q&A)
@@ -19,7 +19,7 @@
 ### SLIDE 1: TRANG TIÊU ĐỀ & GIỚI THIỆU DỰ ÁN
 - **Tiêu đề**: NEXOR — CÔNG NGHỆ DẪN LỐI TƯƠNG LAI
 - **Phụ đề**: Nền Tảng Thương Mại Điện Tử Công Nghệ Đột Phá Tích Hợp Trí Tuệ Nhân Tạo (Gemini AI) & Gamification
-- **Thông tin nhóm**: Nhóm sinh viên thực hiện: Trí Thắng, Quốc Hùng, Quốc Lộc, Tuấn Minh
+- **Thông tin nhóm**: Nhóm sinh viên thực hiện: Trí Thắng, Quốc Hưng, Quốc Lộc, Tuấn Minh
 - **Phiên bản**: v2.4.0 Production Ready (Release 11/2026)
 - **Hình ảnh minh họa**: Logo NEXOR Hologram, giao diện Dark/Light Mode hiện đại của Flagship Tech Store.
 
@@ -93,7 +93,7 @@ graph TD
   - Google Gemini 1.5 Flash API (Multimodal Vision & NLU).
   - SePay Payment Hub (VietQR Napas247, Webhook tự động).
 
-> **🎙️ Speaker Notes (Quốc Hùng)**:  
+> **🎙️ Speaker Notes (Quốc Hưng)**:  
 > *"Chúng em lựa chọn Tech Stack hiện đại, đảm bảo tính Type-Safety xuyên suốt từ Frontend tới Backend với TypeScript và Java. Việc sử dụng Vite giúp tăng tốc độ HMR và tối ưu hóa dung lượng bundle sản phẩm. Bên cạnh đó, thư viện đồ họa Recharts và Canvas mang lại các chuyển động mượt mà 60 FPS mà không làm nặng trình duyệt."*
 
 ---
@@ -123,7 +123,7 @@ graph TD
   - Bộ lọc thời gian linh hoạt: 7 ngày qua, 30 ngày qua, Tháng hiện tại và Cả năm.
 - **Quản lý toàn diện**: Đơn hàng, Sản phẩm & Biến thể (SKU), Người dùng & Phân quyền, Khuyến mãi & Voucher, Tin tức công nghệ và Tồn kho.
 
-> **🎙️ Speaker Notes (Quốc Hùng)**:  
+> **🎙️ Speaker Notes (Quốc Hưng)**:  
 > *"Tại phân hệ Quản trị, chúng em vừa hoàn tất nâng cấp toàn bộ hệ thống biểu đồ sang Recharts đồng bộ theo API Backend BE_18. Người quản lý có thể chuyển đổi qua lại giữa các mốc 7 ngày, 30 ngày, tháng hay năm; toàn bộ biểu đồ sẽ tự động kích hoạt hiệu ứng chuyển đổi mượt mà, định dạng tiền tệ VNĐ chuẩn xác, giúp việc ra quyết định kinh doanh trở nên trực quan và chính xác."*
 
 ---
@@ -149,7 +149,7 @@ graph TD
   3. Gemini Vision trích xuất các thuộc tính: Hãng sản xuất, dòng model, màu sắc, đặc điểm thiết kế (tai thỏ, cụm camera, viền màn hình).
   4. Backend so khớp dữ liệu và hiển thị danh sách sản phẩm tương đồng với độ chuẩn xác $\ge 90\%$.
 
-> **🎙️ Speaker Notes (Quốc Hùng)**:  
+> **🎙️ Speaker Notes (Quốc Hưng)**:  
 > *"Điểm WOW số 2 là Visual Search. Khách hàng chỉ cần chụp ảnh một chiếc tai nghe hoặc máy chơi game của bạn bè và tải lên; trong chưa đầy 2 giây, NEXOR sẽ tìm thấy chính xác sản phẩm đó trong hệ thống mà người dùng không cần phải nhớ hay gõ bất kỳ từ khóa phức tạp nào."*
 
 ---
@@ -175,7 +175,7 @@ graph TD
   - Mỗi tài khoản được cấp 1 lượt quay miễn phí mỗi ngày; hệ thống đếm ngược về 00:00.
   - Đã khắc phục triệt để lỗi thanh cuộn (scrollbar), giao diện Responsive hoàn mỹ trên mọi thiết bị.
 
-> **🎙️ Speaker Notes (Quốc Hùng)**:  
+> **🎙️ Speaker Notes (Quốc Hưng)**:  
 > *"Điểm WOW số 4 là Vòng quay may mắn Gamification. Chúng em biến việc phát mã giảm giá thành một trò chơi kích thích tâm lý người mua. Mã voucher trúng thưởng được đẩy thẳng vào ví của khách hàng và có thể sử dụng ngay lập tức tại bước Checkout, thúc đẩy người dùng chốt đơn nhanh chóng."*
 
 ---
@@ -300,12 +300,12 @@ graph TD
   - Mở trang chủ NEXOR (`http://localhost:5173`).
   - Lướt nhẹ qua Hero Slider, thanh danh mục, dải Flash Sale đếm ngược thời gian thực.
 - **Lời thoại (Script)**:
-  > *"Em xin chào hội đồng. Em là Trí Thắng. Em xin phép bắt đầu buổi demo với giao diện trang chủ của NEXOR. Như quý thầy cô có thể thấy, toàn bộ giao diện mang phong cách Dark/Light hiện đại chuẩn Flagship Store. Ngay trên trang chủ, các khối sản phẩm Flash Sale, sản phẩm công nghệ mới nhất đều được hiển thị sắc nét cùng hiệu ứng mượt mà. Tiếp theo, em xin nhường quyền trình diễn cho bạn Quốc Hùng để khám phá các tính năng Gamification và AI vượt trội."*
+  > *"Em xin chào hội đồng. Em là Trí Thắng. Em xin phép bắt đầu buổi demo với giao diện trang chủ của NEXOR. Như quý thầy cô có thể thấy, toàn bộ giao diện mang phong cách Dark/Light hiện đại chuẩn Flagship Store. Ngay trên trang chủ, các khối sản phẩm Flash Sale, sản phẩm công nghệ mới nhất đều được hiển thị sắc nét cùng hiệu ứng mượt mà. Tiếp theo, em xin nhường quyền trình diễn cho bạn Quốc Hưng để khám phá các tính năng Gamification và AI vượt trội."*
 
 ---
 
-### PHẦN II: GAMIFICATION VÒNG QUAY & TÌM KIẾM AI (02:00 - 05:30) — QUỐC HÙNG
-- **Người trình bày**: **Quốc Hùng**
+### PHẦN II: GAMIFICATION VÒNG QUAY & TÌM KIẾM AI (02:00 - 05:30) — QUỐC HƯNG
+- **Người trình bày**: **Quốc Hưng**
 - **Thao tác màn hình**:
   1. Đăng nhập tài khoản `customer@nexor.vn`.
   2. Bấm vào icon "Vòng Quay May Mắn" ở góc phải màn hình.
@@ -318,7 +318,7 @@ graph TD
   9. Kéo thả file `sample_macbook.jpg` vào khung tải ảnh.
   10. Chờ 1.5 giây $\rightarrow$ Màn hình hiển thị danh sách MacBook Air M2 và phụ kiện với độ tương đồng hiển thị trực quan.
 - **Lời thoại (Script)**:
-  > *"Em xin chào thầy cô, em là Quốc Hùng. Em xin demo tính năng Gamification Vòng quay may mắn. Ở phiên bản trước, giao diện có thanh cuộn gây mất thẩm mỹ; nhóm em đã tái cấu trúc CSS, đảm bảo hiển thị hoàn hảo trên mọi độ phân giải. Em bấm Quay... Vòng quay dừng đúng lát cắt, voucher 50.000đ được ghi nhận vào tài khoản. Nếu em cố tình quay tiếp, server lập tức chặn lại để đảm bảo tính công bằng.*
+  > *"Em xin chào thầy cô, em là Quốc Hưng. Em xin demo tính năng Gamification Vòng quay may mắn. Ở phiên bản trước, giao diện có thanh cuộn gây mất thẩm mỹ; nhóm em đã tái cấu trúc CSS, đảm bảo hiển thị hoàn hảo trên mọi độ phân giải. Em bấm Quay... Vòng quay dừng đúng lát cắt, voucher 50.000đ được ghi nhận vào tài khoản. Nếu em cố tình quay tiếp, server lập tức chặn lại để đảm bảo tính công bằng.*
   > 
   > *Tiếp theo là điểm WOW Tìm kiếm bằng hình ảnh. Em tải lên một bức ảnh chụp laptop không có tên. Hệ thống gửi ảnh tới Google Gemini Vision và chỉ sau 1.5 giây, chiếc MacBook Air M2 chính xác cùng cấu hình đã được trả về. Bây giờ, em xin mời bạn Tuấn Minh tiếp tục demo Trợ lý AI Gemini Chatbot!"*
 
@@ -398,7 +398,7 @@ Trong các buổi bảo vệ trực tiếp, các sự cố về đường truy�
 | **Mất kết nối Internet hoặc Wi-Fi hội trường chập chờn** | Trung bình | - Kích hoạt phát Wi-Fi 5G từ điện thoại cá nhân (đã cấu hình sẵn SSID dự phòng).<br>- Toàn bộ hệ thống chạy trên Localhost (`127.0.0.1`), không phụ thuộc internet ngoại trừ Gemini API. | Trí Thắng |
 | **Google Gemini API bị nghẽn mạng hoặc quá hạn ngạch (Rate Limit)** | Thấp | - Backend đã tích hợp sẵn cơ chế **Fallback Mock Intelligent Service** (`AiServiceImpl.java`). Khi Gemini trả về lỗi HTTP 429/503, hệ thống tự động chuyển sang bộ dữ liệu tri thức nội bộ đã cache sẵn, phản hồi trong 50ms mà không làm gián đoạn trải nghiệm của hội đồng. | Tuấn Minh |
 | **Ứng dụng Ngân hàng bảo trì hoặc Webhook SePay chậm trễ** | Thấp | - Chuẩn bị sẵn Script cURL / Postman để bắn mô phỏng Webhook SePay chuẩn chữ ký ngay tại terminal máy chủ:<br>`curl -X POST http://localhost:8080/api/payment/sepay/webhook -H "Authorization: Apikey test_key" -d "..."`<br>- Đơn hàng lập tức chuyển sang `PROCESSING` ngay trên màn hình demo. | Quốc Lộc |
-| **Ảnh chụp demo Visual Search bị mờ hoặc format lạ** | Rất thấp | - Đã chuẩn bị sẵn thư mục `demo_assets/` chứa 5 bức ảnh chụp sản phẩm chuẩn nét (MacBook, iPhone, Sony Headphone, iPad, Samsung Watch). | Quốc Hùng |
+| **Ảnh chụp demo Visual Search bị mờ hoặc format lạ** | Rất thấp | - Đã chuẩn bị sẵn thư mục `demo_assets/` chứa 5 bức ảnh chụp sản phẩm chuẩn nét (MacBook, iPhone, Sony Headphone, iPad, Samsung Watch). | Quốc Hưng |
 | **Xung đột Port hoặc dịch vụ MySQL bị chiếm dụng** | Rất thấp | - File `start-all.bat` có tích hợp lệnh kiểm tra `netstat` và dọn dẹp tiến trình treo trước khi khởi chạy. | Trí Thắng |
 
 ---

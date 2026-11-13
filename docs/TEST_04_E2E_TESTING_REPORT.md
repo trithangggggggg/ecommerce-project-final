@@ -2,7 +2,7 @@
 ## DỰ ÁN NỀN TẢNG THƯƠNG MẠI ĐIỆN TỬ FLAGSHIP TECH STORE — NEXOR (E-ShopTECH)
 
 > **Mã nhiệm vụ**: TEST_04  
-> **Người thực hiện**: Đội ngũ phát triển NEXOR (Trí Thắng, Quốc Hùng, Quốc Lộc, Tuấn Minh)  
+> **Người thực hiện**: Đội ngũ phát triển NEXOR (Trí Thắng, Quốc Hưng, Quốc Lộc, Tuấn Minh)  
 > **Phiên bản hệ thống**: v2.4.0-RELEASE  
 > **Môi trường thử nghiệm**: Local Development & Staging (`Windows 11`, `JDK 21 LTS`, `Node.js v20+`, `MySQL 8.0`, `Vite 5`, `Spring Boot 3.3.4`)  
 > **Ngày thực hiện & nghiệm thu**: 13/11/2026  
