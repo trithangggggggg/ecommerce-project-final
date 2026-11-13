@@ -55,7 +55,7 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
     @Value("${gemini.api-url:https://generativelanguage.googleapis.com/v1beta/models}")
     private String geminiApiUrl;
 
-    private static final long MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+    private static final long MAX_FILE_SIZE_BYTES = 5L * 1024 * 1024; // 5MB
     private static final Set<String> ALLOWED_MIME_TYPES = Set.of(
             "image/jpeg",
             "image/jpg",
@@ -238,6 +238,9 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
                 } else {
                     log.warn("Gemini Vision (model {}) trả về mã {}: {}", model, response.statusCode(), response.body());
                 }
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                log.warn("Gọi Gemini Vision API (model {}) bị gián đoạn: {}", model, ex.getMessage());
             } catch (Exception ex) {
                 log.warn("Gọi Gemini Vision API (model {}) thất bại: {}", model, ex.getMessage());
             }

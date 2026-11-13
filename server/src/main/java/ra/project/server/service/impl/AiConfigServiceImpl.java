@@ -268,68 +268,75 @@ public class AiConfigServiceImpl implements AiConfigService {
 
     @Override
     public Map<String, Object> testConnection(String provider, String model) {
-        Map<String, Object> result = new HashMap<>();
         String targetProvider = StringUtils.hasText(provider) ? provider : providerRef.get();
         String targetModel = StringUtils.hasText(model) ? model :
                 ("SPRING_AI".equalsIgnoreCase(targetProvider) ? openAiModelRef.get() : geminiModelRef.get());
 
         long start = System.currentTimeMillis();
-
         if ("GOOGLE_GEMINI".equalsIgnoreCase(targetProvider)) {
-            String apiKey = getEffectiveGeminiApiKey();
-            if (!StringUtils.hasText(apiKey) || apiKey.equalsIgnoreCase("dummy") || apiKey.startsWith("placeholder")) {
-                result.put("success", true);
-                result.put("provider", "SMART_FALLBACK (Local Engine)");
-                result.put("status", "STANDBY");
-                result.put("latencyMs", 25);
-                result.put("message", "Chưa cấu hình Google Gemini API Key. Đang hoạt động ở chế độ Trợ lý thông minh cục bộ (Offline Fallback Engine).");
-                return result;
-            }
+            return testGeminiConnection(targetModel, start);
+        }
+        return testLocalFallbackConnection(start);
+    }
 
-            try {
-                String url = geminiApiUrl + "/" + targetModel + ":generateContent?key=" + apiKey;
-                String body = "{\"contents\":[{\"parts\":[{\"text\":\"ping test\"}]}]}";
-                HttpRequest req = HttpRequest.newBuilder()
-                        .uri(URI.create(url))
-                        .header("Content-Type", "application/json")
-                        .timeout(Duration.ofSeconds(4))
-                        .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
-                        .build();
-
-                HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-                long latency = System.currentTimeMillis() - start;
-
-                if (resp.statusCode() == 200) {
-                    result.put("success", true);
-                    result.put("provider", "GOOGLE_GEMINI (" + targetModel + ")");
-                    result.put("status", "HEALTHY");
-                    result.put("latencyMs", latency);
-                    result.put("message", "Kết nối Google Gemini AI thành công! Độ trễ phản hồi: " + latency + "ms.");
-                } else {
-                    result.put("success", false);
-                    result.put("provider", "GOOGLE_GEMINI (" + targetModel + ")");
-                    result.put("status", "ERROR");
-                    result.put("latencyMs", latency);
-                    result.put("message", "Google Gemini phản hồi mã lỗi HTTP " + resp.statusCode());
-                }
-            } catch (Exception e) {
-                long latency = System.currentTimeMillis() - start;
-                result.put("success", false);
-                result.put("provider", "GOOGLE_GEMINI (" + targetModel + ")");
-                result.put("status", "TIMEOUT_OR_FAILED");
-                result.put("latencyMs", latency);
-                result.put("message", "Kết nối AI thất bại: " + e.getMessage());
-            }
-        } else {
-            // Local Smart Fallback ping test
-            long latency = Math.max(10, System.currentTimeMillis() - start);
+    private Map<String, Object> testGeminiConnection(String targetModel, long start) {
+        Map<String, Object> result = new HashMap<>();
+        String apiKey = getEffectiveGeminiApiKey();
+        if (!StringUtils.hasText(apiKey) || apiKey.equalsIgnoreCase("dummy") || apiKey.startsWith("placeholder")) {
             result.put("success", true);
-            result.put("provider", "SMART_ASSISTANT (Local Engine)");
-            result.put("status", "HEALTHY");
-            result.put("latencyMs", latency);
-            result.put("message", "Bộ xử lý thông minh phản hồi hoàn hảo trong " + latency + "ms.");
+            result.put("provider", "SMART_FALLBACK (Local Engine)");
+            result.put("status", "STANDBY");
+            result.put("latencyMs", 25);
+            result.put("message", "Chưa cấu hình Google Gemini API Key. Đang hoạt động ở chế độ Trợ lý thông minh cục bộ (Offline Fallback Engine).");
+            return result;
         }
 
+        try {
+            String url = geminiApiUrl + "/" + targetModel + ":generateContent?key=" + apiKey;
+            String body = "{\"contents\":[{\"parts\":[{\"text\":\"ping test\"}]}]}";
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Content-Type", "application/json")
+                    .timeout(Duration.ofSeconds(4))
+                    .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                    .build();
+
+            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            long latency = System.currentTimeMillis() - start;
+            boolean ok = resp.statusCode() == 200;
+            result.put("success", ok);
+            result.put("provider", "GOOGLE_GEMINI (" + targetModel + ")");
+            result.put("status", ok ? "HEALTHY" : "ERROR");
+            result.put("latencyMs", latency);
+            result.put("message", ok ? "Kết nối Google Gemini AI thành công! Độ trễ phản hồi: " + latency + "ms."
+                    : "Google Gemini phản hồi mã lỗi HTTP " + resp.statusCode());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            long latency = System.currentTimeMillis() - start;
+            result.put("success", false);
+            result.put("provider", "GOOGLE_GEMINI (" + targetModel + ")");
+            result.put("status", "TIMEOUT_OR_FAILED");
+            result.put("latencyMs", latency);
+            result.put("message", "Kết nối AI bị gián đoạn: " + e.getMessage());
+        } catch (Exception e) {
+            long latency = System.currentTimeMillis() - start;
+            result.put("success", false);
+            result.put("provider", "GOOGLE_GEMINI (" + targetModel + ")");
+            result.put("status", "TIMEOUT_OR_FAILED");
+            result.put("latencyMs", latency);
+            result.put("message", "Kết nối AI thất bại: " + e.getMessage());
+        }
+        return result;
+    }
+
+    private Map<String, Object> testLocalFallbackConnection(long start) {
+        long latency = Math.max(10, System.currentTimeMillis() - start);
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", true);
+        result.put("provider", "SMART_ASSISTANT (Local Engine)");
+        result.put("status", "HEALTHY");
+        result.put("latencyMs", latency);
+        result.put("message", "Bộ xử lý thông minh phản hồi hoàn hảo trong " + latency + "ms.");
         return result;
     }
 

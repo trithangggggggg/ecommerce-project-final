@@ -17,10 +17,14 @@ import ra.project.server.repository.KnowledgeChunkRepository;
 import ra.project.server.repository.KnowledgeDocumentRepository;
 import ra.project.server.service.impl.KnowledgeBaseServiceImpl;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -156,6 +160,58 @@ class KnowledgeBaseServiceImplTest {
 
         verify(chunkRepository).deleteAllByDocumentId(1L);
         verify(documentRepository).delete(sampleDoc);
+    }
+
+    @Test
+    @DisplayName("Upload file DOCX hợp lệ trích xuất văn bản chính xác")
+    void uploadDocument_docxSuccess() throws Exception {
+        byte[] docxBytes = createMockDocx("Chính sách vận chuyển hỏa tốc trong 2h");
+        MockMultipartFile file = new MockMultipartFile("file", "delivery.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", docxBytes);
+
+        when(documentRepository.save(any(KnowledgeDocument.class))).thenAnswer(inv -> {
+            KnowledgeDocument doc = inv.getArgument(0);
+            doc.setId(3L);
+            return doc;
+        });
+
+        KnowledgeDocumentResponse res = knowledgeBaseService.uploadDocument(file, "POLICY");
+
+        assertNotNull(res);
+        assertEquals("delivery.docx", res.getFileName());
+        assertEquals("DOCX", res.getFileType());
+        verify(chunkRepository, atLeastOnce()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("Upload file DOCX chứa đường dẫn độc hại (Zip Slip) bị chặn")
+    void uploadDocument_docxZipSlip_throwsException() throws Exception {
+        byte[] maliciousBytes = createMaliciousZipSlip();
+        MockMultipartFile file = new MockMultipartFile("file", "exploit.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", maliciousBytes);
+
+        assertThrows(Exception.class, () -> knowledgeBaseService.uploadDocument(file, "POLICY"));
+    }
+
+    private byte[] createMockDocx(String text) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            ZipEntry entry = new ZipEntry("word/document.xml");
+            zos.putNextEntry(entry);
+            String xml = "<w:document><w:body><w:p><w:r><w:t>" + text + "</w:t></w:r></w:p></w:body></w:document>";
+            zos.write(xml.getBytes(StandardCharsets.UTF_8));
+            zos.closeEntry();
+        }
+        return baos.toByteArray();
+    }
+
+    private byte[] createMaliciousZipSlip() throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            ZipEntry entry = new ZipEntry("../evil.txt");
+            zos.putNextEntry(entry);
+            zos.write("evil content".getBytes(StandardCharsets.UTF_8));
+            zos.closeEntry();
+        }
+        return baos.toByteArray();
     }
 }
 
