@@ -1,12 +1,15 @@
 package ra.project.server.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import ra.project.server.common.response.PageResponse;
+import ra.project.server.config.CacheConfig;
 import ra.project.server.exception.BadRequestException;
 import ra.project.server.exception.ResourceNotFoundException;
 import ra.project.server.model.entity.SystemSetting;
@@ -25,6 +28,7 @@ public class SystemSettingServiceImpl implements SystemSettingService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheConfig.CACHE_SYSTEM_SETTINGS, key = "'public'")
     public Map<String, Object> getPublicSettings() {
         List<SystemSetting> publicSettings = systemSettingRepository.findByIsPublicTrueOrderBySettingGroupAscIdAsc();
         Map<String, String> values = new LinkedHashMap<>();
@@ -101,6 +105,7 @@ public class SystemSettingServiceImpl implements SystemSettingService {
     }
 
     @Override
+    @CacheEvict(value = CacheConfig.CACHE_SYSTEM_SETTINGS, allEntries = true)
     public SystemSetting createSetting(SystemSetting request) {
         if (!StringUtils.hasText(request.getSettingKey())) {
             throw new BadRequestException("Mã khóa cấu hình (settingKey) không được để trống");
@@ -122,6 +127,7 @@ public class SystemSettingServiceImpl implements SystemSettingService {
     }
 
     @Override
+    @CacheEvict(value = CacheConfig.CACHE_SYSTEM_SETTINGS, allEntries = true)
     public SystemSetting updateSetting(Long id, SystemSetting request) {
         SystemSetting existing = getSettingById(id);
         if (StringUtils.hasText(request.getSettingKey())) {
@@ -151,6 +157,7 @@ public class SystemSettingServiceImpl implements SystemSettingService {
     }
 
     @Override
+    @CacheEvict(value = CacheConfig.CACHE_SYSTEM_SETTINGS, allEntries = true)
     public List<SystemSetting> bulkUpdate(Map<String, Object> payload) {
         if (payload == null || payload.isEmpty()) {
             return Collections.emptyList();
@@ -176,6 +183,7 @@ public class SystemSettingServiceImpl implements SystemSettingService {
     }
 
     @Override
+    @CacheEvict(value = CacheConfig.CACHE_SYSTEM_SETTINGS, allEntries = true)
     public void deleteSetting(Long id) {
         SystemSetting existing = getSettingById(id);
         systemSettingRepository.delete(existing);
