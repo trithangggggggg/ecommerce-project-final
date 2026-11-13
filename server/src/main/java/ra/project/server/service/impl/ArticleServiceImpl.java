@@ -2,6 +2,8 @@ package ra.project.server.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -9,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import ra.project.server.common.response.PageResponse;
+import ra.project.server.config.CacheConfig;
 import ra.project.server.exception.BadRequestException;
 import ra.project.server.exception.ResourceNotFoundException;
 import ra.project.server.mapper.ArticleMapper;
@@ -77,6 +80,7 @@ public class ArticleServiceImpl implements ArticleService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheConfig.CACHE_ARTICLES, key = "'publicCategories'")
     public List<String> getPublicCategories() {
         return articleRepository.findDistinctPublicCategories();
     }
@@ -99,6 +103,7 @@ public class ArticleServiceImpl implements ArticleService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheConfig.CACHE_ARTICLES, key = "#id")
     public ArticleResponse getArticleById(Long id) {
         Article article = articleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bài viết với ID: " + id));
@@ -107,6 +112,7 @@ public class ArticleServiceImpl implements ArticleService {
 
     @Override
     @Transactional
+    @CacheEvict(value = CacheConfig.CACHE_ARTICLES, allEntries = true)
     public ArticleResponse createArticle(ArticleRequest request) {
         if (request == null) {
             throw new BadRequestException("Dữ liệu bài viết không được để trống");
@@ -121,6 +127,7 @@ public class ArticleServiceImpl implements ArticleService {
 
     @Override
     @Transactional
+    @CacheEvict(value = CacheConfig.CACHE_ARTICLES, allEntries = true)
     public ArticleResponse updateArticle(Long id, ArticleRequest request) {
         if (request == null) {
             throw new BadRequestException("Dữ liệu cập nhật bài viết không được để trống");
@@ -144,6 +151,7 @@ public class ArticleServiceImpl implements ArticleService {
 
     @Override
     @Transactional
+    @CacheEvict(value = CacheConfig.CACHE_ARTICLES, allEntries = true)
     public ArticleResponse toggleArticleStatus(Long id, Boolean status) {
         Article existing = articleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bài viết với ID: " + id));
@@ -156,6 +164,7 @@ public class ArticleServiceImpl implements ArticleService {
 
     @Override
     @Transactional
+    @CacheEvict(value = CacheConfig.CACHE_ARTICLES, allEntries = true)
     public void deleteArticle(Long id) {
         Article existing = articleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bài viết với ID: " + id));

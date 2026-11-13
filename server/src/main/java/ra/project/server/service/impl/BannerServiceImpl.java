@@ -1,12 +1,15 @@
 package ra.project.server.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import ra.project.server.common.response.PageResponse;
+import ra.project.server.config.CacheConfig;
 import ra.project.server.exception.BadRequestException;
 import ra.project.server.exception.ResourceNotFoundException;
 import ra.project.server.model.entity.Banner;
@@ -26,6 +29,7 @@ public class BannerServiceImpl implements BannerService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheConfig.CACHE_BANNERS, key = "#position != null ? #position : 'ALL'")
     public List<Banner> getPublicBanners(String position) {
         LocalDate today = LocalDate.now();
         List<Banner> list = StringUtils.hasText(position)
@@ -40,6 +44,7 @@ public class BannerServiceImpl implements BannerService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheConfig.CACHE_BANNERS, key = "#id")
     public Banner getBannerById(Long id) {
         return bannerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Banner", "id", id));
@@ -62,6 +67,7 @@ public class BannerServiceImpl implements BannerService {
     }
 
     @Override
+    @CacheEvict(value = CacheConfig.CACHE_BANNERS, allEntries = true)
     public Banner createBanner(Banner request) {
         validateBanner(request);
         Banner banner = Banner.builder()
@@ -81,6 +87,7 @@ public class BannerServiceImpl implements BannerService {
     }
 
     @Override
+    @CacheEvict(value = CacheConfig.CACHE_BANNERS, allEntries = true)
     public Banner updateBanner(Long id, Banner request) {
         Banner existing = getBannerById(id);
         validateBanner(request);
@@ -104,6 +111,7 @@ public class BannerServiceImpl implements BannerService {
     }
 
     @Override
+    @CacheEvict(value = CacheConfig.CACHE_BANNERS, allEntries = true)
     public Banner toggleBannerStatus(Long id, Boolean isActive) {
         Banner existing = getBannerById(id);
         existing.setIsActive(isActive != null ? isActive : !Boolean.TRUE.equals(existing.getIsActive()));
@@ -111,6 +119,7 @@ public class BannerServiceImpl implements BannerService {
     }
 
     @Override
+    @CacheEvict(value = CacheConfig.CACHE_BANNERS, allEntries = true)
     public void deleteBanner(Long id) {
         Banner existing = getBannerById(id);
         bannerRepository.delete(existing);
