@@ -59,15 +59,32 @@
   animation: scanLaser 2.2s ease-in-out infinite;
 }
 
-/* Hide scrollbar utilities */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
+/* =========================================================
+   Ẩn toàn bộ thanh scroll (scrollbar) của tất cả các bảng
+   ========================================================= */
+.no-scrollbar,
+table,
+.table-container,
+div:has(> table),
+div:has(> div > table),
+.overflow-x-auto,
+.overflow-y-auto,
+.overflow-auto {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.no-scrollbar::-webkit-scrollbar,
+table::-webkit-scrollbar,
+.table-container::-webkit-scrollbar,
+div:has(> table)::-webkit-scrollbar,
+div:has(> div > table)::-webkit-scrollbar,
+.overflow-x-auto::-webkit-scrollbar,
+.overflow-y-auto::-webkit-scrollbar,
+.overflow-auto::-webkit-scrollbar {
+  display: none !important;
   width: 0 !important;
   height: 0 !important;
-}
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
 }
 /* =========================================================
    Leaflet map fixes — Tailwind v4 resets break tile images
