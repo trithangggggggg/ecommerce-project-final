@@ -163,6 +163,9 @@ public class UserServiceImpl implements UserService {
                         return thumb.replace("/236x/", "/736x/");
                     }
                 }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("Quá trình phân giải ảnh Pinterest từ URL '{}' bị gián đoạn: {}", cleanUrl, e.getMessage());
             } catch (Exception e) {
                 log.warn("Không thể tự động phân giải ảnh Pinterest từ URL '{}': {}", cleanUrl, e.getMessage());
             }

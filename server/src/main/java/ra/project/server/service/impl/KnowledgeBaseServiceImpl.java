@@ -22,6 +22,7 @@ import ra.project.server.repository.KnowledgeDocumentRepository;
 import ra.project.server.service.KnowledgeBaseService;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -398,22 +399,56 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         }
     }
 
+    private static final int MAX_ZIP_ENTRIES = 1000;
+    private static final long MAX_ZIP_SIZE = 10 * 1024 * 1024L;
+    private static final Pattern WORD_XML_TEXT_PATTERN = Pattern.compile("<w:t[^>]*>(.*?)</w:t>");
+
     private String extractDocxText(byte[] bytes) throws IOException {
-        StringBuilder sb = new StringBuilder();
         try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(bytes))) {
             ZipEntry entry;
+            int entries = 0;
             while ((entry = zis.getNextEntry()) != null) {
+                entries++;
+                validateZipEntry(entry, entries);
                 if ("word/document.xml".equals(entry.getName())) {
-                    String xml = new String(zis.readAllBytes(), StandardCharsets.UTF_8);
-                    // Trích xuất các nội dung trong thẻ <w:t>...</w:t>
-                    Pattern pattern = Pattern.compile("<w:t[^>]*>(.*?)</w:t>");
-                    Matcher matcher = pattern.matcher(xml);
-                    while (matcher.find()) {
-                        sb.append(matcher.group(1)).append(" ");
-                    }
-                    break;
+                    String xml = readZipEntryXml(zis);
+                    return parseWordXml(xml);
                 }
             }
+        }
+        return "";
+    }
+
+    private void validateZipEntry(ZipEntry entry, int entries) throws IOException {
+        if (entries > MAX_ZIP_ENTRIES) {
+            throw new IOException("Too many entries in docx archive");
+        }
+        String name = entry.getName();
+        if (name.contains("..") || name.startsWith("/") || name.startsWith("\\")) {
+            throw new IOException("Invalid entry name in archive");
+        }
+    }
+
+    private String readZipEntryXml(ZipInputStream zis) throws IOException {
+        byte[] buffer = new byte[4096];
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        long totalBytes = 0;
+        int len;
+        while ((len = zis.read(buffer)) > 0) {
+            totalBytes += len;
+            if (totalBytes > MAX_ZIP_SIZE) {
+                throw new IOException("Zip bomb detected in docx entry");
+            }
+            baos.write(buffer, 0, len);
+        }
+        return baos.toString(StandardCharsets.UTF_8);
+    }
+
+    private String parseWordXml(String xml) {
+        StringBuilder sb = new StringBuilder();
+        Matcher matcher = WORD_XML_TEXT_PATTERN.matcher(xml);
+        while (matcher.find()) {
+            sb.append(matcher.group(1)).append(" ");
         }
         return sb.toString().trim();
     }
