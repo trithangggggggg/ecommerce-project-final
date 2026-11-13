@@ -151,10 +151,16 @@ public class PromotionServiceImpl implements PromotionService {
 
         if (ownerUserId != null) {
             if (user == null) {
-                throw new BadRequestException("Mã giảm giá này là mã đền bù riêng cho chủ đơn hàng bị hủy. Vui lòng đăng nhập tài khoản để sử dụng.");
+                throw new BadRequestException("Mã giảm giá này là mã ưu đãi riêng tư. Vui lòng đăng nhập tài khoản để sử dụng.");
             }
             if (!ownerUserId.equals(user.getId())) {
-                throw new BadRequestException("Mã giảm giá này là mã đền bù dành riêng cho tài khoản được bồi thường đơn hàng. Bạn không thể sử dụng mã này.");
+                if (promo.getCode().toUpperCase().startsWith("DENBU")) {
+                    throw new BadRequestException("Mã giảm giá này là mã đền bù dành riêng cho tài khoản được bồi thường đơn hàng. Bạn không thể sử dụng mã này.");
+                } else if (promo.getCode().toUpperCase().startsWith("WHEEL")) {
+                    throw new BadRequestException("Mã giảm giá này là phần thưởng Vòng quay may mắn dành riêng cho tài khoản trúng thưởng. Bạn không thể sử dụng mã này.");
+                } else {
+                    throw new BadRequestException("Mã giảm giá này là mã ưu đãi riêng tư dành riêng cho tài khoản được chỉ định. Bạn không thể sử dụng mã này.");
+                }
             }
         }
 
