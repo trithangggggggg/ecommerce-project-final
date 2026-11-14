@@ -909,30 +909,16 @@ export default function HomePage() {
       {/* 6. THƯƠNG HIỆU CÔNG NGHỆ CHÍNH HÃNG (Top Official Brands Marquee Showcase) */}
       <section className="max-w-[1360px] mx-auto px-4 mb-14 sm:mb-20">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">🔥</span>
-            <div>
-              <h2 className="text-base font-black text-gray-900 tracking-tight">
-                Thương hiệu đối tác hàng đầu
-              </h2>
-              <p className="text-xs text-gray-500 hidden sm:block">
-                Khám phá các thương hiệu công nghệ hàng đầu, chất lượng và uy tín nhất
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-gray-400 font-medium bg-gray-100/80 px-2.5 py-1 rounded-full">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Rê chuột để dừng lướt</span>
-            </div>
-            <Link
-              to="/products"
-              className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 group"
-            >
-              <span>Tất cả thương hiệu</span>
-              <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
-            </Link>
-          </div>
+          <h2 className="text-base font-black text-gray-900 tracking-tight">
+            Thương hiệu đối tác hàng đầu
+          </h2>
+          <Link
+            to="/products"
+            className="text-xs font-semibold text-gray-500 hover:text-blue-600 flex items-center gap-1 group"
+          >
+            <span>Tất cả thương hiệu</span>
+            <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
+          </Link>
         </div>
 
         {/* Infinite Loop Marquee (2 Rows in Opposite Directions) */}
@@ -1013,19 +999,14 @@ export default function HomePage() {
       <section className="max-w-[1360px] mx-auto px-4 mb-14 sm:mb-20">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <span className="text-xl">📰</span>
-            <div>
-              <h2 className="text-base font-black text-gray-900 tracking-tight">
-                Các tin tức & Trải nghiệm Công nghệ
-              </h2>
-              <p className="text-xs text-gray-500 hidden sm:block">
-                Cập nhật xu hướng thiết bị, mẹo thủ thuật và bài đánh giá chuyên sâu từ chuyên gia NEXOR
-              </p>
-            </div>
+            <Newspaper size={20} className="text-gray-900" />
+            <h2 className="text-base font-black text-gray-900 tracking-tight">
+              Các tin tức & Trải nghiệm Công nghệ
+            </h2>
           </div>
           <Link
             to={ROUTES.ARTICLES}
-            className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 group"
+            className="text-xs font-semibold text-gray-500 hover:text-blue-600 flex items-center gap-1 group"
           >
             <span>Xem tất cả bài viết</span>
             <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
