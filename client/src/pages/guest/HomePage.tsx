@@ -18,9 +18,22 @@ import {
   ShieldCheck,
   Heart,
   ShoppingCart,
+  Sparkles,
+  Camera,
+  Gift,
+  Newspaper,
+  MapPin,
+  Eye,
+  Award,
+  Truck,
+  RotateCcw,
+  CheckCircle2,
 } from 'lucide-react';
 import { productService } from '../../api/services/product.service';
 import { categoryApiService } from '../../api/services/category.service';
+import { brandService, type BrandItem } from '../../api/services/brand.service';
+import { articleService } from '../../api/services/article.service';
+import type { Article } from '../../models/article.model';
 import {
   flashSaleService,
   type FlashSaleDto,
@@ -91,11 +104,15 @@ export default function HomePage() {
   const navigate = useNavigate();
   const [latestProducts, setLatestProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [brands, setBrands] = useState<BrandItem[]>([]);
+  const [articles, setArticles] = useState<Article[]>([]);
   const [flashSale, setFlashSale] = useState<FlashSaleDto | null>(null);
   const [flashRemainingSec, setFlashRemainingSec] = useState(0);
   const [loading, setLoading] = useState(true);
   const [productsError, setProductsError] = useState<string | null>(null);
   const [addingFlashProductId, setAddingFlashProductId] = useState<number | null>(null);
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [newsletterSubscribed, setNewsletterSubscribed] = useState(false);
 
   const { addItem } = useCartStore();
   const { isAuthenticated } = useAuthStore();
@@ -118,10 +135,12 @@ export default function HomePage() {
   const loadHomeData = useCallback(async () => {
     setLoading(true);
     setProductsError(null);
-    const [productsRes, categoriesRes, flashRes] = await Promise.allSettled([
+    const [productsRes, categoriesRes, flashRes, brandsRes, articlesRes] = await Promise.allSettled([
       productService.getProducts({ limit: 10, sortBy: 'newest' }),
       categoryApiService.getPublicCategories(),
       flashSaleService.getCurrentFlashSale(),
+      brandService.getPublicBrands(),
+      articleService.getPublicArticles({ page: 0, size: 4 }),
     ]);
 
     if (productsRes.status === 'fulfilled') {
@@ -133,6 +152,14 @@ export default function HomePage() {
 
     if (categoriesRes.status === 'fulfilled') {
       setCategories(Array.isArray(categoriesRes.value) ? categoriesRes.value : []);
+    }
+
+    if (brandsRes.status === 'fulfilled' && Array.isArray(brandsRes.value)) {
+      setBrands(brandsRes.value.filter((b) => b.status !== false));
+    }
+
+    if (articlesRes.status === 'fulfilled' && articlesRes.value?.content) {
+      setArticles(articlesRes.value.content);
     }
 
     if (flashRes.status === 'fulfilled' && flashRes.value) {
@@ -439,7 +466,7 @@ export default function HomePage() {
 
       {/* 2. QUICK CATEGORIES BAR (Divider Strip between Hero & Flash Sale - Dynamic from DB Categories) */}
       {(quickCategories.length > 0 || loading) && (
-        <section className="max-w-[1360px] mx-auto px-4 mb-6">
+        <section className="max-w-[1360px] mx-auto px-4 mb-8 sm:mb-10">
           {quickCategories.length > 0 ? (
             <div className={`grid ${quickGridColsClass} gap-3.5`}>
               {quickCategories.map((cat) => {
@@ -484,7 +511,7 @@ export default function HomePage() {
       )}
 
       {/* 3. FLASH SALE + RIGHT VERTICAL TECH BANNER */}
-      <section className="max-w-[1360px] mx-auto px-4 mb-8">
+      <section className="max-w-[1360px] mx-auto px-4 mb-10 sm:mb-14">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
           {/* Flash Sale Block */}
           <div
@@ -699,7 +726,7 @@ export default function HomePage() {
       </section>
 
       {/* 4. SẢN PHẨM MỚI NHẤT (Latest Products from Backend) */}
-      <section className="max-w-[1360px] mx-auto px-4">
+      <section className="max-w-[1360px] mx-auto px-4 mb-10 sm:mb-14">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <ShieldCheck size={20} className="text-gray-900" />
@@ -749,6 +776,358 @@ export default function HomePage() {
             ))}
           </div>
         )}
+      </section>
+
+      {/* 5. TÍNH NĂNG ĐẶC SẮC (AI Vision Search + Lucky Wheel Gamification) */}
+      <section className="max-w-[1360px] mx-auto px-4 mb-10 sm:mb-14">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+          {/* AI Vision Search Banner Card */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-6 sm:p-7 border border-indigo-500/20 shadow-lg group hover:border-indigo-500/40 transition-all duration-300">
+            <div className="absolute top-0 right-0 -mr-8 -mt-8 w-44 h-44 rounded-full bg-blue-500/10 blur-2xl pointer-events-none group-hover:bg-blue-500/20 transition-all" />
+            <div className="relative z-10 flex flex-col justify-between h-full">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-semibold mb-3 backdrop-blur-sm">
+                  <Sparkles size={13} className="text-blue-300 animate-pulse" />
+                  <span>Google Gemini Vision AI</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black tracking-tight mb-2 text-white">
+                  Tìm kiếm bằng hình ảnh
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-md mb-5">
+                  Tải ảnh hoặc chụp trực tiếp thiết bị công nghệ bạn đang quan tâm. Trợ lý AI sẽ nhận diện chuẩn xác thông số và gợi ý sản phẩm tốt nhất trong 2 giây.
+                </p>
+              </div>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-visual-search'))}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-bold shadow-md shadow-blue-600/30 transition-all transform active:scale-95 cursor-pointer"
+                >
+                  <Camera size={16} />
+                  <span>Thử tìm bằng hình ảnh</span>
+                  <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Lucky Wheel Gamification Banner Card */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 text-white p-6 sm:p-7 border border-purple-500/20 shadow-lg group hover:border-purple-500/40 transition-all duration-300">
+            <div className="absolute top-0 right-0 -mr-8 -mt-8 w-44 h-44 rounded-full bg-purple-500/10 blur-2xl pointer-events-none group-hover:bg-purple-500/20 transition-all" />
+            <div className="relative z-10 flex flex-col justify-between h-full">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/30 text-amber-300 text-xs font-semibold mb-3 backdrop-blur-sm">
+                  <Gift size={13} className="text-amber-300 animate-bounce" />
+                  <span>Minigame hàng ngày</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black tracking-tight mb-2 text-white">
+                  Vòng quay may mắn - Trúng Voucher 100K
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-md mb-5">
+                  Mỗi ngày 1 lượt quay hoàn toàn miễn phí! Cơ hội rinh voucher 100K VIP, mã giảm giá 50%, freeship toàn quốc và quà tặng độc quyền từ NEXOR.
+                </p>
+              </div>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-lucky-wheel'))}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 text-xs sm:text-sm font-black shadow-md shadow-amber-500/30 transition-all transform active:scale-95 cursor-pointer"
+                >
+                  <Gift size={16} />
+                  <span>Quay ngay nhận quà</span>
+                  <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 6. THƯƠNG HIỆU CÔNG NGHỆ CHÍNH HÃNG (Top Official Brands Grid) */}
+      <section className="max-w-[1360px] mx-auto px-4 mb-10 sm:mb-14">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Award size={20} className="text-blue-600" />
+            <div>
+              <h2 className="text-base font-black text-gray-900 tracking-tight">
+                Thương hiệu đối tác hàng đầu
+              </h2>
+              <p className="text-xs text-gray-500 hidden sm:block">
+                100% sản phẩm phân phối ủy quyền chính hãng từ các tập đoàn công nghệ toàn cầu
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/products"
+            className="text-xs font-semibold text-gray-500 hover:text-blue-600 flex items-center gap-1 group"
+          >
+            <span>Tất cả thương hiệu</span>
+            <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          {(brands.length > 0
+            ? brands
+            : [
+                { id: 1, name: 'Apple', slug: 'apple', country: 'Mỹ', displayOrder: 1, status: true },
+                { id: 2, name: 'ASUS', slug: 'asus', country: 'Đài Loan', displayOrder: 2, status: true },
+                { id: 3, name: 'Samsung', slug: 'samsung', country: 'Hàn Quốc', displayOrder: 3, status: true },
+                { id: 4, name: 'Sony', slug: 'sony', country: 'Nhật Bản', displayOrder: 4, status: true },
+                { id: 5, name: 'Dell', slug: 'dell', country: 'Mỹ', displayOrder: 5, status: true },
+                { id: 6, name: 'Razer', slug: 'razer', country: 'Mỹ', displayOrder: 6, status: true },
+              ]
+          ).map((brand) => (
+            <Link
+              key={brand.id}
+              to={`/products?brand=${brand.slug}`}
+              className="group bg-white rounded-xl border border-gray-100 p-4 flex flex-col items-center justify-center text-center hover:border-blue-400 hover:shadow-md transition-all duration-200"
+            >
+              {brand.logoUrl ? (
+                <img
+                  src={brand.logoUrl}
+                  alt={brand.name}
+                  className="h-9 w-auto object-contain mb-2 group-hover:scale-105 transition-transform"
+                />
+              ) : (
+                <div className="h-9 w-9 rounded-lg bg-gray-50 flex items-center justify-center font-black text-sm text-gray-700 group-hover:bg-blue-50 group-hover:text-blue-600 mb-2 transition-colors">
+                  {brand.name.slice(0, 2).toUpperCase()}
+                </div>
+              )}
+              <span className="text-xs font-bold text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-1">
+                {brand.name}
+              </span>
+              <span className="text-[10px] text-gray-400 mt-0.5">
+                {brand.country ? `${brand.country} • Chính hãng` : 'Chính hãng 100%'}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* 7. TIN TỨC CÔNG NGHỆ & ĐÁNH GIÁ (Tech Articles & Expert Reviews) */}
+      <section className="max-w-[1360px] mx-auto px-4 mb-10 sm:mb-14">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Newspaper size={20} className="text-gray-900" />
+            <div>
+              <h2 className="text-base font-black text-gray-900 tracking-tight">
+                Góc Tin tức & Trải nghiệm Công nghệ
+              </h2>
+              <p className="text-xs text-gray-500 hidden sm:block">
+                Cập nhật xu hướng thiết bị, mẹo thủ thuật và bài đánh giá chuyên sâu từ chuyên gia NEXOR
+              </p>
+            </div>
+          </div>
+          <Link
+            to={ROUTES.ARTICLES}
+            className="text-xs font-semibold text-gray-500 hover:text-blue-600 flex items-center gap-1 group"
+          >
+            <span>Xem tất cả bài viết</span>
+            <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
+          </Link>
+        </div>
+
+        {articles.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-xs text-gray-500">
+            Đang cập nhật các bài viết công nghệ mới nhất...
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {articles.map((article) => (
+              <Link
+                key={article.id}
+                to={`/articles/${article.slug}`}
+                className="group bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col hover:border-blue-300 hover:shadow-lg transition-all duration-300"
+              >
+                <div className="relative aspect-[16/10] overflow-hidden bg-gray-100">
+                  {article.thumbnail ? (
+                    <img
+                      src={article.thumbnail}
+                      alt={article.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src =
+                          'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=600&q=80';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400">
+                      <Newspaper size={32} />
+                    </div>
+                  )}
+                  {article.category && (
+                    <span className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-black/60 text-white backdrop-blur-sm">
+                      {article.category}
+                    </span>
+                  )}
+                </div>
+                <div className="p-4 flex-1 flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug mb-2">
+                      {article.title}
+                    </h3>
+                    {article.summary && (
+                      <p className="text-[11px] text-gray-500 line-clamp-2 leading-relaxed mb-3">
+                        {article.summary}
+                      </p>
+                    )}
+                  </div>
+                  <div className="pt-2 border-t border-gray-50 flex items-center justify-between text-[11px] text-gray-400">
+                    <span>
+                      {article.createdAt
+                        ? new Date(article.createdAt).toLocaleDateString('vi-VN')
+                        : 'Mới đăng'}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Eye size={12} />
+                      {article.views || 0} lượt xem
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* 8. HỆ THỐNG SHOWROOM TRẢI NGHIỆM (Store Locator Banner) */}
+      <section className="max-w-[1360px] mx-auto px-4 mb-10 sm:mb-14">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white p-7 sm:p-10 border border-slate-700/50 shadow-xl">
+          <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-6">
+            <div className="max-w-xl text-center lg:text-left">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-semibold mb-3">
+                <MapPin size={13} className="text-blue-400" />
+                <span>Mạng lưới 6 Showroom Flagship toàn quốc</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-3">
+                Trải nghiệm sản phẩm thực tế tại showroom NEXOR
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-4">
+                Không gian trưng bày chuẩn quốc tế tại Hà Nội, Đà Nẵng và TP. Hồ Chí Minh. Đến ngay để dùng thử trực tiếp các siêu phẩm công nghệ mới nhất cùng đội ngũ kỹ thuật viên chuyên sâu.
+              </p>
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 text-[11px] text-slate-300 font-medium">
+                <span className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700">📍 Hà Nội (2 điểm)</span>
+                <span className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700">📍 Đà Nẵng (1 điểm)</span>
+                <span className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700">📍 TP. Hồ Chí Minh (3 điểm)</span>
+              </div>
+            </div>
+
+            <div className="flex-shrink-0">
+              <Link
+                to={ROUTES.STORES}
+                className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold shadow-lg shadow-blue-600/30 hover:shadow-blue-600/50 transition-all transform hover:-translate-y-0.5 cursor-pointer"
+              >
+                <MapPin size={18} />
+                <span>Tìm cửa hàng gần bạn nhất</span>
+                <ArrowRight size={16} />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 9. CAM KẾT VÀNG TỪ NEXOR (Core Service Pillars) */}
+      <section className="max-w-[1360px] mx-auto px-4 mb-10 sm:mb-14">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 flex items-start gap-3.5 shadow-sm hover:shadow-md transition-shadow">
+            <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
+              <ShieldCheck size={22} />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-gray-900 mb-1">100% Hàng chính hãng</h4>
+              <p className="text-[11px] text-gray-500 leading-relaxed">
+                Phân phối ủy quyền, đầy đủ hóa đơn VAT điện tử và bảo hành chính hãng toàn quốc.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 flex items-start gap-3.5 shadow-sm hover:shadow-md transition-shadow">
+            <div className="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 flex-shrink-0">
+              <Truck size={22} />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-gray-900 mb-1">Giao hàng 2 Giờ</h4>
+              <p className="text-[11px] text-gray-500 leading-relaxed">
+                Giao siêu tốc nội thành trong 120 phút, bao bọc cẩn thận chuẩn chống va đập.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 flex items-start gap-3.5 shadow-sm hover:shadow-md transition-shadow">
+            <div className="w-11 h-11 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 flex-shrink-0">
+              <RotateCcw size={22} />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-gray-900 mb-1">Đổi mới trong 30 ngày</h4>
+              <p className="text-[11px] text-gray-500 leading-relaxed">
+                Lỗi do nhà sản xuất là đổi mới ngay 1-1, thủ tục tiếp nhận kiểm tra nhanh chóng.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 flex items-start gap-3.5 shadow-sm hover:shadow-md transition-shadow">
+            <div className="w-11 h-11 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 flex-shrink-0">
+              <Sparkles size={22} />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-gray-900 mb-1">Trợ lý AI tư vấn 24/7</h4>
+              <p className="text-[11px] text-gray-500 leading-relaxed">
+                Chatbot RAG thông minh giải đáp cấu hình máy và tư vấn sản phẩm tối ưu mọi lúc.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 10. ĐĂNG KÝ NHẬN BẢN TIN & VOUCHER 100K (Newsletter Subscription) */}
+      <section className="max-w-[1360px] mx-auto px-4 mb-6 sm:mb-10">
+        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 rounded-3xl p-7 sm:p-10 text-white shadow-xl">
+          <div className="max-w-2xl mx-auto text-center">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-white text-xs font-semibold mb-3 backdrop-blur-sm">
+              <Gift size={13} className="text-yellow-300" />
+              <span>Ưu đãi thành viên mới</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-2">
+              Nhận Voucher 100.000₫ cho đơn hàng đầu tiên
+            </h2>
+            <p className="text-xs sm:text-sm text-blue-100 leading-relaxed mb-6">
+              Đăng ký để không bỏ lỡ đợt Flash Sale bí mật, mã giảm giá độc quyền và cập nhật công nghệ mới nhất từ NEXOR.
+            </p>
+
+            {newsletterSubscribed ? (
+              <div className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-white/20 border border-white/30 text-white text-xs sm:text-sm font-bold backdrop-blur-md animate-fade-in">
+                <CheckCircle2 size={18} className="text-emerald-300" />
+                <span>Đăng ký thành công! Mã giảm giá <strong>NEXOR100K</strong> đã sẵn sàng cho bạn.</span>
+              </div>
+            ) : (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (newsletterEmail.trim()) {
+                    setNewsletterSubscribed(true);
+                  }
+                }}
+                className="flex flex-col sm:flex-row items-center gap-2 max-w-md mx-auto"
+              >
+                <input
+                  type="email"
+                  required
+                  value={newsletterEmail}
+                  onChange={(e) => setNewsletterEmail(e.target.value)}
+                  placeholder="Nhập địa chỉ email của bạn..."
+                  className="w-full px-4 py-3 rounded-xl bg-white text-gray-900 text-xs sm:text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-yellow-400 font-medium shadow-inner"
+                />
+                <button
+                  type="submit"
+                  className="w-full sm:w-auto flex-shrink-0 px-6 py-3 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-gray-950 text-xs sm:text-sm font-black shadow-md transition-all active:scale-95 cursor-pointer"
+                >
+                  Nhận mã ngay
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
       </section>
     </div>
   );

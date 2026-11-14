@@ -76,6 +76,12 @@ export const Header: React.FC = () => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [visualSearchOpen, setVisualSearchOpen] = useState(false);
 
+  useEffect(() => {
+    const handleOpenVisualSearch = () => setVisualSearchOpen(true);
+    window.addEventListener('open-visual-search', handleOpenVisualSearch);
+    return () => window.removeEventListener('open-visual-search', handleOpenVisualSearch);
+  }, []);
+
   const userMenuRef = useRef<HTMLDivElement>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
