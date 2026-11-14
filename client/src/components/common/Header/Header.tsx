@@ -245,6 +245,15 @@ export const Header: React.FC = () => {
     }
   };
 
+  const handleLogoClick = (e: React.MouseEvent) => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setShowPromoTicker(true);
+    setActiveTickerIndex(0);
+    if (location.pathname === '/' && !location.search) {
+      e.preventDefault();
+    }
+  };
+
   const navItems = [
     { name: 'Trang chủ', path: ROUTES.HOME, isHome: true },
     { name: 'Tất cả sản phẩm', path: ROUTES.PRODUCTS },
@@ -307,7 +316,12 @@ export const Header: React.FC = () => {
       {/* 1. Main Top Header */}
       <div className="max-w-[1360px] mx-auto px-4 py-3 flex items-center justify-between gap-4 relative z-40">
         {/* Left: Brand Logo (NEXOR Emblem) */}
-        <Link to="/" className="flex items-center gap-3 shrink-0 group">
+        <Link
+          to="/"
+          onClick={handleLogoClick}
+          className="flex items-center gap-3 shrink-0 group cursor-pointer"
+          title="Về đầu trang NEXOR"
+        >
           <div className="w-10 h-10 flex items-center justify-center shrink-0">
             <img
               src="/images/nexor_logo.png"
@@ -675,6 +689,11 @@ export const Header: React.FC = () => {
                 <Link
                   key={item.name}
                   to={item.path}
+                  onClick={(e) => {
+                    if (item.isHome) {
+                      handleLogoClick(e);
+                    }
+                  }}
                   className={`text-xs font-semibold py-1 transition-all relative border-b-2 whitespace-nowrap ${
                     active
                       ? 'text-white font-bold border-white'
@@ -702,7 +721,12 @@ export const Header: React.FC = () => {
               <Link
                 key={item.name}
                 to={item.path}
-                onClick={() => setMobileMenuOpen(false)}
+                onClick={(e) => {
+                  setMobileMenuOpen(false);
+                  if (item.isHome) {
+                    handleLogoClick(e);
+                  }
+                }}
                 className={`block py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${
                   active
                     ? 'text-white bg-blue-600/20 font-bold border-l-2 border-white pl-3'
