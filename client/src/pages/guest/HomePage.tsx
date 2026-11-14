@@ -906,7 +906,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 6. THƯƠNG HIỆU CÔNG NGHỆ CHÍNH HÃNG (Top Official Brands Grid) */}
+      {/* 6. THƯƠNG HIỆU CÔNG NGHỆ CHÍNH HÃNG (Top Official Brands Marquee Showcase) */}
       <section className="max-w-[1360px] mx-auto px-4 mb-14 sm:mb-20">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -920,42 +920,52 @@ export default function HomePage() {
               </p>
             </div>
           </div>
-          <Link
-            to="/products"
-            className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 group"
-          >
-            <span>Tất cả thương hiệu</span>
-            <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
-          </Link>
+          <div className="flex items-center gap-4">
+            <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-gray-400 font-medium bg-gray-100/80 px-2.5 py-1 rounded-full">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Rê chuột để dừng lướt</span>
+            </div>
+            <Link
+              to="/products"
+              className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 group"
+            >
+              <span>Tất cả thương hiệu</span>
+              <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          {(brands.length > 0
-            ? brands
-            : [
-                { id: 1, name: 'ASUS', slug: 'asus', country: 'Quốc tế', displayOrder: 1, status: true },
-                { id: 2, name: 'HyperX', slug: 'hyperx', country: 'Quốc tế', displayOrder: 2, status: true },
-                { id: 3, name: 'Razer', slug: 'razer', country: 'Quốc tế', displayOrder: 3, status: true },
-                { id: 4, name: 'XP-Pen', slug: 'xp-pen', country: 'Quốc tế', displayOrder: 4, status: true },
-                { id: 5, name: 'Apple', slug: 'apple', country: 'Hoa Kỳ', displayOrder: 5, status: true },
-                { id: 6, name: 'Samsung', slug: 'samsung', country: 'Hàn Quốc', displayOrder: 6, status: true },
-                { id: 7, name: 'Sony', slug: 'sony', country: 'Nhật Bản', displayOrder: 7, status: true },
-                { id: 8, name: 'Dell', slug: 'dell', country: 'Hoa Kỳ', displayOrder: 8, status: true },
-                { id: 9, name: 'Xiaomi', slug: 'xiaomi', country: 'Trung Quốc', displayOrder: 9, status: true },
-                { id: 10, name: 'Logitech', slug: 'logitech', country: 'Thụy Sĩ', displayOrder: 10, status: true },
-                { id: 11, name: 'Anker', slug: 'anker', country: 'Hoa Kỳ', displayOrder: 11, status: true },
-              ]
-          ).map((brand) => {
-            const { name: displayName, slogan } = getBrandDisplay(brand);
+        {/* Infinite Loop Marquee (2 Rows in Opposite Directions) */}
+        {(() => {
+          const brandList =
+            brands.length > 0
+              ? brands
+              : [
+                  { id: 1, name: 'ASUS', slug: 'asus', country: 'Quốc tế', displayOrder: 1, status: true },
+                  { id: 2, name: 'HyperX', slug: 'hyperx', country: 'Quốc tế', displayOrder: 2, status: true },
+                  { id: 3, name: 'Razer', slug: 'razer', country: 'Quốc tế', displayOrder: 3, status: true },
+                  { id: 4, name: 'XP-Pen', slug: 'xp-pen', country: 'Quốc tế', displayOrder: 4, status: true },
+                  { id: 5, name: 'Apple', slug: 'apple', country: 'Hoa Kỳ', displayOrder: 5, status: true },
+                  { id: 6, name: 'Samsung', slug: 'samsung', country: 'Hàn Quốc', displayOrder: 6, status: true },
+                  { id: 7, name: 'Sony', slug: 'sony', country: 'Nhật Bản', displayOrder: 7, status: true },
+                  { id: 8, name: 'Dell', slug: 'dell', country: 'Hoa Kỳ', displayOrder: 8, status: true },
+                  { id: 9, name: 'Xiaomi', slug: 'xiaomi', country: 'Trung Quốc', displayOrder: 9, status: true },
+                  { id: 10, name: 'Logitech', slug: 'logitech', country: 'Thụy Sĩ', displayOrder: 10, status: true },
+                  { id: 11, name: 'Anker', slug: 'anker', country: 'Hoa Kỳ', displayOrder: 11, status: true },
+                ];
+          const reversedBrandList = [...brandList].reverse();
+
+          const renderBrandItem = (b: BrandItem, uniqueKey: string) => {
+            const { name: displayName, slogan } = getBrandDisplay(b);
             return (
               <Link
-                key={brand.id}
-                to={`/products?brand=${encodeURIComponent(brand.name)}`}
-                className="group bg-white rounded-2xl border border-gray-100/90 p-3 sm:px-3.5 sm:py-3 shadow-xs hover:border-blue-400 hover:shadow-md transition-all duration-200 flex items-center justify-between gap-2.5 cursor-pointer"
+                key={uniqueKey}
+                to={`/products?brand=${encodeURIComponent(b.name)}`}
+                className="group bg-white rounded-2xl border border-gray-100/90 p-3 sm:px-3.5 sm:py-3 shadow-xs hover:border-blue-400 hover:shadow-md transition-all duration-200 flex items-center justify-between gap-3 cursor-pointer shrink-0 w-[240px] sm:w-[260px] select-none"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gray-50 flex items-center justify-center p-1.5 shrink-0 group-hover:scale-105 transition-transform">
-                    <BrandLogo brandName={brand.name} logoUrl={brand.logoUrl} />
+                    <BrandLogo brandName={b.name} logoUrl={b.logoUrl} />
                   </div>
                   <div className="min-w-0 flex flex-col">
                     <span className="text-xs sm:text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors truncate">
@@ -971,8 +981,32 @@ export default function HomePage() {
                 </div>
               </Link>
             );
-          })}
-        </div>
+          };
+
+          return (
+            <div className="relative overflow-hidden marquee-container py-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+              {/* Left Gradient Fade Mask */}
+              <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-12 sm:w-20 bg-gradient-to-r from-[#f8fafc] via-[#f8fafc]/90 to-transparent z-10" />
+
+              {/* Right Gradient Fade Mask */}
+              <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-12 sm:w-20 bg-gradient-to-l from-[#f8fafc] via-[#f8fafc]/90 to-transparent z-10" />
+
+              {/* Track 1: Trượt liên tục từ phải sang trái */}
+              <div className="flex gap-3 mb-3 animate-marquee-left">
+                {[...brandList, ...brandList].map((b, idx) =>
+                  renderBrandItem(b, `top-${idx}-${b.id}`)
+                )}
+              </div>
+
+              {/* Track 2: Trượt liên tục từ trái sang phải */}
+              <div className="flex gap-3 animate-marquee-right">
+                {[...reversedBrandList, ...reversedBrandList].map((b, idx) =>
+                  renderBrandItem(b, `bot-${idx}-${b.id}`)
+                )}
+              </div>
+            </div>
+          );
+        })()}
       </section>
 
       {/* 7. TIN TỨC CÔNG NGHỆ & ĐÁNH GIÁ (Tech Articles & Expert Reviews) */}
