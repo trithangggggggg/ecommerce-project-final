@@ -80,6 +80,26 @@ export const Header: React.FC = () => {
   const [showPromoTicker, setShowPromoTicker] = useState(true);
   const [activeTickerIndex, setActiveTickerIndex] = useState(0);
   const lastScrollYRef = useRef(0);
+  const accumulatedDeltaRef = useRef(0);
+  const scrollDirectionRef = useRef<'up' | 'down' | null>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerHeight, setHeaderHeight] = useState<number>(134);
+
+  // Measure initial full header height to keep spacer static and prevent layout shifts
+  useEffect(() => {
+    const updateHeaderHeight = () => {
+      if (headerRef.current) {
+        const h = headerRef.current.offsetHeight;
+        if (h > 90) {
+          setHeaderHeight(h);
+        }
+      }
+    };
+
+    updateHeaderHeight();
+    window.addEventListener('resize', updateHeaderHeight);
+    return () => window.removeEventListener('resize', updateHeaderHeight);
+  }, []);
 
   const tickerMessages = useMemo(() => {
     return [
@@ -99,22 +119,49 @@ export const Header: React.FC = () => {
   }, [showPromoTicker, tickerMessages.length]);
 
   useEffect(() => {
+    lastScrollYRef.current = window.scrollY;
+
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
       const lastScrollY = lastScrollYRef.current;
-      const scrollDiff = currentScrollY - lastScrollY;
+      const delta = currentScrollY - lastScrollY;
 
-      if (currentScrollY <= 15) {
-        // Ở đỉnh trang: Luôn hiển thị dòng thông báo đầu tiên
+      // 1. Ở sát đỉnh trang (trong khoảng 60px đầu): Luôn mở rộng toàn bộ thanh điều hướng
+      if (currentScrollY <= 60) {
         setShowPromoTicker(true);
-      } else if (scrollDiff > 8 && currentScrollY > 50) {
-        // Cuộn XUỐNG: Thụt mất dòng thông báo & thanh danh mục điều hướng
+        setActiveTickerIndex(0);
+        accumulatedDeltaRef.current = 0;
+        scrollDirectionRef.current = null;
+        lastScrollYRef.current = currentScrollY;
+        return;
+      }
+
+      // Bỏ qua các micro-scroll dao động nhỏ hơn 1px
+      if (Math.abs(delta) < 1) {
+        return;
+      }
+
+      const direction = delta > 0 ? 'down' : 'up';
+
+      // Nếu đảo chiều cuộn, thiết lập lại quãng đường tích lũy theo hướng mới
+      if (direction !== scrollDirectionRef.current) {
+        scrollDirectionRef.current = direction;
+        accumulatedDeltaRef.current = Math.abs(delta);
+      } else {
+        accumulatedDeltaRef.current += Math.abs(delta);
+      }
+
+      // Ngưỡng tích lũy quãng đường chủ đích (Cumulative Intent Thresholds):
+      // Giúp nhận diện chính xác kể cả khi lăn chuột rất nhẹ, đồng thời lọc sạch rung chấn (jitter)
+      const SCROLL_DOWN_THRESHOLD = 24; // Cuộn xuống liên tục tối thiểu 24px
+      const SCROLL_UP_THRESHOLD = 18;   // Kéo lên liên tục tối thiểu 18px
+
+      if (direction === 'down' && accumulatedDeltaRef.current >= SCROLL_DOWN_THRESHOLD) {
         setShowPromoTicker(false);
         setCategoryMenuOpen(false);
-      } else if (scrollDiff < -8) {
-        // Kéo LÊN: Hiện lại dòng thông báo và thanh danh mục điều hướng
+      } else if (direction === 'up' && accumulatedDeltaRef.current >= SCROLL_UP_THRESHOLD) {
         setShowPromoTicker(true);
-        setActiveTickerIndex(1);
+        setActiveTickerIndex(1); // "Chính hãng 100% • Giá tốt mỗi ngày • Hỗ trợ kỹ thuật tận tâm"
       }
 
       lastScrollYRef.current = currentScrollY;
@@ -235,7 +282,11 @@ export const Header: React.FC = () => {
   };
 
   return (
-    <header className="bg-[#181a20] text-white sticky top-0 z-50 shadow-sm font-sans">
+    <>
+      <header
+        ref={headerRef}
+        className="fixed top-0 left-0 right-0 z-50 bg-[#181a20] text-white shadow-md font-sans"
+      >
       {/* Smart Promo Ticker Bar (Thụt khi lướt xuống, hiện khi kéo lên) */}
       <div
         className={`bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white text-[11px] font-semibold text-center transition-all duration-300 ease-in-out overflow-hidden ${
@@ -503,7 +554,7 @@ export const Header: React.FC = () => {
       <div
         className={`bg-[#1f222b] border-t border-gray-800/80 relative z-20 transition-all duration-300 ease-in-out ${
           showPromoTicker
-            ? 'max-h-16 opacity-100 translate-y-0 overflow-visible'
+            ? `max-h-16 opacity-100 translate-y-0 ${categoryMenuOpen ? 'overflow-visible' : 'overflow-hidden'}`
             : 'max-h-0 opacity-0 -translate-y-full pointer-events-none overflow-hidden'
         }`}
       >
@@ -681,6 +732,13 @@ export const Header: React.FC = () => {
         }}
       />
     </header>
+    {/* Static Spacer giữ nguyên chiều cao layout document flow, triệt tiêu 100% hiện tượng giật trang */}
+    <div
+      style={{ height: `${headerHeight}px` }}
+      className="w-full shrink-0 pointer-events-none"
+      aria-hidden="true"
+    />
+  </>
   );
 };
 
