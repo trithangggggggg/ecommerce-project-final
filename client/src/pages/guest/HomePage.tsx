@@ -22,7 +22,6 @@ import {
   Camera,
   Gift,
   Newspaper,
-  MapPin,
   Eye,
   Truck,
   RotateCcw,
@@ -1078,38 +1077,17 @@ export default function HomePage() {
 
       {/* 8. HỆ THỐNG SHOWROOM TRẢI NGHIỆM (Store Locator Banner) */}
       <section className="max-w-[1360px] mx-auto px-4 mb-14 sm:mb-20">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white p-7 sm:p-10 border border-slate-700/50 shadow-xl">
-          <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-6">
-            <div className="max-w-xl text-center lg:text-left">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-semibold mb-3">
-                <MapPin size={13} className="text-blue-400" />
-                <span>Mạng lưới 6 Showroom Flagship toàn quốc</span>
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-3">
-                Trải nghiệm sản phẩm thực tế tại showroom NEXOR
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-4">
-                Không gian trưng bày chuẩn quốc tế tại Hà Nội, Đà Nẵng và TP. Hồ Chí Minh. Đến ngay để dùng thử trực tiếp các siêu phẩm công nghệ mới nhất cùng đội ngũ kỹ thuật viên chuyên sâu.
-              </p>
-              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 text-[11px] text-slate-300 font-medium">
-                <span className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700">📍 Hà Nội (2 điểm)</span>
-                <span className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700">📍 Đà Nẵng (1 điểm)</span>
-                <span className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700">📍 TP. Hồ Chí Minh (3 điểm)</span>
-              </div>
-            </div>
-
-            <div className="flex-shrink-0">
-              <Link
-                to={ROUTES.STORES}
-                className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold shadow-lg shadow-blue-600/30 hover:shadow-blue-600/50 transition-all transform hover:-translate-y-0.5 cursor-pointer"
-              >
-                <MapPin size={18} />
-                <span>Tìm cửa hàng gần bạn nhất</span>
-                <ArrowRight size={16} />
-              </Link>
-            </div>
-          </div>
-        </div>
+        <Link
+          to={ROUTES.STORES}
+          className="block group relative overflow-hidden rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer"
+          title="Trải nghiệm sản phẩm thực tế tại showroom NEXOR"
+        >
+          <img
+            src="/images/banner-showroom-flagship.png"
+            alt="Trải nghiệm sản phẩm thực tế tại showroom NEXOR - Hệ thống bán lẻ công nghệ hàng đầu"
+            className="w-full h-auto object-cover rounded-3xl block transition-transform duration-500 group-hover:scale-[1.01]"
+          />
+        </Link>
       </section>
 
       {/* 9. CAM KẾT VÀNG TỪ NEXOR (Core Service Pillars) */}
