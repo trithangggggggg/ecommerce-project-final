@@ -1090,52 +1090,60 @@ export default function HomePage() {
         </Link>
       </section>
 
-      {/* 9. CAM KẾT VÀNG TỪ NEXOR (Core Service Pillars) */}
+      {/* 9. CAM KẾT VÀNG TỪ NEXOR (Core Service Pillars - Dark Cyber Luxury Theme) */}
       <section className="max-w-[1360px] mx-auto px-4 mb-14 sm:mb-20">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-          <div className="bg-white rounded-2xl p-5 border border-gray-100/90 flex items-start gap-3.5 shadow-xs hover:shadow-md hover:border-blue-200 transition-all">
-            <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
+          <div className="group bg-[#121620]/90 hover:bg-[#161c2b] rounded-2xl p-5 border border-gray-800/80 hover:border-blue-500/50 flex items-start gap-3.5 shadow-lg shadow-black/20 hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300">
+            <div className="w-11 h-11 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400 flex-shrink-0 group-hover:scale-105 transition-transform">
               <ShieldCheck size={22} />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-gray-900 mb-1">100% Hàng chính hãng</h4>
-              <p className="text-[11px] text-gray-500 leading-relaxed">
+              <h4 className="text-xs sm:text-sm font-bold text-white mb-1 group-hover:text-blue-300 transition-colors">
+                100% Hàng chính hãng
+              </h4>
+              <p className="text-[11px] text-gray-400 leading-relaxed">
                 Phân phối ủy quyền, đầy đủ hóa đơn VAT điện tử và bảo hành chính hãng toàn quốc.
               </p>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl p-5 border border-gray-100/90 flex items-start gap-3.5 shadow-xs hover:shadow-md hover:border-emerald-200 transition-all">
-            <div className="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 flex-shrink-0">
+          <div className="group bg-[#121620]/90 hover:bg-[#161c2b] rounded-2xl p-5 border border-gray-800/80 hover:border-emerald-500/50 flex items-start gap-3.5 shadow-lg shadow-black/20 hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300">
+            <div className="w-11 h-11 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 flex-shrink-0 group-hover:scale-105 transition-transform">
               <Truck size={22} />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-gray-900 mb-1">Giao hàng 2 Giờ</h4>
-              <p className="text-[11px] text-gray-500 leading-relaxed">
+              <h4 className="text-xs sm:text-sm font-bold text-white mb-1 group-hover:text-emerald-300 transition-colors">
+                Giao hàng 2 Giờ
+              </h4>
+              <p className="text-[11px] text-gray-400 leading-relaxed">
                 Giao siêu tốc nội thành trong 120 phút, bao bọc cẩn thận chuẩn chống va đập.
               </p>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl p-5 border border-gray-100/90 flex items-start gap-3.5 shadow-xs hover:shadow-md hover:border-purple-200 transition-all">
-            <div className="w-11 h-11 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 flex-shrink-0">
+          <div className="group bg-[#121620]/90 hover:bg-[#161c2b] rounded-2xl p-5 border border-gray-800/80 hover:border-purple-500/50 flex items-start gap-3.5 shadow-lg shadow-black/20 hover:shadow-purple-500/10 hover:-translate-y-1 transition-all duration-300">
+            <div className="w-11 h-11 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 flex-shrink-0 group-hover:scale-105 transition-transform">
               <RotateCcw size={22} />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-gray-900 mb-1">Đổi mới trong 30 ngày</h4>
-              <p className="text-[11px] text-gray-500 leading-relaxed">
+              <h4 className="text-xs sm:text-sm font-bold text-white mb-1 group-hover:text-purple-300 transition-colors">
+                Đổi mới trong 30 ngày
+              </h4>
+              <p className="text-[11px] text-gray-400 leading-relaxed">
                 Lỗi do nhà sản xuất là đổi mới ngay 1-1, thủ tục tiếp nhận kiểm tra nhanh chóng.
               </p>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl p-5 border border-gray-100/90 flex items-start gap-3.5 shadow-xs hover:shadow-md hover:border-amber-200 transition-all">
-            <div className="w-11 h-11 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 flex-shrink-0">
+          <div className="group bg-[#121620]/90 hover:bg-[#161c2b] rounded-2xl p-5 border border-gray-800/80 hover:border-amber-500/50 flex items-start gap-3.5 shadow-lg shadow-black/20 hover:shadow-amber-500/10 hover:-translate-y-1 transition-all duration-300">
+            <div className="w-11 h-11 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 flex-shrink-0 group-hover:scale-105 transition-transform">
               <Sparkles size={22} />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-gray-900 mb-1">Trợ lý AI tư vấn 24/7</h4>
-              <p className="text-[11px] text-gray-500 leading-relaxed">
+              <h4 className="text-xs sm:text-sm font-bold text-white mb-1 group-hover:text-amber-300 transition-colors">
+                Trợ lý AI tư vấn 24/7
+              </h4>
+              <p className="text-[11px] text-gray-400 leading-relaxed">
                 Chatbot RAG thông minh giải đáp cấu hình máy và tư vấn sản phẩm tối ưu mọi lúc.
               </p>
             </div>
@@ -1143,23 +1151,27 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 10. ĐĂNG KÝ NHẬN BẢN TIN & VOUCHER 100K (Newsletter Subscription) */}
+      {/* 10. ĐĂNG KÝ NHẬN BẢN TIN & VOUCHER 100K (Dark Cyber Luxury Newsletter) */}
       <section className="max-w-[1360px] mx-auto px-4 mb-14 sm:mb-20">
-        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 rounded-3xl p-7 sm:p-10 text-white shadow-xl">
-          <div className="max-w-2xl mx-auto text-center">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-white text-xs font-semibold mb-3 backdrop-blur-sm">
-              <Gift size={13} className="text-yellow-300" />
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0c1220] via-[#101728] to-[#0a0f1a] border border-blue-500/25 p-8 sm:p-12 text-white shadow-2xl shadow-blue-950/40">
+          {/* Ambient background glow orbs */}
+          <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-96 bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 right-10 w-80 h-80 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 max-w-2xl mx-auto text-center">
+            <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-blue-500/15 border border-blue-400/30 text-blue-300 text-xs font-semibold mb-3 backdrop-blur-md">
+              <Gift size={14} className="text-yellow-400" />
               <span>Ưu đãi thành viên mới</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-2">
-              Nhận Voucher 100.000₫ cho đơn hàng đầu tiên
+            <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-2.5 text-white">
+              Nhận Voucher <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-500">100.000₫</span> cho đơn hàng đầu tiên
             </h2>
-            <p className="text-xs sm:text-sm text-blue-100 leading-relaxed mb-6">
+            <p className="text-xs sm:text-sm text-gray-300 leading-relaxed mb-6 max-w-lg mx-auto">
               Đăng ký để không bỏ lỡ đợt Flash Sale bí mật, mã giảm giá độc quyền và cập nhật công nghệ mới nhất từ NEXOR.
             </p>
 
             {newsletterSubscribed ? (
-              <div className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-white/20 border border-white/30 text-white text-xs sm:text-sm font-bold backdrop-blur-md animate-fade-in">
+              <div className="inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-xs sm:text-sm font-bold backdrop-blur-md animate-fade-in shadow-lg shadow-emerald-950/40">
                 <CheckCircle2 size={18} className="text-emerald-300" />
                 <span>Đăng ký thành công! Mã giảm giá <strong>NEXOR100K</strong> đã sẵn sàng cho bạn.</span>
               </div>
@@ -1171,7 +1183,7 @@ export default function HomePage() {
                     setNewsletterSubscribed(true);
                   }
                 }}
-                className="flex flex-col sm:flex-row items-center gap-2 max-w-md mx-auto"
+                className="flex flex-col sm:flex-row items-center gap-2.5 max-w-md mx-auto"
               >
                 <input
                   type="email"
@@ -1179,11 +1191,11 @@ export default function HomePage() {
                   value={newsletterEmail}
                   onChange={(e) => setNewsletterEmail(e.target.value)}
                   placeholder="Nhập địa chỉ email của bạn..."
-                  className="w-full px-4 py-3 rounded-xl bg-white text-gray-900 text-xs sm:text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-yellow-400 font-medium shadow-inner"
+                  className="w-full px-4.5 py-3.5 rounded-xl bg-[#171f33]/90 border border-gray-700/80 text-white text-xs sm:text-sm placeholder:text-gray-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/25 font-medium shadow-inner transition-all"
                 />
                 <button
                   type="submit"
-                  className="w-full sm:w-auto flex-shrink-0 px-6 py-3 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-gray-950 text-xs sm:text-sm font-black shadow-md transition-all active:scale-95 cursor-pointer"
+                  className="w-full sm:w-auto flex-shrink-0 px-6 py-3.5 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-gray-950 text-xs sm:text-sm font-black shadow-lg shadow-yellow-500/25 transition-all transform hover:scale-[1.02] active:scale-95 cursor-pointer"
                 >
                   Nhận mã ngay
                 </button>
