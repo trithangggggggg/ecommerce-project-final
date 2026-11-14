@@ -387,7 +387,7 @@ export const CartPage: React.FC = () => {
                       </div>
 
                       {/* Quantity Modifier & Subtotal */}
-                      <div className="flex items-center justify-between sm:justify-end gap-5 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100">
+                      <div className="flex flex-wrap sm:flex-nowrap items-center justify-between sm:justify-end gap-2.5 sm:gap-5 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100">
                         {/* Quantity Counter */}
                         <div className="flex flex-col items-start gap-1">
                           <div className="flex items-center border border-gray-200 rounded-lg bg-white overflow-hidden shadow-2xs">

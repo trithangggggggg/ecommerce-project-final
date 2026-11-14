@@ -398,7 +398,7 @@ export default function ProductsPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2.5 sm:gap-4">
             {paginatedProducts.map((p) => (
               <ProductCard key={p.id} product={p} />
             ))}
@@ -406,11 +406,11 @@ export default function ProductsPage() {
 
           {/* Pagination Controls */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-8" role="navigation">
+            <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 mt-8" role="navigation">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="w-9 h-9 rounded-lg border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label="Trang trước"
               >
                 <ChevronLeft size={16} />
@@ -420,7 +420,7 @@ export default function ProductsPage() {
                 <button
                   key={p}
                   onClick={() => setPage(p)}
-                  className={`w-9 h-9 rounded-lg text-sm font-semibold transition-all ${
+                  className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
                     page === p
                       ? 'bg-blue-600 text-white shadow-sm'
                       : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
@@ -433,7 +433,7 @@ export default function ProductsPage() {
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="w-9 h-9 rounded-lg border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label="Trang sau"
               >
                 <ChevronRight size={16} />

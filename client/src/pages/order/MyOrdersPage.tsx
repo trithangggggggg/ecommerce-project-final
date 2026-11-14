@@ -262,7 +262,7 @@ export const MyOrdersPage: React.FC = () => {
         )}
 
         {/* Tabs Filter Bar (Tất cả / Chờ xử lý / Đang giao / Hoàn thành / Đã hủy) */}
-        <div className="bg-white rounded-xl border border-gray-200/90 shadow-2xs p-1.5 flex items-center gap-1.5 overflow-x-auto text-xs">
+        <div className="bg-white rounded-xl border border-gray-200/90 shadow-2xs p-1.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar scrollbar-none text-xs">
           {TABS.map((tab) => {
             const count = getTabCount(tab.key);
             const isActive = activeTab === tab.key;

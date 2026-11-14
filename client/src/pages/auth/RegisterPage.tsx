@@ -386,7 +386,7 @@ export const RegisterPage: React.FC = () => {
   const isOtpComplete = otpDigits.every((d) => d !== '');
 
   return (
-    <div className="w-full max-w-[460px] sm:max-w-[480px] bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.22)] border border-gray-100 p-6 sm:p-7 font-sans my-auto">
+    <div className="w-full max-w-[460px] sm:max-w-[480px] bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.22)] border border-gray-100 p-5 sm:p-7 font-sans my-auto">
       {/* Toast Notification khi thành công */}
       {toastMessage && (
         <div className="fixed top-5 right-5 z-50 bg-gray-900/95 backdrop-blur-md text-white text-xs px-3.5 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 border border-emerald-500/40 animate-in fade-in">

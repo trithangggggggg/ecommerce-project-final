@@ -314,26 +314,26 @@ export const Header: React.FC = () => {
         </div>
       </div>
       {/* 1. Main Top Header */}
-      <div className="max-w-[1360px] mx-auto px-4 py-3 flex items-center justify-between gap-4 relative z-40">
+      <div className="max-w-[1360px] mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-4 relative z-40">
         {/* Left: Brand Logo (NEXOR Emblem) */}
         <Link
           to="/"
           onClick={handleLogoClick}
-          className="flex items-center gap-3 shrink-0 group cursor-pointer"
+          className="flex items-center gap-2 sm:gap-3 shrink-0 group cursor-pointer"
           title="Về đầu trang NEXOR"
         >
-          <div className="w-10 h-10 flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center shrink-0">
             <img
               src="/images/nexor_logo.png"
               alt={`${config.store.shortName || 'NEXOR'} Logo`}
-              className="w-10 h-10 object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-200"
+              className="w-9 h-9 sm:w-10 sm:h-10 object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-200"
             />
           </div>
           <div className="flex flex-col">
-            <span className="text-xl font-black tracking-tight text-white leading-none">
+            <span className="text-lg sm:text-xl font-black tracking-tight text-white leading-none">
               {config.store.shortName || 'NEXOR'}<span className="text-indigo-400">.</span>
             </span>
-            <span className="text-[10px] text-gray-400 tracking-wider font-normal mt-0.5 line-clamp-1 max-w-[170px]">
+            <span className="hidden sm:block text-[10px] text-gray-400 tracking-wider font-normal mt-0.5 line-clamp-1 max-w-[170px]">
               {config.store.tagline || 'Tech for a better life'}
             </span>
           </div>
@@ -342,25 +342,25 @@ export const Header: React.FC = () => {
         {/* Center: Search Bar (Pill shape) */}
         <form
           onSubmit={handleSearch}
-          className="flex-1 max-w-xl mx-2 sm:mx-6 relative"
+          className="flex-1 max-w-xl mx-1 sm:mx-6 relative min-w-0"
         >
           <div className="relative flex items-center">
-            <Search className="w-4 h-4 text-gray-400 absolute left-4 pointer-events-none" />
+            <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 absolute left-3 sm:left-4 pointer-events-none" />
             <input
               type="text"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="Tìm kiếm sản phẩm, thương hiệu..."
-              className="w-full bg-[#232731] hover:bg-[#282d38] focus:bg-[#282d38] text-white text-xs pl-10 pr-10 py-2 rounded-full border border-gray-700/50 focus:border-blue-500 focus:outline-none transition placeholder-gray-400"
+              placeholder="Tìm kiếm sản phẩm..."
+              className="w-full bg-[#232731] hover:bg-[#282d38] focus:bg-[#282d38] text-white text-xs pl-8 sm:pl-10 pr-8 sm:pr-10 py-1.5 sm:py-2 rounded-full border border-gray-700/50 focus:border-blue-500 focus:outline-none transition placeholder-gray-400"
             />
             {/* Visual Search Camera Button */}
             <button
               type="button"
               onClick={() => setVisualSearchOpen(true)}
-              className="absolute right-3 p-1 rounded-full text-gray-400 hover:text-white hover:bg-gray-700/60 transition cursor-pointer flex items-center justify-center group"
+              className="absolute right-2.5 sm:right-3 p-1 rounded-full text-gray-400 hover:text-white hover:bg-gray-700/60 transition cursor-pointer flex items-center justify-center group"
               title="Tìm kiếm bằng hình ảnh"
             >
-              <Camera className="w-4 h-4 group-hover:scale-110 transition-transform" />
+              <Camera className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:scale-110 transition-transform" />
             </button>
           </div>
         </form>
@@ -393,7 +393,7 @@ export const Header: React.FC = () => {
         </div>
 
         {/* Right 2: User Action Icons & Interactive Mascot */}
-        <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-4 shrink-0">
           {/* Pet Fox Mascot Companion */}
           <div className="flex items-center justify-center">
             <PetMascot size={40} className="hidden sm:inline-flex" />
@@ -710,7 +710,7 @@ export const Header: React.FC = () => {
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-[#1e222a] border-t border-gray-800 px-4 py-4 space-y-2">
+        <div className="md:hidden bg-[#1e222a] border-t border-gray-800 px-4 py-4 space-y-2 max-h-[calc(100vh-120px)] overflow-y-auto">
           <p className="text-[11px] font-bold uppercase text-gray-400 pb-1 border-b border-gray-800">
             Danh mục & Trang
           </p>

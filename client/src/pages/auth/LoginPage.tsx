@@ -129,7 +129,7 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-[460px] sm:max-w-[480px] bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.22)] border border-gray-100 p-6 sm:p-7 font-sans my-auto">
+    <div className="w-full max-w-[460px] sm:max-w-[480px] bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.22)] border border-gray-100 p-5 sm:p-7 font-sans my-auto">
       {/* 1. Header: Logo & Title (Căn chỉnh pixel hoàn toàn đồng bộ với trang Đăng ký) */}
       <div className="text-center mb-4">
         <div className="flex items-center justify-center gap-2 mb-2">
