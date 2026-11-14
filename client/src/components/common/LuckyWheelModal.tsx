@@ -94,6 +94,13 @@ export const LuckyWheelModal: React.FC = () => {
     fetchStatus();
   }, [fetchStatus, isAuthenticated]);
 
+  // Lắng nghe sự kiện mở modal từ bất kỳ đâu (Banner trang chủ, CTA...)
+  useEffect(() => {
+    const handleOpen = () => setIsOpen(true);
+    window.addEventListener('open-lucky-wheel', handleOpen);
+    return () => window.removeEventListener('open-lucky-wheel', handleOpen);
+  }, []);
+
   // Đồng hồ đếm ngược đến 00:00:00 ngày hôm sau
   useEffect(() => {
     const updateCountdown = () => {

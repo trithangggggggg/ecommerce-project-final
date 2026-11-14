@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   Search,
@@ -75,6 +75,107 @@ export const Header: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [visualSearchOpen, setVisualSearchOpen] = useState(false);
+
+  // Scroll detection for Smart Topbar (hide on scroll down, show on scroll up)
+  const [showPromoTicker, setShowPromoTicker] = useState(true);
+  const [activeTickerIndex, setActiveTickerIndex] = useState(0);
+  const lastScrollYRef = useRef(0);
+  const accumulatedDeltaRef = useRef(0);
+  const scrollDirectionRef = useRef<'up' | 'down' | null>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerHeight, setHeaderHeight] = useState<number>(134);
+
+  // Measure initial full header height to keep spacer static and prevent layout shifts
+  useEffect(() => {
+    const updateHeaderHeight = () => {
+      if (headerRef.current) {
+        const h = headerRef.current.offsetHeight;
+        if (h > 90) {
+          setHeaderHeight(h);
+        }
+      }
+    };
+
+    updateHeaderHeight();
+    window.addEventListener('resize', updateHeaderHeight);
+    return () => window.removeEventListener('resize', updateHeaderHeight);
+  }, []);
+
+  const tickerMessages = useMemo(() => {
+    return [
+      config.general.promoTickerText ||
+        'Giao hàng miễn phí cho đơn từ 20 triệu • Bảo hành 1 đổi 1 30 ngày • Trả góp 0% qua VietQR',
+      'Chính hãng 100% • Giá tốt mỗi ngày • Hỗ trợ kỹ thuật tận tâm',
+    ];
+  }, [config.general.promoTickerText]);
+
+  // Rotate ticker messages smoothly every 4.5 seconds when in view
+  useEffect(() => {
+    if (!showPromoTicker) return;
+    const interval = setInterval(() => {
+      setActiveTickerIndex((prev) => (prev + 1) % tickerMessages.length);
+    }, 4500);
+    return () => clearInterval(interval);
+  }, [showPromoTicker, tickerMessages.length]);
+
+  useEffect(() => {
+    lastScrollYRef.current = window.scrollY;
+
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      const lastScrollY = lastScrollYRef.current;
+      const delta = currentScrollY - lastScrollY;
+
+      // 1. Ở sát đỉnh trang (trong khoảng 60px đầu): Luôn mở rộng toàn bộ thanh điều hướng
+      if (currentScrollY <= 60) {
+        setShowPromoTicker(true);
+        setActiveTickerIndex(0);
+        accumulatedDeltaRef.current = 0;
+        scrollDirectionRef.current = null;
+        lastScrollYRef.current = currentScrollY;
+        return;
+      }
+
+      // Bỏ qua các micro-scroll dao động nhỏ hơn 1px
+      if (Math.abs(delta) < 1) {
+        return;
+      }
+
+      const direction = delta > 0 ? 'down' : 'up';
+
+      // Nếu đảo chiều cuộn, thiết lập lại quãng đường tích lũy theo hướng mới
+      if (direction !== scrollDirectionRef.current) {
+        scrollDirectionRef.current = direction;
+        accumulatedDeltaRef.current = Math.abs(delta);
+      } else {
+        accumulatedDeltaRef.current += Math.abs(delta);
+      }
+
+      // Ngưỡng tích lũy quãng đường chủ đích (Cumulative Intent Thresholds):
+      // Giúp nhận diện chính xác kể cả khi lăn chuột rất nhẹ, đồng thời lọc sạch rung chấn (jitter)
+      const SCROLL_DOWN_THRESHOLD = 24; // Cuộn xuống liên tục tối thiểu 24px
+      const SCROLL_UP_THRESHOLD = 18;   // Kéo lên liên tục tối thiểu 18px
+
+      if (direction === 'down' && accumulatedDeltaRef.current >= SCROLL_DOWN_THRESHOLD) {
+        setShowPromoTicker(false);
+        setCategoryMenuOpen(false);
+      } else if (direction === 'up' && accumulatedDeltaRef.current >= SCROLL_UP_THRESHOLD) {
+        setShowPromoTicker(true);
+        setActiveTickerIndex(1); // "Chính hãng 100% • Giá tốt mỗi ngày • Hỗ trợ kỹ thuật tận tâm"
+      }
+
+      lastScrollYRef.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const handleOpenVisualSearch = () => setVisualSearchOpen(true);
+    window.addEventListener('open-visual-search', handleOpenVisualSearch);
+    return () => window.removeEventListener('open-visual-search', handleOpenVisualSearch);
+  }, []);
 
   const userMenuRef = useRef<HTMLDivElement>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -181,12 +282,28 @@ export const Header: React.FC = () => {
   };
 
   return (
-    <header className="bg-[#181a20] text-white sticky top-0 z-50 shadow-sm font-sans">
-      {config.general.promoTickerText && (
-        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white text-[11px] font-semibold py-1.5 px-4 text-center">
-          {config.general.promoTickerText}
+    <>
+      <header
+        ref={headerRef}
+        className="fixed top-0 left-0 right-0 z-50 bg-[#181a20] text-white shadow-md font-sans"
+      >
+      {/* Smart Promo Ticker Bar (Thụt khi lướt xuống, hiện khi kéo lên) */}
+      <div
+        className={`bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white text-[11px] font-semibold text-center transition-all duration-300 ease-in-out overflow-hidden ${
+          showPromoTicker
+            ? 'max-h-12 opacity-100 py-1.5 px-4 translate-y-0'
+            : 'max-h-0 opacity-0 py-0 px-4 -translate-y-full pointer-events-none'
+        }`}
+      >
+        <div className="flex items-center justify-center gap-2 h-4 overflow-hidden">
+          <span
+            key={activeTickerIndex}
+            className="inline-flex items-center gap-1.5 animate-fade-in truncate"
+          >
+            {tickerMessages[activeTickerIndex]}
+          </span>
         </div>
-      )}
+      </div>
       {/* 1. Main Top Header */}
       <div className="max-w-[1360px] mx-auto px-4 py-3 flex items-center justify-between gap-4 relative z-40">
         {/* Left: Brand Logo (NEXOR Emblem) */}
@@ -433,8 +550,14 @@ export const Header: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Sub-Navbar Bar */}
-      <div className="bg-[#1f222b] border-t border-gray-800/80 relative z-20">
+      {/* 2. Sub-Navbar Bar (Thụt khi lướt xuống, hiện khi kéo lên) */}
+      <div
+        className={`bg-[#1f222b] border-t border-gray-800/80 relative z-20 transition-all duration-300 ease-in-out ${
+          showPromoTicker
+            ? `max-h-16 opacity-100 translate-y-0 ${categoryMenuOpen ? 'overflow-visible' : 'overflow-hidden'}`
+            : 'max-h-0 opacity-0 -translate-y-full pointer-events-none overflow-hidden'
+        }`}
+      >
         <div className="max-w-[1360px] mx-auto px-4 flex items-center gap-6 text-xs font-medium">
           {/* Left: Category Dropdown button */}
           <div className="relative shrink-0">
@@ -609,6 +732,13 @@ export const Header: React.FC = () => {
         }}
       />
     </header>
+    {/* Static Spacer giữ nguyên chiều cao layout document flow, triệt tiêu 100% hiện tượng giật trang */}
+    <div
+      style={{ height: `${headerHeight}px` }}
+      className="w-full shrink-0 pointer-events-none"
+      aria-hidden="true"
+    />
+  </>
   );
 };
 

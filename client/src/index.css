@@ -87,6 +87,40 @@ div:has(> div > table)::-webkit-scrollbar,
   height: 0 !important;
 }
 /* =========================================================
+   Marquee Animation for Brand Showcase
+   ========================================================= */
+@keyframes marqueeLeft {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes marqueeRight {
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0%); }
+}
+
+.animate-marquee-left {
+  display: flex;
+  width: max-content;
+  will-change: transform;
+  animation: marqueeLeft 38s linear infinite;
+}
+
+.animate-marquee-right {
+  display: flex;
+  width: max-content;
+  will-change: transform;
+  animation: marqueeRight 38s linear infinite;
+}
+
+.marquee-container:hover .animate-marquee-left,
+.marquee-container:hover .animate-marquee-right,
+.animate-marquee-left:hover,
+.animate-marquee-right:hover {
+  animation-play-state: paused;
+}
+
+/* =========================================================
    Leaflet map fixes — Tailwind v4 resets break tile images
    ========================================================= */
 .leaflet-container {

@@ -18,9 +18,20 @@ import {
   ShieldCheck,
   Heart,
   ShoppingCart,
+  Sparkles,
+  Camera,
+  Gift,
+  Newspaper,
+  Eye,
+  Truck,
+  RotateCcw,
+  CheckCircle2,
 } from 'lucide-react';
 import { productService } from '../../api/services/product.service';
 import { categoryApiService } from '../../api/services/category.service';
+import { brandService, type BrandItem } from '../../api/services/brand.service';
+import { articleService } from '../../api/services/article.service';
+import type { Article } from '../../models/article.model';
 import {
   flashSaleService,
   type FlashSaleDto,
@@ -38,6 +49,9 @@ import { useSiteConfigStore } from '../../store/useSiteConfigStore';
 import { ROUTES } from '../../constants/routes';
 import { formatPrice } from '../../utils/format';
 import HeroBannerSlider from '../../components/home/HeroBannerSlider';
+import BrandLogo from '../../components/home/BrandLogo';
+import bannerAiVision from '../../assets/images/banner-ai-vision.jpg';
+import bannerLuckyWheel from '../../assets/images/banner-lucky-wheel.jpg';
 
 function getCategoryIcon(slug = '', name = ''): LucideIcon {
   const key = `${slug} ${name}`.toLowerCase();
@@ -70,6 +84,49 @@ function getDefaultCategorySubtitle(slug = '', name = ''): string {
   return 'Chính hãng Nexor';
 }
 
+function getBrandDisplay(brand: { name: string; country?: string | null }) {
+  const norm = (brand.name || '').toLowerCase().trim();
+
+  if (norm.includes('asus')) {
+    return { name: 'ASUS', slogan: 'In Search of Incredible' };
+  }
+  if (norm.includes('hyperx') || norm.includes('hyper') || norm === 'ht') {
+    return { name: 'HyperX', slogan: "We're All Gamers" };
+  }
+  if (norm.includes('razer')) {
+    return { name: 'Razer', slogan: 'For Gamers. By Gamers.' };
+  }
+  if (norm.includes('xp-pen') || norm.includes('xppen') || norm.includes('xpg') || norm === 'xp') {
+    return { name: 'XP-Pen', slogan: 'Graphic Tablets' };
+  }
+  if (norm.includes('apple')) {
+    return { name: 'Apple', slogan: 'Think Different' };
+  }
+  if (norm.includes('samsung')) {
+    return { name: 'Samsung', slogan: 'Galaxy Innovation' };
+  }
+  if (norm.includes('sony')) {
+    return { name: 'Sony', slogan: 'Be Moved' };
+  }
+  if (norm.includes('dell')) {
+    return { name: 'Dell', slogan: 'High Performance' };
+  }
+  if (norm.includes('xiaomi')) {
+    return { name: 'Xiaomi', slogan: 'Smart Living AIoT' };
+  }
+  if (norm.includes('logitech')) {
+    return { name: 'Logitech', slogan: 'Defy Logic' };
+  }
+  if (norm.includes('anker')) {
+    return { name: 'Anker', slogan: 'Charge Fast, Live More' };
+  }
+
+  return {
+    name: brand.name,
+    slogan: brand.country ? `${brand.country} • Chính hãng` : 'Chính hãng 100%',
+  };
+}
+
 const QUICK_GRID_COLS: Record<number, string> = {
   1: 'grid-cols-1',
   2: 'grid-cols-2',
@@ -91,11 +148,15 @@ export default function HomePage() {
   const navigate = useNavigate();
   const [latestProducts, setLatestProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [brands, setBrands] = useState<BrandItem[]>([]);
+  const [articles, setArticles] = useState<Article[]>([]);
   const [flashSale, setFlashSale] = useState<FlashSaleDto | null>(null);
   const [flashRemainingSec, setFlashRemainingSec] = useState(0);
   const [loading, setLoading] = useState(true);
   const [productsError, setProductsError] = useState<string | null>(null);
   const [addingFlashProductId, setAddingFlashProductId] = useState<number | null>(null);
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [newsletterSubscribed, setNewsletterSubscribed] = useState(false);
 
   const { addItem } = useCartStore();
   const { isAuthenticated } = useAuthStore();
@@ -118,10 +179,12 @@ export default function HomePage() {
   const loadHomeData = useCallback(async () => {
     setLoading(true);
     setProductsError(null);
-    const [productsRes, categoriesRes, flashRes] = await Promise.allSettled([
+    const [productsRes, categoriesRes, flashRes, brandsRes, articlesRes] = await Promise.allSettled([
       productService.getProducts({ limit: 10, sortBy: 'newest' }),
       categoryApiService.getPublicCategories(),
       flashSaleService.getCurrentFlashSale(),
+      brandService.getPublicBrands(),
+      articleService.getPublicArticles({ page: 0, size: 4 }),
     ]);
 
     if (productsRes.status === 'fulfilled') {
@@ -133,6 +196,14 @@ export default function HomePage() {
 
     if (categoriesRes.status === 'fulfilled') {
       setCategories(Array.isArray(categoriesRes.value) ? categoriesRes.value : []);
+    }
+
+    if (brandsRes.status === 'fulfilled' && Array.isArray(brandsRes.value)) {
+      setBrands(brandsRes.value.filter((b) => b.status !== false));
+    }
+
+    if (articlesRes.status === 'fulfilled' && articlesRes.value?.content) {
+      setArticles(articlesRes.value.content);
     }
 
     if (flashRes.status === 'fulfilled' && flashRes.value) {
@@ -439,7 +510,7 @@ export default function HomePage() {
 
       {/* 2. QUICK CATEGORIES BAR (Divider Strip between Hero & Flash Sale - Dynamic from DB Categories) */}
       {(quickCategories.length > 0 || loading) && (
-        <section className="max-w-[1360px] mx-auto px-4 mb-6">
+        <section className="max-w-[1360px] mx-auto px-4 mb-8 sm:mb-10">
           {quickCategories.length > 0 ? (
             <div className={`grid ${quickGridColsClass} gap-3.5`}>
               {quickCategories.map((cat) => {
@@ -484,7 +555,7 @@ export default function HomePage() {
       )}
 
       {/* 3. FLASH SALE + RIGHT VERTICAL TECH BANNER */}
-      <section className="max-w-[1360px] mx-auto px-4 mb-8">
+      <section className="max-w-[1360px] mx-auto px-4 mb-10 sm:mb-14">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
           {/* Flash Sale Block */}
           <div
@@ -699,7 +770,7 @@ export default function HomePage() {
       </section>
 
       {/* 4. SẢN PHẨM MỚI NHẤT (Latest Products from Backend) */}
-      <section className="max-w-[1360px] mx-auto px-4">
+      <section className="max-w-[1360px] mx-auto px-4 mb-10 sm:mb-14">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <ShieldCheck size={20} className="text-gray-900" />
@@ -749,6 +820,389 @@ export default function HomePage() {
             ))}
           </div>
         )}
+      </section>
+
+      {/* 5. TÍNH NĂNG ĐẶC SẮC (AI Vision Search + Lucky Wheel Gamification) */}
+      <section className="max-w-[1360px] mx-auto px-4 mb-14 sm:mb-20">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+          {/* AI Vision Search Banner Card (Full-bleed cover) */}
+          <div className="relative overflow-hidden rounded-3xl bg-[#0a1120] text-white p-6 sm:p-8 border border-blue-500/20 shadow-xl group hover:border-blue-500/40 transition-all duration-300 min-h-[220px] sm:min-h-[240px] flex items-center">
+            {/* Full-bleed background illustration: fills the entire card from edge to edge */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              <img
+                src={bannerAiVision}
+                alt="AI Visual Search Banner"
+                className="absolute right-0 top-0 w-full sm:w-7/12 h-full object-cover object-center sm:object-right group-hover:scale-105 transition-transform duration-700"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#0a1120] via-[#0a1120]/95 sm:via-[#0a1120]/80 to-transparent w-full sm:w-3/5" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0a1120]/70 sm:from-transparent to-transparent" />
+            </div>
+
+            {/* Content on top */}
+            <div className="relative z-10 max-w-sm sm:max-w-md text-left">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-semibold mb-3 backdrop-blur-sm">
+                <Sparkles size={13} className="text-blue-300 animate-pulse" />
+                <span>Google Gemini Vision AI</span>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-black tracking-tight mb-2 text-white">
+                Tìm kiếm bằng hình ảnh
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-6">
+                Tải ảnh hoặc chụp trực tiếp, AI sẽ tìm kiếm sản phẩm tương tự với độ chính xác cao, giúp bạn dễ dàng tìm được món đồ ưng ý.
+              </p>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-visual-search'))}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-blue-600/40 transition-all transform active:scale-95 cursor-pointer"
+                >
+                  <Camera size={16} />
+                  <span>Thử tìm bằng hình ảnh</span>
+                  <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Lucky Wheel Gamification Banner Card (Full-bleed cover) */}
+          <div className="relative overflow-hidden rounded-3xl bg-[#170a27] text-white p-6 sm:p-8 border border-purple-500/20 shadow-xl group hover:border-purple-500/40 transition-all duration-300 min-h-[220px] sm:min-h-[240px] flex items-center">
+            {/* Full-bleed background illustration: fills the entire card from edge to edge */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              <img
+                src={bannerLuckyWheel}
+                alt="Lucky Wheel Banner"
+                className="absolute right-0 top-0 w-full sm:w-7/12 h-full object-cover object-center sm:object-right group-hover:scale-105 transition-transform duration-700"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#170a27] via-[#170a27]/95 sm:via-[#170a27]/80 to-transparent w-full sm:w-3/5" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#170a27]/70 sm:from-transparent to-transparent" />
+            </div>
+
+            {/* Content on top */}
+            <div className="relative z-10 max-w-sm sm:max-w-md text-left">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/30 text-amber-300 text-xs font-semibold mb-3 backdrop-blur-sm">
+                <Gift size={13} className="text-amber-300 animate-bounce" />
+                <span>Minigame hàng ngày</span>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-black tracking-tight mb-2 text-white">
+                Vòng quay may mắn - Trúng Voucher 100K
+              </h3>
+              <p className="text-xs sm:text-sm text-purple-200 leading-relaxed mb-6">
+                Mỗi ngày 1 lượt quay hoàn toàn miễn phí. Cơ hội nhận voucher 100K VIP, mã giảm giá 50%, freeship toàn quốc và quà tặng độc quyền từ NEXOR.
+              </p>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-lucky-wheel'))}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-slate-950 text-xs sm:text-sm font-black shadow-lg shadow-amber-500/40 transition-all transform active:scale-95 cursor-pointer"
+                >
+                  <Gift size={16} />
+                  <span>Quay ngay nhận quà</span>
+                  <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 6. THƯƠNG HIỆU CÔNG NGHỆ CHÍNH HÃNG (Top Official Brands Marquee Showcase) */}
+      <section className="max-w-[1360px] mx-auto px-4 mb-14 sm:mb-20">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-black text-gray-900 tracking-tight">
+            Thương hiệu đối tác hàng đầu
+          </h2>
+          <Link
+            to="/products"
+            className="text-xs font-semibold text-gray-500 hover:text-blue-600 flex items-center gap-1 group"
+          >
+            <span>Tất cả thương hiệu</span>
+            <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
+          </Link>
+        </div>
+
+        {/* Infinite Loop Marquee (2 Rows in Opposite Directions) */}
+        {(() => {
+          const brandList =
+            brands.length > 0
+              ? brands
+              : [
+                  { id: 1, name: 'ASUS', slug: 'asus', country: 'Quốc tế', displayOrder: 1, status: true },
+                  { id: 2, name: 'HyperX', slug: 'hyperx', country: 'Quốc tế', displayOrder: 2, status: true },
+                  { id: 3, name: 'Razer', slug: 'razer', country: 'Quốc tế', displayOrder: 3, status: true },
+                  { id: 4, name: 'XP-Pen', slug: 'xp-pen', country: 'Quốc tế', displayOrder: 4, status: true },
+                  { id: 5, name: 'Apple', slug: 'apple', country: 'Hoa Kỳ', displayOrder: 5, status: true },
+                  { id: 6, name: 'Samsung', slug: 'samsung', country: 'Hàn Quốc', displayOrder: 6, status: true },
+                  { id: 7, name: 'Sony', slug: 'sony', country: 'Nhật Bản', displayOrder: 7, status: true },
+                  { id: 8, name: 'Dell', slug: 'dell', country: 'Hoa Kỳ', displayOrder: 8, status: true },
+                  { id: 9, name: 'Xiaomi', slug: 'xiaomi', country: 'Trung Quốc', displayOrder: 9, status: true },
+                  { id: 10, name: 'Logitech', slug: 'logitech', country: 'Thụy Sĩ', displayOrder: 10, status: true },
+                  { id: 11, name: 'Anker', slug: 'anker', country: 'Hoa Kỳ', displayOrder: 11, status: true },
+                ];
+          const reversedBrandList = [...brandList].reverse();
+
+          const renderBrandItem = (b: BrandItem, uniqueKey: string) => {
+            const { name: displayName, slogan } = getBrandDisplay(b);
+            return (
+              <Link
+                key={uniqueKey}
+                to={`/products?brand=${encodeURIComponent(b.name)}`}
+                className="group bg-white rounded-2xl border border-gray-100/90 p-3 sm:px-3.5 sm:py-3 shadow-xs hover:border-blue-400 hover:shadow-md transition-all duration-200 flex items-center justify-between gap-3 cursor-pointer shrink-0 w-[240px] sm:w-[260px] select-none"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gray-50 flex items-center justify-center p-1.5 shrink-0 group-hover:scale-105 transition-transform">
+                    <BrandLogo brandName={b.name} logoUrl={b.logoUrl} />
+                  </div>
+                  <div className="min-w-0 flex flex-col">
+                    <span className="text-xs sm:text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors truncate">
+                      {displayName}
+                    </span>
+                    <span className="text-[10px] sm:text-[11px] text-gray-400 group-hover:text-gray-500 transition-colors truncate">
+                      {slogan}
+                    </span>
+                  </div>
+                </div>
+                <div className="w-5 h-5 rounded-full bg-gray-50 flex items-center justify-center text-gray-300 group-hover:bg-blue-50 group-hover:text-blue-600 shrink-0 transition-colors">
+                  <ChevronRight size={12} />
+                </div>
+              </Link>
+            );
+          };
+
+          return (
+            <div className="relative overflow-hidden marquee-container py-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+              {/* Left Gradient Fade Mask */}
+              <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-12 sm:w-20 bg-gradient-to-r from-[#f8fafc] via-[#f8fafc]/90 to-transparent z-10" />
+
+              {/* Right Gradient Fade Mask */}
+              <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-12 sm:w-20 bg-gradient-to-l from-[#f8fafc] via-[#f8fafc]/90 to-transparent z-10" />
+
+              {/* Track 1: Trượt liên tục từ phải sang trái */}
+              <div className="flex gap-3 mb-3 animate-marquee-left">
+                {[...brandList, ...brandList].map((b, idx) =>
+                  renderBrandItem(b, `top-${idx}-${b.id}`)
+                )}
+              </div>
+
+              {/* Track 2: Trượt liên tục từ trái sang phải */}
+              <div className="flex gap-3 animate-marquee-right">
+                {[...reversedBrandList, ...reversedBrandList].map((b, idx) =>
+                  renderBrandItem(b, `bot-${idx}-${b.id}`)
+                )}
+              </div>
+            </div>
+          );
+        })()}
+      </section>
+
+      {/* 7. TIN TỨC CÔNG NGHỆ & ĐÁNH GIÁ (Tech Articles & Expert Reviews) */}
+      <section className="max-w-[1360px] mx-auto px-4 mb-14 sm:mb-20">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Newspaper size={20} className="text-gray-900" />
+            <h2 className="text-base font-black text-gray-900 tracking-tight">
+              Các tin tức & Trải nghiệm Công nghệ
+            </h2>
+          </div>
+          <Link
+            to={ROUTES.ARTICLES}
+            className="text-xs font-semibold text-gray-500 hover:text-blue-600 flex items-center gap-1 group"
+          >
+            <span>Xem tất cả bài viết</span>
+            <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
+          </Link>
+        </div>
+
+        {articles.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-xs text-gray-500">
+            Đang cập nhật các bài viết công nghệ mới nhất...
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {articles.map((article) => (
+              <Link
+                key={article.id}
+                to={`/articles/${article.slug}`}
+                className="group bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col hover:border-blue-300 hover:shadow-lg transition-all duration-300"
+              >
+                <div className="relative aspect-[16/10] overflow-hidden bg-gray-100">
+                  {article.thumbnail ? (
+                    <img
+                      src={article.thumbnail}
+                      alt={article.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src =
+                          'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=600&q=80';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400">
+                      <Newspaper size={32} />
+                    </div>
+                  )}
+                  {article.category && (
+                    <span className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-black/60 text-white backdrop-blur-sm">
+                      {article.category}
+                    </span>
+                  )}
+                </div>
+                <div className="p-4 flex-1 flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug mb-2">
+                      {article.title}
+                    </h3>
+                    {article.summary && (
+                      <p className="text-[11px] text-gray-500 line-clamp-2 leading-relaxed mb-3">
+                        {article.summary}
+                      </p>
+                    )}
+                  </div>
+                  <div className="pt-2 border-t border-gray-50 flex items-center justify-between text-[11px] text-gray-400">
+                    <span>
+                      {article.createdAt
+                        ? new Date(article.createdAt).toLocaleDateString('vi-VN')
+                        : 'Mới đăng'}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Eye size={12} />
+                      {article.views || 0} lượt xem
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* 8. HỆ THỐNG SHOWROOM TRẢI NGHIỆM (Store Locator Banner) */}
+      <section className="max-w-[1360px] mx-auto px-4 mb-14 sm:mb-20">
+        <Link
+          to={ROUTES.STORES}
+          className="block group relative overflow-hidden rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer"
+          title="Trải nghiệm sản phẩm thực tế tại showroom NEXOR"
+        >
+          <img
+            src="/images/banner-showroom-flagship.png"
+            alt="Trải nghiệm sản phẩm thực tế tại showroom NEXOR - Hệ thống bán lẻ công nghệ hàng đầu"
+            className="w-full h-auto object-cover rounded-3xl block transition-transform duration-500 group-hover:scale-[1.01]"
+          />
+        </Link>
+      </section>
+
+      {/* 9. CAM KẾT VÀNG TỪ NEXOR (Core Service Pillars - Dark Cyber Luxury Theme) */}
+      <section className="max-w-[1360px] mx-auto px-4 mb-14 sm:mb-20">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+          <div className="group bg-[#121620]/90 hover:bg-[#161c2b] rounded-2xl p-4 sm:p-5 border border-gray-800/80 hover:border-blue-500/50 flex items-center gap-3.5 shadow-lg shadow-black/20 hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400 flex-shrink-0 group-hover:scale-105 transition-transform">
+              <ShieldCheck size={20} />
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-xs sm:text-sm font-bold text-white mb-0.5 group-hover:text-blue-300 transition-colors truncate">
+                Chính hãng 100%
+              </h4>
+              <p className="text-[11px] text-gray-400 leading-snug">
+                Bảo hành ủy quyền toàn quốc
+              </p>
+            </div>
+          </div>
+
+          <div className="group bg-[#121620]/90 hover:bg-[#161c2b] rounded-2xl p-4 sm:p-5 border border-gray-800/80 hover:border-emerald-500/50 flex items-center gap-3.5 shadow-lg shadow-black/20 hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 flex-shrink-0 group-hover:scale-105 transition-transform">
+              <Truck size={20} />
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-xs sm:text-sm font-bold text-white mb-0.5 group-hover:text-emerald-300 transition-colors truncate">
+                Giao nhanh 2 giờ
+              </h4>
+              <p className="text-[11px] text-gray-400 leading-snug">
+                Giao hỏa tốc chuẩn đóng gói
+              </p>
+            </div>
+          </div>
+
+          <div className="group bg-[#121620]/90 hover:bg-[#161c2b] rounded-2xl p-4 sm:p-5 border border-gray-800/80 hover:border-purple-500/50 flex items-center gap-3.5 shadow-lg shadow-black/20 hover:shadow-purple-500/10 hover:-translate-y-1 transition-all duration-300">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 flex-shrink-0 group-hover:scale-105 transition-transform">
+              <RotateCcw size={20} />
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-xs sm:text-sm font-bold text-white mb-0.5 group-hover:text-purple-300 transition-colors truncate">
+                1 đổi 1 30 ngày
+              </h4>
+              <p className="text-[11px] text-gray-400 leading-snug">
+                Đổi mới nếu lỗi từ nhà sản xuất
+              </p>
+            </div>
+          </div>
+
+          <div className="group bg-[#121620]/90 hover:bg-[#161c2b] rounded-2xl p-4 sm:p-5 border border-gray-800/80 hover:border-amber-500/50 flex items-center gap-3.5 shadow-lg shadow-black/20 hover:shadow-amber-500/10 hover:-translate-y-1 transition-all duration-300">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 flex-shrink-0 group-hover:scale-105 transition-transform">
+              <Sparkles size={20} />
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-xs sm:text-sm font-bold text-white mb-0.5 group-hover:text-amber-300 transition-colors truncate">
+                Trợ lý AI 24/7
+              </h4>
+              <p className="text-[11px] text-gray-400 leading-snug">
+                Tư vấn cấu hình chuẩn xác mọi lúc
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 10. ĐĂNG KÝ NHẬN BẢN TIN & VOUCHER 100K (Dark Cyber Luxury Newsletter) */}
+      <section className="max-w-[1360px] mx-auto px-4 mb-14 sm:mb-20">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0c1220] via-[#101728] to-[#0a0f1a] border border-blue-500/25 p-7 sm:p-10 text-white shadow-2xl shadow-blue-950/40">
+          {/* Ambient background glow orbs */}
+          <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-96 bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 right-10 w-80 h-80 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 max-w-2xl mx-auto text-center">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/15 border border-blue-400/30 text-blue-300 text-xs font-semibold mb-2.5 backdrop-blur-md">
+              <Gift size={13} className="text-yellow-400" />
+              <span>Ưu đãi thành viên mới</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-2 text-white">
+              Voucher <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-500">100.000₫</span> cho đơn đầu tiên
+            </h2>
+            <p className="text-xs sm:text-sm text-gray-300 leading-relaxed mb-5 max-w-md mx-auto">
+              Đăng ký nhận mã giảm giá độc quyền và ưu đãi Flash Sale sớm nhất.
+            </p>
+
+            {newsletterSubscribed ? (
+              <div className="inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-xs sm:text-sm font-bold backdrop-blur-md animate-fade-in shadow-lg shadow-emerald-950/40">
+                <CheckCircle2 size={18} className="text-emerald-300" />
+                <span>Đăng ký thành công! Mã giảm giá <strong>NEXOR100K</strong> đã sẵn sàng cho bạn.</span>
+              </div>
+            ) : (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (newsletterEmail.trim()) {
+                    setNewsletterSubscribed(true);
+                  }
+                }}
+                className="flex flex-col sm:flex-row items-center gap-2.5 max-w-md mx-auto"
+              >
+                <input
+                  type="email"
+                  required
+                  value={newsletterEmail}
+                  onChange={(e) => setNewsletterEmail(e.target.value)}
+                  placeholder="Nhập địa chỉ email của bạn..."
+                  className="w-full px-4.5 py-3.5 rounded-xl bg-[#171f33]/90 border border-gray-700/80 text-white text-xs sm:text-sm placeholder:text-gray-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/25 font-medium shadow-inner transition-all"
+                />
+                <button
+                  type="submit"
+                  className="w-full sm:w-auto flex-shrink-0 px-6 py-3.5 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-gray-950 text-xs sm:text-sm font-black shadow-lg shadow-yellow-500/25 transition-all transform hover:scale-[1.02] active:scale-95 cursor-pointer"
+                >
+                  Nhận mã ngay
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
       </section>
     </div>
   );
