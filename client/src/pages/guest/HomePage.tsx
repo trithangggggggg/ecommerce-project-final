@@ -1093,58 +1093,58 @@ export default function HomePage() {
       {/* 9. CAM KẾT VÀNG TỪ NEXOR (Core Service Pillars - Dark Cyber Luxury Theme) */}
       <section className="max-w-[1360px] mx-auto px-4 mb-14 sm:mb-20">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-          <div className="group bg-[#121620]/90 hover:bg-[#161c2b] rounded-2xl p-5 border border-gray-800/80 hover:border-blue-500/50 flex items-start gap-3.5 shadow-lg shadow-black/20 hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300">
-            <div className="w-11 h-11 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400 flex-shrink-0 group-hover:scale-105 transition-transform">
-              <ShieldCheck size={22} />
+          <div className="group bg-[#121620]/90 hover:bg-[#161c2b] rounded-2xl p-4 sm:p-5 border border-gray-800/80 hover:border-blue-500/50 flex items-center gap-3.5 shadow-lg shadow-black/20 hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400 flex-shrink-0 group-hover:scale-105 transition-transform">
+              <ShieldCheck size={20} />
             </div>
-            <div>
-              <h4 className="text-xs sm:text-sm font-bold text-white mb-1 group-hover:text-blue-300 transition-colors">
-                100% Hàng chính hãng
+            <div className="min-w-0">
+              <h4 className="text-xs sm:text-sm font-bold text-white mb-0.5 group-hover:text-blue-300 transition-colors truncate">
+                Chính hãng 100%
               </h4>
-              <p className="text-[11px] text-gray-400 leading-relaxed">
-                Phân phối ủy quyền, đầy đủ hóa đơn VAT điện tử và bảo hành chính hãng toàn quốc.
+              <p className="text-[11px] text-gray-400 leading-snug">
+                Bảo hành ủy quyền toàn quốc
               </p>
             </div>
           </div>
 
-          <div className="group bg-[#121620]/90 hover:bg-[#161c2b] rounded-2xl p-5 border border-gray-800/80 hover:border-emerald-500/50 flex items-start gap-3.5 shadow-lg shadow-black/20 hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300">
-            <div className="w-11 h-11 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 flex-shrink-0 group-hover:scale-105 transition-transform">
-              <Truck size={22} />
+          <div className="group bg-[#121620]/90 hover:bg-[#161c2b] rounded-2xl p-4 sm:p-5 border border-gray-800/80 hover:border-emerald-500/50 flex items-center gap-3.5 shadow-lg shadow-black/20 hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 flex-shrink-0 group-hover:scale-105 transition-transform">
+              <Truck size={20} />
             </div>
-            <div>
-              <h4 className="text-xs sm:text-sm font-bold text-white mb-1 group-hover:text-emerald-300 transition-colors">
-                Giao hàng 2 Giờ
+            <div className="min-w-0">
+              <h4 className="text-xs sm:text-sm font-bold text-white mb-0.5 group-hover:text-emerald-300 transition-colors truncate">
+                Giao nhanh 2 giờ
               </h4>
-              <p className="text-[11px] text-gray-400 leading-relaxed">
-                Giao siêu tốc nội thành trong 120 phút, bao bọc cẩn thận chuẩn chống va đập.
+              <p className="text-[11px] text-gray-400 leading-snug">
+                Giao hỏa tốc chuẩn đóng gói
               </p>
             </div>
           </div>
 
-          <div className="group bg-[#121620]/90 hover:bg-[#161c2b] rounded-2xl p-5 border border-gray-800/80 hover:border-purple-500/50 flex items-start gap-3.5 shadow-lg shadow-black/20 hover:shadow-purple-500/10 hover:-translate-y-1 transition-all duration-300">
-            <div className="w-11 h-11 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 flex-shrink-0 group-hover:scale-105 transition-transform">
-              <RotateCcw size={22} />
+          <div className="group bg-[#121620]/90 hover:bg-[#161c2b] rounded-2xl p-4 sm:p-5 border border-gray-800/80 hover:border-purple-500/50 flex items-center gap-3.5 shadow-lg shadow-black/20 hover:shadow-purple-500/10 hover:-translate-y-1 transition-all duration-300">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 flex-shrink-0 group-hover:scale-105 transition-transform">
+              <RotateCcw size={20} />
             </div>
-            <div>
-              <h4 className="text-xs sm:text-sm font-bold text-white mb-1 group-hover:text-purple-300 transition-colors">
-                Đổi mới trong 30 ngày
+            <div className="min-w-0">
+              <h4 className="text-xs sm:text-sm font-bold text-white mb-0.5 group-hover:text-purple-300 transition-colors truncate">
+                1 đổi 1 30 ngày
               </h4>
-              <p className="text-[11px] text-gray-400 leading-relaxed">
-                Lỗi do nhà sản xuất là đổi mới ngay 1-1, thủ tục tiếp nhận kiểm tra nhanh chóng.
+              <p className="text-[11px] text-gray-400 leading-snug">
+                Đổi mới nếu lỗi từ nhà sản xuất
               </p>
             </div>
           </div>
 
-          <div className="group bg-[#121620]/90 hover:bg-[#161c2b] rounded-2xl p-5 border border-gray-800/80 hover:border-amber-500/50 flex items-start gap-3.5 shadow-lg shadow-black/20 hover:shadow-amber-500/10 hover:-translate-y-1 transition-all duration-300">
-            <div className="w-11 h-11 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 flex-shrink-0 group-hover:scale-105 transition-transform">
-              <Sparkles size={22} />
+          <div className="group bg-[#121620]/90 hover:bg-[#161c2b] rounded-2xl p-4 sm:p-5 border border-gray-800/80 hover:border-amber-500/50 flex items-center gap-3.5 shadow-lg shadow-black/20 hover:shadow-amber-500/10 hover:-translate-y-1 transition-all duration-300">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 flex-shrink-0 group-hover:scale-105 transition-transform">
+              <Sparkles size={20} />
             </div>
-            <div>
-              <h4 className="text-xs sm:text-sm font-bold text-white mb-1 group-hover:text-amber-300 transition-colors">
-                Trợ lý AI tư vấn 24/7
+            <div className="min-w-0">
+              <h4 className="text-xs sm:text-sm font-bold text-white mb-0.5 group-hover:text-amber-300 transition-colors truncate">
+                Trợ lý AI 24/7
               </h4>
-              <p className="text-[11px] text-gray-400 leading-relaxed">
-                Chatbot RAG thông minh giải đáp cấu hình máy và tư vấn sản phẩm tối ưu mọi lúc.
+              <p className="text-[11px] text-gray-400 leading-snug">
+                Tư vấn cấu hình chuẩn xác mọi lúc
               </p>
             </div>
           </div>
@@ -1153,21 +1153,21 @@ export default function HomePage() {
 
       {/* 10. ĐĂNG KÝ NHẬN BẢN TIN & VOUCHER 100K (Dark Cyber Luxury Newsletter) */}
       <section className="max-w-[1360px] mx-auto px-4 mb-14 sm:mb-20">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0c1220] via-[#101728] to-[#0a0f1a] border border-blue-500/25 p-8 sm:p-12 text-white shadow-2xl shadow-blue-950/40">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0c1220] via-[#101728] to-[#0a0f1a] border border-blue-500/25 p-7 sm:p-10 text-white shadow-2xl shadow-blue-950/40">
           {/* Ambient background glow orbs */}
           <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-96 bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute -bottom-24 right-10 w-80 h-80 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
 
           <div className="relative z-10 max-w-2xl mx-auto text-center">
-            <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-blue-500/15 border border-blue-400/30 text-blue-300 text-xs font-semibold mb-3 backdrop-blur-md">
-              <Gift size={14} className="text-yellow-400" />
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/15 border border-blue-400/30 text-blue-300 text-xs font-semibold mb-2.5 backdrop-blur-md">
+              <Gift size={13} className="text-yellow-400" />
               <span>Ưu đãi thành viên mới</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-2.5 text-white">
-              Nhận Voucher <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-500">100.000₫</span> cho đơn hàng đầu tiên
+            <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-2 text-white">
+              Voucher <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-500">100.000₫</span> cho đơn đầu tiên
             </h2>
-            <p className="text-xs sm:text-sm text-gray-300 leading-relaxed mb-6 max-w-lg mx-auto">
-              Đăng ký để không bỏ lỡ đợt Flash Sale bí mật, mã giảm giá độc quyền và cập nhật công nghệ mới nhất từ NEXOR.
+            <p className="text-xs sm:text-sm text-gray-300 leading-relaxed mb-5 max-w-md mx-auto">
+              Đăng ký nhận mã giảm giá độc quyền và ưu đãi Flash Sale sớm nhất.
             </p>
 
             {newsletterSubscribed ? (
