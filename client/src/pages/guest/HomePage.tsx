@@ -51,6 +51,8 @@ import { ROUTES } from '../../constants/routes';
 import { formatPrice } from '../../utils/format';
 import HeroBannerSlider from '../../components/home/HeroBannerSlider';
 import BrandLogo from '../../components/home/BrandLogo';
+import bannerAiVision from '../../assets/images/banner-ai-vision.jpg';
+import bannerLuckyWheel from '../../assets/images/banner-lucky-wheel.jpg';
 
 function getCategoryIcon(slug = '', name = ''): LucideIcon {
   const key = `${slug} ${name}`.toLowerCase();
@@ -825,10 +827,9 @@ export default function HomePage() {
       <section className="max-w-[1360px] mx-auto px-4 mb-10 sm:mb-14">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
           {/* AI Vision Search Banner Card */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-6 sm:p-7 border border-indigo-500/20 shadow-lg group hover:border-indigo-500/40 transition-all duration-300">
-            <div className="absolute top-0 right-0 -mr-8 -mt-8 w-44 h-44 rounded-full bg-blue-500/10 blur-2xl pointer-events-none group-hover:bg-blue-500/20 transition-all" />
-            <div className="relative z-10 flex flex-col justify-between h-full">
-              <div>
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#0d1627] via-[#101d36] to-[#182a4d] text-white p-6 sm:p-7 border border-blue-500/20 shadow-xl group hover:border-blue-500/40 transition-all duration-300">
+            <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-5 h-full">
+              <div className="flex-1 text-left">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-semibold mb-3 backdrop-blur-sm">
                   <Sparkles size={13} className="text-blue-300 animate-pulse" />
                   <span>Google Gemini Vision AI</span>
@@ -836,29 +837,43 @@ export default function HomePage() {
                 <h3 className="text-xl sm:text-2xl font-black tracking-tight mb-2 text-white">
                   Tìm kiếm bằng hình ảnh
                 </h3>
-                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-md mb-5">
-                  Tải ảnh hoặc chụp trực tiếp thiết bị công nghệ bạn đang quan tâm. Trợ lý AI sẽ nhận diện chuẩn xác thông số và gợi ý sản phẩm tốt nhất trong 2 giây.
+                <p className="text-xs text-slate-300 leading-relaxed mb-6 max-w-sm">
+                  Tải ảnh hoặc chụp trực tiếp, AI sẽ tìm kiếm sản phẩm tương tự với độ chính xác cao, giúp bạn dễ dàng tìm được món đồ ưng ý.
                 </p>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new CustomEvent('open-visual-search'))}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-bold shadow-md shadow-blue-600/30 transition-all transform active:scale-95 cursor-pointer"
+                  >
+                    <Camera size={16} />
+                    <span>Thử tìm bằng hình ảnh</span>
+                    <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                  </button>
+                </div>
               </div>
-              <div>
-                <button
-                  type="button"
-                  onClick={() => window.dispatchEvent(new CustomEvent('open-visual-search'))}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-bold shadow-md shadow-blue-600/30 transition-all transform active:scale-95 cursor-pointer"
-                >
-                  <Camera size={16} />
-                  <span>Thử tìm bằng hình ảnh</span>
-                  <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-                </button>
+
+              {/* Cover Illustration Image */}
+              <div className="w-44 sm:w-52 h-44 sm:h-52 shrink-0 relative flex items-center justify-center">
+                <div className="absolute inset-0 bg-blue-500/20 rounded-2xl blur-xl group-hover:bg-blue-500/30 transition-all" />
+                <div className="relative w-full h-full rounded-2xl overflow-hidden border border-blue-400/30 shadow-lg group-hover:scale-105 transition-transform duration-500">
+                  <img
+                    src={bannerAiVision}
+                    alt="AI Visual Search Illustration"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute bottom-2.5 right-2.5 w-8 h-8 rounded-lg bg-blue-600/80 backdrop-blur-md flex items-center justify-center text-white border border-blue-300/40 shadow">
+                    <Camera size={15} />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Lucky Wheel Gamification Banner Card */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 text-white p-6 sm:p-7 border border-purple-500/20 shadow-lg group hover:border-purple-500/40 transition-all duration-300">
-            <div className="absolute top-0 right-0 -mr-8 -mt-8 w-44 h-44 rounded-full bg-purple-500/10 blur-2xl pointer-events-none group-hover:bg-purple-500/20 transition-all" />
-            <div className="relative z-10 flex flex-col justify-between h-full">
-              <div>
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#1e0d33] via-[#2a1247] to-[#3a1861] text-white p-6 sm:p-7 border border-purple-500/20 shadow-xl group hover:border-purple-500/40 transition-all duration-300">
+            <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-5 h-full">
+              <div className="flex-1 text-left">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/30 text-amber-300 text-xs font-semibold mb-3 backdrop-blur-sm">
                   <Gift size={13} className="text-amber-300 animate-bounce" />
                   <span>Minigame hàng ngày</span>
@@ -866,20 +881,35 @@ export default function HomePage() {
                 <h3 className="text-xl sm:text-2xl font-black tracking-tight mb-2 text-white">
                   Vòng quay may mắn - Trúng Voucher 100K
                 </h3>
-                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-md mb-5">
-                  Mỗi ngày 1 lượt quay hoàn toàn miễn phí! Cơ hội rinh voucher 100K VIP, mã giảm giá 50%, freeship toàn quốc và quà tặng độc quyền từ NEXOR.
+                <p className="text-xs text-purple-200 leading-relaxed mb-6 max-w-sm">
+                  Mỗi ngày 1 lượt quay hoàn toàn miễn phí. Cơ hội nhận voucher 100K VIP, mã giảm giá 50%, freeship toàn quốc và quà tặng độc quyền từ NEXOR.
                 </p>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new CustomEvent('open-lucky-wheel'))}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-slate-950 text-xs sm:text-sm font-black shadow-md shadow-amber-500/30 transition-all transform active:scale-95 cursor-pointer"
+                  >
+                    <Gift size={16} />
+                    <span>Quay ngay nhận quà</span>
+                    <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                  </button>
+                </div>
               </div>
-              <div>
-                <button
-                  type="button"
-                  onClick={() => window.dispatchEvent(new CustomEvent('open-lucky-wheel'))}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 text-xs sm:text-sm font-black shadow-md shadow-amber-500/30 transition-all transform active:scale-95 cursor-pointer"
-                >
-                  <Gift size={16} />
-                  <span>Quay ngay nhận quà</span>
-                  <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-                </button>
+
+              {/* Cover Illustration Image */}
+              <div className="w-44 sm:w-52 h-44 sm:h-52 shrink-0 relative flex items-center justify-center">
+                <div className="absolute inset-0 bg-purple-500/20 rounded-2xl blur-xl group-hover:bg-purple-500/30 transition-all" />
+                <div className="relative w-full h-full rounded-2xl overflow-hidden border border-purple-400/30 shadow-lg group-hover:scale-105 transition-transform duration-500">
+                  <img
+                    src={bannerLuckyWheel}
+                    alt="Lucky Wheel & Voucher Illustration"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute bottom-2.5 right-2.5 w-8 h-8 rounded-lg bg-amber-500/90 backdrop-blur-md flex items-center justify-center text-slate-950 border border-amber-300/40 shadow">
+                    <Gift size={15} />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
