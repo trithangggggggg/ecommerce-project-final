@@ -108,10 +108,11 @@ export const Header: React.FC = () => {
         // Ở đỉnh trang: Luôn hiển thị dòng thông báo đầu tiên
         setShowPromoTicker(true);
       } else if (scrollDiff > 8 && currentScrollY > 50) {
-        // Cuộn XUỐNG: Thụt mất dòng thông báo
+        // Cuộn XUỐNG: Thụt mất dòng thông báo & thanh danh mục điều hướng
         setShowPromoTicker(false);
+        setCategoryMenuOpen(false);
       } else if (scrollDiff < -8) {
-        // Kéo LÊN: Hiện lại dòng thông báo và hiển thị "Chính hãng 100% Giá tốt mỗi ngày Hỗ trợ kỹ thuật tận tâm"
+        // Kéo LÊN: Hiện lại dòng thông báo và thanh danh mục điều hướng
         setShowPromoTicker(true);
         setActiveTickerIndex(1);
       }
@@ -498,8 +499,14 @@ export const Header: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Sub-Navbar Bar */}
-      <div className="bg-[#1f222b] border-t border-gray-800/80 relative z-20">
+      {/* 2. Sub-Navbar Bar (Thụt khi lướt xuống, hiện khi kéo lên) */}
+      <div
+        className={`bg-[#1f222b] border-t border-gray-800/80 relative z-20 transition-all duration-300 ease-in-out ${
+          showPromoTicker
+            ? 'max-h-16 opacity-100 translate-y-0 overflow-visible'
+            : 'max-h-0 opacity-0 -translate-y-full pointer-events-none overflow-hidden'
+        }`}
+      >
         <div className="max-w-[1360px] mx-auto px-4 flex items-center gap-6 text-xs font-medium">
           {/* Left: Category Dropdown button */}
           <div className="relative shrink-0">
