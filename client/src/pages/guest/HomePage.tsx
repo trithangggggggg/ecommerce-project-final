@@ -91,13 +91,13 @@ function getBrandDisplay(brand: { name: string; country?: string | null }) {
   if (norm.includes('asus')) {
     return { name: 'ASUS', slogan: 'In Search of Incredible' };
   }
-  if (norm.includes('hyperx') || norm.includes('hypertech') || norm === 'ht') {
-    return { name: 'HyperX', slogan: 'HyperTech Gaming' };
+  if (norm.includes('hyperx') || norm.includes('hyper') || norm === 'ht') {
+    return { name: 'HyperX', slogan: "We're All Gamers" };
   }
   if (norm.includes('razer')) {
     return { name: 'Razer', slogan: 'For Gamers. By Gamers.' };
   }
-  if (norm.includes('xp-pen') || norm.includes('xpg') || norm === 'xp') {
+  if (norm.includes('xp-pen') || norm.includes('xppen') || norm.includes('xpg') || norm === 'xp') {
     return { name: 'XP-Pen', slogan: 'Graphic Tablets' };
   }
   if (norm.includes('apple')) {
@@ -824,7 +824,7 @@ export default function HomePage() {
       </section>
 
       {/* 5. TÍNH NĂNG ĐẶC SẮC (AI Vision Search + Lucky Wheel Gamification) */}
-      <section className="max-w-[1360px] mx-auto px-4 mb-10 sm:mb-14">
+      <section className="max-w-[1360px] mx-auto px-4 mb-14 sm:mb-20">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
           {/* AI Vision Search Banner Card (Full-bleed cover) */}
           <div className="relative overflow-hidden rounded-3xl bg-[#0a1120] text-white p-6 sm:p-8 border border-blue-500/20 shadow-xl group hover:border-blue-500/40 transition-all duration-300 min-h-[220px] sm:min-h-[240px] flex items-center">
@@ -907,7 +907,7 @@ export default function HomePage() {
       </section>
 
       {/* 6. THƯƠNG HIỆU CÔNG NGHỆ CHÍNH HÃNG (Top Official Brands Grid) */}
-      <section className="max-w-[1360px] mx-auto px-4 mb-10 sm:mb-14">
+      <section className="max-w-[1360px] mx-auto px-4 mb-14 sm:mb-20">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <span className="text-xl">🔥</span>
@@ -976,7 +976,7 @@ export default function HomePage() {
       </section>
 
       {/* 7. TIN TỨC CÔNG NGHỆ & ĐÁNH GIÁ (Tech Articles & Expert Reviews) */}
-      <section className="max-w-[1360px] mx-auto px-4 mb-10 sm:mb-14">
+      <section className="max-w-[1360px] mx-auto px-4 mb-14 sm:mb-20">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <span className="text-xl">📰</span>
@@ -1062,7 +1062,7 @@ export default function HomePage() {
       </section>
 
       {/* 8. HỆ THỐNG SHOWROOM TRẢI NGHIỆM (Store Locator Banner) */}
-      <section className="max-w-[1360px] mx-auto px-4 mb-10 sm:mb-14">
+      <section className="max-w-[1360px] mx-auto px-4 mb-14 sm:mb-20">
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white p-7 sm:p-10 border border-slate-700/50 shadow-xl">
           <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-6">
             <div className="max-w-xl text-center lg:text-left">
@@ -1098,9 +1098,9 @@ export default function HomePage() {
       </section>
 
       {/* 9. CAM KẾT VÀNG TỪ NEXOR (Core Service Pillars) */}
-      <section className="max-w-[1360px] mx-auto px-4 mb-10 sm:mb-14">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white rounded-2xl p-5 border border-gray-100 flex items-start gap-3.5 shadow-sm hover:shadow-md transition-shadow">
+      <section className="max-w-[1360px] mx-auto px-4 mb-14 sm:mb-20">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+          <div className="bg-white rounded-2xl p-5 border border-gray-100/90 flex items-start gap-3.5 shadow-xs hover:shadow-md hover:border-blue-200 transition-all">
             <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
               <ShieldCheck size={22} />
             </div>
@@ -1112,7 +1112,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl p-5 border border-gray-100 flex items-start gap-3.5 shadow-sm hover:shadow-md transition-shadow">
+          <div className="bg-white rounded-2xl p-5 border border-gray-100/90 flex items-start gap-3.5 shadow-xs hover:shadow-md hover:border-emerald-200 transition-all">
             <div className="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 flex-shrink-0">
               <Truck size={22} />
             </div>
@@ -1124,7 +1124,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl p-5 border border-gray-100 flex items-start gap-3.5 shadow-sm hover:shadow-md transition-shadow">
+          <div className="bg-white rounded-2xl p-5 border border-gray-100/90 flex items-start gap-3.5 shadow-xs hover:shadow-md hover:border-purple-200 transition-all">
             <div className="w-11 h-11 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 flex-shrink-0">
               <RotateCcw size={22} />
             </div>
@@ -1136,7 +1136,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl p-5 border border-gray-100 flex items-start gap-3.5 shadow-sm hover:shadow-md transition-shadow">
+          <div className="bg-white rounded-2xl p-5 border border-gray-100/90 flex items-start gap-3.5 shadow-xs hover:shadow-md hover:border-amber-200 transition-all">
             <div className="w-11 h-11 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 flex-shrink-0">
               <Sparkles size={22} />
             </div>
@@ -1151,7 +1151,7 @@ export default function HomePage() {
       </section>
 
       {/* 10. ĐĂNG KÝ NHẬN BẢN TIN & VOUCHER 100K (Newsletter Subscription) */}
-      <section className="max-w-[1360px] mx-auto px-4 mb-6 sm:mb-10">
+      <section className="max-w-[1360px] mx-auto px-4 mb-14 sm:mb-20">
         <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 rounded-3xl p-7 sm:p-10 text-white shadow-xl">
           <div className="max-w-2xl mx-auto text-center">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-white text-xs font-semibold mb-3 backdrop-blur-sm">
