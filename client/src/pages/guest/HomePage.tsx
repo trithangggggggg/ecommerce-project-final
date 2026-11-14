@@ -24,7 +24,6 @@ import {
   Newspaper,
   MapPin,
   Eye,
-  Award,
   Truck,
   RotateCcw,
   CheckCircle2,
@@ -51,6 +50,7 @@ import { useSiteConfigStore } from '../../store/useSiteConfigStore';
 import { ROUTES } from '../../constants/routes';
 import { formatPrice } from '../../utils/format';
 import HeroBannerSlider from '../../components/home/HeroBannerSlider';
+import BrandLogo from '../../components/home/BrandLogo';
 
 function getCategoryIcon(slug = '', name = ''): LucideIcon {
   const key = `${slug} ${name}`.toLowerCase();
@@ -81,6 +81,49 @@ function getDefaultCategorySubtitle(slug = '', name = ''): string {
     return 'Chính hãng, bền bỉ';
   if (key.includes('gaming') || key.includes('game')) return 'Chiến game đỉnh cao';
   return 'Chính hãng Nexor';
+}
+
+function getBrandDisplay(brand: { name: string; country?: string | null }) {
+  const norm = (brand.name || '').toLowerCase().trim();
+
+  if (norm.includes('asus')) {
+    return { name: 'ASUS', slogan: 'In Search of Incredible' };
+  }
+  if (norm.includes('hyperx') || norm.includes('hypertech') || norm === 'ht') {
+    return { name: 'HyperX', slogan: 'HyperTech Gaming' };
+  }
+  if (norm.includes('razer')) {
+    return { name: 'Razer', slogan: 'For Gamers. By Gamers.' };
+  }
+  if (norm.includes('xp-pen') || norm.includes('xpg') || norm === 'xp') {
+    return { name: 'XP-Pen', slogan: 'Graphic Tablets' };
+  }
+  if (norm.includes('apple')) {
+    return { name: 'Apple', slogan: 'Think Different' };
+  }
+  if (norm.includes('samsung')) {
+    return { name: 'Samsung', slogan: 'Galaxy Innovation' };
+  }
+  if (norm.includes('sony')) {
+    return { name: 'Sony', slogan: 'Be Moved' };
+  }
+  if (norm.includes('dell')) {
+    return { name: 'Dell', slogan: 'High Performance' };
+  }
+  if (norm.includes('xiaomi')) {
+    return { name: 'Xiaomi', slogan: 'Smart Living AIoT' };
+  }
+  if (norm.includes('logitech')) {
+    return { name: 'Logitech', slogan: 'Defy Logic' };
+  }
+  if (norm.includes('anker')) {
+    return { name: 'Anker', slogan: 'Charge Fast, Live More' };
+  }
+
+  return {
+    name: brand.name,
+    slogan: brand.country ? `${brand.country} • Chính hãng` : 'Chính hãng 100%',
+  };
 }
 
 const QUICK_GRID_COLS: Record<number, string> = {
@@ -847,19 +890,19 @@ export default function HomePage() {
       <section className="max-w-[1360px] mx-auto px-4 mb-10 sm:mb-14">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Award size={20} className="text-blue-600" />
+            <span className="text-xl">🔥</span>
             <div>
               <h2 className="text-base font-black text-gray-900 tracking-tight">
                 Thương hiệu đối tác hàng đầu
               </h2>
               <p className="text-xs text-gray-500 hidden sm:block">
-                100% sản phẩm phân phối ủy quyền chính hãng từ các tập đoàn công nghệ toàn cầu
+                Khám phá các thương hiệu công nghệ hàng đầu, chất lượng và uy tín nhất
               </p>
             </div>
           </div>
           <Link
             to="/products"
-            className="text-xs font-semibold text-gray-500 hover:text-blue-600 flex items-center gap-1 group"
+            className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 group"
           >
             <span>Tất cả thương hiệu</span>
             <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
@@ -870,38 +913,45 @@ export default function HomePage() {
           {(brands.length > 0
             ? brands
             : [
-                { id: 1, name: 'Apple', slug: 'apple', country: 'Mỹ', displayOrder: 1, status: true },
-                { id: 2, name: 'ASUS', slug: 'asus', country: 'Đài Loan', displayOrder: 2, status: true },
-                { id: 3, name: 'Samsung', slug: 'samsung', country: 'Hàn Quốc', displayOrder: 3, status: true },
-                { id: 4, name: 'Sony', slug: 'sony', country: 'Nhật Bản', displayOrder: 4, status: true },
-                { id: 5, name: 'Dell', slug: 'dell', country: 'Mỹ', displayOrder: 5, status: true },
-                { id: 6, name: 'Razer', slug: 'razer', country: 'Mỹ', displayOrder: 6, status: true },
+                { id: 1, name: 'ASUS', slug: 'asus', country: 'Quốc tế', displayOrder: 1, status: true },
+                { id: 2, name: 'HyperX', slug: 'hyperx', country: 'Quốc tế', displayOrder: 2, status: true },
+                { id: 3, name: 'Razer', slug: 'razer', country: 'Quốc tế', displayOrder: 3, status: true },
+                { id: 4, name: 'XP-Pen', slug: 'xp-pen', country: 'Quốc tế', displayOrder: 4, status: true },
+                { id: 5, name: 'Apple', slug: 'apple', country: 'Hoa Kỳ', displayOrder: 5, status: true },
+                { id: 6, name: 'Samsung', slug: 'samsung', country: 'Hàn Quốc', displayOrder: 6, status: true },
+                { id: 7, name: 'Sony', slug: 'sony', country: 'Nhật Bản', displayOrder: 7, status: true },
+                { id: 8, name: 'Dell', slug: 'dell', country: 'Hoa Kỳ', displayOrder: 8, status: true },
+                { id: 9, name: 'Xiaomi', slug: 'xiaomi', country: 'Trung Quốc', displayOrder: 9, status: true },
+                { id: 10, name: 'Logitech', slug: 'logitech', country: 'Thụy Sĩ', displayOrder: 10, status: true },
+                { id: 11, name: 'Anker', slug: 'anker', country: 'Hoa Kỳ', displayOrder: 11, status: true },
               ]
-          ).map((brand) => (
-            <Link
-              key={brand.id}
-              to={`/products?brand=${brand.slug}`}
-              className="group bg-white rounded-xl border border-gray-100 p-4 flex flex-col items-center justify-center text-center hover:border-blue-400 hover:shadow-md transition-all duration-200"
-            >
-              {brand.logoUrl ? (
-                <img
-                  src={brand.logoUrl}
-                  alt={brand.name}
-                  className="h-9 w-auto object-contain mb-2 group-hover:scale-105 transition-transform"
-                />
-              ) : (
-                <div className="h-9 w-9 rounded-lg bg-gray-50 flex items-center justify-center font-black text-sm text-gray-700 group-hover:bg-blue-50 group-hover:text-blue-600 mb-2 transition-colors">
-                  {brand.name.slice(0, 2).toUpperCase()}
+          ).map((brand) => {
+            const { name: displayName, slogan } = getBrandDisplay(brand);
+            return (
+              <Link
+                key={brand.id}
+                to={`/products?brand=${encodeURIComponent(brand.name)}`}
+                className="group bg-white rounded-2xl border border-gray-100/90 p-3 sm:px-3.5 sm:py-3 shadow-xs hover:border-blue-400 hover:shadow-md transition-all duration-200 flex items-center justify-between gap-2.5 cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gray-50 flex items-center justify-center p-1.5 shrink-0 group-hover:scale-105 transition-transform">
+                    <BrandLogo brandName={brand.name} logoUrl={brand.logoUrl} />
+                  </div>
+                  <div className="min-w-0 flex flex-col">
+                    <span className="text-xs sm:text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors truncate">
+                      {displayName}
+                    </span>
+                    <span className="text-[10px] sm:text-[11px] text-gray-400 group-hover:text-gray-500 transition-colors truncate">
+                      {slogan}
+                    </span>
+                  </div>
                 </div>
-              )}
-              <span className="text-xs font-bold text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-1">
-                {brand.name}
-              </span>
-              <span className="text-[10px] text-gray-400 mt-0.5">
-                {brand.country ? `${brand.country} • Chính hãng` : 'Chính hãng 100%'}
-              </span>
-            </Link>
-          ))}
+                <div className="w-5 h-5 rounded-full bg-gray-50 flex items-center justify-center text-gray-300 group-hover:bg-blue-50 group-hover:text-blue-600 shrink-0 transition-colors">
+                  <ChevronRight size={12} />
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </section>
 
@@ -909,10 +959,10 @@ export default function HomePage() {
       <section className="max-w-[1360px] mx-auto px-4 mb-10 sm:mb-14">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Newspaper size={20} className="text-gray-900" />
+            <span className="text-xl">📰</span>
             <div>
               <h2 className="text-base font-black text-gray-900 tracking-tight">
-                Góc Tin tức & Trải nghiệm Công nghệ
+                Các tin tức & Trải nghiệm Công nghệ
               </h2>
               <p className="text-xs text-gray-500 hidden sm:block">
                 Cập nhật xu hướng thiết bị, mẹo thủ thuật và bài đánh giá chuyên sâu từ chuyên gia NEXOR
@@ -921,7 +971,7 @@ export default function HomePage() {
           </div>
           <Link
             to={ROUTES.ARTICLES}
-            className="text-xs font-semibold text-gray-500 hover:text-blue-600 flex items-center gap-1 group"
+            className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 group"
           >
             <span>Xem tất cả bài viết</span>
             <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
