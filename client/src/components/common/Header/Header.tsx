@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   Search,
@@ -75,6 +75,53 @@ export const Header: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [visualSearchOpen, setVisualSearchOpen] = useState(false);
+
+  // Scroll detection for Smart Topbar (hide on scroll down, show on scroll up)
+  const [showPromoTicker, setShowPromoTicker] = useState(true);
+  const [activeTickerIndex, setActiveTickerIndex] = useState(0);
+  const lastScrollYRef = useRef(0);
+
+  const tickerMessages = useMemo(() => {
+    return [
+      config.general.promoTickerText ||
+        'Giao hàng miễn phí cho đơn từ 20 triệu • Bảo hành 1 đổi 1 30 ngày • Trả góp 0% qua VietQR',
+      'Chính hãng 100% • Giá tốt mỗi ngày • Hỗ trợ kỹ thuật tận tâm',
+    ];
+  }, [config.general.promoTickerText]);
+
+  // Rotate ticker messages smoothly every 4.5 seconds when in view
+  useEffect(() => {
+    if (!showPromoTicker) return;
+    const interval = setInterval(() => {
+      setActiveTickerIndex((prev) => (prev + 1) % tickerMessages.length);
+    }, 4500);
+    return () => clearInterval(interval);
+  }, [showPromoTicker, tickerMessages.length]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      const lastScrollY = lastScrollYRef.current;
+      const scrollDiff = currentScrollY - lastScrollY;
+
+      if (currentScrollY <= 15) {
+        // Ở đỉnh trang: Luôn hiển thị dòng thông báo đầu tiên
+        setShowPromoTicker(true);
+      } else if (scrollDiff > 8 && currentScrollY > 50) {
+        // Cuộn XUỐNG: Thụt mất dòng thông báo
+        setShowPromoTicker(false);
+      } else if (scrollDiff < -8) {
+        // Kéo LÊN: Hiện lại dòng thông báo và hiển thị "Chính hãng 100% Giá tốt mỗi ngày Hỗ trợ kỹ thuật tận tâm"
+        setShowPromoTicker(true);
+        setActiveTickerIndex(1);
+      }
+
+      lastScrollYRef.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
     const handleOpenVisualSearch = () => setVisualSearchOpen(true);
@@ -188,11 +235,23 @@ export const Header: React.FC = () => {
 
   return (
     <header className="bg-[#181a20] text-white sticky top-0 z-50 shadow-sm font-sans">
-      {config.general.promoTickerText && (
-        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white text-[11px] font-semibold py-1.5 px-4 text-center">
-          {config.general.promoTickerText}
+      {/* Smart Promo Ticker Bar (Thụt khi lướt xuống, hiện khi kéo lên) */}
+      <div
+        className={`bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white text-[11px] font-semibold text-center transition-all duration-300 ease-in-out overflow-hidden ${
+          showPromoTicker
+            ? 'max-h-12 opacity-100 py-1.5 px-4 translate-y-0'
+            : 'max-h-0 opacity-0 py-0 px-4 -translate-y-full pointer-events-none'
+        }`}
+      >
+        <div className="flex items-center justify-center gap-2 h-4 overflow-hidden">
+          <span
+            key={activeTickerIndex}
+            className="inline-flex items-center gap-1.5 animate-fade-in truncate"
+          >
+            {tickerMessages[activeTickerIndex]}
+          </span>
         </div>
-      )}
+      </div>
       {/* 1. Main Top Header */}
       <div className="max-w-[1360px] mx-auto px-4 py-3 flex items-center justify-between gap-4 relative z-40">
         {/* Left: Brand Logo (NEXOR Emblem) */}
