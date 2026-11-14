@@ -419,7 +419,7 @@ export default function ProductDetailPage() {
             </h1>
 
             {/* Product Meta / Stock status */}
-            <div className="flex items-center gap-3 text-xs text-gray-500 mb-4 pb-4 border-b border-gray-200">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-gray-500 mb-4 pb-4 border-b border-gray-200">
               {product.brand && (
                 <>
                   <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
@@ -435,7 +435,7 @@ export default function ProductDetailPage() {
               {matchedVariant && (
                 <span className="font-mono text-slate-400">SKU: {matchedVariant.sku}</span>
               )}
-              <span className="ml-auto">
+              <span className="w-full sm:w-auto sm:ml-auto">
                 {!isOutOfStock ? (
                   <span className="text-emerald-600 font-semibold flex items-center gap-1">
                     <Check size={14} /> Còn hàng ({currentStock} sản phẩm)
@@ -555,7 +555,7 @@ export default function ProductDetailPage() {
             </div>
 
             {/* Quantity Selector */}
-            <div className="flex items-center gap-4 mb-5 p-3.5 bg-gray-50 border border-gray-200 rounded-xl">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-5 p-3 sm:p-3.5 bg-gray-50 border border-gray-200 rounded-xl">
               <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
                 Số lượng:
               </span>
@@ -665,7 +665,7 @@ export default function ProductDetailPage() {
               <Sparkles className="w-5 h-5 text-indigo-600" />
               <span>Mô tả & Đặc điểm nổi bật</span>
             </h2>
-            <div className="text-sm leading-relaxed text-gray-700 whitespace-pre-line font-mono">
+            <div className="text-sm leading-relaxed text-gray-700 whitespace-pre-line font-mono break-words overflow-x-hidden">
               {product.description ||
                 'Sản phẩm công nghệ chính hãng cao cấp từ NEXOR. Thiết kế tinh xảo, hiệu năng vượt trội và chế độ bảo hành uy tín.'}
             </div>

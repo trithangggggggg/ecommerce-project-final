@@ -236,10 +236,10 @@ export function AiChatbot() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 select-none">
+    <div className="fixed bottom-4 right-3 sm:bottom-6 sm:right-6 z-50 select-none max-w-[calc(100vw-24px)]">
       {/* 1. Tooltip chào mời (hiển thị khi chưa mở chat) */}
       {!isOpen && showTooltip && (
-        <div className="absolute bottom-16 right-0 mb-2 w-64 bg-white/95 backdrop-blur-md p-3 rounded-2xl shadow-xl border border-gray-100 flex items-start gap-2.5 animate-bounce-subtle">
+        <div className="absolute bottom-16 right-0 mb-2 w-64 max-w-[calc(100vw-32px)] bg-white/95 backdrop-blur-md p-3 rounded-2xl shadow-xl border border-gray-100 flex items-start gap-2.5 animate-bounce-subtle">
           <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center shrink-0 shadow-sm p-1">
             <img src="/images/nexor_logo.png" alt="NEXOR AI" className="w-6 h-6 object-contain" />
           </div>
@@ -266,7 +266,7 @@ export function AiChatbot() {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="relative group p-4 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 flex items-center justify-center cursor-pointer border border-white/20"
+          className="relative group p-3.5 sm:p-4 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 flex items-center justify-center cursor-pointer border border-white/20"
           title="Mở NEXOR AI Chatbot"
           aria-label="Mở NEXOR AI Chatbot"
         >
@@ -276,13 +276,13 @@ export function AiChatbot() {
             <span className="relative inline-flex rounded-full h-4 w-4 bg-amber-500 border-2 border-white"></span>
           </span>
 
-          <Bot size={28} className="group-hover:rotate-12 transition-transform duration-300" />
+          <Bot size={26} className="sm:w-7 sm:h-7 group-hover:rotate-12 transition-transform duration-300" />
         </button>
       )}
 
       {/* 3. Cửa sổ hộp thoại Chat (Chat Window) */}
       {isOpen && (
-        <div className="w-[375px] sm:w-[420px] h-[580px] max-h-[85vh] bg-white rounded-3xl shadow-2xl border border-gray-200/80 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-300">
+        <div className="w-[calc(100vw-24px)] sm:w-[420px] max-w-[420px] h-[520px] sm:h-[580px] max-h-[85vh] bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-gray-200/80 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-300">
           
           {/* Header */}
           <div className="bg-gradient-to-r from-[#161820] via-[#1f232e] to-[#161820] text-white p-4 flex items-center justify-between border-b border-gray-800">

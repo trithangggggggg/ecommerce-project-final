@@ -376,9 +376,9 @@ const StoresPage: React.FC = () => {
             </div>
 
             {/* Bộ lọc Tỉnh thành, Khoảng cách và Nút SEARCH */}
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0">
               {/* Dropdown Tỉnh/Thành */}
-              <div className="relative min-w-[130px] sm:min-w-[160px]">
+              <div className="relative flex-1 sm:flex-initial min-w-[130px] sm:min-w-[160px]">
                 <select
                   value={selectedProvince}
                   onChange={(e) => {
@@ -398,7 +398,7 @@ const StoresPage: React.FC = () => {
               </div>
 
               {/* Dropdown Sắp xếp / Khoảng cách */}
-              <div className="relative min-w-[110px] sm:min-w-[125px]">
+              <div className="relative flex-1 sm:flex-initial min-w-[110px] sm:min-w-[125px]">
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as 'default' | 'distance' | 'name')}
@@ -419,7 +419,7 @@ const StoresPage: React.FC = () => {
                     handleShowroomClick(filteredAndSortedShowrooms[0]);
                   }
                 }}
-                className="bg-black hover:bg-slate-800 active:scale-95 text-white text-[11px] font-extrabold uppercase tracking-wider px-5 py-2 rounded-full transition shadow-xs cursor-pointer"
+                className="w-full sm:w-auto bg-black hover:bg-slate-800 active:scale-95 text-white text-[11px] font-extrabold uppercase tracking-wider px-5 py-2 rounded-full transition shadow-xs cursor-pointer text-center"
               >
                 TÌM KIẾM
               </button>
@@ -428,11 +428,11 @@ const StoresPage: React.FC = () => {
 
           {/* Bố cục nội dung chính: Bên trái Bản đồ (Map) - Bên phải Danh sách (List) */}
           {/* min-h-0 và flex-1 đảm bảo không bao giờ tràn ra ngoài viewport */}
-          <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 pt-3">
+          <div className="flex-1 min-h-0 flex flex-col lg:grid lg:grid-cols-12 gap-3 sm:gap-4 pt-3">
             {/* ----------------------------------------------------------------
                 BÊN TRÁI: BẢN ĐỒ MAP
             ---------------------------------------------------------------- */}
-            <div className="lg:col-span-7 xl:col-span-8 h-full min-h-0 rounded-2xl overflow-hidden relative border border-slate-200 shadow-inner bg-slate-100">
+            <div className="lg:col-span-7 xl:col-span-8 h-[200px] sm:h-[280px] lg:h-full shrink-0 lg:shrink min-h-0 rounded-2xl overflow-hidden relative border border-slate-200 shadow-inner bg-slate-100">
               {/* Nút đổi Tile Layer */}
               <div className="absolute top-2.5 right-2.5 z-[1000]">
                 <div className="relative">
@@ -575,7 +575,7 @@ const StoresPage: React.FC = () => {
             {/* ----------------------------------------------------------------
                 BÊN PHẢI: DANH SÁCH SHOWROOM
             ---------------------------------------------------------------- */}
-            <div className="lg:col-span-5 xl:col-span-4 h-full min-h-0 flex flex-col overflow-hidden">
+            <div className="lg:col-span-5 xl:col-span-4 flex-1 lg:h-full min-h-0 flex flex-col overflow-hidden">
               <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                 {isLoadingStores ? (
                   <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400 bg-slate-50/60 rounded-2xl border border-dashed border-slate-200">

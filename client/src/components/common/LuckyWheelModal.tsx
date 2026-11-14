@@ -425,7 +425,7 @@ export const LuckyWheelModal: React.FC = () => {
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 left-6 z-40 group flex items-center gap-2.5 px-4 py-2.5 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-gray-950 font-black rounded-full shadow-[0_8px_25px_rgba(245,158,11,0.5)] transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer ring-4 ring-amber-400/30"
+        className="fixed bottom-4 left-3 sm:bottom-6 sm:left-6 z-40 group flex items-center gap-2 sm:gap-2.5 px-3 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-gray-950 font-black rounded-full shadow-[0_8px_25px_rgba(245,158,11,0.5)] transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer ring-4 ring-amber-400/30 max-w-[calc(100vw-24px)]"
         title="Vòng Quay May Mắn - NEXOR"
       >
         <div className="relative">
