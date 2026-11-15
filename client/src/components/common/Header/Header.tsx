@@ -13,6 +13,7 @@ import {
   ChevronRight,
   X,
   LogOut,
+  LogIn,
   Laptop,
   Smartphone,
   Tablet,
@@ -436,10 +437,13 @@ export const Header: React.FC = () => {
             ) : (
               <Link
                 to={ROUTES.LOGIN}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-gray-300 hover:text-white hover:bg-gray-800 transition cursor-pointer"
-                title="Đăng nhập / Tài khoản"
+                className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-full bg-gray-800/80 hover:bg-blue-600 border border-gray-700/70 hover:border-blue-500 text-gray-200 hover:text-white transition-all cursor-pointer group shadow-xs"
+                title="Đăng nhập / Đăng ký"
               >
-                <User className="w-4.5 h-4.5" />
+                <User className="w-4 h-4 text-blue-400 group-hover:text-white transition-colors" />
+                <span className="hidden sm:inline text-xs font-semibold text-gray-200 group-hover:text-white">
+                  Đăng nhập
+                </span>
               </Link>
             )}
 
@@ -710,33 +714,132 @@ export const Header: React.FC = () => {
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-[#1e222a] border-t border-gray-800 px-4 py-4 space-y-2 max-h-[calc(100vh-120px)] overflow-y-auto">
-          <p className="text-[11px] font-bold uppercase text-gray-400 pb-1 border-b border-gray-800">
-            Danh mục & Trang
-          </p>
-          {navItems.map((item) => {
-            const active = isNavItemActive(item);
+        <div className="md:hidden bg-[#1e222a] border-t border-gray-800 px-4 py-4 space-y-4 max-h-[calc(100vh-120px)] overflow-y-auto">
+          {/* User Account / Auth Section for Mobile */}
+          {isAuthenticated ? (
+            <div className="p-3 bg-gray-800/70 border border-gray-700/80 rounded-xl space-y-3 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full overflow-hidden border border-blue-500/40 bg-gray-700 flex items-center justify-center shrink-0">
+                  {userAvatar && !avatarError ? (
+                    <img
+                      src={userAvatar}
+                      alt={user?.fullName || 'Avatar'}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-sm font-bold text-white">
+                      {user?.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}
+                    </span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-bold text-white truncate text-xs">
+                      {user?.fullName || 'Người dùng'}
+                    </p>
+                    {user?.role === 'ADMIN' && (
+                      <span className="px-1.5 py-0.5 text-[9px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded">
+                        Admin
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-gray-400 truncate">{user?.email}</p>
+                </div>
+              </div>
 
-            return (
+              {/* Quick actions for logged in user */}
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-700/60 text-xs">
+                <Link
+                  to={ROUTES.PROFILE}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 py-1.5 px-2.5 rounded-lg bg-gray-700/50 text-gray-200 hover:bg-gray-700 hover:text-white transition"
+                >
+                  <User className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Tài khoản</span>
+                </Link>
+                <Link
+                  to={ROUTES.MY_ORDERS}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 py-1.5 px-2.5 rounded-lg bg-gray-700/50 text-gray-200 hover:bg-gray-700 hover:text-white transition"
+                >
+                  <Package className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Đơn hàng</span>
+                </Link>
+                {user?.role === 'ADMIN' && (
+                  <Link
+                    to={ROUTES.ADMIN}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="col-span-2 flex items-center gap-2 py-1.5 px-2.5 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 transition font-medium"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Quản trị hệ thống (Admin)</span>
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setShowLogoutModal(true);
+                  }}
+                  className="col-span-2 flex items-center justify-center gap-2 py-1.5 px-2.5 rounded-lg text-red-400 bg-red-500/10 hover:bg-red-500/20 transition font-medium cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Đăng xuất</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="p-3 bg-gradient-to-r from-blue-900/30 via-indigo-950/40 to-gray-800/60 border border-blue-500/30 rounded-xl flex items-center justify-between gap-3 shadow-sm">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-blue-600/20 border border-blue-400/30 flex items-center justify-center text-blue-400 shrink-0">
+                  <User className="w-4.5 h-4.5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-white leading-tight">Chào mừng quý khách!</p>
+                  <p className="text-[10px] text-gray-400 leading-tight truncate">Đăng nhập để nhận ưu đãi</p>
+                </div>
+              </div>
               <Link
-                key={item.name}
-                to={item.path}
-                onClick={(e) => {
-                  setMobileMenuOpen(false);
-                  if (item.isHome) {
-                    handleLogoClick(e);
-                  }
-                }}
-                className={`block py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${
-                  active
-                    ? 'text-white bg-blue-600/20 font-bold border-l-2 border-white pl-3'
-                    : 'text-gray-300 hover:text-white hover:bg-gray-800/40'
-                }`}
+                to={ROUTES.LOGIN}
+                onClick={() => setMobileMenuOpen(false)}
+                className="shrink-0 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
               >
-                {item.name}
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Đăng nhập</span>
               </Link>
-            );
-          })}
+            </div>
+          )}
+
+          <div>
+            <p className="text-[11px] font-bold uppercase text-gray-400 pb-1 border-b border-gray-800">
+              Danh mục & Trang
+            </p>
+            <div className="mt-2 space-y-1">
+              {navItems.map((item) => {
+                const active = isNavItemActive(item);
+
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.path}
+                    onClick={(e) => {
+                      setMobileMenuOpen(false);
+                      if (item.isHome) {
+                        handleLogoClick(e);
+                      }
+                    }}
+                    className={`block py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${
+                      active
+                        ? 'text-white bg-blue-600/20 font-bold border-l-2 border-white pl-3'
+                        : 'text-gray-300 hover:text-white hover:bg-gray-800/40'
+                    }`}
+                  >
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 

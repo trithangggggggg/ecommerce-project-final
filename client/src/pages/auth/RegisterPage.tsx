@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   SquarePen,
   User,
+  X,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { ROUTES } from '../../constants/routes';
@@ -386,7 +387,28 @@ export const RegisterPage: React.FC = () => {
   const isOtpComplete = otpDigits.every((d) => d !== '');
 
   return (
-    <div className="w-full max-w-[460px] sm:max-w-[480px] bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.22)] border border-gray-100 p-5 sm:p-7 font-sans my-auto">
+    <div className="w-full max-w-[460px] sm:max-w-[480px] bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.22)] border border-gray-100 p-5 sm:p-7 font-sans my-auto relative">
+      {/* Nút thoát / Về trang chủ (Top-right X button) */}
+      <Link
+        to={ROUTES.HOME}
+        className="absolute top-4 right-4 sm:top-5 sm:right-5 p-2 rounded-full text-gray-400 hover:text-gray-800 hover:bg-gray-100 transition-colors cursor-pointer group z-10"
+        title="Thoát về trang chủ"
+        aria-label="Thoát về trang chủ"
+      >
+        <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-200" />
+      </Link>
+
+      {/* Nút điều hướng quay lại trang chủ */}
+      <div className="mb-2">
+        <Link
+          to={ROUTES.HOME}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-blue-600 transition-colors group"
+        >
+          <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform duration-200" />
+          <span>Quay lại trang chủ</span>
+        </Link>
+      </div>
+
       {/* Toast Notification khi thành công */}
       {toastMessage && (
         <div className="fixed top-5 right-5 z-50 bg-gray-900/95 backdrop-blur-md text-white text-xs px-3.5 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 border border-emerald-500/40 animate-in fade-in">
