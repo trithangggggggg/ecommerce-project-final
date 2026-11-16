@@ -48,45 +48,87 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
 
   // Camera / Webcam States
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Dừng stream camera khi đóng modal hoặc đổi tab
+  // Dừng stream camera an toàn mà không gây re-render loop
   const stopCamera = useCallback(() => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach((track) => track.stop());
-      setCameraStream(null);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch (e) {
+          console.warn('Error stopping track:', e);
+        }
+      });
+      streamRef.current = null;
     }
-  }, [cameraStream]);
+    setCameraStream(null);
+  }, []);
 
   // Khởi động webcam
   const startCamera = useCallback(async () => {
     setCameraError(null);
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Trình duyệt không hỗ trợ truy cập máy ảnh.');
+        const isSecure = window.isSecureContext;
+        throw new Error(
+          !isSecure
+            ? 'Trình duyệt yêu cầu kết nối bảo mật (HTTPS hoặc localhost) để sử dụng máy ảnh.'
+            : 'Trình duyệt của bạn không hỗ trợ API truy cập máy ảnh (MediaDevices).'
+        );
       }
-      stopCamera();
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: facingMode }, width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false,
-      });
+
+      // Dừng stream cũ trước khi xin stream mới
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: facingMode }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+      } catch (constraintErr) {
+        console.warn('Fallback to basic video constraint:', constraintErr);
+        // Fallback constraint cơ bản nhất nếu thiết bị không hỗ trợ độ phân giải hoặc facingMode
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+      }
+
+      streamRef.current = stream;
       setCameraStream(stream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
     } catch (err: unknown) {
       const error = err as Error;
-      setCameraError(
-        error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError'
-          ? 'Quyền truy cập máy ảnh bị từ chối. Vui lòng cấp quyền trong cài đặt trình duyệt.'
-          : error.message || 'Không thể mở máy ảnh.'
-      );
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        setCameraError('Quyền truy cập máy ảnh bị từ chối. Vui lòng bấm vào biểu tượng ổ khóa/máy ảnh trên thanh địa chỉ trình duyệt để Cho phép (Allow).');
+      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        setCameraError('Máy ảnh đang bị ứng dụng khác (Zoom, Teams, Camera app...) chiếm dụng. Vui lòng tắt ứng dụng đó và bấm "Thử lại".');
+      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        setCameraError('Không tìm thấy thiết bị máy ảnh (Webcam) kết nối với máy tính/điện thoại.');
+      } else {
+        setCameraError(error.message || 'Không thể mở máy ảnh.');
+      }
     }
-  }, [facingMode, stopCamera]);
+  }, [facingMode]);
+
+  // Đồng bộ stream vào thẻ video khi videoRef và cameraStream sẵn sàng
+  useEffect(() => {
+    if (videoRef.current && cameraStream) {
+      videoRef.current.srcObject = cameraStream;
+      videoRef.current.play().catch((err) => {
+        console.warn('Video auto play caught:', err);
+      });
+    }
+  }, [cameraStream]);
 
   // Tự động bật/tắt camera theo tab
   useEffect(() => {
@@ -96,6 +138,16 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
       stopCamera();
     }
   }, [isOpen, activeTab, selectedImage, startCamera, stopCamera]);
+
+  // Dọn dẹp stream khi unmount component
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, []);
 
   // Lắng nghe sự kiện Paste (Ctrl + V)
   useEffect(() => {
