@@ -48,6 +48,14 @@ public class WheelServiceImpl implements WheelService {
     @Autowired(required = false)
     private WheelRewardRepository wheelRewardRepository;
 
+    @Autowired(required = false)
+    private ra.project.server.service.SystemSettingService systemSettingService;
+
+    private boolean isWheelEnabled() {
+        if (systemSettingService == null) return true;
+        return systemSettingService.getBoolean("general.wheelEnabled", true);
+    }
+
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final String ALPHANUMERIC = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -224,6 +232,18 @@ public class WheelServiceImpl implements WheelService {
         User currentUser = getOptionalCurrentUser();
         List<WheelReward> rewards = getDefaultRewards();
 
+        if (!isWheelEnabled()) {
+            return ApiResponse.success("Lấy trạng thái vòng quay thành công",
+                    WheelStatusResponse.builder()
+                            .canSpin(false)
+                            .hasSpunToday(false)
+                            .remainingSpins(0)
+                            .message("Chương trình Vòng quay may mắn hiện đang tạm đóng.")
+                            .rewards(rewards)
+                            .build()
+            );
+        }
+
         if (currentUser == null) {
             return ApiResponse.success("Lấy trạng thái vòng quay thành công",
                     WheelStatusResponse.builder()
@@ -268,6 +288,10 @@ public class WheelServiceImpl implements WheelService {
     @Override
     @Transactional
     public synchronized ApiResponse<WheelSpinResponse> spinWheel() {
+        if (!isWheelEnabled()) {
+            throw new BadRequestException("Chương trình Vòng quay may mắn hiện đang tạm đóng. Vui lòng quay lại sau!");
+        }
+
         User user = getCurrentAuthenticatedUser();
         LocalDate today = LocalDate.now();
 

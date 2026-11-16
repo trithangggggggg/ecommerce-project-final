@@ -49,7 +49,8 @@ const getRewardTextLines = (reward: WheelReward): [string, string] => {
 export const LuckyWheelModal: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
-  const wheelEnabled = useSiteConfigStore((s) => s.config.general.wheelEnabled);
+  const rawWheelEnabled = useSiteConfigStore((s) => s.config?.general?.wheelEnabled);
+  const isWheelActive = rawWheelEnabled !== false && String(rawWheelEnabled) !== 'false';
 
   const [isOpen, setIsOpen] = useState(false);
   const [wheelStatus, setWheelStatus] = useState<WheelStatusResponse | null>(null);
@@ -296,6 +297,11 @@ export const LuckyWheelModal: React.FC = () => {
     setErrorMsg(null);
     setSpinResult(null);
 
+    if (!isWheelActive) {
+      setErrorMsg('Chương trình Vòng quay may mắn hiện đang tạm đóng. Vui lòng quay lại sau!');
+      return;
+    }
+
     if (!isAuthenticated) {
       setErrorMsg('Vui lòng đăng nhập tài khoản để tham gia quay thưởng nhận voucher!');
       return;
@@ -415,47 +421,48 @@ export const LuckyWheelModal: React.FC = () => {
   // Xác định mã voucher hiển thị hôm nay
   const displayVoucherCode = spinResult?.voucherCode || wheelStatus?.todayVoucherCode;
 
-  if (!wheelEnabled) return null;
-
   return (
     <>
       {/* ========================================================= */}
       {/* 1. NÚT NỔI HỘP QUÀ (FLOATING GIFT BUTTON GÓC TRÁI MÀN HÌNH) */}
+      {/* Chỉ hiển thị khi Vòng quay đang được kích hoạt bật trên hệ thống */}
       {/* ========================================================= */}
-      <button
-        type="button"
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-4 left-3 sm:bottom-6 sm:left-6 z-40 group flex items-center gap-2 sm:gap-2.5 px-3 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-gray-950 font-black rounded-full shadow-[0_8px_25px_rgba(245,158,11,0.5)] transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer ring-4 ring-amber-400/30 max-w-[calc(100vw-24px)]"
-        title="Vòng Quay May Mắn - NEXOR"
-      >
-        <div className="relative">
-          <Gift className="w-6 h-6 text-gray-950 animate-bounce" />
-          <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-            <span
-              className={`animate-ping absolute inline-flex h-full w-full rounded-full ${
-                remainingSpins > 0 ? 'bg-emerald-400' : 'bg-red-400'
-              } opacity-75`}
-            />
-            <span
-              className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-                remainingSpins > 0 ? 'bg-emerald-500' : 'bg-red-500'
-              }`}
-            />
-          </span>
-        </div>
-        <div className="flex flex-col text-left">
-          <span className="text-[11px] font-black uppercase tracking-wider leading-none text-gray-950">
-            VÒNG QUAY NEXOR
-          </span>
-          <span className="text-[9px] font-extrabold text-amber-950 leading-tight">
-            {!isAuthenticated
-              ? '1 LƯỢT MIỄN PHÍ'
-              : remainingSpins > 0
-              ? 'CÒN 1 LƯỢT QUAY'
-              : '0 LƯỢT - CHỜ MAI'}
-          </span>
-        </div>
-      </button>
+      {isWheelActive && (
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          className="fixed bottom-4 left-3 sm:bottom-6 sm:left-6 z-40 group flex items-center gap-2 sm:gap-2.5 px-3 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-gray-950 font-black rounded-full shadow-[0_8px_25px_rgba(245,158,11,0.5)] transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer ring-4 ring-amber-400/30 max-w-[calc(100vw-24px)]"
+          title="Vòng Quay May Mắn - NEXOR"
+        >
+          <div className="relative">
+            <Gift className="w-6 h-6 text-gray-950 animate-bounce" />
+            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+              <span
+                className={`animate-ping absolute inline-flex h-full w-full rounded-full ${
+                  remainingSpins > 0 ? 'bg-emerald-400' : 'bg-red-400'
+                } opacity-75`}
+              />
+              <span
+                className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                  remainingSpins > 0 ? 'bg-emerald-500' : 'bg-red-500'
+                }`}
+              />
+            </span>
+          </div>
+          <div className="flex flex-col text-left">
+            <span className="text-[11px] font-black uppercase tracking-wider leading-none text-gray-950">
+              VÒNG QUAY NEXOR
+            </span>
+            <span className="text-[9px] font-extrabold text-amber-950 leading-tight">
+              {!isAuthenticated
+                ? '1 LƯỢT MIỄN PHÍ'
+                : remainingSpins > 0
+                ? 'CÒN 1 LƯỢT QUAY'
+                : '0 LƯỢT - CHỜ MAI'}
+            </span>
+          </div>
+        </button>
+      )}
 
       {/* ========================================================= */}
       {/* 2. MODAL VÒNG QUAY MAY MẮN (GIAO DIỆN SANG TRỌNG 100% NHƯ ẢNH) */}
@@ -505,7 +512,9 @@ export const LuckyWheelModal: React.FC = () => {
               </div>
 
               <p className="text-[11px] sm:text-xs text-gray-300 font-medium mt-0.5">
-                Quay mỗi ngày để nhận những phần quà hấp dẫn từ NEXOR!
+                {!isWheelActive
+                  ? 'Chương trình Vòng quay may mắn hiện đang tạm đóng để nâng cấp phần thưởng.'
+                  : 'Quay mỗi ngày để nhận những phần quà hấp dẫn từ NEXOR!'}
               </p>
             </div>
 
@@ -545,15 +554,20 @@ export const LuckyWheelModal: React.FC = () => {
               <button
                 type="button"
                 onClick={handleSpin}
-                disabled={spinning || (wheelStatus ? !wheelStatus.canSpin : false)}
+                disabled={spinning || !isWheelActive || (wheelStatus ? !wheelStatus.canSpin : false)}
                 className={`absolute z-10 w-[62px] h-[62px] sm:w-[70px] sm:h-[70px] rounded-full flex flex-col items-center justify-center shadow-[0_4px_18px_rgba(0,0,0,0.6),0_0_18px_rgba(245,158,11,0.5)] transition-all cursor-pointer ${
-                  spinning || (wheelStatus ? !wheelStatus.canSpin : false)
+                  spinning || !isWheelActive || (wheelStatus ? !wheelStatus.canSpin : false)
                     ? 'bg-gradient-to-b from-gray-600 to-gray-800 text-gray-300 cursor-not-allowed opacity-90 ring-4 ring-gray-900/60'
                     : 'bg-gradient-to-b from-[#fef08a] via-[#f59e0b] to-[#d97706] text-[#291e0a] hover:scale-105 active:scale-95 hover:shadow-[0_0_25px_rgba(245,158,11,0.8)] ring-4 ring-amber-300/40 border-2 border-white'
                 }`}
               >
                 {spinning ? (
                   <RotateCw className="w-6 h-6 animate-spin text-white" />
+                ) : !isWheelActive ? (
+                  <>
+                    <span className="text-[11px] sm:text-[12px] font-black leading-tight tracking-wider text-gray-200">TẠM</span>
+                    <span className="text-[9px] sm:text-[10px] font-bold leading-tight tracking-wider text-amber-400">ĐÓNG</span>
+                  </>
                 ) : wheelStatus && !wheelStatus.canSpin ? (
                   <>
                     <span className="text-[11px] sm:text-[12px] font-black leading-tight tracking-wider text-gray-200">HẾT</span>
