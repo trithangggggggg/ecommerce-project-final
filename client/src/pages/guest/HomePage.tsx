@@ -169,6 +169,7 @@ export default function HomePage() {
     fetchBanners,
   } = useBannerStore();
   const { config, fetchSiteConfig } = useSiteConfigStore();
+  const isWheelEnabled = config?.general?.wheelEnabled !== false && String(config?.general?.wheelEnabled) !== 'false';
 
   useEffect(() => {
     if (!bannersLoaded) {
@@ -879,9 +880,15 @@ export default function HomePage() {
 
             {/* Content on top */}
             <div className="relative z-10 max-w-sm sm:max-w-md text-left">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/30 text-amber-300 text-xs font-semibold mb-3 backdrop-blur-sm">
-                <Gift size={13} className="text-amber-300 animate-bounce" />
-                <span>Minigame hàng ngày</span>
+              <div
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-semibold mb-3 backdrop-blur-sm ${
+                  isWheelEnabled
+                    ? 'bg-amber-500/20 border-amber-400/30 text-amber-300'
+                    : 'bg-gray-500/20 border-gray-400/30 text-gray-400'
+                }`}
+              >
+                <Gift size={13} className={isWheelEnabled ? 'text-amber-300 animate-bounce' : 'text-gray-400'} />
+                <span>{isWheelEnabled ? 'Minigame hàng ngày' : 'Minigame (Tạm ngưng)'}</span>
               </div>
               <h3 className="text-xl sm:text-2xl font-black tracking-tight mb-2 text-white">
                 Vòng quay may mắn - Trúng Voucher 100K
@@ -893,10 +900,14 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => window.dispatchEvent(new CustomEvent('open-lucky-wheel'))}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-slate-950 text-xs sm:text-sm font-black shadow-lg shadow-amber-500/40 transition-all transform active:scale-95 cursor-pointer"
+                  className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black shadow-lg transition-all transform active:scale-95 cursor-pointer ${
+                    isWheelEnabled
+                      ? 'bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-slate-950 shadow-amber-500/40'
+                      : 'bg-slate-700 hover:bg-slate-600 text-slate-300 shadow-slate-900/40'
+                  }`}
                 >
                   <Gift size={16} />
-                  <span>Quay ngay nhận quà</span>
+                  <span>{isWheelEnabled ? 'Quay ngay nhận quà' : 'Xem chi tiết (Tạm đóng)'}</span>
                   <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
                 </button>
               </div>

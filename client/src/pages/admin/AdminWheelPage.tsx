@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Gift, Eye, EyeOff } from 'lucide-react';
 import AdminPagination from '../../components/admin/AdminPagination';
 import AdminSummaryStrip from '../../components/admin/AdminSummaryStrip';
 import { adminWheelService } from '../../api/services/adminWheel.service';
+import { settingService } from '../../api/services/setting.service';
+import { useSiteConfigStore } from '../../store/useSiteConfigStore';
 import type {
   AdminWheelSpinHistoryItem,
   AdminWheelStatsResponse,
@@ -74,6 +77,43 @@ export const AdminWheelPage: React.FC = () => {
     username?: string;
   }>({ isOpen: false, userId: null });
 
+  // Trạng thái Bật / Tắt Vòng quay toàn hệ thống
+  const [isWheelEnabled, setIsWheelEnabled] = useState<boolean>(true);
+  const [isTogglingStatus, setIsTogglingStatus] = useState<boolean>(false);
+
+  const fetchWheelSystemStatus = useCallback(async () => {
+    try {
+      const cfg = await settingService.getPublicSettings();
+      if (cfg?.general) {
+        setIsWheelEnabled(cfg.general.wheelEnabled !== false && String(cfg.general.wheelEnabled) !== 'false');
+      }
+    } catch {
+      // Keep default
+    }
+  }, []);
+
+  const handleToggleWheelEnabled = async () => {
+    setIsTogglingStatus(true);
+    const nextState = !isWheelEnabled;
+    try {
+      await settingService.bulkSaveSettings({
+        'general.wheelEnabled': String(nextState),
+      });
+      setIsWheelEnabled(nextState);
+      void useSiteConfigStore.getState().fetchSiteConfig(true);
+      showToast(
+        'success',
+        nextState
+          ? 'Đã BẬT Vòng quay may mắn trên toàn hệ thống!'
+          : 'Đã TẮT Vòng quay may mắn trên Client!'
+      );
+    } catch (err: unknown) {
+      showToast('error', err instanceof Error ? err.message : 'Lỗi khi cập nhật trạng thái');
+    } finally {
+      setIsTogglingStatus(false);
+    }
+  };
+
   // Tải thống kê tổng quan và cấu hình phần thưởng
   const fetchOverview = useCallback(async () => {
     try {
@@ -138,7 +178,8 @@ export const AdminWheelPage: React.FC = () => {
 
   useEffect(() => {
     fetchOverview();
-  }, [fetchOverview]);
+    void fetchWheelSystemStatus();
+  }, [fetchOverview, fetchWheelSystemStatus]);
 
   useEffect(() => {
     void fetchPagedRewards();
@@ -368,6 +409,7 @@ export const AdminWheelPage: React.FC = () => {
             disabled={isLoading}
             onClick={() => {
               fetchOverview();
+              void fetchWheelSystemStatus();
               fetchHistory(currentPage, searchQuery, dateFilter);
               showToast('success', 'Đã làm mới dữ liệu vòng quay!');
             }}
@@ -376,6 +418,70 @@ export const AdminWheelPage: React.FC = () => {
             {isLoading ? 'Đang tải...' : 'Làm mới'}
           </button>
         </div>
+      </div>
+
+      {/* CARD BẬT / TẮT VÒNG QUAY TOÀN HỆ THỐNG */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white rounded-xl border border-slate-200/90 shadow-2xs">
+        <div className="flex items-center gap-3">
+          <div
+            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+              isWheelEnabled
+                ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                : 'bg-slate-100 text-slate-500 border border-slate-200'
+            }`}
+          >
+            <Gift className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-slate-900">
+                Trạng thái hiển thị Vòng quay trên Website (Client):
+              </span>
+              <span
+                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                  isWheelEnabled
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                    : 'bg-rose-100 text-rose-800 border border-rose-200'
+                }`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    isWheelEnabled ? 'bg-emerald-600 animate-pulse' : 'bg-rose-600'
+                  }`}
+                />
+                {isWheelEnabled ? 'ĐANG BẬT (Khách hàng thấy & quay được)' : 'ĐANG TẮT (Ẩn nút nổi & tạm ngưng)'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Khi bật: Nút hộp quà nổi ở góc màn hình và popup vòng quay sẽ mở cho người dùng. Khi tắt: Nút nổi tự động ẩn trên toàn bộ trang.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          disabled={isTogglingStatus}
+          onClick={handleToggleWheelEnabled}
+          className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shrink-0 ${
+            isWheelEnabled
+              ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+              : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs'
+          }`}
+        >
+          {isTogglingStatus ? (
+            <span>Đang lưu...</span>
+          ) : isWheelEnabled ? (
+            <>
+              <EyeOff className="w-3.5 h-3.5" />
+              <span>Tắt vòng quay</span>
+            </>
+          ) : (
+            <>
+              <Eye className="w-3.5 h-3.5" />
+              <span>Bật vòng quay ngay</span>
+            </>
+          )}
+        </button>
       </div>
 
       {/* STAT STRIP / KPIS */}
