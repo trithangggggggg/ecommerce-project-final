@@ -172,6 +172,9 @@ export const visualSearchService = {
           ENDPOINTS.AI.VISUAL_SEARCH,
           formData,
           {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
             timeout: 25000,
           }
         );
