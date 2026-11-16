@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Gift,
   X,
@@ -48,8 +48,9 @@ const getRewardTextLines = (reward: WheelReward): [string, string] => {
 
 export const LuckyWheelModal: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated } = useAuthStore();
-  const wheelEnabled = useSiteConfigStore((s) => s.config.general.wheelEnabled);
+  const wheelEnabled = useSiteConfigStore((s) => s.config?.general?.wheelEnabled !== false);
 
   const [isOpen, setIsOpen] = useState(false);
   const [wheelStatus, setWheelStatus] = useState<WheelStatusResponse | null>(null);
@@ -100,6 +101,18 @@ export const LuckyWheelModal: React.FC = () => {
     window.addEventListener('open-lucky-wheel', handleOpen);
     return () => window.removeEventListener('open-lucky-wheel', handleOpen);
   }, []);
+
+  // Tự động mở modal khi truy cập /wheel, /vong-quay hoặc qua query param ?wheel=true / hash #wheel
+  useEffect(() => {
+    const isWheelPath = location.pathname === '/wheel' || location.pathname === '/vong-quay';
+    const params = new URLSearchParams(location.search);
+    const hasWheelParam = params.get('wheel') === 'true' || params.get('wheel') === '1' || params.get('openWheel') === 'true';
+    const hasWheelHash = location.hash === '#wheel' || location.hash === '#vong-quay';
+
+    if (isWheelPath || hasWheelParam || hasWheelHash) {
+      setIsOpen(true);
+    }
+  }, [location.pathname, location.search, location.hash]);
 
   // Đồng hồ đếm ngược đến 00:00:00 ngày hôm sau
   useEffect(() => {
@@ -425,7 +438,7 @@ export const LuckyWheelModal: React.FC = () => {
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-4 left-3 sm:bottom-6 sm:left-6 z-40 group flex items-center gap-2 sm:gap-2.5 px-3 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-gray-950 font-black rounded-full shadow-[0_8px_25px_rgba(245,158,11,0.5)] transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer ring-4 ring-amber-400/30 max-w-[calc(100vw-24px)]"
+        className="fixed bottom-4 left-3 sm:bottom-6 sm:left-6 z-[45] group flex items-center gap-2 sm:gap-2.5 px-3 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-gray-950 font-black rounded-full shadow-[0_8px_25px_rgba(245,158,11,0.5)] transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer ring-4 ring-amber-400/30 max-w-[calc(100vw-24px)]"
         title="Vòng Quay May Mắn - NEXOR"
       >
         <div className="relative">
