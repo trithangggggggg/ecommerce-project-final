@@ -94,6 +94,12 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
     private void createVariantTablesIfNotExists() {
         log.info(">>> [Migration] Kiểm tra và tạo các bảng mới nếu chưa tồn tại...");
 
+        try {
+            jdbcTemplate.execute("UPDATE product_variants SET status = '1' WHERE status = 'ACTIVE' OR status IS NULL");
+            jdbcTemplate.execute("ALTER TABLE product_variants MODIFY COLUMN status BIT(1) NOT NULL DEFAULT 1");
+        } catch (Exception ignored) {
+        }
+
         // 1. product_options
         jdbcTemplate.execute("""
             CREATE TABLE IF NOT EXISTS `product_options` (
@@ -837,6 +843,11 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
                 INDEX idx_wheel_reward_order (display_order)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         """);
+
+        try {
+            jdbcTemplate.execute("ALTER TABLE wheel_rewards MODIFY COLUMN probability DOUBLE NULL DEFAULT 0");
+        } catch (Exception ignored) {
+        }
 
         Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM wheel_rewards", Integer.class);
         if (count != null && count == 0) {
