@@ -11,6 +11,11 @@ import {
   SwitchCamera,
   ImageIcon,
   ArrowRight,
+  Sparkles,
+  CheckCircle2,
+  Cpu,
+  Layers,
+  Info,
 } from 'lucide-react';
 import { visualSearchService } from '../../api/services/visualSearch.service';
 import type { VisualSearchResponse, VisualSearchProductItem } from '../../models/visualSearch.model';
@@ -97,7 +102,6 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
         });
       } catch (constraintErr) {
         console.warn('Fallback to basic video constraint:', constraintErr);
-        // Fallback constraint cơ bản nhất nếu thiết bị không hỗ trợ độ phân giải hoặc facingMode
         stream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: false,
@@ -190,7 +194,7 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
     setIsAnalyzing(true);
     setErrorMsg(null);
     setSearchResponse(null);
-    setStatusMessage('Đang xử lý hình ảnh...');
+    setStatusMessage('Đang tải hình ảnh và chuẩn bị vector AI...');
 
     try {
       const res = await visualSearchService.search(imageInput, (step) => {
@@ -311,12 +315,22 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
   };
 
+  // Phân loại kết quả: Sản phẩm khớp thực tế (>= 50% và không phải gợi ý fallback) vs Sản phẩm gợi ý thêm
+  const exactMatches =
+    searchResponse?.products?.filter(
+      (p) => p.matchPercent >= 50 && (!p.matchReason || !p.matchReason.includes('Gợi ý'))
+    ) || [];
+
+  const suggestedMatches =
+    searchResponse?.products?.filter(
+      (p) => p.matchPercent < 50 || (p.matchReason && p.matchReason.includes('Gợi ý'))
+    ) || [];
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-sm animate-fade-in font-sans">
       <div className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto overflow-x-hidden rounded-2xl bg-[#0f1115] border border-white/10 shadow-2xl flex flex-col text-white">
-        
         {/* ========================================================= */}
         {/* 1. HEADER: TỐI GIẢN ĐEN - XÁM - TRẮNG */}
         {/* ========================================================= */}
@@ -326,11 +340,17 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
               <Camera className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white tracking-tight">
-                Tìm kiếm bằng hình ảnh
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-white tracking-tight">
+                  Tìm kiếm bằng hình ảnh (NEXOR AI Vision)
+                </h2>
+                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-semibold">
+                  <Sparkles className="w-3 h-3" />
+                  Quy trình 2 giai đoạn
+                </span>
+              </div>
               <p className="text-xs text-gray-400">
-                Tìm sản phẩm tương đồng qua ảnh tải lên, máy ảnh hoặc đường dẫn
+                Nhận diện chính xác thương hiệu & dòng sản phẩm trước, sau đó so khớp kho hàng NEXOR
               </p>
             </div>
           </div>
@@ -350,7 +370,6 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
         {/* 2. NỘI DUNG CHÍNH */}
         {/* ========================================================= */}
         <div className="p-5 sm:p-6 flex-1 flex flex-col gap-5">
-
           {/* KHI CHƯA CHỌN ẢNH: CÁC TAB NẠP ẢNH TỐI GIẢN */}
           {!selectedImage && (
             <div className="flex flex-col gap-5">
@@ -429,7 +448,10 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                       </span>
                     </p>
                     <p className="text-xs text-gray-400">
-                      Hỗ trợ JPEG, PNG, WEBP (tối đa 5MB) • Dán nhanh bằng phím <kbd className="px-1.5 py-0.5 rounded bg-white/10 border border-white/15 text-[11px] text-gray-200 font-mono">Ctrl + V</kbd>
+                      Hỗ trợ JPEG, PNG, WEBP (tối đa 5MB) • Dán nhanh bằng phím{' '}
+                      <kbd className="px-1.5 py-0.5 rounded bg-white/10 border border-white/15 text-[11px] text-gray-200 font-mono">
+                        Ctrl + V
+                      </kbd>
                     </p>
                   </div>
                 </div>
@@ -498,7 +520,10 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
 
               {/* TAB 3: DÁN ĐƯỜNG DẪN URL */}
               {activeTab === 'url' && (
-                <form onSubmit={handleUrlSubmit} className="flex flex-col gap-3 bg-[#14171d] p-5 rounded-2xl border border-white/10">
+                <form
+                  onSubmit={handleUrlSubmit}
+                  className="flex flex-col gap-3 bg-[#14171d] p-5 rounded-2xl border border-white/10"
+                >
                   <div className="flex flex-col sm:flex-row items-center gap-2">
                     <div className="relative flex-1 w-full">
                       <LinkIcon className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -524,7 +549,7 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
               {/* MẪU ẢNH CÔNG NGHỆ THỬ NGHIỆM */}
               <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
                 <span className="text-xs text-gray-400 font-normal">
-                  Hoặc thử nhanh với ảnh mẫu:
+                  Hoặc thử nhanh với ảnh mẫu công nghệ có sẵn:
                 </span>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {QUICK_SAMPLE_IMAGES.map((sample) => (
@@ -553,11 +578,10 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
             </div>
           )}
 
-          {/* KHI ĐÃ CÓ ẢNH: SPLIT VIEW HIỂN THỊ ẢNH QUÉT & KẾT QUẢ TỐI GIẢN */}
+          {/* KHI ĐÃ CÓ ẢNH: SPLIT VIEW HIỂN THỊ ẢNH QUÉT & KẾT QUẢ 2 GIAI ĐOẠN */}
           {selectedImage && (
             <div className="flex flex-col lg:flex-row items-start gap-6">
-              
-              {/* CỘT TRÁI: KHUNG ẢNH & TIA QUÉT TRẮNG */}
+              {/* CỘT TRÁI: KHUNG ẢNH & TIA QUÉT */}
               <div className="w-full lg:w-72 shrink-0 flex flex-col gap-3">
                 <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-black border border-white/15 flex items-center justify-center">
                   <img
@@ -566,7 +590,7 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                     className="w-full h-full object-contain p-2"
                   />
 
-                  {/* TIA LASER TRẮNG QUÉT TRÊN ẢNH */}
+                  {/* TIA LASER QUÉT TRÊN ẢNH */}
                   {isAnalyzing && (
                     <>
                       <div className="absolute inset-0 bg-white/5 pointer-events-none" />
@@ -605,9 +629,8 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                 )}
               </div>
 
-              {/* CỘT PHẢI: KẾT QUẢ SẢN PHẨM */}
-              <div className="flex-1 w-full flex flex-col gap-3">
-                
+              {/* CỘT PHẢI: KẾT QUẢ 2 GIAI ĐOẠN */}
+              <div className="flex-1 w-full flex flex-col gap-4">
                 {/* Lỗi nếu có */}
                 {errorMsg && (
                   <div className="p-3 bg-red-950/40 border border-red-500/30 rounded-xl flex items-center justify-between gap-3 text-xs text-red-200">
@@ -617,7 +640,11 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                     </div>
                     <button
                       type="button"
-                      onClick={() => currentFile ? analyzeImage(currentFile) : (selectedImage && analyzeImage(selectedImage))}
+                      onClick={() =>
+                        currentFile
+                          ? analyzeImage(currentFile)
+                          : selectedImage && analyzeImage(selectedImage)
+                      }
                       className="py-1 px-2.5 bg-red-600 hover:bg-red-500 text-white rounded font-medium text-[11px]"
                     >
                       Thử lại
@@ -627,11 +654,21 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
 
                 {/* Loading skeleton */}
                 {isAnalyzing && (
-                  <div className="flex flex-col gap-2.5">
-                    <div className="h-4 w-40 bg-white/10 rounded animate-pulse" />
+                  <div className="flex flex-col gap-3">
+                    <div className="p-4 rounded-xl bg-[#14171d] border border-white/10 animate-pulse flex flex-col gap-2">
+                      <div className="h-4 w-48 bg-white/10 rounded" />
+                      <div className="h-3 w-32 bg-white/5 rounded" />
+                      <div className="flex gap-2 mt-2">
+                        <div className="h-6 w-20 bg-white/5 rounded-md" />
+                        <div className="h-6 w-24 bg-white/5 rounded-md" />
+                      </div>
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       {[1, 2, 3, 4].map((n) => (
-                        <div key={n} className="p-3 rounded-xl bg-[#14171d] border border-white/10 flex gap-3 animate-pulse">
+                        <div
+                          key={n}
+                          className="p-3 rounded-xl bg-[#14171d] border border-white/10 flex gap-3 animate-pulse"
+                        >
                           <div className="w-16 h-16 bg-white/5 rounded-lg shrink-0" />
                           <div className="flex-1 flex flex-col gap-2 justify-center">
                             <div className="h-3.5 bg-white/10 rounded w-full" />
@@ -643,97 +680,260 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                   </div>
                 )}
 
-                {/* Danh sách kết quả */}
+                {/* ======================================================= */}
+                {/* HIỂN THỊ KẾT QUẢ KHI HOÀN TẤT */}
+                {/* ======================================================= */}
                 {!isAnalyzing && searchResponse && (
-                  <div className="flex flex-col gap-3">
-                    {/* Header kết quả */}
-                    <div className="flex items-center justify-between pb-2 border-b border-white/10">
-                      <span className="text-xs font-semibold text-gray-200">
-                        Tìm thấy {searchResponse.products?.length || searchResponse.totalMatches || 0} sản phẩm tương đồng
-                      </span>
-                      {searchResponse.detectedAttributes?.category && (
-                        <span className="px-2 py-0.5 rounded-md bg-white/10 text-gray-300 text-[11px] font-medium border border-white/10">
-                          {searchResponse.detectedAttributes.category}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Grid sản phẩm tối giản */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[50vh] overflow-y-auto pr-1">
-                      {searchResponse.products?.map((item: VisualSearchProductItem) => (
-                        <div
-                          key={item.id}
-                          onClick={() => {
-                            handleClose();
-                            navigate(`/products/${item.id}`);
-                          }}
-                          className="group relative p-2.5 rounded-xl bg-[#14171d] hover:bg-[#1a1d26] border border-white/10 hover:border-white/30 transition flex gap-3 cursor-pointer"
-                        >
-                          {/* Thumbnail */}
-                          <div className="w-16 h-16 rounded-lg overflow-hidden bg-black/50 border border-white/10 shrink-0 flex items-center justify-center p-1">
-                            <img
-                              src={item.imageUrl || '/images/logo.png'}
-                              alt={item.name}
-                              className="w-full h-full object-contain"
-                            />
+                  <div className="flex flex-col gap-4">
+                    {/* GIAI ĐOẠN 1: CARD NHẬN DIỆN THỊ GIÁC AI */}
+                    {searchResponse.detectedAttributes && (
+                      <div className="p-4 rounded-xl bg-[#14171d] border border-white/15 relative overflow-hidden flex flex-col gap-2.5 shadow-sm">
+                        <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-2.5">
+                          <div className="flex items-center gap-1.5 text-emerald-400 font-semibold text-xs">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                            <span>Giai đoạn 1: AI đã nhận diện sản phẩm trong ảnh</span>
                           </div>
+                          <span className="text-[10px] text-gray-400 font-mono">
+                            Độ tin cậy: {searchResponse.detectedAttributes.confidence || 'HIGH'}
+                          </span>
+                        </div>
 
-                          {/* Chi tiết */}
-                          <div className="flex-1 flex flex-col justify-between min-w-0">
-                            <div>
-                              <div className="flex items-center justify-between gap-1 mb-1">
-                                <span className="text-[10px] text-gray-400 uppercase tracking-wide truncate">
-                                  {item.brand || item.categoryName}
-                                </span>
-                                {/* Badge % Match tối giản */}
-                                <span className="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono text-[10px] font-bold border border-white/15 shrink-0">
-                                  {item.matchPercent}%
-                                </span>
-                              </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-white tracking-tight">
+                            {searchResponse.detectedAttributes.identifiedTitle ||
+                              `${searchResponse.detectedAttributes.brand || ''} ${
+                                searchResponse.detectedAttributes.productLine ||
+                                searchResponse.detectedAttributes.category ||
+                                ''
+                              }`.trim()}
+                          </h3>
+                        </div>
 
-                              <h4 className="text-xs font-medium text-gray-200 line-clamp-2 group-hover:text-white transition">
-                                {item.name}
-                              </h4>
-
-                              {item.matchReason && (
-                                <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">
-                                  {item.matchReason}
-                                </p>
-                              )}
-                            </div>
-
-                            <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-white/5">
-                              <span className="text-xs font-bold text-white">
-                                {formatPrice(item.price)}
-                              </span>
-
-                              <span className="inline-flex items-center gap-1 text-[11px] text-gray-400 group-hover:text-white transition">
-                                <span>Xem</span>
-                                <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-                              </span>
-                            </div>
+                        {/* Chi tiết thông số nhận diện */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] pt-1">
+                          <div className="flex flex-col p-2 rounded-lg bg-white/5 border border-white/5">
+                            <span className="text-gray-400 text-[10px]">Thương hiệu</span>
+                            <span className="font-bold text-white truncate">
+                              {searchResponse.detectedAttributes.brand || 'Chưa rõ'}
+                            </span>
+                          </div>
+                          <div className="flex flex-col p-2 rounded-lg bg-white/5 border border-white/5">
+                            <span className="text-gray-400 text-[10px]">Dòng sản phẩm</span>
+                            <span className="font-bold text-white truncate">
+                              {searchResponse.detectedAttributes.productLine ||
+                                searchResponse.detectedAttributes.category ||
+                                'Tiêu chuẩn'}
+                            </span>
+                          </div>
+                          <div className="flex flex-col p-2 rounded-lg bg-white/5 border border-white/5">
+                            <span className="text-gray-400 text-[10px]">Danh mục</span>
+                            <span className="font-bold text-white truncate">
+                              {searchResponse.detectedAttributes.category || 'Thiết bị số'}
+                            </span>
+                          </div>
+                          <div className="flex flex-col p-2 rounded-lg bg-white/5 border border-white/5">
+                            <span className="text-gray-400 text-[10px]">Màu sắc</span>
+                            <span className="font-bold text-white truncate">
+                              {searchResponse.detectedAttributes.color || 'Tiêu chuẩn'}
+                            </span>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
-                {/* Kết quả rỗng */}
-                {!isAnalyzing && searchResponse && (!searchResponse.products || searchResponse.products.length === 0) && (
-                  <div className="p-8 text-center flex flex-col items-center justify-center gap-3 bg-[#14171d] rounded-xl border border-white/10">
-                    <ImageIcon className="w-8 h-8 text-gray-500" />
-                    <h3 className="text-xs font-medium text-gray-300">Không tìm thấy sản phẩm tương đồng</h3>
-                    <p className="text-[11px] text-gray-500 max-w-sm">
-                      Hãy thử tải lên ảnh có độ phân giải cao hơn, góc chụp thẳng và đủ ánh sáng.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleResetImage}
-                      className="mt-1 py-1.5 px-3.5 rounded-lg bg-white text-black text-xs font-semibold hover:bg-gray-200 transition cursor-pointer"
-                    >
-                      Thử ảnh khác
-                    </button>
+                        {/* Đặc trưng thị giác nhận diện được */}
+                        {searchResponse.detectedAttributes.distinctiveFeatures &&
+                          searchResponse.detectedAttributes.distinctiveFeatures.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                              <span className="text-[10px] text-gray-400 flex items-center gap-1 mr-1">
+                                <Cpu className="w-3 h-3 text-gray-400" />
+                                Đặc trưng AI ghi nhận:
+                              </span>
+                              {searchResponse.detectedAttributes.distinctiveFeatures.map(
+                                (feat, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="px-2 py-0.5 rounded-md bg-white/10 text-gray-200 text-[10px] border border-white/10 font-medium"
+                                  >
+                                    {feat}
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          )}
+                      </div>
+                    )}
+
+                    {/* GIAI ĐOẠN 2: KẾT QUẢ SO KHỚP KHO HÀNG */}
+                    <div className="flex flex-col gap-3">
+                      {/* Trường hợp 1: Có sản phẩm khớp thực sự trong kho */}
+                      {exactMatches.length > 0 && (
+                        <>
+                          <div className="flex items-center justify-between pb-1 border-b border-white/10">
+                            <div className="flex items-center gap-2">
+                              <Layers className="w-3.5 h-3.5 text-gray-400" />
+                              <span className="text-xs font-bold text-gray-200">
+                                Giai đoạn 2: Tìm thấy {exactMatches.length} sản phẩm tương đồng trong kho NEXOR
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[42vh] overflow-y-auto pr-1">
+                            {exactMatches.map((item: VisualSearchProductItem) => (
+                              <div
+                                key={item.id}
+                                onClick={() => {
+                                  handleClose();
+                                  navigate(`/products/${item.id}`);
+                                }}
+                                className="group relative p-2.5 rounded-xl bg-[#14171d] hover:bg-[#1a1d26] border border-white/10 hover:border-white/30 transition flex gap-3 cursor-pointer"
+                              >
+                                {/* Thumbnail */}
+                                <div className="w-16 h-16 rounded-lg overflow-hidden bg-black/50 border border-white/10 shrink-0 flex items-center justify-center p-1">
+                                  <img
+                                    src={item.imageUrl || '/images/logo.png'}
+                                    alt={item.name}
+                                    className="w-full h-full object-contain"
+                                  />
+                                </div>
+
+                                {/* Chi tiết */}
+                                <div className="flex-1 flex flex-col justify-between min-w-0">
+                                  <div>
+                                    <div className="flex items-center justify-between gap-1 mb-1">
+                                      <span className="text-[10px] text-gray-400 uppercase tracking-wide truncate">
+                                        {item.brand || item.categoryName}
+                                      </span>
+                                      {/* Badge % Match */}
+                                      <span className="px-1.5 py-0.5 rounded bg-white text-black font-mono text-[10px] font-black border border-white/15 shrink-0">
+                                        {item.matchPercent}%
+                                      </span>
+                                    </div>
+
+                                    <h4 className="text-xs font-medium text-gray-200 line-clamp-2 group-hover:text-white transition">
+                                      {item.name}
+                                    </h4>
+
+                                    {item.matchReason && (
+                                      <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">
+                                        {item.matchReason}
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-white/5">
+                                    <span className="text-xs font-bold text-white">
+                                      {formatPrice(item.price)}
+                                    </span>
+
+                                    <span className="inline-flex items-center gap-1 text-[11px] text-gray-400 group-hover:text-white transition">
+                                      <span>Xem ngay</span>
+                                      <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+
+                      {/* Trường hợp 2: Không có sản phẩm khớp chính xác -> Thông báo rõ ràng */}
+                      {exactMatches.length === 0 && (
+                        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 flex flex-col gap-2 text-xs">
+                          <div className="flex items-center gap-2 text-amber-400 font-semibold">
+                            <Info className="w-4 h-4 text-amber-400 shrink-0" />
+                            <span>
+                              Kho hàng chưa có sẵn dòng sản phẩm chính xác này
+                            </span>
+                          </div>
+                          <p className="text-gray-300 leading-relaxed text-[11px]">
+                            AI nhận diện được thiết bị trong ảnh là{' '}
+                            <strong className="text-white">
+                              {searchResponse.detectedAttributes?.identifiedTitle ||
+                                `${searchResponse.detectedAttributes?.brand || ''} ${
+                                  searchResponse.detectedAttributes?.productLine || ''
+                                }`}
+                            </strong>
+                            , tuy nhiên hiện tại kho hàng sàn NEXOR chưa nhập mẫu sản phẩm này hoặc
+                            đã tạm thời hết hàng.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Hiển thị sản phẩm gợi ý thêm (nếu có và không có exact match) */}
+                      {exactMatches.length === 0 && suggestedMatches.length > 0 && (
+                        <div className="flex flex-col gap-2.5 pt-1">
+                          <span className="text-xs font-medium text-gray-300">
+                            Gợi ý các thiết bị công nghệ nổi bật bạn có thể tham khảo:
+                          </span>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[38vh] overflow-y-auto pr-1">
+                            {suggestedMatches.map((item: VisualSearchProductItem) => (
+                              <div
+                                key={item.id}
+                                onClick={() => {
+                                  handleClose();
+                                  navigate(`/products/${item.id}`);
+                                }}
+                                className="group relative p-2.5 rounded-xl bg-[#14171d] hover:bg-[#1a1d26] border border-white/10 hover:border-white/30 transition flex gap-3 cursor-pointer"
+                              >
+                                <div className="w-14 h-14 rounded-lg overflow-hidden bg-black/50 border border-white/10 shrink-0 flex items-center justify-center p-1">
+                                  <img
+                                    src={item.imageUrl || '/images/logo.png'}
+                                    alt={item.name}
+                                    className="w-full h-full object-contain"
+                                  />
+                                </div>
+
+                                <div className="flex-1 flex flex-col justify-between min-w-0">
+                                  <div>
+                                    <div className="flex items-center justify-between gap-1 mb-0.5">
+                                      <span className="text-[10px] text-gray-400 uppercase">
+                                        {item.brand || item.categoryName}
+                                      </span>
+                                      <span className="px-1.5 py-0.2 rounded bg-white/10 text-gray-300 text-[9px] font-medium">
+                                        Tham khảo
+                                      </span>
+                                    </div>
+                                    <h4 className="text-xs font-medium text-gray-200 line-clamp-1 group-hover:text-white">
+                                      {item.name}
+                                    </h4>
+                                  </div>
+
+                                  <div className="flex items-center justify-between mt-1 pt-1 border-t border-white/5">
+                                    <span className="text-xs font-bold text-white">
+                                      {formatPrice(item.price)}
+                                    </span>
+                                    <span className="text-[10px] text-gray-400 group-hover:text-white">
+                                      Xem &rarr;
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Khi không có bất kỳ sản phẩm nào */}
+                      {searchResponse.products.length === 0 && (
+                        <div className="p-8 text-center flex flex-col items-center justify-center gap-3 bg-[#14171d] rounded-xl border border-white/10">
+                          <ImageIcon className="w-8 h-8 text-gray-500" />
+                          <h3 className="text-xs font-medium text-gray-300">
+                            Không tìm thấy sản phẩm trong kho hàng
+                          </h3>
+                          <p className="text-[11px] text-gray-500 max-w-sm">
+                            Hãy thử quét hình ảnh thiết bị công nghệ khác (Laptop, Điện thoại, Tai nghe...)
+                          </p>
+                          <button
+                            type="button"
+                            onClick={handleResetImage}
+                            className="mt-1 py-1.5 px-3.5 rounded-lg bg-white text-black text-xs font-semibold hover:bg-gray-200 transition cursor-pointer"
+                          >
+                            Quét ảnh khác
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

@@ -1,7 +1,12 @@
 export interface VisualSearchAttributes {
   category?: string;
   brand?: string;
+  productLine?: string;
+  identifiedTitle?: string;
   color?: string;
+  confidence?: 'HIGH' | 'MEDIUM' | 'LOW' | string;
+  isTechProduct?: boolean;
+  distinctiveFeatures?: string[];
   keywords?: string[];
 }
 
