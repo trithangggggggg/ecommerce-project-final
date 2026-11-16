@@ -97,7 +97,7 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
             throw new BadRequestException("Không thể xử lý file ảnh tải lên: " + ex.getMessage());
         }
 
-        // 3. Gửi ảnh lên Gemini Vision để nhận diện đặc trưng
+        // 3. Gửi ảnh lên Gemini Vision để nhận diện đặc trưng (Giai đoạn 1: AI Visual Identification)
         VisualSearchAttributes detectedAttrs = null;
         String provider = "Google Gemini Vision AI";
 
@@ -107,17 +107,18 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
             log.warn("Gemini Vision API gặp sự cố: {}. Chuyển sang chế độ Smart Fallback", ex.getMessage());
         }
 
-        // 4. Nếu Gemini không trả về kết quả (hết quota, timeout hoặc chưa có API key) -> Kích hoạt Fallback
+        // 4. Nếu Gemini không trả về kết quả (hết quota, timeout hoặc chưa cấu hình API key) -> Kích hoạt Fallback
         if (detectedAttrs == null || (!StringUtils.hasText(detectedAttrs.getCategory()) && !StringUtils.hasText(detectedAttrs.getBrand()))) {
             log.info("Kích hoạt NEXOR Smart Fallback Engine cho visual search");
             detectedAttrs = buildFallbackAttributes(image.getOriginalFilename());
             provider = "NEXOR Smart Fallback";
         }
 
-        log.info("Thuộc tính ảnh nhận diện được: Category='{}', Brand='{}', Color='{}', Keywords={}",
-                detectedAttrs.getCategory(), detectedAttrs.getBrand(), detectedAttrs.getColor(), detectedAttrs.getKeywords());
+        log.info("Kết quả nhận diện ảnh AI: Brand='{}', ProductLine='{}', Title='{}', Category='{}', Color='{}', Confidence='{}'",
+                detectedAttrs.getBrand(), detectedAttrs.getProductLine(), detectedAttrs.getIdentifiedTitle(),
+                detectedAttrs.getCategory(), detectedAttrs.getColor(), detectedAttrs.getConfidence());
 
-        // 5. Truy vấn ProductRepository & So khớp tính % matchPercent
+        // 5. Giai đoạn 2: Truy vấn ProductRepository & So khớp dòng sản phẩm trong kho hàng NEXOR
         List<VisualSearchProductItem> matchedProducts = matchProducts(detectedAttrs);
 
         return VisualSearchResponse.builder()
@@ -177,12 +178,18 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
         if (!candidateModels.contains("gemini-2.5-flash")) candidateModels.add("gemini-2.5-flash");
         if (!candidateModels.contains("gemini-1.5-pro")) candidateModels.add("gemini-1.5-pro");
 
-        String prompt = "Bạn là chuyên gia thẩm định và nhận diện sản phẩm thương mại điện tử công nghệ của sàn NEXOR.\n" +
-                "Hãy phân tích hình ảnh sản phẩm và trả về ĐÚNG MỘT JSON hợp lệ duy nhất (không kèm markdown ```json, không kèm giải thích bên ngoài):\n" +
+        String prompt = "Bạn là chuyên gia thẩm định và nhận diện thiết bị công nghệ hàng đầu của sàn thương mại điện tử NEXOR.\n" +
+                "Nhiệm vụ của bạn là quan sát kỹ logo, phom dáng, cụm camera, cổng kết nối, viền màn hình, bàn phím và các đặc điểm vật lý trong hình ảnh để nhận diện chính xác thương hiệu và dòng sản phẩm cụ thể.\n" +
+                "Hãy trả về ĐÚNG MỘT JSON hợp lệ duy nhất (không kèm markdown ```json, không kèm giải thích bên ngoài):\n" +
                 "{\n" +
-                "  \"category\": \"<Tên danh mục sản phẩm, ví dụ: Laptop, Điện thoại, Máy tính bảng, Tai nghe, Chuột, Bàn phím, Âm thanh, Màn hình, Gaming...>\",\n" +
-                "  \"brand\": \"<Thương hiệu nhận diện được, ví dụ: Apple, Samsung, Dell, Asus, Sony, Lenovo, HP, Logitech... hoặc Unknown nếu không rõ>\",\n" +
-                "  \"color\": \"<Màu sắc chủ đạo của thiết bị, ví dụ: Đen, Trắng, Xám, Bạc, Xanh, Vàng...>\",\n" +
+                "  \"isTechProduct\": true,\n" +
+                "  \"brand\": \"<Thương hiệu nhận diện chuẩn xác nhất, ví dụ: Apple, Samsung, Sony, Asus, Dell, Lenovo, HP, Logitech, Acer, MSI, Xiaomi... hoặc Unknown nếu không rõ>\",\n" +
+                "  \"category\": \"<Tên danh mục thiết bị: Laptop, Điện thoại, Máy tính bảng, Thiết bị âm thanh, Đồng hồ & Phụ kiện, Linh kiện & Phụ kiện, hoặc Khác>\",\n" +
+                "  \"productLine\": \"<Dòng sản phẩm cụ thể nhận diện được, ví dụ: MacBook Air, MacBook Pro, iPhone 16 Pro, Galaxy S24 Ultra, ROG Strix, WH-1000XM5, iPad Air, ThinkPad...>\",\n" +
+                "  \"identifiedTitle\": \"<Tên thương mại chi tiết nhất nhận diện từ hình ảnh, ví dụ: Apple MacBook Air M3 13-inch, Sony WH-1000XM4 Wireless Headphones, Samsung Galaxy S24 Ultra...>\",\n" +
+                "  \"color\": \"<Màu sắc chủ đạo, ví dụ: Xám không gian, Bạc, Đen, Trắng, Titan tự nhiên, Xanh dương, Vàng...>\",\n" +
+                "  \"confidence\": \"<HIGH nếu nhìn rõ logo/phom dáng/thiết kế đặc trưng, MEDIUM nếu nhận diện được dòng chung, LOW nếu mờ/không rõ>\",\n" +
+                "  \"distinctiveFeatures\": [\"<đặc điểm nhận dạng 1, vd: Logo quả táo cắn dở phía sau>\", \"<đặc điểm nhận dạng 2, vd: Cụm 3 camera bếp từ>\", \"<đặc điểm nhận dạng 3>\"],\n" +
                 "  \"keywords\": [\"<từ khóa 1>\", \"<từ khóa 2>\", \"<từ khóa 3>\", \"<từ khóa 4>\"]\n" +
                 "}";
 
@@ -196,7 +203,6 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
                 String endpointUrl = String.format("%s/%s:generateContent?key=%s", cleanApiUrl, model.trim(), apiKey.trim());
 
                 Map<String, Object> textPart = Map.of("text", prompt);
-                // CHÚ Ý: Google Gemini REST API yêu cầu camelCase 'inlineData' và 'mimeType'
                 Map<String, Object> inlineData = Map.of(
                         "mimeType", mimeType,
                         "data", base64Data
@@ -208,7 +214,7 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
                 requestPayload.put("contents", List.of(content));
 
                 Map<String, Object> generationConfig = new LinkedHashMap<>();
-                generationConfig.put("temperature", 0.2);
+                generationConfig.put("temperature", 0.1);
                 generationConfig.put("responseMimeType", "application/json");
                 requestPayload.put("generationConfig", generationConfig);
 
@@ -254,7 +260,6 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
         }
         try {
             String cleanedJson = rawResponse.trim();
-            // Trích xuất an toàn khối JSON nằm giữa cặp dấu ngoặc {} đầu và cuối
             int startIdx = cleanedJson.indexOf('{');
             int endIdx = cleanedJson.lastIndexOf('}');
             if (startIdx >= 0 && endIdx > startIdx) {
@@ -264,7 +269,21 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
             JsonNode node = objectMapper.readTree(cleanedJson);
             String category = node.path("category").asText(null);
             String brand = node.path("brand").asText(null);
+            String productLine = node.path("productLine").asText(null);
+            String identifiedTitle = node.path("identifiedTitle").asText(null);
             String color = node.path("color").asText(null);
+            String confidence = node.path("confidence").asText("HIGH");
+            Boolean isTechProduct = node.has("isTechProduct") ? node.path("isTechProduct").asBoolean(true) : true;
+
+            List<String> distinctiveFeatures = new ArrayList<>();
+            JsonNode featNode = node.path("distinctiveFeatures");
+            if (featNode.isArray()) {
+                for (JsonNode f : featNode) {
+                    if (StringUtils.hasText(f.asText())) {
+                        distinctiveFeatures.add(f.asText().trim());
+                    }
+                }
+            }
 
             List<String> keywords = new ArrayList<>();
             JsonNode kwNode = node.path("keywords");
@@ -276,10 +295,24 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
                 }
             }
 
+            // Nếu chưa có identifiedTitle thì tự tổng hợp từ Brand + ProductLine
+            if (!StringUtils.hasText(identifiedTitle)) {
+                StringBuilder sb = new StringBuilder();
+                if (StringUtils.hasText(brand) && !"unknown".equalsIgnoreCase(brand)) sb.append(brand).append(" ");
+                if (StringUtils.hasText(productLine)) sb.append(productLine);
+                else if (StringUtils.hasText(category)) sb.append(category);
+                identifiedTitle = sb.toString().trim();
+            }
+
             return VisualSearchAttributes.builder()
                     .category(category)
                     .brand(brand)
+                    .productLine(productLine)
+                    .identifiedTitle(identifiedTitle)
                     .color(color)
+                    .confidence(confidence)
+                    .isTechProduct(isTechProduct)
+                    .distinctiveFeatures(distinctiveFeatures)
                     .keywords(keywords)
                     .build();
         } catch (Exception ex) {
@@ -292,43 +325,90 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
         String cleanName = filename != null ? filename.toLowerCase() : "";
         String category = "Thiết bị điện tử";
         String brand = "Apple";
+        String productLine = "Công nghệ";
+        String identifiedTitle = "Thiết bị công nghệ NEXOR";
         String color = "Đen / Bạc";
+        String confidence = "HIGH";
+        List<String> distinctiveFeatures = new ArrayList<>(List.of("Thiết kế hiện đại", "Chất liệu cao cấp"));
         List<String> keywords = new ArrayList<>(List.of("Công nghệ", "Chính hãng", "NEXOR"));
 
         if (cleanName.contains("tai-nghe") || cleanName.contains("headphone") || cleanName.contains("earphone") || cleanName.contains("airpod") || cleanName.contains("sony")) {
             category = "Thiết bị âm thanh";
-            brand = "Sony";
+            if (cleanName.contains("airpod")) {
+                brand = "Apple";
+                productLine = "AirPods";
+                identifiedTitle = "Apple AirPods True Wireless";
+            } else {
+                brand = "Sony";
+                productLine = "WH-1000XM / WF-1000XM";
+                identifiedTitle = "Tai nghe chống ồn Sony chính hãng";
+            }
             keywords.add("Tai nghe");
-        } else if (cleanName.contains("laptop") || cleanName.contains("macbook") || cleanName.contains("dell") || cleanName.contains("thinkpad")) {
+            distinctiveFeatures = List.of("Đệm tai êm ái chống ồn chủ động", "Chất âm chuẩn Hi-Res");
+        } else if (cleanName.contains("laptop") || cleanName.contains("macbook") || cleanName.contains("dell") || cleanName.contains("thinkpad") || cleanName.contains("asus") || cleanName.contains("rog")) {
             category = "Laptop";
             keywords.add("Laptop");
             if (cleanName.contains("macbook") || cleanName.contains("apple")) {
                 brand = "Apple";
+                productLine = "MacBook";
+                identifiedTitle = "Apple MacBook Pro / Air";
                 keywords.add("MacBook");
+                distinctiveFeatures = List.of("Vỏ nhôm Unibody nguyên khối", "Màn hình Retina tai thỏ", "Bàn phím Magic Keyboard");
             } else if (cleanName.contains("dell")) {
                 brand = "Dell";
+                productLine = "XPS";
+                identifiedTitle = "Laptop Dell XPS Ultrabook";
                 keywords.add("XPS");
+                distinctiveFeatures = List.of("Màn hình InfinityEdge viền siêu mỏng", "Khung nhôm và sợi carbon");
+            } else if (cleanName.contains("asus") || cleanName.contains("rog")) {
+                brand = "ASUS";
+                productLine = "ROG Strix";
+                identifiedTitle = "Laptop Gaming ASUS ROG Strix";
+                keywords.add("ROG");
+                distinctiveFeatures = List.of("Hệ thống LED RGB Aura Sync", "Tản nhiệt buồng hơi chuẩn Gaming");
+            } else {
+                brand = "Dell";
+                productLine = "Laptop";
+                identifiedTitle = "Laptop văn phòng & đồ họa";
             }
-        } else if (cleanName.contains("iphone") || cleanName.contains("samsung") || cleanName.contains("phone") || cleanName.contains("dien-thoai")) {
+        } else if (cleanName.contains("iphone") || cleanName.contains("samsung") || cleanName.contains("galaxy") || cleanName.contains("phone") || cleanName.contains("dien-thoai")) {
             category = "Điện thoại";
             keywords.add("Smartphone");
             if (cleanName.contains("iphone")) {
                 brand = "Apple";
+                productLine = "iPhone";
+                identifiedTitle = "Điện thoại Apple iPhone Flagship";
                 keywords.add("iPhone");
-            } else if (cleanName.contains("samsung")) {
+                distinctiveFeatures = List.of("Khung viền Titan phẳng", "Cụm camera ba mắt chéo", "Màn hình Dynamic Island");
+            } else if (cleanName.contains("samsung") || cleanName.contains("galaxy")) {
                 brand = "Samsung";
+                productLine = "Galaxy";
+                identifiedTitle = "Samsung Galaxy S-Series Ultra";
                 keywords.add("Galaxy");
+                distinctiveFeatures = List.of("Cụm camera đa ống kính rời", "Thiết kế góc cạnh vuông vức");
+            } else {
+                brand = "Samsung";
+                productLine = "Smartphone";
+                identifiedTitle = "Điện thoại thông minh Android";
             }
         } else if (cleanName.contains("ipad") || cleanName.contains("tablet")) {
             category = "Máy tính bảng";
             brand = "Apple";
+            productLine = "iPad";
+            identifiedTitle = "Apple iPad Tablet";
             keywords.add("iPad");
+            distinctiveFeatures = List.of("Màn hình Retina viền mỏng", "Hỗ trợ bút cảm ứng Apple Pencil");
         }
 
         return VisualSearchAttributes.builder()
                 .category(category)
                 .brand(brand)
+                .productLine(productLine)
+                .identifiedTitle(identifiedTitle)
                 .color(color)
+                .confidence(confidence)
+                .isTechProduct(true)
+                .distinctiveFeatures(distinctiveFeatures)
                 .keywords(keywords)
                 .build();
     }
@@ -352,8 +432,15 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
             return Collections.emptyList();
         }
 
+        // Nếu ảnh nhận diện rõ ràng KHÔNG PHẢI thiết bị công nghệ (chó mèo, đồ ăn, xe cộ...) -> Không match gán ép
+        if (Boolean.FALSE.equals(attrs.getIsTechProduct())) {
+            log.info("Hình ảnh không phải thiết bị công nghệ -> Trả về danh sách rỗng");
+            return Collections.emptyList();
+        }
+
         String targetCat = removeAccent(attrs.getCategory() != null ? attrs.getCategory().toLowerCase().trim() : "");
         String targetBrand = removeAccent(attrs.getBrand() != null ? attrs.getBrand().toLowerCase().trim() : "");
+        String targetProductLine = removeAccent(attrs.getProductLine() != null ? attrs.getProductLine().toLowerCase().trim() : "");
         String targetColor = removeAccent(attrs.getColor() != null ? attrs.getColor().toLowerCase().trim() : "");
         List<String> targetKws = attrs.getKeywords() != null
                 ? attrs.getKeywords().stream().map(kw -> removeAccent(kw.toLowerCase().trim())).filter(StringUtils::hasText).collect(Collectors.toList())
@@ -365,9 +452,12 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
             int score = 0;
             List<String> reasons = new ArrayList<>();
 
+            String pCat = product.getCategory() != null ? removeAccent(product.getCategory().getName().toLowerCase()) : "";
+            String pBrand = removeAccent(product.getBrand() != null ? product.getBrand().toLowerCase() : "");
+            String pName = removeAccent(product.getName().toLowerCase());
+
             // 1. So khớp Danh mục (Tối đa 35%)
-            if (StringUtils.hasText(targetCat) && product.getCategory() != null) {
-                String pCat = removeAccent(product.getCategory().getName().toLowerCase());
+            if (StringUtils.hasText(targetCat) && StringUtils.hasText(pCat)) {
                 if (pCat.equals(targetCat)) {
                     score += 35;
                     reasons.add("Khớp chính xác danh mục " + product.getCategory().getName());
@@ -378,22 +468,44 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
             }
 
             // 2. So khớp Thương hiệu (Tối đa 35%)
+            boolean brandMatched = false;
             if (StringUtils.hasText(targetBrand) && !"unknown".equalsIgnoreCase(targetBrand)) {
-                String pBrand = removeAccent(product.getBrand() != null ? product.getBrand().toLowerCase() : "");
-                String pName = removeAccent(product.getName().toLowerCase());
                 if (StringUtils.hasText(pBrand) && pBrand.equals(targetBrand)) {
                     score += 35;
+                    brandMatched = true;
                     reasons.add("Khớp thương hiệu " + product.getBrand());
                 } else if (StringUtils.hasText(pBrand) && (pBrand.contains(targetBrand) || targetBrand.contains(pBrand))) {
                     score += 25;
+                    brandMatched = true;
                     reasons.add("Thuộc thương hiệu " + product.getBrand());
                 } else if (pName.contains(targetBrand)) {
                     score += 20;
+                    brandMatched = true;
                     reasons.add("Tên sản phẩm chứa thương hiệu " + attrs.getBrand());
                 }
             }
 
-            // 3. So khớp Màu sắc (Tối đa 10%)
+            // 3. So khớp Dòng sản phẩm / Model Name cụ thể (Tối đa 30% điểm thưởng quyết định)
+            if (StringUtils.hasText(targetProductLine)) {
+                String[] lineTokens = targetProductLine.split("\\s+");
+                int lineTokenMatches = 0;
+                for (String token : lineTokens) {
+                    if (token.length() >= 2 && pName.contains(token)) {
+                        lineTokenMatches++;
+                    }
+                }
+
+                if (pName.contains(targetProductLine)) {
+                    score += 30;
+                    reasons.add("Khớp chính xác dòng " + attrs.getProductLine());
+                } else if (lineTokenMatches > 0) {
+                    int linePoints = Math.min(25, lineTokenMatches * 15);
+                    score += linePoints;
+                    reasons.add("Khớp đặc điểm dòng " + attrs.getProductLine());
+                }
+            }
+
+            // 4. So khớp Màu sắc (Tối đa 10%)
             if (StringUtils.hasText(targetColor) && !"unknown".equalsIgnoreCase(targetColor)) {
                 String pText = removeAccent((product.getName() + " " + (product.getDescription() != null ? product.getDescription() : "")).toLowerCase());
                 boolean colorMatched = pText.contains(targetColor);
@@ -418,7 +530,7 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
                 }
             }
 
-            // 4. So khớp Từ khóa (Tối đa 20%)
+            // 5. So khớp Từ khóa (Tối đa 20%)
             if (!targetKws.isEmpty()) {
                 String pFullText = removeAccent((product.getName() + " " + (product.getDescription() != null ? product.getDescription() : "")).toLowerCase());
                 int matchedKwCount = 0;

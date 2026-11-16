@@ -18,9 +18,15 @@ public class VisualSearchAttributes {
 
     private String category;
     private String brand;
+    private String productLine;
+    private String identifiedTitle;
     private String color;
+    private String confidence;
+    private Boolean isTechProduct;
+
+    @Builder.Default
+    private List<String> distinctiveFeatures = new ArrayList<>();
 
     @Builder.Default
     private List<String> keywords = new ArrayList<>();
 }
-
