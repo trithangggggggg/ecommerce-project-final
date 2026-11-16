@@ -259,6 +259,7 @@ export const Header: React.FC = () => {
     { name: 'Trang chủ', path: ROUTES.HOME, isHome: true },
     { name: 'Tất cả sản phẩm', path: ROUTES.PRODUCTS },
     { name: 'Hot Deals', path: '/products?category=khuyen-mai', isHot: true },
+    { name: 'Vòng quay may mắn', path: '/wheel', isWheel: true },
     { name: 'Tin tức công nghệ', path: ROUTES.ARTICLES },
     { name: 'Chính sách & Bảo hành', path: ROUTES.POLICIES },
     { name: 'Hệ thống Showroom', path: ROUTES.STORES },
@@ -276,6 +277,14 @@ export const Header: React.FC = () => {
       return (
         location.pathname === ROUTES.PRODUCTS &&
         (currentCategory === 'khuyen-mai' || searchParams.get('hot') === 'true')
+      );
+    }
+    if (item.isWheel) {
+      return (
+        location.pathname === '/wheel' ||
+        location.pathname === '/vong-quay' ||
+        location.search.includes('wheel') ||
+        location.hash === '#wheel'
       );
     }
     if (item.path === ROUTES.PRODUCTS) {
@@ -697,6 +706,9 @@ export const Header: React.FC = () => {
                     if (item.isHome) {
                       handleLogoClick(e);
                     }
+                    if (item.isWheel) {
+                      window.dispatchEvent(new CustomEvent('open-lucky-wheel'));
+                    }
                   }}
                   className={`text-xs font-semibold py-1 transition-all relative border-b-2 whitespace-nowrap ${
                     active
@@ -826,6 +838,9 @@ export const Header: React.FC = () => {
                       setMobileMenuOpen(false);
                       if (item.isHome) {
                         handleLogoClick(e);
+                      }
+                      if (item.isWheel) {
+                        window.dispatchEvent(new CustomEvent('open-lucky-wheel'));
                       }
                     }}
                     className={`block py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${
