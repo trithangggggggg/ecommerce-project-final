@@ -161,9 +161,9 @@ export const ArticleDetailPage: React.FC = () => {
         )}
 
         {/* CKEditor 5 Rich HTML Content */}
-        <article className="mt-8 bg-white p-6 sm:p-10 rounded-3xl border border-slate-200/80 shadow-xs">
+        <article className="mt-8 bg-white p-4 sm:p-10 rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-xs">
           <div
-            className="prose prose-slate max-w-none 
+            className="prose prose-slate max-w-none break-words overflow-x-hidden
               prose-headings:text-slate-900 prose-headings:font-extrabold prose-headings:tracking-tight
               prose-h2:text-xl sm:prose-h2:text-2xl prose-h2:mt-8 prose-h2:mb-4 prose-h2:border-b prose-h2:border-slate-100 prose-h2:pb-2
               prose-h3:text-lg sm:prose-h3:text-xl prose-h3:mt-6 prose-h3:mb-3

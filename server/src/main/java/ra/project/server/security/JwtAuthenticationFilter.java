@@ -33,20 +33,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String username = tokenProvider.getUsernameFromJwt(jwt);
 
                 UserDetails userDetails = customUserDetailsService.loadUserByUsername(username);
-                if (userDetails != null && (!userDetails.isEnabled() || !userDetails.isAccountNonLocked())) {
-                    log.warn("Tài khoản '{}' đã bị vô hiệu hóa hoặc khóa. Chặn token tại JwtAuthenticationFilter", username);
-                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                    response.setContentType("application/json;charset=UTF-8");
-                    response.getWriter().write("{\"status\":403,\"error\":\"Forbidden\",\"message\":\"Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên!\"}");
-                    return;
+                if (userDetails != null) {
+                    if (!userDetails.isEnabled() || !userDetails.isAccountNonLocked()) {
+                        log.warn("Tài khoản '{}' đã bị vô hiệu hóa hoặc khóa. Chặn token tại JwtAuthenticationFilter", username);
+                        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                        response.setContentType("application/json;charset=UTF-8");
+                        response.getWriter().write("{\"status\":403,\"error\":\"Forbidden\",\"message\":\"Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên!\"}");
+                        return;
+                    }
+
+                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                            userDetails, null, userDetails.getAuthorities()
+                    );
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
                 }
-
-                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                        userDetails, null, userDetails.getAuthorities()
-                );
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
-                SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         } catch (Exception ex) {
             log.error("Không thể thiết lập xác thực người dùng trong security context: {}", ex.getMessage());

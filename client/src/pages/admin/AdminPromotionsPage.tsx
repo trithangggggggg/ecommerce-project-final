@@ -79,6 +79,8 @@ export const AdminPromotionsPage: React.FC = () => {
     maxUsage: 100,
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
     type: 'ORDER' as 'ORDER' | 'SHIPPING',
+    isPrivate: false,
+    userId: '',
   });
 
   const [editForm, setEditForm] = useState({
@@ -92,6 +94,8 @@ export const AdminPromotionsPage: React.FC = () => {
     maxUsage: 100,
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
     type: 'ORDER' as 'ORDER' | 'SHIPPING',
+    isPrivate: false,
+    userId: '',
   });
 
   const showToast = (msg: string) => {
@@ -115,6 +119,7 @@ export const AdminPromotionsPage: React.FC = () => {
     }
 
     try {
+      const targetUserId = addForm.isPrivate && addForm.userId.trim() ? Number(addForm.userId.trim()) : null;
       const newPromo = await promotionService.createPromotion({
         code: addForm.code.trim().toUpperCase(),
         title: addForm.title.trim() || 'Ưu đãi khuyến mãi NEXOR',
@@ -127,6 +132,7 @@ export const AdminPromotionsPage: React.FC = () => {
         maxUsage: Number(addForm.maxUsage) || 100,
         status: addForm.status,
         type: addForm.type,
+        userId: targetUserId,
       });
 
       setPromos((prev) => [newPromo, ...prev]);
@@ -142,6 +148,8 @@ export const AdminPromotionsPage: React.FC = () => {
         maxUsage: 100,
         status: 'ACTIVE',
         type: 'ORDER',
+        isPrivate: false,
+        userId: '',
       });
       showToast(`Đã thêm mã khuyến mãi "${newPromo.code}" vào Database thành công!`);
     } catch (err: unknown) {
@@ -154,6 +162,7 @@ export const AdminPromotionsPage: React.FC = () => {
   const handleOpenEdit = (p: PromoItem) => {
     setEditingPromo(p);
     const defaultType = p.type || (p.code.toUpperCase().startsWith('FREESHIP') || p.code.toUpperCase().startsWith('SHIP') ? 'SHIPPING' : 'ORDER');
+    const isPrivate = p.userId != null || p.code.toUpperCase().startsWith('DENBU') || p.code.toUpperCase().startsWith('WHEEL');
     setEditForm({
       code: p.code,
       title: p.title,
@@ -165,6 +174,8 @@ export const AdminPromotionsPage: React.FC = () => {
       maxUsage: p.maxUsage,
       status: p.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
       type: defaultType,
+      isPrivate: isPrivate,
+      userId: p.userId != null ? String(p.userId) : '',
     });
   };
 
@@ -174,6 +185,7 @@ export const AdminPromotionsPage: React.FC = () => {
     if (!editingPromo) return;
 
     try {
+      const targetUserId = editForm.isPrivate && editForm.userId.trim() ? Number(editForm.userId.trim()) : null;
       const updated = await promotionService.updatePromotion(editingPromo.id, {
         code: editForm.code.trim().toUpperCase(),
         title: editForm.title.trim(),
@@ -185,6 +197,7 @@ export const AdminPromotionsPage: React.FC = () => {
         maxUsage: Number(editForm.maxUsage) || 100,
         status: editForm.status,
         type: editForm.type,
+        userId: targetUserId,
       });
 
       setPromos((prev) =>
@@ -321,9 +334,9 @@ export const AdminPromotionsPage: React.FC = () => {
       {/* Main Table Card (Dạng bảng) */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden flex-1 flex flex-col min-h-0">
         {/* Search & Filter Bar */}
-        <div className="p-3 sm:p-3.5 border-b border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 max-w-2xl">
-            <div className="w-full sm:w-72">
+        <div className="p-3 sm:p-3.5 border-b border-slate-100 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 shrink-0">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1 min-w-0">
+            <div className="w-full sm:w-64 lg:w-72 shrink-0">
               <Input
                 type="text"
                 placeholder="Tìm mã code, tên chương trình, mức giảm..."
@@ -335,14 +348,14 @@ export const AdminPromotionsPage: React.FC = () => {
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-1 bg-slate-100/80 p-1 rounded-xl self-start sm:self-auto text-xs font-semibold">
+            <div className="inline-flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl text-xs font-semibold shrink-0 overflow-x-auto no-scrollbar flex-nowrap">
               <button
                 type="button"
                 onClick={() => {
                   setStatusFilter('ALL');
                   setCurrentPage(1);
                 }}
-                className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg transition cursor-pointer whitespace-nowrap text-xs ${
                   statusFilter === 'ALL'
                     ? 'bg-white text-slate-900 shadow-2xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
@@ -356,7 +369,7 @@ export const AdminPromotionsPage: React.FC = () => {
                   setStatusFilter('ACTIVE');
                   setCurrentPage(1);
                 }}
-                className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg transition cursor-pointer whitespace-nowrap text-xs ${
                   statusFilter === 'ACTIVE'
                     ? 'bg-white text-emerald-600 shadow-2xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
@@ -370,7 +383,7 @@ export const AdminPromotionsPage: React.FC = () => {
                   setStatusFilter('INACTIVE');
                   setCurrentPage(1);
                 }}
-                className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg transition cursor-pointer whitespace-nowrap text-xs ${
                   statusFilter === 'INACTIVE'
                     ? 'bg-white text-amber-600 shadow-2xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
@@ -384,7 +397,7 @@ export const AdminPromotionsPage: React.FC = () => {
                   setStatusFilter('EXPIRED');
                   setCurrentPage(1);
                 }}
-                className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg transition cursor-pointer whitespace-nowrap text-xs ${
                   statusFilter === 'EXPIRED'
                     ? 'bg-white text-rose-600 shadow-2xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
@@ -477,6 +490,27 @@ export const AdminPromotionsPage: React.FC = () => {
                           <span className="text-[11px] font-semibold text-emerald-600">
                             {p.discount}
                           </span>
+                          {p.userId != null || p.code.toUpperCase().startsWith('DENBU') || p.code.toUpperCase().startsWith('WHEEL') ? (
+                            <span
+                              className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 shrink-0 inline-flex items-center gap-1"
+                              title={p.userId ? `Mã riêng tư chỉ định cho User ID #${p.userId}` : 'Mã riêng tư chỉ định riêng'}
+                            >
+                              <svg className="w-2.5 h-2.5 shrink-0 text-amber-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                              </svg>
+                              <span>Riêng tư {p.userId ? `(#${p.userId})` : ''}</span>
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 inline-flex items-center gap-1">
+                              <svg className="w-2.5 h-2.5 shrink-0 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
+                                <path d="M2 12h20"/>
+                              </svg>
+                              <span>Công khai</span>
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -738,6 +772,60 @@ export const AdminPromotionsPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Quyền sử dụng: Công khai vs Riêng tư */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <label className="block text-slate-700 font-semibold">Phạm vi áp dụng (Quyền sử dụng mã)</label>
+                <div className="flex flex-wrap items-center gap-4 text-xs">
+                  <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
+                    <input
+                      type="radio"
+                      name="add_privacy"
+                      checked={!addForm.isPrivate}
+                      onChange={() => setAddForm({ ...addForm, isPrivate: false, userId: '' })}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <svg className="w-3.5 h-3.5 text-emerald-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"/>
+                      <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
+                      <path d="M2 12h20"/>
+                    </svg>
+                    <span>Công khai (Tất cả khách hàng)</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
+                    <input
+                      type="radio"
+                      name="add_privacy"
+                      checked={addForm.isPrivate}
+                      onChange={() => setAddForm({ ...addForm, isPrivate: true })}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <svg className="w-3.5 h-3.5 text-amber-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    <span>Chỉ định riêng (Riêng tư)</span>
+                  </label>
+                </div>
+                {addForm.isPrivate && (
+                  <div className="pt-1.5">
+                    <label className="block text-slate-600 font-medium mb-1 text-[11px]">
+                      ID Khách hàng được chỉ định (User ID) *
+                    </label>
+                    <input
+                      type="number"
+                      required={addForm.isPrivate}
+                      placeholder="VD: 1, 2, 5 (User ID tài khoản được cấp mã)"
+                      value={addForm.userId}
+                      onChange={(e) => setAddForm({ ...addForm, userId: e.target.value })}
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs bg-white"
+                    />
+                    <p className="text-[10px] text-amber-700 mt-1">
+                      Chỉ duy nhất tài khoản này mới thấy mã trong giỏ hàng và có quyền áp dụng mã khi đặt hàng.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <Button type="button" variant="outline" size="sm" onClick={() => setIsAddOpen(false)}>
                   Hủy
@@ -884,6 +972,60 @@ export const AdminPromotionsPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Quyền sử dụng: Công khai vs Riêng tư */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <label className="block text-slate-700 font-semibold">Phạm vi áp dụng (Quyền sử dụng mã)</label>
+                <div className="flex flex-wrap items-center gap-4 text-xs">
+                  <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
+                    <input
+                      type="radio"
+                      name="edit_privacy"
+                      checked={!editForm.isPrivate}
+                      onChange={() => setEditForm({ ...editForm, isPrivate: false, userId: '' })}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <svg className="w-3.5 h-3.5 text-emerald-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"/>
+                      <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
+                      <path d="M2 12h20"/>
+                    </svg>
+                    <span>Công khai (Tất cả khách hàng)</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
+                    <input
+                      type="radio"
+                      name="edit_privacy"
+                      checked={editForm.isPrivate}
+                      onChange={() => setEditForm({ ...editForm, isPrivate: true })}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <svg className="w-3.5 h-3.5 text-amber-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    <span>Chỉ định riêng (Riêng tư)</span>
+                  </label>
+                </div>
+                {editForm.isPrivate && (
+                  <div className="pt-1.5">
+                    <label className="block text-slate-600 font-medium mb-1 text-[11px]">
+                      ID Khách hàng được chỉ định (User ID) *
+                    </label>
+                    <input
+                      type="number"
+                      required={editForm.isPrivate}
+                      placeholder="VD: 1, 2, 5 (User ID tài khoản được cấp mã)"
+                      value={editForm.userId}
+                      onChange={(e) => setEditForm({ ...editForm, userId: e.target.value })}
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs bg-white"
+                    />
+                    <p className="text-[10px] text-amber-700 mt-1">
+                      Chỉ duy nhất tài khoản này mới thấy mã trong giỏ hàng và có quyền áp dụng mã khi đặt hàng.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <Button type="button" variant="outline" size="sm" onClick={() => setEditingPromo(null)}>
                   Hủy
@@ -965,6 +1107,41 @@ export const AdminPromotionsPage: React.FC = () => {
                     ? 'Tạm ngưng'
                     : 'Đang áp dụng'}
                 </span>
+              </div>
+
+              {/* Phạm vi áp dụng */}
+              <div className="col-span-2 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-slate-400 block mb-1">Phạm vi áp dụng (Quyền sở hữu)</span>
+                {detailPromo.userId != null || detailPromo.code.toUpperCase().startsWith('DENBU') || detailPromo.code.toUpperCase().startsWith('WHEEL') ? (
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 w-fit">
+                      <svg className="w-3.5 h-3.5 text-amber-800 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                      </svg>
+                      <span>Riêng tư (Chỉ định riêng)</span>
+                    </span>
+                    <span className="text-xs text-slate-700">
+                      {detailPromo.userId ? (
+                        <>Chỉ định cho khách hàng: <strong className="font-mono text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">User ID #{detailPromo.userId}</strong></>
+                      ) : (
+                        <>Mã đền bù / thưởng quay may mắn chỉ dành riêng cho tài khoản được cấp</>
+                      )}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <svg className="w-3.5 h-3.5 text-emerald-700 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
+                        <path d="M2 12h20"/>
+                      </svg>
+                      <span>Công khai (Tất cả khách hàng)</span>
+                    </span>
+                    <span className="text-xs text-slate-500">- Mọi người dùng đều có thể sử dụng mã này.</span>
+                  </div>
+                )}
               </div>
             </div>
 

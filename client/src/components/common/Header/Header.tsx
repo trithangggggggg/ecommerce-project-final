@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   Search,
@@ -13,6 +13,7 @@ import {
   ChevronRight,
   X,
   LogOut,
+  LogIn,
   Laptop,
   Smartphone,
   Tablet,
@@ -75,6 +76,107 @@ export const Header: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [visualSearchOpen, setVisualSearchOpen] = useState(false);
+
+  // Scroll detection for Smart Topbar (hide on scroll down, show on scroll up)
+  const [showPromoTicker, setShowPromoTicker] = useState(true);
+  const [activeTickerIndex, setActiveTickerIndex] = useState(0);
+  const lastScrollYRef = useRef(0);
+  const accumulatedDeltaRef = useRef(0);
+  const scrollDirectionRef = useRef<'up' | 'down' | null>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerHeight, setHeaderHeight] = useState<number>(134);
+
+  // Measure initial full header height to keep spacer static and prevent layout shifts
+  useEffect(() => {
+    const updateHeaderHeight = () => {
+      if (headerRef.current) {
+        const h = headerRef.current.offsetHeight;
+        if (h > 90) {
+          setHeaderHeight(h);
+        }
+      }
+    };
+
+    updateHeaderHeight();
+    window.addEventListener('resize', updateHeaderHeight);
+    return () => window.removeEventListener('resize', updateHeaderHeight);
+  }, []);
+
+  const tickerMessages = useMemo(() => {
+    return [
+      config.general.promoTickerText ||
+        'Giao hàng miễn phí cho đơn từ 20 triệu • Bảo hành 1 đổi 1 30 ngày • Trả góp 0% qua VietQR',
+      'Chính hãng 100% • Giá tốt mỗi ngày • Hỗ trợ kỹ thuật tận tâm',
+    ];
+  }, [config.general.promoTickerText]);
+
+  // Rotate ticker messages smoothly every 4.5 seconds when in view
+  useEffect(() => {
+    if (!showPromoTicker) return;
+    const interval = setInterval(() => {
+      setActiveTickerIndex((prev) => (prev + 1) % tickerMessages.length);
+    }, 4500);
+    return () => clearInterval(interval);
+  }, [showPromoTicker, tickerMessages.length]);
+
+  useEffect(() => {
+    lastScrollYRef.current = window.scrollY;
+
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      const lastScrollY = lastScrollYRef.current;
+      const delta = currentScrollY - lastScrollY;
+
+      // 1. Ở sát đỉnh trang (trong khoảng 60px đầu): Luôn mở rộng toàn bộ thanh điều hướng
+      if (currentScrollY <= 60) {
+        setShowPromoTicker(true);
+        setActiveTickerIndex(0);
+        accumulatedDeltaRef.current = 0;
+        scrollDirectionRef.current = null;
+        lastScrollYRef.current = currentScrollY;
+        return;
+      }
+
+      // Bỏ qua các micro-scroll dao động nhỏ hơn 1px
+      if (Math.abs(delta) < 1) {
+        return;
+      }
+
+      const direction = delta > 0 ? 'down' : 'up';
+
+      // Nếu đảo chiều cuộn, thiết lập lại quãng đường tích lũy theo hướng mới
+      if (direction !== scrollDirectionRef.current) {
+        scrollDirectionRef.current = direction;
+        accumulatedDeltaRef.current = Math.abs(delta);
+      } else {
+        accumulatedDeltaRef.current += Math.abs(delta);
+      }
+
+      // Ngưỡng tích lũy quãng đường chủ đích (Cumulative Intent Thresholds):
+      // Giúp nhận diện chính xác kể cả khi lăn chuột rất nhẹ, đồng thời lọc sạch rung chấn (jitter)
+      const SCROLL_DOWN_THRESHOLD = 24; // Cuộn xuống liên tục tối thiểu 24px
+      const SCROLL_UP_THRESHOLD = 18;   // Kéo lên liên tục tối thiểu 18px
+
+      if (direction === 'down' && accumulatedDeltaRef.current >= SCROLL_DOWN_THRESHOLD) {
+        setShowPromoTicker(false);
+        setCategoryMenuOpen(false);
+      } else if (direction === 'up' && accumulatedDeltaRef.current >= SCROLL_UP_THRESHOLD) {
+        setShowPromoTicker(true);
+        setActiveTickerIndex(1); // "Chính hãng 100% • Giá tốt mỗi ngày • Hỗ trợ kỹ thuật tận tâm"
+      }
+
+      lastScrollYRef.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const handleOpenVisualSearch = () => setVisualSearchOpen(true);
+    window.addEventListener('open-visual-search', handleOpenVisualSearch);
+    return () => window.removeEventListener('open-visual-search', handleOpenVisualSearch);
+  }, []);
 
   const userMenuRef = useRef<HTMLDivElement>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -144,6 +246,15 @@ export const Header: React.FC = () => {
     }
   };
 
+  const handleLogoClick = (e: React.MouseEvent) => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setShowPromoTicker(true);
+    setActiveTickerIndex(0);
+    if (location.pathname === '/' && !location.search) {
+      e.preventDefault();
+    }
+  };
+
   const navItems = [
     { name: 'Trang chủ', path: ROUTES.HOME, isHome: true },
     { name: 'Tất cả sản phẩm', path: ROUTES.PRODUCTS },
@@ -181,28 +292,49 @@ export const Header: React.FC = () => {
   };
 
   return (
-    <header className="bg-[#181a20] text-white sticky top-0 z-50 shadow-sm font-sans">
-      {config.general.promoTickerText && (
-        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white text-[11px] font-semibold py-1.5 px-4 text-center">
-          {config.general.promoTickerText}
+    <>
+      <header
+        ref={headerRef}
+        className="fixed top-0 left-0 right-0 z-50 bg-[#181a20] text-white shadow-md font-sans"
+      >
+      {/* Smart Promo Ticker Bar (Thụt khi lướt xuống, hiện khi kéo lên) */}
+      <div
+        className={`bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white text-[11px] font-semibold text-center transition-all duration-300 ease-in-out overflow-hidden ${
+          showPromoTicker
+            ? 'max-h-12 opacity-100 py-1.5 px-4 translate-y-0'
+            : 'max-h-0 opacity-0 py-0 px-4 -translate-y-full pointer-events-none'
+        }`}
+      >
+        <div className="flex items-center justify-center gap-2 h-4 overflow-hidden">
+          <span
+            key={activeTickerIndex}
+            className="inline-flex items-center gap-1.5 animate-fade-in truncate"
+          >
+            {tickerMessages[activeTickerIndex]}
+          </span>
         </div>
-      )}
+      </div>
       {/* 1. Main Top Header */}
-      <div className="max-w-[1360px] mx-auto px-4 py-3 flex items-center justify-between gap-4 relative z-40">
+      <div className="max-w-[1360px] mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-4 relative z-40">
         {/* Left: Brand Logo (NEXOR Emblem) */}
-        <Link to="/" className="flex items-center gap-3 shrink-0 group">
-          <div className="w-10 h-10 flex items-center justify-center shrink-0">
+        <Link
+          to="/"
+          onClick={handleLogoClick}
+          className="flex items-center gap-2 sm:gap-3 shrink-0 group cursor-pointer"
+          title="Về đầu trang NEXOR"
+        >
+          <div className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center shrink-0">
             <img
               src="/images/nexor_logo.png"
               alt={`${config.store.shortName || 'NEXOR'} Logo`}
-              className="w-10 h-10 object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-200"
+              className="w-9 h-9 sm:w-10 sm:h-10 object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-200"
             />
           </div>
           <div className="flex flex-col">
-            <span className="text-xl font-black tracking-tight text-white leading-none">
+            <span className="text-lg sm:text-xl font-black tracking-tight text-white leading-none">
               {config.store.shortName || 'NEXOR'}<span className="text-indigo-400">.</span>
             </span>
-            <span className="text-[10px] text-gray-400 tracking-wider font-normal mt-0.5 line-clamp-1 max-w-[170px]">
+            <span className="hidden sm:block text-[10px] text-gray-400 tracking-wider font-normal mt-0.5 line-clamp-1 max-w-[170px]">
               {config.store.tagline || 'Tech for a better life'}
             </span>
           </div>
@@ -211,25 +343,25 @@ export const Header: React.FC = () => {
         {/* Center: Search Bar (Pill shape) */}
         <form
           onSubmit={handleSearch}
-          className="flex-1 max-w-xl mx-2 sm:mx-6 relative"
+          className="flex-1 max-w-xl mx-1 sm:mx-6 relative min-w-0"
         >
           <div className="relative flex items-center">
-            <Search className="w-4 h-4 text-gray-400 absolute left-4 pointer-events-none" />
+            <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 absolute left-3 sm:left-4 pointer-events-none" />
             <input
               type="text"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="Tìm kiếm sản phẩm, thương hiệu..."
-              className="w-full bg-[#232731] hover:bg-[#282d38] focus:bg-[#282d38] text-white text-xs pl-10 pr-10 py-2 rounded-full border border-gray-700/50 focus:border-blue-500 focus:outline-none transition placeholder-gray-400"
+              placeholder="Tìm kiếm sản phẩm..."
+              className="w-full bg-[#232731] hover:bg-[#282d38] focus:bg-[#282d38] text-white text-xs pl-8 sm:pl-10 pr-8 sm:pr-10 py-1.5 sm:py-2 rounded-full border border-gray-700/50 focus:border-blue-500 focus:outline-none transition placeholder-gray-400"
             />
             {/* Visual Search Camera Button */}
             <button
               type="button"
               onClick={() => setVisualSearchOpen(true)}
-              className="absolute right-3 p-1 rounded-full text-gray-400 hover:text-white hover:bg-gray-700/60 transition cursor-pointer flex items-center justify-center group"
+              className="absolute right-2.5 sm:right-3 p-1 rounded-full text-gray-400 hover:text-white hover:bg-gray-700/60 transition cursor-pointer flex items-center justify-center group"
               title="Tìm kiếm bằng hình ảnh"
             >
-              <Camera className="w-4 h-4 group-hover:scale-110 transition-transform" />
+              <Camera className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:scale-110 transition-transform" />
             </button>
           </div>
         </form>
@@ -262,7 +394,7 @@ export const Header: React.FC = () => {
         </div>
 
         {/* Right 2: User Action Icons & Interactive Mascot */}
-        <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-4 shrink-0">
           {/* Pet Fox Mascot Companion */}
           <div className="flex items-center justify-center">
             <PetMascot size={40} className="hidden sm:inline-flex" />
@@ -305,10 +437,13 @@ export const Header: React.FC = () => {
             ) : (
               <Link
                 to={ROUTES.LOGIN}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-gray-300 hover:text-white hover:bg-gray-800 transition cursor-pointer"
-                title="Đăng nhập / Tài khoản"
+                className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-full bg-gray-800/80 hover:bg-blue-600 border border-gray-700/70 hover:border-blue-500 text-gray-200 hover:text-white transition-all cursor-pointer group shadow-xs"
+                title="Đăng nhập / Đăng ký"
               >
-                <User className="w-4.5 h-4.5" />
+                <User className="w-4 h-4 text-blue-400 group-hover:text-white transition-colors" />
+                <span className="hidden sm:inline text-xs font-semibold text-gray-200 group-hover:text-white">
+                  Đăng nhập
+                </span>
               </Link>
             )}
 
@@ -433,8 +568,14 @@ export const Header: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Sub-Navbar Bar */}
-      <div className="bg-[#1f222b] border-t border-gray-800/80 relative z-20">
+      {/* 2. Sub-Navbar Bar (Thụt khi lướt xuống, hiện khi kéo lên) */}
+      <div
+        className={`bg-[#1f222b] border-t border-gray-800/80 relative z-20 transition-all duration-300 ease-in-out ${
+          showPromoTicker
+            ? `max-h-16 opacity-100 translate-y-0 ${categoryMenuOpen ? 'overflow-visible' : 'overflow-hidden'}`
+            : 'max-h-0 opacity-0 -translate-y-full pointer-events-none overflow-hidden'
+        }`}
+      >
         <div className="max-w-[1360px] mx-auto px-4 flex items-center gap-6 text-xs font-medium">
           {/* Left: Category Dropdown button */}
           <div className="relative shrink-0">
@@ -552,6 +693,11 @@ export const Header: React.FC = () => {
                 <Link
                   key={item.name}
                   to={item.path}
+                  onClick={(e) => {
+                    if (item.isHome) {
+                      handleLogoClick(e);
+                    }
+                  }}
                   className={`text-xs font-semibold py-1 transition-all relative border-b-2 whitespace-nowrap ${
                     active
                       ? 'text-white font-bold border-white'
@@ -568,28 +714,132 @@ export const Header: React.FC = () => {
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-[#1e222a] border-t border-gray-800 px-4 py-4 space-y-2">
-          <p className="text-[11px] font-bold uppercase text-gray-400 pb-1 border-b border-gray-800">
-            Danh mục & Trang
-          </p>
-          {navItems.map((item) => {
-            const active = isNavItemActive(item);
+        <div className="md:hidden bg-[#1e222a] border-t border-gray-800 px-4 py-4 space-y-4 max-h-[calc(100vh-120px)] overflow-y-auto">
+          {/* User Account / Auth Section for Mobile */}
+          {isAuthenticated ? (
+            <div className="p-3 bg-gray-800/70 border border-gray-700/80 rounded-xl space-y-3 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full overflow-hidden border border-blue-500/40 bg-gray-700 flex items-center justify-center shrink-0">
+                  {userAvatar && !avatarError ? (
+                    <img
+                      src={userAvatar}
+                      alt={user?.fullName || 'Avatar'}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-sm font-bold text-white">
+                      {user?.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}
+                    </span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-bold text-white truncate text-xs">
+                      {user?.fullName || 'Người dùng'}
+                    </p>
+                    {user?.role === 'ADMIN' && (
+                      <span className="px-1.5 py-0.5 text-[9px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded">
+                        Admin
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-gray-400 truncate">{user?.email}</p>
+                </div>
+              </div>
 
-            return (
+              {/* Quick actions for logged in user */}
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-700/60 text-xs">
+                <Link
+                  to={ROUTES.PROFILE}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 py-1.5 px-2.5 rounded-lg bg-gray-700/50 text-gray-200 hover:bg-gray-700 hover:text-white transition"
+                >
+                  <User className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Tài khoản</span>
+                </Link>
+                <Link
+                  to={ROUTES.MY_ORDERS}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 py-1.5 px-2.5 rounded-lg bg-gray-700/50 text-gray-200 hover:bg-gray-700 hover:text-white transition"
+                >
+                  <Package className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Đơn hàng</span>
+                </Link>
+                {user?.role === 'ADMIN' && (
+                  <Link
+                    to={ROUTES.ADMIN}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="col-span-2 flex items-center gap-2 py-1.5 px-2.5 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 transition font-medium"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Quản trị hệ thống (Admin)</span>
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setShowLogoutModal(true);
+                  }}
+                  className="col-span-2 flex items-center justify-center gap-2 py-1.5 px-2.5 rounded-lg text-red-400 bg-red-500/10 hover:bg-red-500/20 transition font-medium cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Đăng xuất</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="p-3 bg-gradient-to-r from-blue-900/30 via-indigo-950/40 to-gray-800/60 border border-blue-500/30 rounded-xl flex items-center justify-between gap-3 shadow-sm">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-blue-600/20 border border-blue-400/30 flex items-center justify-center text-blue-400 shrink-0">
+                  <User className="w-4.5 h-4.5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-white leading-tight">Chào mừng quý khách!</p>
+                  <p className="text-[10px] text-gray-400 leading-tight truncate">Đăng nhập để nhận ưu đãi</p>
+                </div>
+              </div>
               <Link
-                key={item.name}
-                to={item.path}
+                to={ROUTES.LOGIN}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`block py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${
-                  active
-                    ? 'text-white bg-blue-600/20 font-bold border-l-2 border-white pl-3'
-                    : 'text-gray-300 hover:text-white hover:bg-gray-800/40'
-                }`}
+                className="shrink-0 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
               >
-                {item.name}
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Đăng nhập</span>
               </Link>
-            );
-          })}
+            </div>
+          )}
+
+          <div>
+            <p className="text-[11px] font-bold uppercase text-gray-400 pb-1 border-b border-gray-800">
+              Danh mục & Trang
+            </p>
+            <div className="mt-2 space-y-1">
+              {navItems.map((item) => {
+                const active = isNavItemActive(item);
+
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.path}
+                    onClick={(e) => {
+                      setMobileMenuOpen(false);
+                      if (item.isHome) {
+                        handleLogoClick(e);
+                      }
+                    }}
+                    className={`block py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${
+                      active
+                        ? 'text-white bg-blue-600/20 font-bold border-l-2 border-white pl-3'
+                        : 'text-gray-300 hover:text-white hover:bg-gray-800/40'
+                    }`}
+                  >
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
@@ -609,6 +859,13 @@ export const Header: React.FC = () => {
         }}
       />
     </header>
+    {/* Static Spacer giữ nguyên chiều cao layout document flow, triệt tiêu 100% hiện tượng giật trang */}
+    <div
+      style={{ height: `${headerHeight}px` }}
+      className="w-full shrink-0 pointer-events-none"
+      aria-hidden="true"
+    />
+  </>
   );
 };
 

@@ -59,16 +59,67 @@
   animation: scanLaser 2.2s ease-in-out infinite;
 }
 
-/* Hide scrollbar utilities */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
+/* =========================================================
+   Ẩn toàn bộ thanh scroll (scrollbar) của tất cả các bảng
+   ========================================================= */
+.no-scrollbar,
+table,
+.table-container,
+div:has(> table),
+div:has(> div > table),
+.overflow-x-auto,
+.overflow-y-auto,
+.overflow-auto {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.no-scrollbar::-webkit-scrollbar,
+table::-webkit-scrollbar,
+.table-container::-webkit-scrollbar,
+div:has(> table)::-webkit-scrollbar,
+div:has(> div > table)::-webkit-scrollbar,
+.overflow-x-auto::-webkit-scrollbar,
+.overflow-y-auto::-webkit-scrollbar,
+.overflow-auto::-webkit-scrollbar {
+  display: none !important;
   width: 0 !important;
   height: 0 !important;
 }
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+/* =========================================================
+   Marquee Animation for Brand Showcase
+   ========================================================= */
+@keyframes marqueeLeft {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
 }
+
+@keyframes marqueeRight {
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0%); }
+}
+
+.animate-marquee-left {
+  display: flex;
+  width: max-content;
+  will-change: transform;
+  animation: marqueeLeft 38s linear infinite;
+}
+
+.animate-marquee-right {
+  display: flex;
+  width: max-content;
+  will-change: transform;
+  animation: marqueeRight 38s linear infinite;
+}
+
+.marquee-container:hover .animate-marquee-left,
+.marquee-container:hover .animate-marquee-right,
+.animate-marquee-left:hover,
+.animate-marquee-right:hover {
+  animation-play-state: paused;
+}
+
 /* =========================================================
    Leaflet map fixes — Tailwind v4 resets break tile images
    ========================================================= */

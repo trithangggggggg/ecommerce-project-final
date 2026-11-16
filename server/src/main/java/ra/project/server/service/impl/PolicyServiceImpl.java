@@ -1,12 +1,15 @@
 package ra.project.server.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import ra.project.server.common.response.PageResponse;
+import ra.project.server.config.CacheConfig;
 import ra.project.server.exception.BadRequestException;
 import ra.project.server.exception.ResourceNotFoundException;
 import ra.project.server.model.entity.Policy;
@@ -25,12 +28,14 @@ public class PolicyServiceImpl implements PolicyService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheConfig.CACHE_POLICIES, key = "'all'")
     public List<Policy> getPublicPolicies() {
         return policyRepository.findByIsActiveTrueOrderByDisplayOrderAscIdAsc();
     }
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheConfig.CACHE_POLICIES, key = "#slug")
     public Policy getPublicPolicyBySlug(String slug) {
         return policyRepository.findBySlugIgnoreCaseAndIsActiveTrue(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Chính sách", "slug", slug));
@@ -47,12 +52,14 @@ public class PolicyServiceImpl implements PolicyService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheConfig.CACHE_POLICIES, key = "#id")
     public Policy getPolicyById(Long id) {
         return policyRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Chính sách", "id", id));
     }
 
     @Override
+    @CacheEvict(value = CacheConfig.CACHE_POLICIES, allEntries = true)
     public Policy createPolicy(Policy request) {
         if (request == null || !StringUtils.hasText(request.getTitle())) {
             throw new BadRequestException("Tiêu đề chính sách không được để trống");
@@ -77,6 +84,7 @@ public class PolicyServiceImpl implements PolicyService {
     }
 
     @Override
+    @CacheEvict(value = CacheConfig.CACHE_POLICIES, allEntries = true)
     public Policy updatePolicy(Long id, Policy request) {
         Policy existing = getPolicyById(id);
         if (request == null || !StringUtils.hasText(request.getTitle())) {
@@ -106,6 +114,7 @@ public class PolicyServiceImpl implements PolicyService {
     }
 
     @Override
+    @CacheEvict(value = CacheConfig.CACHE_POLICIES, allEntries = true)
     public Policy togglePolicyStatus(Long id, Boolean isActive) {
         Policy existing = getPolicyById(id);
         existing.setIsActive(isActive != null ? isActive : !Boolean.TRUE.equals(existing.getIsActive()));
@@ -113,6 +122,7 @@ public class PolicyServiceImpl implements PolicyService {
     }
 
     @Override
+    @CacheEvict(value = CacheConfig.CACHE_POLICIES, allEntries = true)
     public void deletePolicy(Long id) {
         Policy existing = getPolicyById(id);
         policyRepository.delete(existing);

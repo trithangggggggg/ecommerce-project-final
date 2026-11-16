@@ -68,7 +68,7 @@ export default function Footer() {
       {/* 4 Value Proposition Bar */}
       <div className="bg-gray-50 border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-5">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {serviceBenefits.map(({ icon: Icon, title, desc }) => (
               <div key={title} className="flex items-center gap-3">
                 <span className="flex items-center justify-center w-11 h-11 rounded-xl bg-blue-50 text-blue-600 shrink-0">

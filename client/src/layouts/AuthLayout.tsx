@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Link, Outlet } from 'react-router-dom';
-import { Headphones, ShieldCheck, Sparkles, Truck } from 'lucide-react';
+import { ArrowLeft, Headphones, ShieldCheck, Sparkles, Truck } from 'lucide-react';
 import authBgImage from '../assets/images/auth-bg.jpg';
 import nexorLogo from '../assets/images/nexor_logo.png';
 import { useSiteConfigStore } from '../store/useSiteConfigStore';
@@ -61,6 +61,16 @@ export const AuthLayout: React.FC = () => {
             <span>Giao hàng toàn quốc</span>
           </div>
         </div>
+
+        {/* Nút thoát về trang chủ */}
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-gray-800 bg-white/90 hover:bg-white hover:text-blue-600 shadow-sm border border-gray-200/80 backdrop-blur transition-all duration-200 group ml-auto sm:ml-4 cursor-pointer"
+          title="Thoát về trang chủ"
+        >
+          <ArrowLeft className="w-3.5 h-3.5 text-gray-600 group-hover:text-blue-600 group-hover:-translate-x-0.5 transition-transform" />
+          <span>Về trang chủ</span>
+        </Link>
       </header>
 
       {/* 3. Main Stage: 2-Column Split */}

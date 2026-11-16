@@ -1,12 +1,15 @@
 package ra.project.server.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import ra.project.server.common.response.PageResponse;
+import ra.project.server.config.CacheConfig;
 import ra.project.server.exception.BadRequestException;
 import ra.project.server.exception.ResourceNotFoundException;
 import ra.project.server.model.entity.Brand;
@@ -25,6 +28,7 @@ public class BrandServiceImpl implements BrandService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheConfig.CACHE_BRANDS, key = "'active'")
     public List<Brand> getActiveBrands() {
         return brandRepository.findByStatusTrueOrderByDisplayOrderAscNameAsc();
     }
@@ -39,12 +43,14 @@ public class BrandServiceImpl implements BrandService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheConfig.CACHE_BRANDS, key = "#id")
     public Brand getBrandById(Long id) {
         return brandRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Thương hiệu", "id", id));
     }
 
     @Override
+    @CacheEvict(value = CacheConfig.CACHE_BRANDS, allEntries = true)
     public Brand createBrand(Brand request) {
         if (request == null || !StringUtils.hasText(request.getName())) {
             throw new BadRequestException("Tên thương hiệu không được để trống");
@@ -73,6 +79,7 @@ public class BrandServiceImpl implements BrandService {
     }
 
     @Override
+    @CacheEvict(value = CacheConfig.CACHE_BRANDS, allEntries = true)
     public Brand updateBrand(Long id, Brand request) {
         Brand existing = getBrandById(id);
         if (request == null || !StringUtils.hasText(request.getName())) {
@@ -104,6 +111,7 @@ public class BrandServiceImpl implements BrandService {
     }
 
     @Override
+    @CacheEvict(value = CacheConfig.CACHE_BRANDS, allEntries = true)
     public Brand toggleBrandStatus(Long id, Boolean status) {
         Brand existing = getBrandById(id);
         existing.setStatus(status != null ? status : !Boolean.TRUE.equals(existing.getStatus()));
@@ -111,6 +119,7 @@ public class BrandServiceImpl implements BrandService {
     }
 
     @Override
+    @CacheEvict(value = CacheConfig.CACHE_BRANDS, allEntries = true)
     public void deleteBrand(Long id) {
         Brand existing = getBrandById(id);
         brandRepository.delete(existing);

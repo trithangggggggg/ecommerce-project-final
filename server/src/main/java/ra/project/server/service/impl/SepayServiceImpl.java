@@ -42,6 +42,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -60,7 +61,7 @@ public class SepayServiceImpl implements SepayService {
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
-    private volatile CachedPrefixPattern cachedPrefixPattern;
+    private final AtomicReference<CachedPrefixPattern> cachedPrefixPattern = new AtomicReference<>();
 
     @Autowired
     public SepayServiceImpl(
@@ -552,13 +553,13 @@ public class SepayServiceImpl implements SepayService {
 
     private Pattern getPaymentPattern() {
         String prefix = sepayConfig.getEffectivePaymentPrefix();
-        CachedPrefixPattern cached = this.cachedPrefixPattern;
+        CachedPrefixPattern cached = this.cachedPrefixPattern.get();
         if (cached != null && cached.prefix().equals(prefix)) {
             return cached.paymentPattern();
         }
         Pattern compiled = Pattern.compile(
                 "(?i)(?:^|[^A-Z0-9])(" + Pattern.quote(prefix) + "(\\d{1,12})(?:_\\d+)?)(?![A-Z0-9])");
-        this.cachedPrefixPattern = new CachedPrefixPattern(prefix, compiled);
+        this.cachedPrefixPattern.set(new CachedPrefixPattern(prefix, compiled));
         return compiled;
     }
 

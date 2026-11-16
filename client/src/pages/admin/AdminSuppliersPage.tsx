@@ -17,6 +17,13 @@ export interface SupplierItem {
 
 const ITEMS_PER_PAGE = 10;
 
+function truncateText(text?: string | null, maxChars = 18): string {
+  if (!text) return '—';
+  const trimmed = text.trim();
+  if (trimmed.length <= maxChars) return trimmed;
+  return `${trimmed.slice(0, maxChars)}...`;
+}
+
 export const AdminSuppliersPage: React.FC = () => {
   const [suppliers, setSuppliers] = useState<SupplierItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -356,17 +363,17 @@ export const AdminSuppliersPage: React.FC = () => {
         )}
 
         {/* Table View */}
-        <div className="flex-1 min-h-0 overflow-auto">
+        <div className="flex-1 min-h-0 overflow-auto no-scrollbar">
           <table className="w-full text-left text-xs text-slate-600 border-collapse">
             <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               <tr>
-                <th className="py-2.5 px-3.5">Mã NCC</th>
-                <th className="py-2.5 px-3.5">Nhà cung cấp / Doanh nghiệp</th>
-                <th className="py-2.5 px-3.5">Thương hiệu</th>
-                <th className="py-2.5 px-3.5">Thông tin liên hệ</th>
-                <th className="py-2.5 px-3.5">Địa chỉ trụ sở</th>
-                <th className="py-2.5 px-3.5">Trạng thái</th>
-                <th className="py-2.5 px-3.5 text-right">Thao tác</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">Mã NCC</th>
+                <th className="py-2.5 px-3">Nhà cung cấp / Doanh nghiệp</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">Thương hiệu</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">Thông tin liên hệ</th>
+                <th className="py-2.5 px-3">Địa chỉ trụ sở</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">Trạng thái</th>
+                <th className="py-2.5 px-3 text-right whitespace-nowrap">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -389,16 +396,16 @@ export const AdminSuppliersPage: React.FC = () => {
                 paginatedSuppliers.map((s) => (
                   <tr key={s.id} className="hover:bg-slate-50/70 transition group">
                     {/* Code */}
-                    <td className="py-2.5 px-3.5 whitespace-nowrap">
+                    <td className="py-2.5 px-3 whitespace-nowrap">
                       <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-xs tabular-nums">
                         {s.code}
                       </span>
                     </td>
 
                     {/* Name */}
-                    <td className="py-2.5 px-3.5 max-w-[230px]">
+                    <td className="py-2.5 px-3 max-w-[230px]">
                       <span
-                        className="font-bold text-slate-900 group-hover:text-blue-600 transition truncate block"
+                        className="font-bold text-slate-900 group-hover:text-blue-600 transition truncate block max-w-[230px]"
                         title={s.name}
                       >
                         {s.name}
@@ -406,29 +413,31 @@ export const AdminSuppliersPage: React.FC = () => {
                     </td>
 
                     {/* Brand */}
-                    <td className="py-2.5 px-3.5 whitespace-nowrap">
+                    <td className="py-2.5 px-3 whitespace-nowrap">
                       <span className="inline-flex items-center font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 text-[11px]">
                         {s.brand}
                       </span>
                     </td>
 
                     {/* Contact (Phone + Email) */}
-                    <td className="py-2.5 px-3.5 whitespace-nowrap">
+                    <td className="py-2.5 px-3 whitespace-nowrap">
                       <div className="text-slate-800 font-medium text-xs tabular-nums">
                         {s.contact}
                       </div>
-                      <div className="text-slate-500 text-[11px] truncate max-w-[180px]" title={s.email}>
+                      <div className="text-slate-500 text-[11px] truncate max-w-[170px]" title={s.email}>
                         {s.email}
                       </div>
                     </td>
 
                     {/* Address */}
-                    <td className="py-2.5 px-3.5 max-w-[220px]" title={s.address}>
-                      <span className="text-slate-600 text-xs truncate block">{s.address}</span>
+                    <td className="py-2.5 px-3 max-w-[140px]" title={s.address}>
+                      <span className="text-slate-600 text-xs truncate block max-w-[140px]">
+                        {truncateText(s.address, 18)}
+                      </span>
                     </td>
 
                     {/* Status */}
-                    <td className="py-2.5 px-3.5 whitespace-nowrap">
+                    <td className="py-2.5 px-3 whitespace-nowrap">
                       <span
                         className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
                           s.status === 'ACTIVE'
@@ -442,7 +451,7 @@ export const AdminSuppliersPage: React.FC = () => {
                     </td>
 
                     {/* Actions */}
-                    <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
+                    <td className="py-2.5 px-3 text-right whitespace-nowrap">
                       <div className="inline-flex items-center justify-end gap-1.5">
                         <button
                           type="button"

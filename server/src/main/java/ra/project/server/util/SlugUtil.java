@@ -12,6 +12,7 @@ public class SlugUtil {
     private static final Pattern WHITESPACE = Pattern.compile("[\\s]+");
     private static final Pattern DIACRITICS = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
     private static final Pattern MULTIPLE_HYPHENS = Pattern.compile("-+");
+    private static final Pattern TRIM_HYPHENS = Pattern.compile("(^-)|(-$)");
 
     private SlugUtil() {
         // Utility class
@@ -47,7 +48,7 @@ public class SlugUtil {
         String singleHyphens = MULTIPLE_HYPHENS.matcher(withHyphens).replaceAll("-");
 
         // Loại bỏ dấu gạch nối ở đầu và cuối chuỗi
-        String result = singleHyphens.replaceAll("^-|-$", "");
+        String result = TRIM_HYPHENS.matcher(singleHyphens).replaceAll("");
 
         if (!StringUtils.hasText(result)) {
             return "bai-viet";

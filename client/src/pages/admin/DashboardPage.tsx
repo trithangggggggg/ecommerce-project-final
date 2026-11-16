@@ -4,8 +4,6 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
-  BarChart,
-  Bar,
   PieChart,
   Pie,
   Sector,
@@ -13,7 +11,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  LabelList,
   type PieSectorShapeProps,
 } from 'recharts';
 import { ROUTES } from '../../constants/routes';
@@ -109,23 +106,6 @@ const CategoryTooltip: React.FC<ChartTooltipProps<CategoryBreakdownItem>> = ({ a
   );
 };
 
-const TopProductTooltip: React.FC<ChartTooltipProps<TopProductChartEntry>> = ({ active, payload }) => {
-  if (!active || !payload || !payload[0]?.payload) return null;
-  const prod = payload[0].payload;
-  return (
-    <div className="rounded-lg bg-slate-900/95 border border-slate-700 px-3 py-2 shadow-lg text-white max-w-[230px]">
-      <p className="text-[10px] text-blue-300 font-semibold">
-        #{prod.rank} &bull; {prod.category}
-      </p>
-      <p className="text-[11px] font-bold text-white leading-snug mt-0.5">{prod.name}</p>
-      <div className="mt-1 pt-1 border-t border-slate-700/80 space-y-0.5 text-[10px]">
-        <p className="text-emerald-400 font-semibold">Đã bán: {prod.totalSold} sản phẩm</p>
-        <p className="text-slate-200 font-semibold">Doanh thu: {formatPrice(prod.totalRevenue)}</p>
-        {prod.price && <p className="text-slate-400">Đơn giá: {prod.price}</p>}
-      </div>
-    </div>
-  );
-};
 
 const renderCategorySector = (props: PieSectorShapeProps) => {
   const payload = props.payload as CategoryBreakdownItem | undefined;
@@ -163,7 +143,7 @@ function createSmoothPath(pts: { x: number; y: number }[]): string {
 }
 
 export const DashboardPage: React.FC = () => {
-  const [selectedTimeRange, setSelectedTimeRange] = useState<TimeRange>('Hôm nay');
+  const [selectedTimeRange, setSelectedTimeRange] = useState<TimeRange>('7 ngày gần nhất');
   const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false);
   const [isTopDateDropdownOpen, setIsTopDateDropdownOpen] = useState(false);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
@@ -704,8 +684,8 @@ export const DashboardPage: React.FC = () => {
     [periodCategoryStats]
   );
 
-  // 5. Top 10 Sản phẩm bán chạy trong kỳ (tổng hợp từ orderItems theo bộ lọc & đối chiếu BE_18)
-  const periodTopProducts = useMemo<TopProductChartEntry[]>(() => {
+  // 5. Top 10 Sản phẩm bán chạy toàn hệ thống (không phụ thuộc vào bộ lọc thời gian)
+  const allTimeTopProducts = useMemo<TopProductChartEntry[]>(() => {
     const products = dashboardData?.products || [];
     const productById = new Map(products.map((p) => [p.id, p]));
     const beTopById = new Map(
@@ -726,7 +706,22 @@ export const DashboardPage: React.FC = () => {
       }
     >();
 
-    activePeriodOrders.forEach((order) => {
+    // 1. Thêm từ beTopProducts của Backend
+    (dashboardData?.beTopProducts || []).forEach((b) => {
+      const key = b.productId !== null ? `id-${b.productId}` : `name-${b.productName}`;
+      aggMap.set(key, {
+        id: key,
+        name: b.productName,
+        category: b.categoryName || 'Thiết bị công nghệ',
+        totalSold: Number(b.totalSold) || 0,
+        totalRevenue: Number(b.totalRevenue) || 0,
+        unitPrice: Number(b.price) || 0,
+      });
+    });
+
+    // 2. Tổng hợp từ toàn bộ đơn hàng (loại trừ CANCELLED) để đảm bảo lượt bán luôn cập nhật
+    const allOrders = (dashboardData?.orders || []).filter((o) => o.status !== 'CANCELLED');
+    allOrders.forEach((order) => {
       const items = order.orderItems || (order as { items?: typeof order.orderItems }).items || [];
       items.forEach((item) => {
         const pId = Number(item.productId);
@@ -739,8 +734,10 @@ export const DashboardPage: React.FC = () => {
         const key = pId ? `id-${pId}` : `name-${item.productName || 'unknown'}`;
         const existing = aggMap.get(key);
         if (existing) {
-          existing.totalSold += qty;
-          existing.totalRevenue += itemRevenue;
+          if (!beMeta) {
+            existing.totalSold += qty;
+            existing.totalRevenue += itemRevenue;
+          }
         } else {
           aggMap.set(key, {
             id: key,
@@ -754,40 +751,42 @@ export const DashboardPage: React.FC = () => {
       });
     });
 
-    if (
-      aggMap.size === 0 &&
-      (dashboardData?.orders?.length || 0) === 0 &&
-      (dashboardData?.beTopProducts?.length || 0) > 0
-    ) {
-      return (dashboardData?.beTopProducts || []).slice(0, 10).map((b, idx) => ({
-        id: b.productId !== null ? `be-${b.productId}` : `be-idx-${idx}`,
-        rank: idx + 1,
-        name: b.productName,
-        shortName: truncateProductName(b.productName),
-        category: b.categoryName || 'Thiết bị công nghệ',
-        totalSold: Number(b.totalSold) || 0,
-        totalRevenue: Number(b.totalRevenue) || 0,
-        price: b.price > 0 ? formatPrice(b.price) : '',
-      }));
+    const sorted = Array.from(aggMap.values()).sort((a, b) => {
+      if (b.totalSold !== a.totalSold) return b.totalSold - a.totalSold;
+      return b.totalRevenue - a.totalRevenue;
+    });
+
+    // Nếu số lượng sản phẩm có lượt bán < 10, bổ sung từ danh mục sản phẩm để luôn đủ 10 dòng
+    if (sorted.length < 10) {
+      const includedKeys = new Set(sorted.map((p) => p.id));
+      for (const prod of products) {
+        if (sorted.length >= 10) break;
+        const key = `id-${prod.id}`;
+        if (!includedKeys.has(key)) {
+          sorted.push({
+            id: key,
+            name: prod.name,
+            category: prod.category?.name || 'Thiết bị công nghệ',
+            totalSold: 0,
+            totalRevenue: 0,
+            unitPrice: Number(prod.price) || 0,
+          });
+          includedKeys.add(key);
+        }
+      }
     }
 
-    return Array.from(aggMap.values())
-      .sort((a, b) => {
-        if (b.totalSold !== a.totalSold) return b.totalSold - a.totalSold;
-        return b.totalRevenue - a.totalRevenue;
-      })
-      .slice(0, 10)
-      .map((item, idx) => ({
-        id: item.id,
-        rank: idx + 1,
-        name: item.name,
-        shortName: truncateProductName(item.name),
-        category: item.category,
-        totalSold: item.totalSold,
-        totalRevenue: item.totalRevenue,
-        price: item.unitPrice > 0 ? formatPrice(item.unitPrice) : '',
-      }));
-  }, [dashboardData?.products, dashboardData?.orders?.length, dashboardData?.beTopProducts, activePeriodOrders]);
+    return sorted.slice(0, 10).map((item, idx) => ({
+      id: item.id,
+      rank: idx + 1,
+      name: item.name,
+      shortName: truncateProductName(item.name),
+      category: item.category,
+      totalSold: item.totalSold,
+      totalRevenue: item.totalRevenue,
+      price: item.unitPrice > 0 ? formatPrice(item.unitPrice) : '',
+    }));
+  }, [dashboardData?.products, dashboardData?.orders, dashboardData?.beTopProducts]);
 
   const totalProducts = dashboardData?.totalProducts ?? 20;
 
@@ -845,10 +844,10 @@ export const DashboardPage: React.FC = () => {
   ];
 
   const categoryStats = periodCategoryStats;
-  const topProducts = periodTopProducts;
+  const topProducts = allTimeTopProducts;
 
   return (
-    <div className="h-full flex flex-col min-h-0 font-sans overflow-y-auto lg:overflow-hidden space-y-3">
+    <div className="h-full flex flex-col min-h-0 font-sans overflow-y-auto lg:overflow-hidden space-y-2.5">
       {/* Top Header & Action Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
         <div>
@@ -1031,32 +1030,32 @@ export const DashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* Row 1: 4 Stat Cards (Icon-Free, Typographic Hierarchy + Sparklines) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
+      {/* Row 1: 4 Stat Cards (Gọn gàng tối ưu không gian cho phần biểu đồ bên dưới) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 shrink-0">
         {stats.map((stat, idx) => (
           <div
             key={idx}
-            className={`bg-white rounded-xl p-4 border border-slate-200/80 ${stat.accentClass} shadow-2xs hover:shadow-xs transition flex flex-col justify-between`}
+            className={`bg-white rounded-xl py-2 px-3.5 border border-slate-200/80 ${stat.accentClass} shadow-2xs hover:shadow-xs transition flex flex-col justify-between`}
           >
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <div className="flex items-center justify-between gap-1.5 mb-0.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 {stat.title}
               </span>
-              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${stat.tagClass}`}>
+              <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${stat.tagClass}`}>
                 {stat.tag}
               </span>
             </div>
 
-            <div className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight tabular-nums">
+            <div className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight tabular-nums leading-tight">
               {stat.value}
             </div>
 
-            <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
-              <span className="text-[11px] font-semibold text-emerald-600 truncate">
+            <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex items-center justify-between gap-2">
+              <span className="text-[10px] font-semibold text-emerald-600 truncate">
                 {stat.change}
               </span>
 
-              <div className="w-16 h-4 shrink-0">
+              <div className="w-14 h-3.5 shrink-0">
                 <svg viewBox="0 0 100 30" className="w-full h-full overflow-visible">
                   <path
                     d={stat.sparklinePath}
@@ -1202,8 +1201,8 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* Chart 2: DonutChart - Cơ cấu doanh thu theo danh mục (Span 3) */}
-        <div className="lg:col-span-3 bg-white rounded-xl p-4 border border-slate-200/80 shadow-2xs flex flex-col justify-between min-h-[240px] lg:min-h-0 overflow-hidden">
-          <div className="flex items-center justify-between mb-2 shrink-0">
+        <div className="lg:col-span-3 bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-2xs flex flex-col justify-between overflow-hidden">
+          <div className="flex items-center justify-between mb-1.5 shrink-0">
             <h2 className="text-sm font-bold text-slate-900">Doanh thu theo danh mục</h2>
             {isLoading && dashboardData && (
               <span className="text-[10px] font-semibold text-blue-600">Đang cập nhật</span>
@@ -1222,12 +1221,12 @@ export const DashboardPage: React.FC = () => {
               </button>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center my-auto py-1">
-              <div className="relative w-32 h-32 flex items-center justify-center shrink-0">
+            <div className="flex-1 flex flex-col justify-center items-center my-auto py-1.5 gap-2.5">
+              <div className="relative w-36 h-36 flex items-center justify-center shrink-0">
                 {isLoading && !dashboardData ? (
                   <span className="text-xs font-medium text-slate-400">Đang tải...</span>
                 ) : activeCategorySlices.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={128}>
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={144}>
                     <PieChart>
                       <Pie
                         data={activeCategorySlices}
@@ -1235,7 +1234,7 @@ export const DashboardPage: React.FC = () => {
                         nameKey="name"
                         cx="50%"
                         cy="50%"
-                        innerRadius="64%"
+                        innerRadius="65%"
                         outerRadius="92%"
                         paddingAngle={activeCategorySlices.length > 1 ? 2 : 0}
                         stroke="none"
@@ -1247,29 +1246,32 @@ export const DashboardPage: React.FC = () => {
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="w-28 h-28 rounded-full border-[10px] border-slate-100" />
+                  <div className="w-32 h-32 rounded-full border-[10px] border-slate-100" />
                 )}
 
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-3">
-                  <span className="text-xs sm:text-sm font-bold text-slate-900 leading-tight max-w-full truncate tabular-nums">
-                    {periodRevenueFormatted}
+                <div
+                  className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-2"
+                  title={periodRevenueFormatted}
+                >
+                  <span className="text-base sm:text-lg font-extrabold text-slate-900 leading-tight max-w-full truncate tabular-nums">
+                    {periodRevenueNumber > 0 ? formatShortVND(periodRevenueNumber) : '0 ₫'}
                   </span>
-                  <span className="text-[9px] text-slate-400 font-medium">Doanh thu</span>
+                  <span className="text-[10px] text-slate-400 font-medium">Doanh thu</span>
                 </div>
               </div>
 
-              <div className="w-full mt-3 space-y-1.5 text-xs max-h-[150px] overflow-y-auto pr-0.5">
+              <div className="w-full space-y-1 text-xs px-1">
                 {categoryStats.length > 0 ? (
                   categoryStats.map((cat) => (
-                    <div key={cat.id} className="flex items-center justify-between text-[11px] gap-2">
+                    <div key={cat.id} className="flex items-center justify-between text-[11px] gap-2 py-0.5 hover:bg-slate-50/80 px-1 rounded transition">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                        <span className="text-slate-600 font-medium truncate" title={cat.name}>{cat.name}</span>
+                        <span className="text-slate-700 font-medium truncate" title={cat.name}>{cat.name}</span>
                       </div>
                       <div className="flex items-center gap-2 font-semibold text-slate-800 shrink-0 tabular-nums">
                         <span className="text-slate-400 font-normal">{cat.percentage}%</span>
                         <span
-                          className="cursor-help"
+                          className="cursor-help text-slate-900 font-bold"
                           title={cat.rawRevenue !== undefined ? new Intl.NumberFormat('vi-VN').format(cat.rawRevenue) + ' ₫' : cat.value}
                         >
                           {cat.value}
@@ -1287,10 +1289,15 @@ export const DashboardPage: React.FC = () => {
           )}
         </div>
 
-        {/* Chart 3: BarChart - Top 10 sản phẩm bán chạy (Span 3) */}
-        <div className="lg:col-span-3 bg-white rounded-xl p-4 border border-slate-200/80 shadow-2xs flex flex-col justify-between min-h-[240px] lg:min-h-0 overflow-hidden">
-          <div className="flex items-center justify-between gap-2 mb-2 shrink-0">
-            <h2 className="text-sm font-bold text-slate-900">Top 10 bán chạy</h2>
+        {/* Chart 3: Top 10 sản phẩm bán chạy (Span 3) */}
+        <div className="lg:col-span-3 bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-2xs flex flex-col justify-between overflow-hidden">
+          <div className="flex items-center justify-between gap-2 mb-1.5 shrink-0">
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-sm font-bold text-slate-900">Top 10 bán chạy</h2>
+              <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
+                {topProducts.length}
+              </span>
+            </div>
             <Link
               to={ROUTES.ADMIN_PRODUCTS}
               className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline shrink-0"
@@ -1299,13 +1306,13 @@ export const DashboardPage: React.FC = () => {
             </Link>
           </div>
 
-          <div className="flex-1 w-full min-h-[210px] lg:min-h-0 relative min-w-0">
+          <div className="flex-1 w-full relative min-w-0 flex flex-col justify-between">
             {isLoading && !dashboardData ? (
-              <div className="h-full flex items-center justify-center text-slate-500">
+              <div className="h-full flex items-center justify-center text-slate-500 py-8">
                 <span className="text-xs font-medium">Đang tải Top sản phẩm...</span>
               </div>
             ) : apiError && !dashboardData ? (
-              <div className="h-full flex flex-col items-center justify-center text-center px-3 gap-2">
+              <div className="h-full flex flex-col items-center justify-center text-center px-3 py-8 gap-2">
                 <p className="text-xs text-rose-600 font-medium">Không thể tải Top sản phẩm</p>
                 <button
                   type="button"
@@ -1316,45 +1323,73 @@ export const DashboardPage: React.FC = () => {
                 </button>
               </div>
             ) : topProducts.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={210}>
-                <BarChart data={topProducts} layout="vertical" margin={{ top: 2, right: 24, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                  <XAxis
-                    type="number"
-                    allowDecimals={false}
-                    tick={{ fontSize: 10, fill: '#94a3b8' }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="shortName"
-                    width={92}
-                    tick={{ fontSize: 10, fill: '#334155', fontWeight: 500 }}
-                    axisLine={false}
-                    tickLine={false}
-                    interval={0}
-                  />
-                  <Tooltip content={<TopProductTooltip />} cursor={{ fill: '#f8fafc' }} />
-                  <Bar
-                    dataKey="totalSold"
-                    fill="#2563eb"
-                    radius={[0, 4, 4, 0]}
-                    maxBarSize={14}
-                    isAnimationActive={true}
-                    animationDuration={450}
-                  >
-                    <LabelList
-                      dataKey="totalSold"
-                      position="right"
-                      style={{ fontSize: '10px', fill: '#475569', fontWeight: 600 }}
-                    />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="flex flex-col justify-between flex-1 gap-1 focus:outline-none">
+                {(() => {
+                  const maxSold = Math.max(...topProducts.map((p) => p.totalSold), 1);
+                  return topProducts.map((prod) => {
+                    const pct = Math.max(Math.round((prod.totalSold / maxSold) * 100), 5);
+                    return (
+                      <div
+                        key={prod.id}
+                        className="group flex flex-col px-1.5 py-0.5 rounded-md hover:bg-slate-50/80 transition"
+                      >
+                        <div className="flex items-center justify-between gap-1.5 text-[11px] mb-0.5">
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            <span
+                              className={`w-4 h-4 rounded flex items-center justify-center text-[9px] font-bold shrink-0 shadow-2xs ${
+                                prod.rank === 1
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                  : prod.rank === 2
+                                  ? 'bg-slate-200 text-slate-700 border border-slate-300'
+                                  : prod.rank === 3
+                                  ? 'bg-orange-100 text-orange-800 border border-orange-300'
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              {prod.rank}
+                            </span>
+                            <span
+                              className="font-medium text-slate-800 truncate cursor-default leading-tight"
+                              title={`${prod.name} (${prod.category})`}
+                            >
+                              {prod.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0 tabular-nums">
+                            {prod.totalRevenue > 0 && (
+                              <span className="text-[9px] text-slate-400 font-medium hidden xl:inline">
+                                {formatShortVND(prod.totalRevenue)}
+                              </span>
+                            )}
+                            <span className="text-[10px] font-bold text-slate-900 bg-slate-100 group-hover:bg-blue-50 group-hover:text-blue-700 px-1 py-0.5 rounded transition leading-none">
+                              {prod.totalSold} <span className="text-[8px] font-normal text-slate-500 group-hover:text-blue-500">sp</span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Mini progress bar */}
+                        <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden flex items-center">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              prod.rank === 1
+                                ? 'bg-gradient-to-r from-blue-600 to-indigo-600'
+                                : prod.rank === 2
+                                ? 'bg-gradient-to-r from-blue-500 to-sky-500'
+                                : prod.rank === 3
+                                ? 'bg-gradient-to-r from-sky-500 to-teal-500'
+                                : 'bg-slate-300 group-hover:bg-blue-400'
+                            }`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
             ) : (
-              <div className="h-full flex items-center justify-center">
-                <p className="text-xs text-slate-400 text-center py-6">
+              <div className="h-full flex items-center justify-center py-6">
+                <p className="text-xs text-slate-400 text-center">
                   Chưa có sản phẩm nào phát sinh lượt bán
                 </p>
               </div>

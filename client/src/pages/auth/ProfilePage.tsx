@@ -282,7 +282,7 @@ export const ProfilePage: React.FC = () => {
           {/* Top banner: Dark Charcoal matching Header */}
           <div className="h-28 bg-[#181a20] relative border-b border-gray-800" />
 
-          <div className="px-6 pb-6 relative flex flex-col sm:flex-row items-center sm:items-end justify-between gap-4 -mt-12">
+          <div className="px-4 sm:px-6 pb-5 sm:pb-6 relative flex flex-col sm:flex-row items-center sm:items-end justify-between gap-4 -mt-12">
             <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
               <div className="relative group">
                 <img
@@ -362,7 +362,7 @@ export const ProfilePage: React.FC = () => {
           </div>
 
           {/* Navigation Tabs */}
-          <div className="border-t border-gray-100 px-6 flex gap-6 text-xs overflow-x-auto">
+          <div className="border-t border-gray-100 px-4 sm:px-6 flex gap-3 sm:gap-6 text-xs overflow-x-auto no-scrollbar scrollbar-none">
             <button
               type="button"
               onClick={() => {

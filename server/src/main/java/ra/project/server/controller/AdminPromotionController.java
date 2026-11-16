@@ -97,9 +97,7 @@ public class AdminPromotionController {
         if (request.getStatus() != null && !request.getStatus().isBlank()) {
             existing.setStatus("INACTIVE".equalsIgnoreCase(request.getStatus().trim()) ? "INACTIVE" : "ACTIVE");
         }
-        if (request.getUserId() != null) {
-            existing.setUserId(request.getUserId());
-        }
+        existing.setUserId(request.getUserId());
         existing.setType(request.getType() != null && !request.getType().isBlank()
                 ? request.getType().trim().toUpperCase()
                 : (existing.isShippingDiscount() ? "SHIPPING" : "ORDER"));

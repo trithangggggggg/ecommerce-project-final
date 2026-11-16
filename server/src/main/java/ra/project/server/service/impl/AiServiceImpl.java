@@ -47,6 +47,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AiServiceImpl implements AiService {
 
+    private static final Pattern BUDGET_PATTERN = Pattern.compile("(?:duoi(?:\\s+tam)?|tam|khoang)?\\s*(\\d+)\\s*(?:tr|trieu)\\b");
+
     private final ProductRepository productRepository;
     private final ProductMapper productMapper;
     private final KnowledgeBaseService knowledgeBaseService;
@@ -381,8 +383,7 @@ public class AiServiceImpl implements AiService {
     }
 
     private Long extractBudgetMax(String normQuery) {
-        Pattern p = Pattern.compile("(?:duoi|tam|khoang|duoi\\s+tam)?\\s*(\\d+)(?:\\s*tr|\\s*trieu)");
-        Matcher m = p.matcher(normQuery);
+        Matcher m = BUDGET_PATTERN.matcher(normQuery);
         if (m.find()) {
             try {
                 long val = Long.parseLong(m.group(1));
@@ -668,6 +669,9 @@ public class AiServiceImpl implements AiService {
                 } else {
                     log.warn("Gemini API (model {}) trả về mã {}: {}", model, response.statusCode(), response.body());
                 }
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                log.warn("Gọi Gemini API (model {}) bị gián đoạn: {}", model, ex.getMessage());
             } catch (Exception ex) {
                 log.warn("Gọi Gemini API (model {}) thất bại: {}", model, ex.getMessage());
             }
