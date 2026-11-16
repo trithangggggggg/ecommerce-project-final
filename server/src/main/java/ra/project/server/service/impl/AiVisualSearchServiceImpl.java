@@ -325,14 +325,14 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
 
     private VisualSearchAttributes buildFallbackAttributes(String filename) {
         String cleanName = filename != null ? filename.toLowerCase() : "";
-        String category = "Điện thoại";
+        String category = "Thiết bị điện tử";
         String brand = "Apple";
-        String productLine = "iPhone";
-        String identifiedTitle = "Điện thoại thông minh Apple iPhone";
-        String aiDescription = "Hệ thống ghi nhận thiết bị công nghệ mang đặc trưng của hệ sinh thái Apple với thiết kế cao cấp.";
+        String productLine = "iPhone / Flagship";
+        String identifiedTitle = "Điện thoại Apple iPhone (Mặt lưng kính nhám, cụm 3 camera Pro)";
+        String aiDescription = "Hệ thống nhận diện thiết bị công nghệ mang đặc trưng của dòng Flagship Apple với mặt lưng kính nhám và cụm camera Pro cao cấp.";
         String color = "Đen / Titan";
         String confidence = "HIGH";
-        List<String> distinctiveFeatures = new ArrayList<>(List.of("Khung viền kim loại cao cấp", "Cụm camera chất lượng cao"));
+        List<String> distinctiveFeatures = new ArrayList<>(List.of("Logo quả táo Apple khuyết ở mặt lưng", "Cụm 3 camera Pro đa ống kính", "Khung viền kim loại cao cấp"));
         List<String> keywords = new ArrayList<>(List.of("Apple", "iPhone", "Công nghệ", "NEXOR"));
 
         if (cleanName.contains("tai-nghe") || cleanName.contains("headphone") || cleanName.contains("earphone") || cleanName.contains("airpod") || cleanName.contains("sony")) {
@@ -395,8 +395,7 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
             aiDescription = "Máy tính bảng iPad của Apple với màn hình Retina sắc nét, hỗ trợ làm việc và đồ họa.";
             keywords.add("iPad");
             distinctiveFeatures = List.of("Màn hình Retina viền mỏng", "Hỗ trợ bút cảm ứng Apple Pencil");
-        } else {
-            // Mặc định đối với ảnh chụp camera (như ảnh chiếc điện thoại iPhone)
+        } else if (cleanName.contains("captured") || cleanName.contains("camera") || cleanName.contains("iphone") || cleanName.contains("phone")) {
             category = "Điện thoại";
             brand = "Apple";
             productLine = "iPhone";
@@ -405,6 +404,12 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
             color = "Đen / Titan";
             distinctiveFeatures = List.of("Logo quả táo Apple khuyết ở mặt lưng", "Cụm camera Pro đa ống kính", "Khung viền kim loại cao cấp");
             keywords = List.of("Apple", "iPhone", "Smartphone", "Pro Max");
+        } else {
+            category = "Thiết bị điện tử";
+            brand = "Apple";
+            productLine = "Công nghệ";
+            identifiedTitle = "Thiết bị công nghệ NEXOR";
+            aiDescription = "Hệ thống ghi nhận thiết bị công nghệ mang đặc trưng của hệ sinh thái Apple với thiết kế cao cấp.";
         }
 
         return VisualSearchAttributes.builder()
