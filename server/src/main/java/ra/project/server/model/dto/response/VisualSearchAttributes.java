@@ -20,6 +20,7 @@ public class VisualSearchAttributes {
     private String brand;
     private String productLine;
     private String identifiedTitle;
+    private String aiDescription;
     private String color;
     private String confidence;
     private Boolean isTechProduct;

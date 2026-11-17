@@ -709,6 +709,17 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                           </h3>
                         </div>
 
+                        {/* Phân tích thị giác chi tiết bởi AI */}
+                        {searchResponse.detectedAttributes.aiDescription && (
+                          <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-200/90 leading-relaxed flex items-start gap-2">
+                            <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                            <div>
+                              <span className="font-semibold text-emerald-300">Phân tích thị giác AI: </span>
+                              <span>{searchResponse.detectedAttributes.aiDescription}</span>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Chi tiết thông số nhận diện */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] pt-1">
                           <div className="flex flex-col p-2 rounded-lg bg-white/5 border border-white/5">
