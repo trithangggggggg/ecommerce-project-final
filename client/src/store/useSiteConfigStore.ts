@@ -63,7 +63,20 @@ export const useSiteConfigStore = create<SiteConfigStore>((set, get) => ({
         policyService.getPublicPolicies().catch(() => []),
       ]);
       set({
-        config: cfg ? { ...DEFAULT_CONFIG, ...cfg } : get().config,
+        config: cfg
+          ? {
+              ...DEFAULT_CONFIG,
+              ...cfg,
+              general: {
+                ...DEFAULT_CONFIG.general,
+                ...(cfg.general || {}),
+                wheelEnabled:
+                  cfg.general?.wheelEnabled !== undefined
+                    ? String(cfg.general.wheelEnabled) === 'true' || cfg.general.wheelEnabled === true
+                    : true,
+              },
+            }
+          : get().config,
         policies: Array.isArray(pols) ? pols : get().policies,
         isLoaded: cfg !== null,
       });

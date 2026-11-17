@@ -1,4 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import 'leaflet/dist/leaflet.css';
+import React, { useState, useEffect, useMemo } from 'react';
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+import {
+  MapPin,
+  Search,
+  Crosshair,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  HelpCircle,
+} from 'lucide-react';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import AdminPagination from '../../components/admin/AdminPagination';
@@ -6,6 +18,269 @@ import { storeService } from '../../api/services/store.service';
 import type { StoreLocation, StoreLocationRequest } from '../../models/store.model';
 
 const ITEMS_PER_PAGE = 8;
+
+// Icon ghim vị trí Showroom trên bản đồ
+const customStoreMarkerIcon = L.divIcon({
+  className: 'custom-showroom-pin',
+  html: `
+    <div style="position: relative; width: 34px; height: 42px; display: flex; align-items: center; justify-content: center; cursor: grab;">
+      <svg width="34" height="42" viewBox="0 0 30 38" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 4px 6px rgba(0,0,0,0.35)); transition: transform 0.2s ease;">
+        <path d="M15 0C6.716 0 0 6.716 0 15C0 25.5 15 38 15 38C15 38 30 25.5 30 15C30 6.716 23.284 0 15 0Z" fill="#2563eb"/>
+        <circle cx="15" cy="14" r="6" fill="#ffffff"/>
+        <circle cx="15" cy="14" r="3" fill="#1d4ed8"/>
+      </svg>
+    </div>
+  `,
+  iconSize: [34, 42],
+  iconAnchor: [17, 42],
+  popupAnchor: [0, -40],
+});
+
+// Bắt sự kiện click chuột trên bản đồ để chọn tọa độ
+function MapEventsHandler({ onPick }: { onPick: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click(e) {
+      onPick(e.latlng.lat, e.latlng.lng);
+    },
+  });
+  return null;
+}
+
+// Đồng bộ vị trí bản đồ khi tìm kiếm hoặc bay tới
+function MapViewSync({ center, zoom }: { center: [number, number]; zoom?: number }) {
+  const map = useMap();
+  useEffect(() => {
+    map.flyTo(center, zoom || 16, { duration: 1.2 });
+  }, [center[0], center[1], zoom, map]);
+  return null;
+}
+
+// Tự động căn chỉnh kích thước tile khi mở trong Modal (tránh bị xám bản đồ)
+function MapInvalidateSize() {
+  const map = useMap();
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [map]);
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Component: Khung Bản đồ Tương tác chọn vị trí Showroom
+// ---------------------------------------------------------------------------
+interface InteractiveMapPickerProps {
+  latitude?: number;
+  longitude?: number;
+  address: string;
+  province: string;
+  district?: string;
+  onChange: (lat: number, lng: number) => void;
+}
+
+const InteractiveMapPicker: React.FC<InteractiveMapPickerProps> = ({
+  latitude,
+  longitude,
+  address,
+  province,
+  district,
+  onChange,
+}) => {
+  // Xác định tọa độ mặc định: nếu có sẵn thì dùng, chưa có thì theo tỉnh thành hoặc Hà Nội
+  const defaultPos = useMemo<[number, number]>(() => {
+    if (latitude != null && longitude != null && !isNaN(latitude) && !isNaN(longitude)) {
+      return [latitude, longitude];
+    }
+    const prov = (province || '').toLowerCase();
+    if (prov.includes('hồ chí minh') || prov.includes('hcm') || prov.includes('sài gòn')) {
+      return [10.776889, 106.700806];
+    }
+    if (prov.includes('đà nẵng')) {
+      return [16.054407, 108.202167];
+    }
+    return [21.028511, 105.854444]; // Hà Nội mặc định
+  }, [latitude, longitude, province]);
+
+  const [markerPos, setMarkerPos] = useState<[number, number]>(defaultPos);
+  const [mapCenter, setMapCenter] = useState<[number, number]>(defaultPos);
+  const [zoomLevel, setZoomLevel] = useState<number>(latitude != null ? 16 : 14);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  // Đồng bộ vị trí ghim khi props thay đổi
+  useEffect(() => {
+    if (latitude != null && longitude != null && !isNaN(latitude) && !isNaN(longitude)) {
+      setMarkerPos([latitude, longitude]);
+    }
+  }, [latitude, longitude]);
+
+  const handlePick = (lat: number, lng: number) => {
+    setMarkerPos([lat, lng]);
+    onChange(lat, lng);
+    setSearchError(null);
+  };
+
+  // Tìm kiếm địa điểm và bay tới
+  const handleSearch = async (queryToSearch: string) => {
+    const q = queryToSearch.trim();
+    if (!q) return;
+
+    setIsSearching(true);
+    setSearchError(null);
+    try {
+      const fullQuery =
+        q.toLowerCase().includes('việt nam') || q.toLowerCase().includes('vietnam')
+          ? q
+          : `${q}, Việt Nam`;
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          fullQuery
+        )}&limit=1`,
+        { headers: { Accept: 'application/json' } }
+      );
+      if (!res.ok) throw new Error('Không thể kết nối dịch vụ bản đồ');
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const lat = parseFloat(data[0].lat);
+        const lng = parseFloat(data[0].lon);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          setMarkerPos([lat, lng]);
+          setMapCenter([lat, lng]);
+          setZoomLevel(16);
+          onChange(lat, lng);
+          setIsSearching(false);
+          return;
+        }
+      }
+      setSearchError('Không tìm thấy địa điểm trên bản đồ. Bạn có thể click chuột trực tiếp để chọn vị trí nhé!');
+    } catch {
+      setSearchError('Lỗi tra cứu bản đồ. Bạn có thể click chuột trực tiếp để ghim vị trí.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Nút bay đến địa chỉ form đang nhập
+  const handleFlyToFormAddress = () => {
+    const parts = [address, district, province, 'Việt Nam'].filter(Boolean);
+    if (parts.length <= 1) {
+      setSearchError('Vui lòng nhập Địa chỉ chi tiết và Tỉnh/Thành phố ở các ô bên trên trước.');
+      return;
+    }
+    handleSearch(parts.join(', '));
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+          <MapPin className="w-3.5 h-3.5 text-blue-600" />
+          <span>Vị trí Showroom trên Bản đồ</span>
+        </label>
+
+        {latitude != null && longitude != null ? (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+            Tọa độ: {latitude.toFixed(6)}, {longitude.toFixed(6)}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+            <AlertCircle className="w-3 h-3 text-amber-600" />
+            Click bản đồ để ghim vị trí
+          </span>
+        )}
+      </div>
+
+      {/* Thanh tìm kiếm trên bản đồ & Nút bay tới địa chỉ */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+        <div className="relative flex-1">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSearch(searchQuery);
+              }
+            }}
+            placeholder="Tìm tên đường, tòa nhà hoặc địa danh trên bản đồ..."
+            className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-800 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+          />
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            disabled={isSearching || !searchQuery.trim()}
+            onClick={() => handleSearch(searchQuery)}
+            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 disabled:bg-slate-300 text-white font-semibold text-xs transition cursor-pointer"
+          >
+            {isSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Tìm'}
+          </button>
+          <button
+            type="button"
+            disabled={isSearching}
+            onClick={handleFlyToFormAddress}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold text-xs transition cursor-pointer whitespace-nowrap"
+            title="Định vị theo địa chỉ chi tiết đã nhập ở trên"
+          >
+            <Crosshair className="w-3.5 h-3.5 text-blue-600" />
+            <span>Bay đến địa chỉ form</span>
+          </button>
+        </div>
+      </div>
+
+      {searchError && (
+        <p className="text-[11px] text-rose-500 font-medium">{searchError}</p>
+      )}
+
+      {/* Khung bản đồ tương tác Leaflet */}
+      <div className="relative h-64 sm:h-72 w-full rounded-2xl overflow-hidden border border-slate-200 shadow-inner z-0">
+        <MapContainer
+          center={mapCenter}
+          zoom={zoomLevel}
+          scrollWheelZoom={true}
+          attributionControl={false}
+          className="w-full h-full"
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <MapEventsHandler onPick={handlePick} />
+          <MapViewSync center={mapCenter} zoom={zoomLevel} />
+          <MapInvalidateSize />
+          <Marker
+            position={markerPos}
+            draggable={true}
+            icon={customStoreMarkerIcon}
+            eventHandlers={{
+              dragend(e) {
+                const marker = e.target;
+                const pos = marker.getLatLng();
+                handlePick(pos.lat, pos.lng);
+              },
+            }}
+          />
+        </MapContainer>
+
+        {/* Floating Tooltip Indicator */}
+        <div className="absolute bottom-2.5 left-2.5 right-2.5 z-10 pointer-events-none">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/80 backdrop-blur-md text-white text-[11px] shadow-lg pointer-events-auto">
+            <HelpCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>
+              <strong>Click chuột</strong> hoặc <strong>kéo ghim xanh</strong> để đặt chính xác vị trí showroom.
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const AdminStoresPage: React.FC = () => {
   const [stores, setStores] = useState<StoreLocation[]>([]);
@@ -140,12 +415,14 @@ export const AdminStoresPage: React.FC = () => {
         province: formData.province.trim(),
         district: formData.district?.trim() || undefined,
         phoneNumber: formData.phoneNumber?.trim() || undefined,
-        latitude: formData.latitude !== undefined && formData.latitude !== null && !isNaN(Number(formData.latitude))
-          ? Number(formData.latitude)
-          : undefined,
-        longitude: formData.longitude !== undefined && formData.longitude !== null && !isNaN(Number(formData.longitude))
-          ? Number(formData.longitude)
-          : undefined,
+        latitude:
+          formData.latitude !== undefined && formData.latitude !== null && !isNaN(Number(formData.latitude))
+            ? Number(formData.latitude)
+            : undefined,
+        longitude:
+          formData.longitude !== undefined && formData.longitude !== null && !isNaN(Number(formData.longitude))
+            ? Number(formData.longitude)
+            : undefined,
         openHours: formData.openHours?.trim() || '08:00 - 22:00',
         imageUrl: formData.imageUrl?.trim() || undefined,
         status: formData.status || 'ACTIVE',
@@ -295,33 +572,30 @@ export const AdminStoresPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setStatusFilter('ALL')}
-                className={`px-2.5 py-1 rounded-md font-semibold transition cursor-pointer whitespace-nowrap tabular-nums ${
-                  statusFilter === 'ALL'
-                    ? 'bg-white text-blue-600 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-2.5 py-1 rounded-md font-semibold transition cursor-pointer whitespace-nowrap tabular-nums ${statusFilter === 'ALL'
+                  ? 'bg-white text-blue-600 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 Tất cả ({stores.length})
               </button>
               <button
                 type="button"
                 onClick={() => setStatusFilter('ACTIVE')}
-                className={`px-2.5 py-1 rounded-md font-semibold transition cursor-pointer whitespace-nowrap tabular-nums ${
-                  statusFilter === 'ACTIVE'
-                    ? 'bg-white text-emerald-600 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-2.5 py-1 rounded-md font-semibold transition cursor-pointer whitespace-nowrap tabular-nums ${statusFilter === 'ACTIVE'
+                  ? 'bg-white text-emerald-600 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 Hoạt động ({activeCount})
               </button>
               <button
                 type="button"
                 onClick={() => setStatusFilter('INACTIVE')}
-                className={`px-2.5 py-1 rounded-md font-semibold transition cursor-pointer whitespace-nowrap tabular-nums ${
-                  statusFilter === 'INACTIVE'
-                    ? 'bg-white text-slate-700 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-2.5 py-1 rounded-md font-semibold transition cursor-pointer whitespace-nowrap tabular-nums ${statusFilter === 'INACTIVE'
+                  ? 'bg-white text-slate-700 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 Tạm ngừng ({inactiveCount})
               </button>
@@ -416,11 +690,10 @@ export const AdminStoresPage: React.FC = () => {
 
                       <td className="py-3 px-3.5 text-center">
                         <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap ${
-                            isActive
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
-                              : 'bg-slate-100 text-slate-600 border-slate-200'
-                          }`}
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap ${isActive
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+                            : 'bg-slate-100 text-slate-600 border-slate-200'
+                            }`}
                         >
                           {isActive ? 'Hoạt động' : 'Tạm ngừng'}
                         </span>
@@ -477,7 +750,7 @@ export const AdminStoresPage: React.FC = () => {
           ======================================================== */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
             {/* Sticky Modal Header */}
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-4 shrink-0 bg-white sticky top-0 z-10">
               <div>
@@ -510,9 +783,8 @@ export const AdminStoresPage: React.FC = () => {
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Ví dụ: NEXOR Flagship Hai Bà Trưng"
-                    className={`w-full px-3.5 py-2 rounded-xl border text-xs text-slate-800 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition ${
-                      formErrors.name ? 'border-rose-400' : 'border-slate-200'
-                    }`}
+                    className={`w-full px-3.5 py-2 rounded-xl border text-xs text-slate-800 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition ${formErrors.name ? 'border-rose-400' : 'border-slate-200'
+                      }`}
                   />
                   {formErrors.name && (
                     <p className="text-[11px] text-rose-500 mt-1">{formErrors.name}</p>
@@ -530,9 +802,8 @@ export const AdminStoresPage: React.FC = () => {
                       value={formData.province}
                       onChange={(e) => setFormData({ ...formData, province: e.target.value })}
                       placeholder="Hà Nội, TP. Hồ Chí Minh, Đà Nẵng..."
-                      className={`w-full px-3.5 py-2 rounded-xl border text-xs text-slate-800 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition ${
-                        formErrors.province ? 'border-rose-400' : 'border-slate-200'
-                      }`}
+                      className={`w-full px-3.5 py-2 rounded-xl border text-xs text-slate-800 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition ${formErrors.province ? 'border-rose-400' : 'border-slate-200'
+                        }`}
                     />
                     {formErrors.province && (
                       <p className="text-[11px] text-rose-500 mt-1">{formErrors.province}</p>
@@ -563,9 +834,8 @@ export const AdminStoresPage: React.FC = () => {
                     value={formData.address}
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                     placeholder="Số 123 Đường ABC, Phường XYZ..."
-                    className={`w-full px-3.5 py-2 rounded-xl border text-xs text-slate-800 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition ${
-                      formErrors.address ? 'border-rose-400' : 'border-slate-200'
-                    }`}
+                    className={`w-full px-3.5 py-2 rounded-xl border text-xs text-slate-800 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition ${formErrors.address ? 'border-rose-400' : 'border-slate-200'
+                      }`}
                   />
                   {formErrors.address && (
                     <p className="text-[11px] text-rose-500 mt-1">{formErrors.address}</p>
@@ -601,51 +871,34 @@ export const AdminStoresPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Tọa độ GPS (Vĩ độ & Kinh độ) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Vĩ độ (Latitude GPS)
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={formData.latitude ?? ''}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          latitude: e.target.value === '' ? undefined : parseFloat(e.target.value),
-                        })
-                      }
-                      placeholder="VD: 21.034870"
-                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition font-mono"
-                    />
-                    {formErrors.latitude && (
-                      <p className="text-[11px] text-rose-500 mt-1">{formErrors.latitude}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Kinh độ (Longitude GPS)
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={formData.longitude ?? ''}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          longitude: e.target.value === '' ? undefined : parseFloat(e.target.value),
-                        })
-                      }
-                      placeholder="VD: 105.795230"
-                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition font-mono"
-                    />
-                    {formErrors.longitude && (
-                      <p className="text-[11px] text-rose-500 mt-1">{formErrors.longitude}</p>
-                    )}
-                  </div>
+                {/* Bản đồ Tương tác chọn vị trí Showroom trực quan (Cách 3) */}
+                <div className="pt-1">
+                  <InteractiveMapPicker
+                    latitude={formData.latitude}
+                    longitude={formData.longitude}
+                    address={formData.address}
+                    province={formData.province}
+                    district={formData.district}
+                    onChange={(lat, lng) => {
+                      setFormData((prev) => ({
+                        ...prev,
+                        latitude: lat,
+                        longitude: lng,
+                      }));
+                      setFormErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.latitude;
+                        delete next.longitude;
+                        return next;
+                      });
+                    }}
+                  />
+                  {formErrors.latitude && (
+                    <p className="text-[11px] text-rose-500 mt-1">{formErrors.latitude}</p>
+                  )}
+                  {formErrors.longitude && (
+                    <p className="text-[11px] text-rose-500 mt-1">{formErrors.longitude}</p>
+                  )}
                 </div>
 
                 {/* Hình ảnh Showroom */}
