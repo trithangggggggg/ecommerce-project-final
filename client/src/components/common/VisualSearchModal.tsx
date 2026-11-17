@@ -209,6 +209,47 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
     }
   };
 
+  // Hàm nén & resize ảnh tối đa 1024px bằng Canvas trước khi upload để tối ưu tốc độ và chi phí token
+  const resizeImageToMax1024 = (fileOrBlob: File | Blob): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(fileOrBlob);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const maxDim = 1024;
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => resolve(blob || fileOrBlob),
+            'image/jpeg',
+            0.88
+          );
+        } else {
+          resolve(fileOrBlob);
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(fileOrBlob);
+      };
+      img.src = url;
+    });
+  };
+
   // Chọn file từ máy tính
   const handleFileSelect = (file: File) => {
     const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
@@ -227,10 +268,17 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
     }
 
     stopCamera();
-    setCurrentFile(file);
     const objectUrl = URL.createObjectURL(file);
     setSelectedImage(objectUrl);
-    analyzeImage(file);
+
+    // Tự động resize ảnh về tối đa 1024px trước khi gửi lên API
+    resizeImageToMax1024(file).then((optimizedBlob) => {
+      const optimizedFile = new File([optimizedBlob], file.name || 'image.jpg', {
+        type: 'image/jpeg',
+      });
+      setCurrentFile(optimizedFile);
+      analyzeImage(optimizedFile);
+    });
   };
 
   // Kéo thả ảnh (Drag & Drop)
@@ -256,13 +304,26 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
   const handleCapturePhoto = () => {
     if (!videoRef.current) return;
     const video = videoRef.current;
+    let width = video.videoWidth || 640;
+    let height = video.videoHeight || 480;
+    const maxDim = 1024;
+    if (width > maxDim || height > maxDim) {
+      if (width > height) {
+        height = Math.round((height * maxDim) / width);
+        width = maxDim;
+      } else {
+        width = Math.round((width * maxDim) / height);
+        height = maxDim;
+      }
+    }
+
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
+    canvas.width = width;
+    canvas.height = height;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(video, 0, 0, width, height);
     canvas.toBlob(
       (blob) => {
         if (!blob) return;
@@ -273,7 +334,7 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
         analyzeImage(blob);
       },
       'image/jpeg',
-      0.92
+      0.88
     );
   };
 
@@ -319,11 +380,6 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
   const exactMatches =
     searchResponse?.products?.filter(
       (p) => p.matchPercent >= 50 && (!p.matchReason || !p.matchReason.includes('Gợi ý'))
-    ) || [];
-
-  const suggestedMatches =
-    searchResponse?.products?.filter(
-      (p) => p.matchPercent < 50 || (p.matchReason && p.matchReason.includes('Gợi ý'))
     ) || [];
 
   if (!isOpen) return null;
@@ -720,6 +776,17 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                           </div>
                         )}
 
+                        {/* Cảnh báo khi độ tin cậy thấp (khuyến nghị chụp lại) */}
+                        {searchResponse.detectedAttributes.confidence === 'LOW' && (
+                          <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200/90 leading-relaxed flex items-start gap-2">
+                            <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                            <div>
+                              <span className="font-semibold text-amber-300">Khuyến nghị chụp lại: </span>
+                              <span>Ảnh chụp có thể hơi mờ hoặc góc chụp chưa rõ đặc trưng/logo. Bạn có thể chụp cận cảnh hơn vào mặt lưng máy để AI nhận diện chuẩn xác nhất.</span>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Chi tiết thông số nhận diện */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] pt-1">
                           <div className="flex flex-col p-2 rounded-lg bg-white/5 border border-white/5">
@@ -847,81 +914,35 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                         </>
                       )}
 
-                      {/* Trường hợp 2: Không có sản phẩm khớp chính xác -> Thông báo rõ ràng */}
+                      {/* Trường hợp 2: Không có sản phẩm khớp tương tự -> Thông báo rõ ràng thay vì đưa đại sản phẩm khác */}
                       {exactMatches.length === 0 && (
-                        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 flex flex-col gap-2 text-xs">
-                          <div className="flex items-center gap-2 text-amber-400 font-semibold">
-                            <Info className="w-4 h-4 text-amber-400 shrink-0" />
-                            <span>
-                              Kho hàng chưa có sẵn dòng sản phẩm chính xác này
-                            </span>
+                        <div className="p-6 rounded-xl bg-[#14171d] border border-white/10 flex flex-col items-center text-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                            <Info className="w-5 h-5 text-amber-400" />
                           </div>
-                          <p className="text-gray-300 leading-relaxed text-[11px]">
-                            AI nhận diện được thiết bị trong ảnh là{' '}
-                            <strong className="text-white">
-                              {searchResponse.detectedAttributes?.identifiedTitle ||
-                                `${searchResponse.detectedAttributes?.brand || ''} ${
-                                  searchResponse.detectedAttributes?.productLine || ''
-                                }`}
-                            </strong>
-                            , tuy nhiên hiện tại kho hàng sàn NEXOR chưa nhập mẫu sản phẩm này hoặc
-                            đã tạm thời hết hàng.
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Hiển thị sản phẩm gợi ý thêm (nếu có và không có exact match) */}
-                      {exactMatches.length === 0 && suggestedMatches.length > 0 && (
-                        <div className="flex flex-col gap-2.5 pt-1">
-                          <span className="text-xs font-medium text-gray-300">
-                            Gợi ý các thiết bị công nghệ nổi bật bạn có thể tham khảo:
-                          </span>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[38vh] overflow-y-auto pr-1">
-                            {suggestedMatches.map((item: VisualSearchProductItem) => (
-                              <div
-                                key={item.id}
-                                onClick={() => {
-                                  handleClose();
-                                  navigate(`/products/${item.id}`);
-                                }}
-                                className="group relative p-2.5 rounded-xl bg-[#14171d] hover:bg-[#1a1d26] border border-white/10 hover:border-white/30 transition flex gap-3 cursor-pointer"
-                              >
-                                <div className="w-14 h-14 rounded-lg overflow-hidden bg-black/50 border border-white/10 shrink-0 flex items-center justify-center p-1">
-                                  <img
-                                    src={item.imageUrl || '/images/logo.png'}
-                                    alt={item.name}
-                                    className="w-full h-full object-contain"
-                                  />
-                                </div>
-
-                                <div className="flex-1 flex flex-col justify-between min-w-0">
-                                  <div>
-                                    <div className="flex items-center justify-between gap-1 mb-0.5">
-                                      <span className="text-[10px] text-gray-400 uppercase">
-                                        {item.brand || item.categoryName}
-                                      </span>
-                                      <span className="px-1.5 py-0.2 rounded bg-white/10 text-gray-300 text-[9px] font-medium">
-                                        Tham khảo
-                                      </span>
-                                    </div>
-                                    <h4 className="text-xs font-medium text-gray-200 line-clamp-1 group-hover:text-white">
-                                      {item.name}
-                                    </h4>
-                                  </div>
-
-                                  <div className="flex items-center justify-between mt-1 pt-1 border-t border-white/5">
-                                    <span className="text-xs font-bold text-white">
-                                      {formatPrice(item.price)}
-                                    </span>
-                                    <span className="text-[10px] text-gray-400 group-hover:text-white">
-                                      Xem &rarr;
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
+                          <div className="flex flex-col gap-1 max-w-md">
+                            <h4 className="text-xs font-bold text-white">
+                              Không tìm thấy sản phẩm tương tự trong kho NEXOR
+                            </h4>
+                            <p className="text-gray-400 leading-relaxed text-[11px]">
+                              AI nhận diện thiết bị là{' '}
+                              <strong className="text-gray-200">
+                                {searchResponse.detectedAttributes?.identifiedTitle ||
+                                  `${searchResponse.detectedAttributes?.brand || ''} ${
+                                    searchResponse.detectedAttributes?.productLine || ''
+                                  }`.trim() ||
+                                  'thiết bị điện tử'}
+                              </strong>
+                              , tuy nhiên hiện tại kho hàng chưa có sản phẩm đạt độ tương đồng yêu cầu (&ge;50%).
+                            </p>
                           </div>
+                          <button
+                            type="button"
+                            onClick={handleResetImage}
+                            className="mt-1 py-1.5 px-4 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/10 transition cursor-pointer"
+                          >
+                            Quét hoặc tải ảnh khác
+                          </button>
                         </div>
                       )}
 
