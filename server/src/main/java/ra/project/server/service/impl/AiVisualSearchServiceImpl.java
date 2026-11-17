@@ -29,9 +29,11 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.text.Normalizer;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -49,7 +51,7 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
     @Value("${gemini.api-key:${GEMINI_API_KEY:}}")
     private String geminiApiKey;
 
-    @Value("${gemini.model:${GEMINI_MODEL:gemini-1.5-flash}}")
+    @Value("${gemini.model:${GEMINI_MODEL:gemini-2.5-flash}}")
     private String geminiModel;
 
     @Value("${gemini.api-url:https://generativelanguage.googleapis.com/v1beta/models}")
@@ -69,6 +71,39 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
             .connectTimeout(Duration.ofSeconds(15))
             .build();
 
+    // Cache kết quả phân tích thị giác của AI theo SHA-256 hash của ảnh để tối ưu quota Gemini
+    private final Map<String, AttributeCacheEntry> imageVisionCache = new ConcurrentHashMap<>();
+    private static final long CACHE_TTL_MS = 30 * 60 * 1000L; // 30 phút
+
+    private static class AttributeCacheEntry {
+        final VisualSearchAttributes attributes;
+        final long createdAt;
+        AttributeCacheEntry(VisualSearchAttributes attributes) {
+            this.attributes = attributes;
+            this.createdAt = System.currentTimeMillis();
+        }
+        boolean isExpired() {
+            return System.currentTimeMillis() - createdAt > CACHE_TTL_MS;
+        }
+    }
+
+    private String calculateImageHash(byte[] bytes) {
+        if (bytes == null || bytes.length == 0) return null;
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(bytes);
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
     private String getEffectiveGeminiApiKey() {
         if (aiConfigService != null) return aiConfigService.getEffectiveGeminiApiKey();
         return geminiApiKey;
@@ -85,11 +120,12 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
         // 1. Kiểm tra tính hợp lệ của file tải lên
         validateImageFile(image);
 
-        // 2. Chuyển ảnh sang dạng Base64
+        // 2. Chuyển ảnh sang dạng Base64 và tính SHA-256 Hash
         String base64Data;
         String mimeType;
+        byte[] bytes;
         try {
-            byte[] bytes = image.getBytes();
+            bytes = image.getBytes();
             base64Data = Base64.getEncoder().encodeToString(bytes);
             mimeType = resolveMimeType(image);
         } catch (Exception ex) {
@@ -101,10 +137,28 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
         VisualSearchAttributes detectedAttrs = null;
         String provider = "Google Gemini Vision AI";
 
-        try {
-            detectedAttrs = callGeminiVisionApi(base64Data, mimeType);
-        } catch (Exception ex) {
-            log.warn("Gemini Vision API gặp sự cố: {}. Chuyển sang chế độ Smart Fallback", ex.getMessage());
+        // Kiểm tra Cache theo Hash ảnh (Tránh gọi lại Gemini Vision nhiều lần cho cùng 1 ảnh)
+        String imageHash = calculateImageHash(bytes);
+        if (imageHash != null && bytes.length > 64) {
+            AttributeCacheEntry cached = imageVisionCache.get(imageHash);
+            if (cached != null && !cached.isExpired()) {
+                log.info("Gemini Vision CACHE HIT cho ảnh hash='{}'", imageHash);
+                detectedAttrs = cached.attributes;
+            }
+        }
+
+        if (detectedAttrs == null) {
+            try {
+                detectedAttrs = callGeminiVisionApi(base64Data, mimeType);
+                if (detectedAttrs != null && imageHash != null && bytes.length > 64) {
+                    if (imageVisionCache.size() > 200) {
+                        imageVisionCache.entrySet().removeIf(e -> e.getValue().isExpired());
+                    }
+                    imageVisionCache.put(imageHash, new AttributeCacheEntry(detectedAttrs));
+                }
+            } catch (Exception ex) {
+                log.warn("Gemini Vision API gặp sự cố: {}. Chuyển sang chế độ Smart Fallback", ex.getMessage());
+            }
         }
 
         // 4. Nếu Gemini không trả về kết quả (hết quota, timeout hoặc chưa cấu hình API key) -> Kích hoạt Fallback
@@ -170,29 +224,42 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
 
         String effectiveModel = getEffectiveGeminiModel();
         List<String> candidateModels = new ArrayList<>();
-        if (StringUtils.hasText(effectiveModel) && !effectiveModel.contains("3.5")) {
+        // Ưu tiên các model thế hệ mới nhất (Gemini 2.5 / 2.0 Flash) theo khuyến nghị từ tài liệu Google
+        if (StringUtils.hasText(effectiveModel) && !effectiveModel.contains("1.5") && !effectiveModel.contains("3.5")) {
             candidateModels.add(effectiveModel.trim());
         }
-        if (!candidateModels.contains("gemini-1.5-flash")) candidateModels.add("gemini-1.5-flash");
-        if (!candidateModels.contains("gemini-2.0-flash")) candidateModels.add("gemini-2.0-flash");
         if (!candidateModels.contains("gemini-2.5-flash")) candidateModels.add("gemini-2.5-flash");
-        if (!candidateModels.contains("gemini-1.5-pro")) candidateModels.add("gemini-1.5-pro");
+        if (!candidateModels.contains("gemini-2.0-flash")) candidateModels.add("gemini-2.0-flash");
+        if (!candidateModels.contains("gemini-2.0-flash-lite")) candidateModels.add("gemini-2.0-flash-lite");
+        if (!candidateModels.contains("gemini-1.5-flash")) candidateModels.add("gemini-1.5-flash");
 
-        String prompt = "Bạn là chuyên gia thẩm định và nhận diện thiết bị công nghệ hàng đầu của sàn thương mại điện tử NEXOR.\n" +
-                "Nhiệm vụ của bạn là quan sát kỹ toàn bộ bức ảnh, đặc biệt là logo thương hiệu (ví dụ logo quả táo Apple cắn dở), cụm camera, phom dáng viền kim loại, mặt lưng kính, màn hình, cổng kết nối và các chi tiết vật lý để đưa ra nhận định thị giác chính xác nhất.\n" +
-                "Hãy tự phân tích và trả về ĐÚNG MỘT JSON hợp lệ duy nhất (không kèm markdown ```json, không kèm giải thích bên ngoài):\n" +
-                "{\n" +
-                "  \"isTechProduct\": true,\n" +
-                "  \"brand\": \"<Thương hiệu nhận diện chuẩn xác nhất, ví dụ: Apple, Samsung, Sony, Asus, Dell, Lenovo, HP, Logitech, Acer, MSI, Xiaomi... hoặc Unknown nếu không rõ>\",\n" +
-                "  \"category\": \"<Tên danh mục thiết bị: Điện thoại, Laptop, Máy tính bảng, Thiết bị âm thanh, Đồng hồ & Phụ kiện, Linh kiện & Phụ kiện, hoặc Khác>\",\n" +
-                "  \"productLine\": \"<Dòng sản phẩm cụ thể nhận diện được, ví dụ: iPhone Pro / Pro Max, MacBook Air, Galaxy S24 Ultra, ROG Strix, WH-1000XM5...>\",\n" +
-                "  \"identifiedTitle\": \"<Tên thương mại chi tiết nhất suy luận từ hình ảnh, ví dụ: Apple iPhone 11 Pro / 12 Pro / 13 Pro / 14 Pro / 15 Pro, MacBook Pro 14 M3, Sony WH-1000XM5...>\",\n" +
-                "  \"aiDescription\": \"<Đoạn văn tự nhiên 2-3 câu mô tả chi tiết những gì AI nhìn thấy trong ảnh để chứng minh nhận định (ví dụ: Hình ảnh hiển thị mặt lưng một chiếc điện thoại Apple với logo quả táo cắn dở ở giữa. Góc trên bên trái có cụm 3 camera lớn xếp hình tam giác đặc trưng của dòng iPhone Pro, mặt lưng kính mờ màu xám không gian Space Gray...)>\",\n" +
-                "  \"color\": \"<Màu sắc chủ đạo nhận thấy trên sản phẩm>\",\n" +
-                "  \"confidence\": \"<HIGH nếu nhìn rõ logo/cụm camera/thiết kế đặc trưng, MEDIUM nếu nhận diện dòng chung, LOW nếu mờ>\",\n" +
-                "  \"distinctiveFeatures\": [\"<đặc trưng 1, vd: Logo quả táo Apple khuyết ở mặt lưng>\", \"<đặc trưng 2, vd: Cụm 3 camera Pro đặc trưng>\", \"<đặc trưng 3, vd: Mặt lưng kính nhám cao cấp>\"],\n" +
-                "  \"keywords\": [\"<từ khóa 1>\", \"<từ khóa 2>\", \"<từ khóa 3>\", \"<từ khóa 4>\"]\n" +
-                "}";
+        String prompt = "Bạn là chuyên gia thẩm định và nhận diện thiết bị công nghệ của sàn thương mại điện tử NEXOR.\n" +
+                "Nhiệm vụ: Nhận diện sản phẩm công nghệ CHÍNH trong ảnh, bỏ qua người, khuôn mặt, tay cầm máy, ảnh chụp selfie qua gương và hậu cảnh nền.\n" +
+                "Đặc biệt quan sát kỹ mặt lưng điện thoại, cụm camera (số lượng camera và bố cục sắp xếp tam giác/dọc), logo thương hiệu (ví dụ quả táo Apple cắn dở), phom viền kim loại, mặt kính mờ.\n" +
+                "Chỉ điền brand và product_line nếu thấy rõ logo hoặc kiểu dáng đặc trưng (ví dụ: Apple, iPhone Pro / Pro Max), nếu không chắc chắn hãy để null.\n" +
+                "Bắt buộc trả về đúng định dạng JSON tuân thủ schema đã định nghĩa.";
+
+        // Định nghĩa JSON Schema cố định (Structured Outputs của Google Gemini)
+        Map<String, Object> schemaProperties = new LinkedHashMap<>();
+        schemaProperties.put("brand", Map.of("type", "STRING", "nullable", true));
+        schemaProperties.put("product_line", Map.of("type", "STRING", "nullable", true));
+        schemaProperties.put("category", Map.of("type", "STRING", "enum", List.of("phone", "laptop", "headphone", "watch", "tablet", "other")));
+        schemaProperties.put("identified_title", Map.of("type", "STRING", "nullable", true));
+        schemaProperties.put("ai_description", Map.of("type", "STRING", "nullable", true));
+        schemaProperties.put("color", Map.of("type", "STRING", "nullable", true));
+        schemaProperties.put("confidence", Map.of("type", "STRING", "enum", List.of("low", "medium", "high")));
+        schemaProperties.put("distinctive_features", Map.of("type", "ARRAY", "items", Map.of("type", "STRING")));
+        schemaProperties.put("keywords", Map.of("type", "ARRAY", "items", Map.of("type", "STRING")));
+
+        Map<String, Object> responseSchema = new LinkedHashMap<>();
+        responseSchema.put("type", "OBJECT");
+        responseSchema.put("properties", schemaProperties);
+        responseSchema.put("required", List.of("category", "confidence", "keywords"));
+
+        Map<String, Object> generationConfig = new LinkedHashMap<>();
+        generationConfig.put("temperature", 0.1);
+        generationConfig.put("responseMimeType", "application/json");
+        generationConfig.put("responseSchema", responseSchema);
 
         String cleanApiUrl = geminiApiUrl != null && geminiApiUrl.endsWith("/")
                 ? geminiApiUrl.substring(0, geminiApiUrl.length() - 1)
@@ -205,18 +272,14 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
 
                 Map<String, Object> textPart = Map.of("text", prompt);
                 Map<String, Object> inlineData = Map.of(
-                        "mimeType", mimeType,
+                        "mime_type", mimeType,
                         "data", base64Data
                 );
-                Map<String, Object> imagePart = Map.of("inlineData", inlineData);
+                Map<String, Object> imagePart = Map.of("inline_data", inlineData);
 
                 Map<String, Object> content = Map.of("parts", List.of(textPart, imagePart));
                 Map<String, Object> requestPayload = new LinkedHashMap<>();
                 requestPayload.put("contents", List.of(content));
-
-                Map<String, Object> generationConfig = new LinkedHashMap<>();
-                generationConfig.put("temperature", 0.1);
-                generationConfig.put("responseMimeType", "application/json");
                 requestPayload.put("generationConfig", generationConfig);
 
                 String requestBody = objectMapper.writeValueAsString(requestPayload);
@@ -225,6 +288,7 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
                         .uri(URI.create(endpointUrl))
                         .timeout(Duration.ofSeconds(15))
                         .header("Content-Type", "application/json; charset=utf-8")
+                        .header("x-goog-api-key", apiKey.trim())
                         .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
                         .build();
 
@@ -268,41 +332,99 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
             }
 
             JsonNode node = objectMapper.readTree(cleanedJson);
-            String category = node.path("category").asText(null);
-            String brand = node.path("brand").asText(null);
-            String productLine = node.path("productLine").asText(null);
-            String identifiedTitle = node.path("identifiedTitle").asText(null);
-            String aiDescription = node.path("aiDescription").asText(null);
-            String color = node.path("color").asText(null);
-            String confidence = node.path("confidence").asText("HIGH");
-            Boolean isTechProduct = node.has("isTechProduct") ? node.path("isTechProduct").asBoolean(true) : true;
 
+            // 1. Phân giải Category từ Enum JSON: [phone, laptop, headphone, watch, tablet, other]
+            String rawCategory = node.path("category").asText(null);
+            String category = "Thiết bị điện tử";
+            if (rawCategory != null) {
+                String cLower = rawCategory.trim().toLowerCase();
+                switch (cLower) {
+                    case "phone": category = "Điện thoại"; break;
+                    case "laptop": category = "Laptop"; break;
+                    case "headphone": category = "Thiết bị âm thanh"; break;
+                    case "tablet": category = "Máy tính bảng"; break;
+                    case "watch": category = "Đồng hồ thông minh"; break;
+                    case "other": default: category = "Thiết bị điện tử"; break;
+                }
+            }
+
+            // 2. Phân giải Brand
+            String brand = node.path("brand").asText(null);
+            if (brand != null && ("null".equalsIgnoreCase(brand) || "unknown".equalsIgnoreCase(brand) || "none".equalsIgnoreCase(brand))) {
+                brand = null;
+            }
+
+            // 3. Phân giải ProductLine
+            String productLine = node.has("product_line") && !node.get("product_line").isNull()
+                    ? node.path("product_line").asText(null)
+                    : node.path("productLine").asText(null);
+            if (productLine != null && ("null".equalsIgnoreCase(productLine) || "unknown".equalsIgnoreCase(productLine))) {
+                productLine = null;
+            }
+
+            // 4. Phân giải IdentifiedTitle
+            String identifiedTitle = node.has("identified_title") && !node.get("identified_title").isNull()
+                    ? node.path("identified_title").asText(null)
+                    : node.path("identifiedTitle").asText(null);
+            if (identifiedTitle != null && "null".equalsIgnoreCase(identifiedTitle)) {
+                identifiedTitle = null;
+            }
+
+            // 5. Phân giải AiDescription
+            String aiDescription = node.has("ai_description") && !node.get("ai_description").isNull()
+                    ? node.path("ai_description").asText(null)
+                    : node.path("aiDescription").asText(null);
+            if (aiDescription != null && "null".equalsIgnoreCase(aiDescription)) {
+                aiDescription = null;
+            }
+
+            // 6. Màu sắc
+            String color = node.path("color").asText(null);
+            if (color != null && ("null".equalsIgnoreCase(color) || "unknown".equalsIgnoreCase(color))) {
+                color = null;
+            }
+
+            // 7. Độ tin cậy
+            String rawConfidence = node.path("confidence").asText("high").toUpperCase();
+            String confidence = "HIGH";
+            if ("LOW".equalsIgnoreCase(rawConfidence)) confidence = "LOW";
+            else if ("MEDIUM".equalsIgnoreCase(rawConfidence)) confidence = "MEDIUM";
+
+            // 8. Đặc trưng thị giác
             List<String> distinctiveFeatures = new ArrayList<>();
-            JsonNode featNode = node.path("distinctiveFeatures");
+            JsonNode featNode = node.has("distinctive_features") ? node.path("distinctive_features") : node.path("distinctiveFeatures");
             if (featNode.isArray()) {
                 for (JsonNode f : featNode) {
-                    if (StringUtils.hasText(f.asText())) {
+                    if (StringUtils.hasText(f.asText()) && !"null".equalsIgnoreCase(f.asText())) {
                         distinctiveFeatures.add(f.asText().trim());
                     }
                 }
             }
 
+            // 9. Từ khóa
             List<String> keywords = new ArrayList<>();
             JsonNode kwNode = node.path("keywords");
             if (kwNode.isArray()) {
                 for (JsonNode kw : kwNode) {
-                    if (StringUtils.hasText(kw.asText())) {
+                    if (StringUtils.hasText(kw.asText()) && !"null".equalsIgnoreCase(kw.asText())) {
                         keywords.add(kw.asText().trim());
                     }
                 }
             }
 
+            // Tự động suy luận tiêu đề nhận diện nếu chưa có
             if (!StringUtils.hasText(identifiedTitle)) {
                 StringBuilder sb = new StringBuilder();
-                if (StringUtils.hasText(brand) && !"unknown".equalsIgnoreCase(brand)) sb.append(brand).append(" ");
+                if (StringUtils.hasText(brand)) sb.append(brand).append(" ");
                 if (StringUtils.hasText(productLine)) sb.append(productLine);
                 else if (StringUtils.hasText(category)) sb.append(category);
                 identifiedTitle = sb.toString().trim();
+            }
+
+            if (!StringUtils.hasText(aiDescription)) {
+                aiDescription = String.format("Hệ thống AI nhận diện thiết bị công nghệ %s thuộc thương hiệu %s với các đặc trưng nhận diện rõ nét.",
+                        StringUtils.hasText(productLine) ? productLine : category,
+                        StringUtils.hasText(brand) ? brand : "cao cấp");
             }
 
             return VisualSearchAttributes.builder()
@@ -313,7 +435,7 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
                     .aiDescription(aiDescription)
                     .color(color)
                     .confidence(confidence)
-                    .isTechProduct(isTechProduct)
+                    .isTechProduct(!"other".equalsIgnoreCase(rawCategory) || StringUtils.hasText(brand))
                     .distinctiveFeatures(distinctiveFeatures)
                     .keywords(keywords)
                     .build();
@@ -478,39 +600,25 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
             String pBrand = removeAccent(product.getBrand() != null ? product.getBrand().toLowerCase() : "");
             String pName = removeAccent(product.getName().toLowerCase());
 
-            // 1. So khớp Thương hiệu (Tối đa 35%)
+            // 1. So khớp Thương hiệu (Tối đa 40 điểm)
             boolean brandMatched = false;
             if (StringUtils.hasText(targetBrand) && !"unknown".equalsIgnoreCase(targetBrand)) {
                 if (StringUtils.hasText(pBrand) && pBrand.equals(targetBrand)) {
-                    score += 35;
+                    score += 40;
                     brandMatched = true;
-                    reasons.add("Khớp thương hiệu " + product.getBrand());
+                    reasons.add("Khớp chính xác thương hiệu " + product.getBrand());
                 } else if (StringUtils.hasText(pBrand) && (pBrand.contains(targetBrand) || targetBrand.contains(pBrand))) {
-                    score += 25;
+                    score += 30;
                     brandMatched = true;
                     reasons.add("Thuộc thương hiệu " + product.getBrand());
                 } else if (pName.contains(targetBrand)) {
-                    score += 20;
+                    score += 25;
                     brandMatched = true;
                     reasons.add("Tên sản phẩm chứa thương hiệu " + attrs.getBrand());
                 }
             }
 
-            // 2. So khớp Danh mục (Tối đa 30%)
-            if (StringUtils.hasText(targetCat) && StringUtils.hasText(pCat)) {
-                if (pCat.equals(targetCat)) {
-                    score += 30;
-                    reasons.add("Cùng danh mục " + product.getCategory().getName());
-                } else if (pCat.contains(targetCat) || targetCat.contains(pCat)) {
-                    score += 20;
-                    reasons.add("Trùng nhóm danh mục " + product.getCategory().getName());
-                } else if ("thiet bi dien tu".equals(targetCat) && ("dien thoai".equals(pCat) || "laptop".equals(pCat) || "may tinh bang".equals(pCat) || "thiet bi am thanh".equals(pCat))) {
-                    score += 25;
-                    reasons.add("Thuộc nhóm thiết bị điện tử công nghệ");
-                }
-            }
-
-            // 3. So khớp Dòng sản phẩm / Kiểu dáng / Model Name (Tối đa 35% điểm quyết định)
+            // 2. So khớp Dòng sản phẩm / Kiểu dáng / Model Name (Tối đa 40 điểm)
             if (StringUtils.hasText(targetProductLine)) {
                 String[] lineTokens = targetProductLine.split("\\s+");
                 int lineTokenMatches = 0;
@@ -521,33 +629,43 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
                 }
 
                 if (pName.contains(targetProductLine)) {
-                    score += 35;
+                    score += 40;
                     reasons.add("Khớp chính xác dòng " + attrs.getProductLine());
                 } else if (lineTokenMatches > 0) {
-                    int linePoints = Math.min(25, lineTokenMatches * 15);
+                    int linePoints = Math.min(35, lineTokenMatches * 20);
                     score += linePoints;
                     reasons.add("Tương đồng đặc điểm dòng " + attrs.getProductLine());
                 }
-            }
-
-            // Đánh giá chuyên sâu: Khớp trực tiếp dòng điện thoại iPhone (ví dụ iPhone Pro / Pro Max)
-            if (brandMatched && pName.contains("iphone")) {
-                if (pName.contains("pro max") || pName.contains("pro")) {
-                    score = Math.max(score, 98);
-                    reasons.add("Khớp chính xác phân khúc iPhone Pro / Pro Max (mặt lưng kính nhám, cụm 3 camera)");
-                } else {
-                    score = Math.max(score, 92);
-                    reasons.add("Cùng thương hiệu Apple và dòng điện thoại iPhone chính hãng");
+            } else if (StringUtils.hasText(targetIdentifiedTitle)) {
+                String[] titleTokens = targetIdentifiedTitle.split("\\s+");
+                int titleMatches = 0;
+                for (String token : titleTokens) {
+                    if (token.length() >= 2 && pName.contains(token)) {
+                        titleMatches++;
+                    }
                 }
-            } else if (brandMatched && StringUtils.hasText(targetCat) && (pCat.equals(targetCat) || "thiet bi dien tu".equals(targetCat))) {
-                if (score < 60) {
-                    score = 60;
-                    reasons.add("Sản phẩm cùng hệ sinh thái Apple có sẵn tại NEXOR");
+                if (titleMatches > 0) {
+                    score += Math.min(30, titleMatches * 10);
+                    reasons.add("Tương đồng với tên sản phẩm " + attrs.getIdentifiedTitle());
                 }
             }
 
-            // 4. So khớp Màu sắc (Tối đa 10%)
-            if (StringUtils.hasText(targetColor) && !"unknown".equalsIgnoreCase(targetColor)) {
+            // 3. So khớp Danh mục (Tối đa 15 điểm)
+            if (StringUtils.hasText(targetCat) && StringUtils.hasText(pCat)) {
+                if (pCat.equals(targetCat)) {
+                    score += 15;
+                    reasons.add("Cùng danh mục " + product.getCategory().getName());
+                } else if (pCat.contains(targetCat) || targetCat.contains(pCat)) {
+                    score += 10;
+                    reasons.add("Trùng nhóm danh mục " + product.getCategory().getName());
+                } else if ("thiet bi dien tu".equals(targetCat) && ("dien thoai".equals(pCat) || "laptop".equals(pCat) || "may tinh bang".equals(pCat) || "thiet bi am thanh".equals(pCat))) {
+                    score += 5;
+                    reasons.add("Thuộc nhóm thiết bị điện tử công nghệ");
+                }
+            }
+
+            // 4. So khớp Màu sắc (Tối đa 10 điểm)
+            if (StringUtils.hasText(targetColor) && !"unknown".equalsIgnoreCase(targetColor) && !"tieu chuan".equalsIgnoreCase(targetColor)) {
                 String pText = removeAccent((product.getName() + " " + (product.getDescription() != null ? product.getDescription() : "")).toLowerCase());
                 boolean colorMatched = pText.contains(targetColor);
 
@@ -571,7 +689,7 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
                 }
             }
 
-            // 5. So khớp Từ khóa (Tối đa 15%)
+            // 5. Điểm cộng từ khóa nhận diện AI (Tối đa 5 điểm bù)
             if (!targetKws.isEmpty()) {
                 String pFullText = removeAccent((product.getName() + " " + (product.getDescription() != null ? product.getDescription() : "")).toLowerCase());
                 int matchedKwCount = 0;
@@ -582,9 +700,25 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
                 }
                 if (matchedKwCount > 0) {
                     double kwRatio = (double) matchedKwCount / targetKws.size();
-                    int kwPoints = Math.min(15, (int) Math.round(kwRatio * 15));
+                    int kwPoints = Math.min(5, (int) Math.round(kwRatio * 5));
                     score += kwPoints;
                     reasons.add("Trùng " + matchedKwCount + " từ khóa nhận diện");
+                }
+            }
+
+            // Đánh giá chuyên sâu: Khớp trực tiếp dòng điện thoại iPhone (ví dụ iPhone Pro / Pro Max)
+            if (brandMatched && pName.contains("iphone")) {
+                if (pName.contains("pro max") || pName.contains("pro")) {
+                    score = Math.max(score, 98);
+                    reasons.add("Khớp chính xác phân khúc iPhone Pro / Pro Max (mặt lưng kính nhám, cụm 3 camera)");
+                } else {
+                    score = Math.max(score, 92);
+                    reasons.add("Cùng thương hiệu Apple và dòng điện thoại iPhone chính hãng");
+                }
+            } else if (brandMatched && StringUtils.hasText(targetCat) && (pCat.equals(targetCat) || "thiet bi dien tu".equals(targetCat))) {
+                if (score < 60) {
+                    score = 60;
+                    reasons.add("Sản phẩm cùng hệ sinh thái Apple có sẵn tại NEXOR");
                 }
             }
 
