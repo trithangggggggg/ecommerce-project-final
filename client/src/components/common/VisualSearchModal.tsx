@@ -16,7 +16,9 @@ import {
   Cpu,
   Layers,
   Info,
+  KeyRound,
 } from 'lucide-react';
+import axiosClient from '../../api/axiosClient';
 import { visualSearchService } from '../../api/services/visualSearch.service';
 import type { VisualSearchResponse, VisualSearchProductItem } from '../../models/visualSearch.model';
 
@@ -50,6 +52,11 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [searchResponse, setSearchResponse] = useState<VisualSearchResponse | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Gemini API Key inline config
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [isSavingKey, setIsSavingKey] = useState(false);
+  const [saveKeySuccess, setSaveKeySuccess] = useState(false);
 
   // Camera / Webcam States
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -206,6 +213,33 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
       setErrorMsg(error.message || 'Không thể phân tích ảnh này. Vui lòng thử lại với ảnh rõ nét hơn.');
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  // Lưu và kích hoạt nhanh Gemini API Key trực tiếp từ modal
+  const handleSaveApiKey = async () => {
+    if (!apiKeyInput.trim()) return;
+    setIsSavingKey(true);
+    setErrorMsg(null);
+    try {
+      await axiosClient.post('/ai/configure-gemini-key', {
+        geminiApiKey: apiKeyInput.trim(),
+      });
+      setSaveKeySuccess(true);
+      setApiKeyInput('');
+      setTimeout(() => setSaveKeySuccess(false), 4000);
+
+      // Phân tích lại ảnh hiện tại bằng key mới
+      if (currentFile) {
+        setTimeout(() => analyzeImage(currentFile), 400);
+      } else if (selectedImage) {
+        setTimeout(() => analyzeImage(selectedImage), 400);
+      }
+    } catch (err: unknown) {
+      const error = err as any;
+      setErrorMsg(error.response?.data?.message || 'Không thể lưu API Key. Vui lòng kiểm tra lại.');
+    } finally {
+      setIsSavingKey(false);
     }
   };
 
@@ -382,6 +416,11 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
       (p) => p.matchPercent >= 50 && (!p.matchReason || !p.matchReason.includes('Gợi ý'))
     ) || [];
 
+  const isApiKeyMissing =
+    searchResponse?.detectedAttributes?.identifiedTitle === 'Thiết bị chưa xác định' ||
+    searchResponse?.detectedAttributes?.distinctiveFeatures?.some((f) => f.includes('GEMINI_API_KEY')) ||
+    searchResponse?.detectedAttributes?.aiDescription?.includes('GEMINI_API_KEY');
+
   if (!isOpen) return null;
 
   return (
@@ -434,11 +473,10 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                 <button
                   type="button"
                   onClick={() => setActiveTab('upload')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition cursor-pointer ${
-                    activeTab === 'upload'
-                      ? 'bg-white text-black font-semibold shadow-sm'
-                      : 'text-gray-400 hover:text-white'
-                  }`}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition cursor-pointer ${activeTab === 'upload'
+                    ? 'bg-white text-black font-semibold shadow-sm'
+                    : 'text-gray-400 hover:text-white'
+                    }`}
                 >
                   <Upload className="w-3.5 h-3.5" />
                   <span>Tải ảnh lên</span>
@@ -446,11 +484,10 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                 <button
                   type="button"
                   onClick={() => setActiveTab('camera')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition cursor-pointer ${
-                    activeTab === 'camera'
-                      ? 'bg-white text-black font-semibold shadow-sm'
-                      : 'text-gray-400 hover:text-white'
-                  }`}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition cursor-pointer ${activeTab === 'camera'
+                    ? 'bg-white text-black font-semibold shadow-sm'
+                    : 'text-gray-400 hover:text-white'
+                    }`}
                 >
                   <Video className="w-3.5 h-3.5" />
                   <span>Máy ảnh</span>
@@ -458,11 +495,10 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                 <button
                   type="button"
                   onClick={() => setActiveTab('url')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition cursor-pointer ${
-                    activeTab === 'url'
-                      ? 'bg-white text-black font-semibold shadow-sm'
-                      : 'text-gray-400 hover:text-white'
-                  }`}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition cursor-pointer ${activeTab === 'url'
+                    ? 'bg-white text-black font-semibold shadow-sm'
+                    : 'text-gray-400 hover:text-white'
+                    }`}
                 >
                   <LinkIcon className="w-3.5 h-3.5" />
                   <span>Đường dẫn ảnh</span>
@@ -476,11 +512,10 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
-                  className={`border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center transition cursor-pointer flex flex-col items-center justify-center gap-3 ${
-                    isDragging
-                      ? 'border-white bg-white/5'
-                      : 'border-white/15 hover:border-white/40 bg-[#14171d] hover:bg-[#181b22]'
-                  }`}
+                  className={`border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center transition cursor-pointer flex flex-col items-center justify-center gap-3 ${isDragging
+                    ? 'border-white bg-white/5'
+                    : 'border-white/15 hover:border-white/40 bg-[#14171d] hover:bg-[#181b22]'
+                    }`}
                 >
                   <input
                     ref={fileInputRef}
@@ -757,11 +792,10 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                         <div>
                           <h3 className="text-sm font-bold text-white tracking-tight">
                             {searchResponse.detectedAttributes.identifiedTitle ||
-                              `${searchResponse.detectedAttributes.brand || ''} ${
-                                searchResponse.detectedAttributes.productLine ||
+                              `${searchResponse.detectedAttributes.brand || ''} ${searchResponse.detectedAttributes.productLine ||
                                 searchResponse.detectedAttributes.category ||
                                 ''
-                              }`.trim()}
+                                }`.trim()}
                           </h3>
                         </div>
 
@@ -916,33 +950,122 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
 
                       {/* Trường hợp 2: Không có sản phẩm khớp tương tự -> Thông báo rõ ràng thay vì đưa đại sản phẩm khác */}
                       {exactMatches.length === 0 && (
-                        <div className="p-6 rounded-xl bg-[#14171d] border border-white/10 flex flex-col items-center text-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-                            <Info className="w-5 h-5 text-amber-400" />
+                        <div className="flex flex-col gap-3">
+                          {/* Banner cảnh báo và nhập nhanh API Key khi hệ thống chưa có GEMINI_API_KEY */}
+                          {isApiKeyMissing && (
+                            <div className="p-4 rounded-xl bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-amber-600/15 border border-amber-500/30 flex flex-col gap-3 text-left">
+                              <div className="flex items-start gap-2.5">
+                                <KeyRound className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                                <div className="flex-1 text-xs">
+                                  <h4 className="font-bold text-amber-300">
+                                    Chưa kết nối Google Gemini Vision API Key
+                                  </h4>
+                                  <p className="text-gray-300 mt-1 leading-relaxed text-[11px]">
+                                    Hệ thống đang chạy local mà chưa có khóa <code className="text-amber-300 font-mono">GEMINI_API_KEY</code>, nên AI chưa thể gọi mô hình Google Gemini để nhận diện vật thể trong ảnh này.
+                                    Dán API Key bên dưới để kích hoạt nhận diện thông minh ngay:
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex gap-2">
+                                <input
+                                  type="password"
+                                  placeholder="Dán nhanh Gemini API Key (AIzaSy...)"
+                                  value={apiKeyInput}
+                                  onChange={(e) => setApiKeyInput(e.target.value)}
+                                  className="flex-1 px-3 py-1.5 rounded-lg bg-black/50 border border-white/20 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-amber-400 font-mono"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={handleSaveApiKey}
+                                  disabled={isSavingKey || !apiKeyInput.trim()}
+                                  className="px-3.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-black font-bold text-xs transition cursor-pointer disabled:opacity-50"
+                                >
+                                  {isSavingKey ? 'Đang lưu...' : 'Kích hoạt ngay'}
+                                </button>
+                              </div>
+
+                              {saveKeySuccess && (
+                                <p className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  Đã lưu API Key thành công! Đang quét lại ảnh...
+                                </p>
+                              )}
+
+                              <div className="flex items-center justify-between text-[10px] text-gray-400 pt-0.5 border-t border-white/10">
+                                <span>Chưa có Key? Tạo miễn phí trong 10 giây tại:</span>
+                                <a
+                                  href="https://aistudio.google.com/app/apikey"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-amber-400 hover:underline flex items-center gap-1 font-semibold"
+                                >
+                                  Google AI Studio &rarr;
+                                </a>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Card thông báo không có sản phẩm khớp */}
+                          <div className="p-6 rounded-xl bg-[#14171d] border border-white/10 flex flex-col items-center text-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                              <Info className="w-5 h-5 text-amber-400" />
+                            </div>
+                            <div className="flex flex-col gap-1 max-w-md">
+                              <h4 className="text-xs font-bold text-white">
+                                Không tìm thấy sản phẩm tương tự trong kho NEXOR
+                              </h4>
+                              <p className="text-gray-400 leading-relaxed text-[11px]">
+                                AI nhận diện thiết bị là{' '}
+                                <strong className="text-gray-200">
+                                  {searchResponse.detectedAttributes?.identifiedTitle ||
+                                    `${searchResponse.detectedAttributes?.brand || ''} ${
+                                      searchResponse.detectedAttributes?.productLine || ''
+                                    }`.trim() ||
+                                    'thiết bị điện tử'}
+                                </strong>
+                                , tuy nhiên hiện tại kho hàng chưa có sản phẩm đạt độ tương đồng yêu cầu (&ge;50%).
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={handleResetImage}
+                              className="mt-1 py-1.5 px-4 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/10 transition cursor-pointer"
+                            >
+                              Quét hoặc tải ảnh khác
+                            </button>
+
+                            {/* Gợi ý thử nhanh các mẫu có sẵn trong hệ thống */}
+                            <div className="w-full pt-3 mt-1 border-t border-white/10 flex flex-col gap-2">
+                              <span className="text-[11px] text-gray-400">
+                                Hoặc bấm thử nhanh với các mẫu sản phẩm có sẵn trong kho:
+                              </span>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                {QUICK_SAMPLE_IMAGES.map((sample) => (
+                                  <button
+                                    key={sample.url}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedImage(sample.url);
+                                      setCurrentFile(null);
+                                      analyzeImage(sample.url);
+                                    }}
+                                    className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-left flex items-center gap-2 cursor-pointer transition"
+                                  >
+                                    <img
+                                      src={sample.url}
+                                      alt={sample.label}
+                                      className="w-6 h-6 rounded object-cover shrink-0"
+                                    />
+                                    <span className="text-[10px] text-gray-300 truncate">
+                                      {sample.label}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex flex-col gap-1 max-w-md">
-                            <h4 className="text-xs font-bold text-white">
-                              Không tìm thấy sản phẩm tương tự trong kho NEXOR
-                            </h4>
-                            <p className="text-gray-400 leading-relaxed text-[11px]">
-                              AI nhận diện thiết bị là{' '}
-                              <strong className="text-gray-200">
-                                {searchResponse.detectedAttributes?.identifiedTitle ||
-                                  `${searchResponse.detectedAttributes?.brand || ''} ${
-                                    searchResponse.detectedAttributes?.productLine || ''
-                                  }`.trim() ||
-                                  'thiết bị điện tử'}
-                              </strong>
-                              , tuy nhiên hiện tại kho hàng chưa có sản phẩm đạt độ tương đồng yêu cầu (&ge;50%).
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleResetImage}
-                            className="mt-1 py-1.5 px-4 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/10 transition cursor-pointer"
-                          >
-                            Quét hoặc tải ảnh khác
-                          </button>
                         </div>
                       )}
 

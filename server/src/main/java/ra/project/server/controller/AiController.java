@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
@@ -12,11 +13,14 @@ import org.springframework.web.multipart.MultipartFile;
 import ra.project.server.common.response.ApiResponse;
 import ra.project.server.model.dto.request.AiChatRequest;
 import ra.project.server.model.dto.response.AiChatResponse;
+import ra.project.server.model.dto.request.AiConfigRequest;
 import ra.project.server.model.dto.response.VisualSearchResponse;
+import ra.project.server.service.AiConfigService;
 import ra.project.server.service.AiService;
 import ra.project.server.service.RateLimiterService;
 
 import java.util.Collections;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -27,6 +31,7 @@ public class AiController {
 
     private final AiService aiService;
     private final RateLimiterService rateLimiterService;
+    private final AiConfigService aiConfigService;
 
     @PostMapping("/chat")
     public ResponseEntity<ApiResponse<AiChatResponse>> chatWithCustomer(
@@ -66,6 +71,19 @@ public class AiController {
 
         VisualSearchResponse response = aiService.visualSearch(image);
         return ResponseEntity.ok(ApiResponse.success("Tìm kiếm sản phẩm bằng hình ảnh thành công", response));
+    }
+
+    @PostMapping("/configure-gemini-key")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> configureGeminiKey(
+            @RequestBody Map<String, String> body
+    ) {
+        String key = body != null ? body.get("geminiApiKey") : null;
+        if (!StringUtils.hasText(key)) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(HttpStatus.BAD_REQUEST, "Vui lòng cung cấp khóa geminiApiKey hợp lệ"));
+        }
+        aiConfigService.updateConfig(AiConfigRequest.builder().geminiApiKey(key.trim()).build());
+        log.info("Đã lưu và kích hoạt custom Gemini API Key thành công từ client");
+        return ResponseEntity.ok(ApiResponse.success("Kích hoạt Google Gemini API Key thành công! AI Vision đã sẵn sàng.", Map.of("configured", true)));
     }
 
     private String getClientIp(HttpServletRequest request) {
