@@ -406,7 +406,7 @@ export function AiChatbot() {
                         </div>
                       </div>
                       <Link
-                        to="/profile"
+                        to="/my-orders"
                         onClick={() => setIsOpen(false)}
                         className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 hover:underline"
                       >

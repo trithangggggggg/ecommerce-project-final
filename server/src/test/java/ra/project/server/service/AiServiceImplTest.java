@@ -8,15 +8,24 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ra.project.server.exception.BadRequestException;
 import ra.project.server.mapper.ProductMapper;
+import ra.project.server.model.dto.request.AiChatRequest;
 import ra.project.server.model.dto.request.AiGenerateDescriptionRequest;
+import ra.project.server.model.dto.request.CheckoutRequest;
+import ra.project.server.model.dto.response.AiChatResponse;
 import ra.project.server.model.dto.response.AiGenerateDescriptionResponse;
+import ra.project.server.model.dto.response.OrderResponse;
+import ra.project.server.model.entity.Product;
 import ra.project.server.repository.ProductRepository;
 import ra.project.server.service.impl.AiServiceImpl;
+import org.mockito.ArgumentCaptor;
 
+import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class AiServiceImplTest {
@@ -32,6 +41,9 @@ class AiServiceImplTest {
 
     @Mock
     private AiConfigService aiConfigService;
+
+    @Mock
+    private ra.project.server.service.OrderService orderService;
 
     @InjectMocks
     private AiServiceImpl aiService;
@@ -147,6 +159,72 @@ class AiServiceImplTest {
         String rawWithoutFence = "## Đỉnh Cao Công Nghệ\nNội dung không có fence.";
         String cleaned3 = aiService.cleanMarkdownOutput(rawWithoutFence);
         assertEquals(rawWithoutFence, cleaned3);
+    }
+
+    @Test
+    @DisplayName("TC_AI_06: Khách hàng hỏi chuột Logitech (kho không có) -> Bot không gợi ý iPhone 16 Pro Max và không đặt hàng")
+    void whenCustomerAsksForOutOfStockLogitechMouse_thenBotDeclinesAndDoesNotRecommendIPhone() {
+        Product iphone = Product.builder()
+                .id(1L)
+                .name("iPhone 16 Pro Max 256GB Titan Tự Nhiên")
+                .description("Flagship Apple")
+                .price(BigDecimal.valueOf(34990000))
+                .status("ACTIVE")
+                .build();
+        when(productRepository.findAll()).thenReturn(List.of(iphone));
+
+        AiChatRequest request = AiChatRequest.builder()
+                .message("tôi muốn mua chuột logitech")
+                .build();
+
+        AiChatResponse response = aiService.chatWithCustomer(request);
+        assertNotNull(response);
+        assertNull(response.getCreatedOrder(), "Không được tự động tạo đơn hàng");
+        assertTrue(response.getReply().contains("chưa kinh doanh") || response.getReply().contains("chưa có"),
+                "Bot phải thông báo rằng shop chưa kinh doanh sản phẩm này");
+        assertFalse(response.getReply().contains("iPhone 16 Pro Max"),
+                "Tuyệt đối không tự tiện gợi ý iPhone 16 Pro Max khi khách hỏi chuột Logitech");
+    }
+
+    @Test
+    @DisplayName("TC_AI_07: Tách chuẩn Họ tên, SĐT, Địa chỉ từ chuỗi tự nhiên không dấu câu")
+    void whenCustomerOrdersInNaturalString_thenExtractsNamePhoneAndAddressAccurately() {
+        org.springframework.test.util.ReflectionTestUtils.setField(aiService, "orderService", orderService);
+
+        Product sonyHeadphone = Product.builder()
+                .id(99L)
+                .name("Tai nghe Sony WH-1000XM5")
+                .description("Chống ồn cao cấp")
+                .price(BigDecimal.valueOf(7990000))
+                .status("ACTIVE")
+                .build();
+        when(productRepository.findAll()).thenReturn(List.of(sonyHeadphone));
+
+        ArgumentCaptor<CheckoutRequest> captor = ArgumentCaptor.forClass(CheckoutRequest.class);
+        OrderResponse mockOrderResponse = OrderResponse.builder()
+                .id(1222L)
+                .receiverName("Nguyễn Thị Thanh")
+                .phoneNumber("0333743201")
+                .shippingAddress("ngõ 36 đường Thanh Hóa")
+                .totalAmount(BigDecimal.valueOf(7990000))
+                .build();
+        when(orderService.createOrderForAiAssistant(captor.capture()))
+                .thenReturn(ra.project.server.common.response.ApiResponse.success(mockOrderResponse));
+
+        AiChatRequest request = AiChatRequest.builder()
+                .message("Đặt hộ tôi 1 tai nghe Sony WH-1000XM5, Nguyễn Thị Thanh 0333743201 nhận hàng tại ngõ 36 đường Thanh Hóa")
+                .build();
+
+        AiChatResponse response = aiService.chatWithCustomer(request);
+        assertNotNull(response);
+        assertNotNull(response.getCreatedOrder(), "Đơn hàng phải được tạo thành công");
+
+        CheckoutRequest passedReq = captor.getValue();
+        assertNotNull(passedReq);
+        assertEquals("Nguyễn Thị Thanh", passedReq.getReceiverName(), "Họ tên phải được trích xuất chính xác");
+        assertEquals("0333743201", passedReq.getPhoneNumber(), "Số điện thoại phải chuẩn xác");
+        assertEquals("ngõ 36 đường Thanh Hóa", passedReq.getShippingAddress(), "Địa chỉ không được chứa họ tên hoặc SĐT");
+        assertEquals(99L, passedReq.getItems().get(0).getProductId(), "Sản phẩm được đặt phải là Sony WH-1000XM5");
     }
 }
 
