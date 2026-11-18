@@ -16,6 +16,11 @@ export const axiosClient: AxiosInstance = axios.create({
 axiosClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     try {
+      // Khi gửi FormData (upload file/ảnh), xóa Content-Type để trình duyệt tự động sinh multipart boundary chuẩn
+      if (config.data instanceof FormData && config.headers) {
+        delete config.headers['Content-Type'];
+      }
+
       const isAuthEndpoint = config.url && config.url.includes('/auth/');
 
       if (isAuthEndpoint) {

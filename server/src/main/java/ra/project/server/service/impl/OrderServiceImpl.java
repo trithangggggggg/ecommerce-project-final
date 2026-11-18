@@ -87,6 +87,54 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
+    public ApiResponse<OrderResponse> createOrderForAiAssistant(CheckoutRequest request) {
+        if (request == null) {
+            throw new BadRequestException("Thông tin đặt hàng không hợp lệ");
+        }
+        if (!StringUtils.hasText(request.getReceiverName())) {
+            throw new BadRequestException("Vui lòng cung cấp họ tên người nhận hàng");
+        }
+        if (!StringUtils.hasText(request.getPhoneNumber())) {
+            throw new BadRequestException("Vui lòng cung cấp số điện thoại nhận hàng");
+        }
+        if (!StringUtils.hasText(request.getShippingAddress())) {
+            throw new BadRequestException("Vui lòng cung cấp địa chỉ nhận hàng");
+        }
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            throw new BadRequestException("Chưa xác định được sản phẩm cần đặt mua");
+        }
+
+        User user = null;
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated() && !"anonymousUser".equals(authentication.getPrincipal())) {
+            String username = authentication.getName();
+            user = userRepository.findByUsername(username).orElse(null);
+            if (user != null && Boolean.FALSE.equals(user.getStatus())) {
+                throw new ForbiddenException("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên!");
+            }
+        }
+
+        if (user == null && StringUtils.hasText(request.getPhoneNumber())) {
+            String cleanPhone = request.getPhoneNumber().replaceAll("[^0-9]", "");
+            List<User> matchedUsers = userRepository.findAll().stream()
+                    .filter(u -> cleanPhone.equals(u.getPhoneNumber()))
+                    .toList();
+            if (!matchedUsers.isEmpty()) {
+                user = matchedUsers.get(0);
+            }
+        }
+
+        if (user == null) {
+            user = userRepository.findByUsername("customer")
+                    .or(() -> userRepository.findById(2L))
+                    .orElseGet(() -> userRepository.findAll().stream().findFirst().orElseThrow());
+        }
+
+        return createOrderForUser(user, request, false);
+    }
+
+    @Override
+    @Transactional
     public ApiResponse<OrderResponse> adminCreateOrder(AdminCreateOrderRequest request) {
         User user = request.getUserId() != null
                 ? userRepository.findById(request.getUserId())

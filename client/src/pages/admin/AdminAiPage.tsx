@@ -61,7 +61,6 @@ export const AdminAiPage: React.FC = () => {
   const [configSaving, setConfigSaving] = useState(false);
   const [testingAi, setTestingAi] = useState(false);
   const [testResult, setTestResult] = useState<AiConnectionTestResult | null>(null);
-  const [customGeminiKey, setCustomGeminiKey] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -265,14 +264,9 @@ export const AdminAiPage: React.FC = () => {
 
     setConfigSaving(true);
     try {
-      const payload = {
-        ...aiConfig,
-        ...(customGeminiKey.trim() ? { geminiApiKey: customGeminiKey.trim() } : {}),
-      };
-      const updated = await aiService.updateAiConfig(payload);
+      const updated = await aiService.updateAiConfig(aiConfig);
       setAiConfig(updated);
-      setCustomGeminiKey('');
-      showToast('Đã lưu cấu hình trí tuệ & cập nhật API Key thành công!');
+      showToast('Đã lưu cấu hình trí tuệ & giới hạn AI thành công!');
     } catch {
       showToast('Lưu cấu hình thất bại!');
     } finally {
@@ -853,24 +847,15 @@ export const AdminAiPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-semibold text-slate-600">
-                      Google Gemini API Key
-                    </label>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      {aiConfig.geminiApiKeyMasked || 'Chưa cấu hình'}
-                    </span>
-                  </div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Gemini API Key (Masked)
+                  </label>
                   <input
-                    type="password"
-                    placeholder="Dán API Key mới (AIzaSy...) rồi bấm Lưu"
-                    value={customGeminiKey}
-                    onChange={(e) => setCustomGeminiKey(e.target.value)}
-                    className="w-full px-3.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400"
+                    type="text"
+                    disabled
+                    value={aiConfig.geminiApiKeyMasked || 'Chưa cấu hình'}
+                    className="w-full px-3.5 py-1.5 text-xs bg-slate-100 border border-slate-200 rounded-xl font-mono text-slate-500"
                   />
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    Khóa API dùng cho Gemini Vision & Chatbot. Lấy miễn phí tại: <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Google AI Studio</a>
-                  </p>
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">

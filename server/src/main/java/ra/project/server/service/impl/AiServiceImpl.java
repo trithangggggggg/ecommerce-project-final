@@ -59,10 +59,13 @@ public class AiServiceImpl implements AiService {
     @Autowired(required = false)
     private AiConfigService aiConfigService;
 
+    @Autowired(required = false)
+    private ra.project.server.service.OrderService orderService;
+
     @Value("${gemini.api-key:${GEMINI_API_KEY:}}")
     private String geminiApiKey;
 
-    @Value("${gemini.model:${GEMINI_MODEL:gemini-1.5-flash}}")
+    @Value("${gemini.model:${GEMINI_MODEL:gemini-3.5-flash-lite}}")
     private String geminiModel;
 
     @Value("${gemini.api-url:https://generativelanguage.googleapis.com/v1beta/models}")
@@ -233,6 +236,7 @@ public class AiServiceImpl implements AiService {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional
     public AiChatResponse chatWithCustomer(AiChatRequest request) {
         String userMessage = request.getMessage().trim();
 
@@ -241,11 +245,29 @@ public class AiServiceImpl implements AiService {
                 .filter(p -> p.getStatus() == null || !"INACTIVE".equalsIgnoreCase(p.getStatus()))
                 .collect(Collectors.toList());
 
-        // 2. RAG Context 1: Lọc nhanh sản phẩm liên quan (theo từ khóa, danh mục, ngân sách)
+        // 2. Kiểm tra ý định đặt hàng tự động của khách hàng (AI Order Placement)
+        if (orderService != null && isOrderIntent(userMessage, request.getHistory())) {
+            OrderProcessResult orderResult = tryProcessOrder(userMessage, request.getHistory(), allProducts);
+            if (orderResult != null) {
+                List<ProductResponse> relatedResp = orderResult.getRelatedProducts() != null
+                        ? orderResult.getRelatedProducts().stream().map(productMapper::toResponse).toList()
+                        : Collections.emptyList();
+
+                return AiChatResponse.builder()
+                        .reply(orderResult.getMessage().trim())
+                        .suggestedProducts(relatedResp)
+                        .recommendedProducts(relatedResp)
+                        .createdOrder(orderResult.getOrder())
+                        .provider(orderResult.isSuccess() ? "NEXOR AI Assistant (Order Placement)" : "NEXOR AI Assistant")
+                        .build();
+            }
+        }
+
+        // 3. RAG Context 1: Lọc nhanh sản phẩm liên quan (theo từ khóa, danh mục, ngân sách)
         // Giới hạn số lượng (tối đa 8 sản phẩm) để tiết kiệm token và tăng tốc độ xử lý trong 2-3s
         List<Product> relevantProducts = filterRelevantProducts(userMessage, allProducts);
 
-        // 3. RAG Context 2: Truy xuất tri thức từ Knowledge Base (Chính sách, FAQ, hướng dẫn)
+        // 4. RAG Context 2: Truy xuất tri thức từ Knowledge Base (Chính sách, FAQ, hướng dẫn)
         List<String> relevantKnowledge = Collections.emptyList();
         boolean kbEnabled = aiConfigService == null || aiConfigService.isKnowledgeBaseEnabled();
         int topK = aiConfigService != null ? aiConfigService.getTopKChunks() : 3;
@@ -257,7 +279,7 @@ public class AiServiceImpl implements AiService {
             }
         }
 
-        // 4. Tạo Prompt nạp ngữ cảnh RAG đầy đủ
+        // 5. Tạo Prompt nạp ngữ cảnh RAG đầy đủ (Yêu cầu trả lời súc tích, ngắn gọn)
         String prompt = buildChatPrompt(userMessage, request.getHistory(), relevantProducts, relevantKnowledge);
 
         String replyText = null;
@@ -268,7 +290,7 @@ public class AiServiceImpl implements AiService {
         String activeOpenAiKey = getEffectiveOpenAiApiKey();
         String activeOpenAiModel = getEffectiveOpenAiModel();
 
-        // 5. Thử gọi Google Gemini AI (timeout 4s để đảm bảo cam kết trả lời 2-3 giây)
+        // 6. Thử gọi Google Gemini AI (timeout 4s để đảm bảo cam kết trả lời 2-3 giây)
         if (StringUtils.hasText(activeGeminiKey) && !activeGeminiKey.equalsIgnoreCase("dummy") && !activeGeminiKey.startsWith("placeholder")) {
             log.info("Đang gọi Google Gemini AI Model [{}] để tư vấn sản phẩm cho khách...", activeGeminiModel);
             replyText = callGeminiApi(prompt);
@@ -277,7 +299,7 @@ public class AiServiceImpl implements AiService {
             }
         }
 
-        // 6. Thử gọi Spring AI (OpenAI) nếu Gemini không khả dụng
+        // 7. Thử gọi Spring AI (OpenAI) nếu Gemini không khả dụng
         if (!StringUtils.hasText(replyText) && StringUtils.hasText(activeOpenAiKey) && !activeOpenAiKey.equalsIgnoreCase("dummy")) {
             try {
                 log.info("Đang gọi Spring AI OpenAI Model [{}] để tư vấn sản phẩm...", activeOpenAiModel);
@@ -292,13 +314,13 @@ public class AiServiceImpl implements AiService {
             }
         }
 
-        // 7. Fallback thông minh nếu không có kết nối AI bên ngoài hoặc API timeout
+        // 8. Fallback thông minh nếu không có kết nối AI bên ngoài hoặc API timeout
         if (!StringUtils.hasText(replyText)) {
             log.info("Sử dụng Smart Fallback Assistant để trả lời khách hàng.");
             return generateSmartChatFallback(userMessage, relevantProducts.isEmpty() ? allProducts : relevantProducts);
         }
 
-        // 8. Trích xuất danh sách sản phẩm được AI đề xuất để hiển thị Product Card
+        // 9. Trích xuất danh sách sản phẩm được AI đề xuất để hiển thị Product Card
         boolean suggestEnabled = aiConfigService == null || aiConfigService.isSuggestProductsEnabled();
         int maxProducts = aiConfigService != null ? aiConfigService.getMaxSuggestedProducts() : 3;
 
@@ -429,12 +451,12 @@ public class AiServiceImpl implements AiService {
                     p.getId(), p.getName(), priceStr, catName, p.getStock() != null ? p.getStock() : 0, desc));
         }
 
-        sb.append("\n=== NGUYÊN TẮC TƯ VẤN QUAN TRỌNG ===\n");
-        sb.append("1. Chỉ gợi ý và tư vấn các sản phẩm CÓ TRONG DANH SÁCH TRÊN. Tuyệt đối không tự bịa ra sản phẩm mà shop không kinh doanh.\n");
-        sb.append("2. Khi đề cập đến sản phẩm cụ thể, LUÔN ghi kèm mã [ID: <id>], Tên chính xác và Giá bán (ví dụ: '**MacBook Air M3 [ID: 4]** (Giá: 21.590.000đ)') để hệ thống nhận diện và hiển thị card mua sắm cho khách hàng.\n");
-        sb.append("3. Phân tích nhu cầu của khách hàng (khoảng ngân sách, mục đích sử dụng như học tập, gaming, đồ họa, nghe nhạc, pin trâu...) để đưa ra lời khuyên phù hợp nhất.\n");
-        sb.append("4. Nếu khách hàng hỏi sản phẩm mà shop hiện KHÔNG CÓ, hãy lịch sự thông báo hiện sản phẩm đó đang tạm hết hàng hoặc chưa mở bán, đồng thời khéo léo gợi ý 1-2 mẫu tương đương đang có sẵn tại shop.\n");
-        sb.append("5. Văn phong lịch sự, thân thiện, trả lời bằng tiếng Việt chuẩn mực, sử dụng định dạng Markdown (gạch đầu dòng, in đậm tên sản phẩm) và các emoji trực quan sinh động.\n\n");
+        sb.append("\n=== NGUYÊN TẮC TƯ VẤN QUAN TRỌNG (BẮT BUỘC TUÂN THỦ) ===\n");
+        sb.append("1. TRẢ LỜI CỰC KỲ NGẮN GỌN (Tối đa 2 đến 3 câu). Tuyệt đối không giải thích dài dòng, không văn hoa sáo rỗng, đi thẳng vào trọng tâm câu hỏi.\n");
+        sb.append("2. HỎI ĐÚNG VẤN ĐỀ: Khi tư vấn, hỏi đúng 1 câu trực diện về ngân sách hoặc nhu cầu (học tập / đồ họa / gaming). Khi khách muốn mua/đặt hàng, hỏi gọn Họ tên, Số điện thoại và Địa chỉ giao hàng.\n");
+        sb.append("3. ĐẶT HÀNG HỘ KHÁCH: Khi khách muốn đặt mua hoặc cung cấp thông tin, xác nhận ngắn gọn sản phẩm và ghi nhận đơn hàng.\n");
+        sb.append("4. Chỉ gợi ý và tư vấn các sản phẩm CÓ TRONG DANH SÁCH TRÊN. Khi đề cập đến sản phẩm cụ thể, LUÔN ghi kèm mã [ID: <id>], Tên chính xác và Giá bán (ví dụ: '**MacBook Air M3 [ID: 4]** (Giá: 21.590.000đ)').\n");
+        sb.append("5. Nếu khách hàng hỏi sản phẩm mà shop hiện KHÔNG CÓ, thông báo ngắn gọn và gợi ý 1-2 mẫu tương đương đang có sẵn tại shop.\n\n");
 
         if (history != null && !history.isEmpty()) {
             sb.append("=== LỊCH SỬ HỘI THOẠI TRƯỚC ĐÓ ===\n");
@@ -512,19 +534,13 @@ public class AiServiceImpl implements AiService {
         Locale vn = Locale.forLanguageTag("vi-VN");
         NumberFormat nf = NumberFormat.getInstance(vn);
 
-        // 1. Ý định chào hỏi thân thiện
+        // 1. Ý định chào hỏi thân thiện (Ngắn gọn, hỏi đúng vấn đề)
         if (normQuery.equals("chao") || normQuery.startsWith("xin chao") || normQuery.contains("chao ban") ||
                 normQuery.contains("chao shop") || normQuery.equals("hello") || normQuery.equals("hi") ||
                 normQuery.startsWith("hi ") || normQuery.contains("alo") || normQuery.contains("oi shop") ||
                 normQuery.equals("oi")) {
             List<Product> topFeatured = products.stream().limit(3).collect(Collectors.toList());
-            String greetingReply = "Dạ em chào anh/chị ạ! 👋 Em là **NEXOR AI** — chuyên viên tư vấn công nghệ 24/7 của shop.\n\n" +
-                    "Anh/chị đang quan tâm đến dòng sản phẩm nào để em tư vấn thông số và ưu đãi tốt nhất ạ?\n" +
-                    "- 💻 **Laptop**: MacBook Air/Pro, Dell XPS, ASUS Gaming, Lenovo Legion\n" +
-                    "- 📱 **Điện thoại**: iPhone 16/15 Pro Max, Samsung Galaxy S24 Ultra, ROG Phone\n" +
-                    "- 🎧 **Âm thanh & Phụ kiện**: Tai nghe chống ồn, loa Bluetooth cao cấp\n" +
-                    "- 🛡️ **Chính sách**: 100% chính hãng, bảo hành 12-24 tháng, miễn phí vận chuyển toàn quốc.\n\n" +
-                    "Dưới đây là một số mẫu máy tiêu biểu đang được yêu thích nhất tại cửa hàng:";
+            String greetingReply = "Dạ em chào anh/chị! 👋 Em là **NEXOR AI**. Anh/chị đang tìm thiết bị nào (điện thoại, laptop hay âm thanh) và trong tầm giá bao nhiêu để em hỗ trợ nhanh nhất ạ?";
             List<ProductResponse> featuredResp = topFeatured.stream().map(productMapper::toResponse).collect(Collectors.toList());
             return AiChatResponse.builder()
                     .reply(greetingReply)
@@ -536,12 +552,7 @@ public class AiServiceImpl implements AiService {
 
         // 2. Ý định hỏi về chính sách bảo hành / đổi trả
         if (normQuery.contains("bao hanh") || normQuery.contains("doi tra") || normQuery.contains("hong") || normQuery.contains("loi")) {
-            String warrantyReply = "🛡️ **Chính sách bảo hành vàng tại NEXOR:**\n\n" +
-                    "- **100% Hàng chính hãng**: Toàn bộ sản phẩm phân phối đều là hàng chính ngạch nguyên seal, đầy đủ hóa đơn VAT.\n" +
-                    "- **1 Đổi 1 trong 30 ngày**: Nếu sản phẩm phát sinh lỗi phần cứng do nhà sản xuất, shop đổi ngay máy mới 100% không phát sinh chi phí.\n" +
-                    "- **Thời hạn bảo hành**: Từ 12 đến 24 tháng theo đúng tiêu chuẩn khắt khe của hãng (Apple, Samsung, Asus, Dell, Sony).\n" +
-                    "- **Trung tâm bảo hành toàn quốc**: Quý khách có thể mang máy trực tiếp tới các trung tâm bảo hành ủy quyền của hãng trên cả nước hoặc gửi qua shop hỗ trợ miễn phí!\n" +
-                    "- **Hỗ trợ trọn đời**: Miễn phí cài đặt phần mềm bản quyền, vệ sinh máy và hỗ trợ kỹ thuật 24/7.";
+            String warrantyReply = "🛡️ **NEXOR cam kết 100% chính hãng**, bảo hành 12 - 24 tháng và 1 đổi 1 trong 30 ngày nếu phát sinh lỗi nhà sản xuất. Anh/chị cần hỗ trợ bảo hành sản phẩm nào ạ?";
             List<ProductResponse> wResp = products.stream().limit(2).map(productMapper::toResponse).collect(Collectors.toList());
             return AiChatResponse.builder()
                     .reply(warrantyReply)
@@ -553,11 +564,7 @@ public class AiServiceImpl implements AiService {
 
         // 3. Ý định hỏi về vận chuyển / giao hàng
         if (normQuery.contains("van chuyen") || normQuery.contains("giao hang") || normQuery.contains("ship") || normQuery.contains("freeship") || normQuery.contains("hoa toc")) {
-            String shipReply = "🚚 **Chính sách vận chuyển & Giao hàng tại NEXOR:**\n\n" +
-                    "- **Miễn phí giao hàng toàn quốc**: Áp dụng cho mọi đơn hàng có giá trị từ **500.000đ** trở lên.\n" +
-                    "- **Giao hỏa tốc 2 giờ**: Khu vực nội thành Hà Nội & TP. Hồ Chí Minh nhận hàng ngay trong ngày.\n" +
-                    "- **Đồng kiểm khi nhận (COD)**: Quý khách được quyền mở hộp kiểm tra đúng model, ngoại quan nguyên vẹn trước khi thanh toán.\n" +
-                    "- **Đóng gói chuẩn công nghệ**: Thùng carton 5 lớp kèm túi khí chống sốc và dán niêm phong an toàn tuyệt đối.";
+            String shipReply = "🚚 **NEXOR miễn phí vận chuyển toàn quốc** cho đơn từ 500.000đ và giao hỏa tốc 2 giờ tại nội thành. Anh/chị muốn đặt hàng giao về địa chỉ nào ạ?";
             List<ProductResponse> sResp = products.stream().limit(2).map(productMapper::toResponse).collect(Collectors.toList());
             return AiChatResponse.builder()
                     .reply(shipReply)
@@ -569,11 +576,7 @@ public class AiServiceImpl implements AiService {
 
         // 4. Ý định hỏi về trả góp / khuyến mãi
         if (normQuery.contains("tra gop") || normQuery.contains("khuyen mai") || normQuery.contains("uu dai") || normQuery.contains("giam gia") || normQuery.contains("sale")) {
-            String promoReply = "🎁 **Chương trình khuyến mãi & Hỗ trợ trả góp tại NEXOR:**\n\n" +
-                    "- **Trả góp 0% lãi suất**: Hỗ trợ qua thẻ tín dụng hơn 25 ngân hàng hoặc duyệt hồ sơ online qua CCCD chỉ mất 10-15 phút.\n" +
-                    "- **Flash Sale mỗi ngày**: Giảm sâu đến 30% cho các sản phẩm công nghệ hot nhất.\n" +
-                    "- **Ưu đãi Học sinh - Sinh viên**: Tặng thêm voucher giảm giá 500.000đ khi mua laptop hoặc máy tính bảng.\n" +
-                    "- **Thu cũ đổi mới (Trade-in)**: Trợ giá thu mua máy cũ lên đến 2.000.000đ để quý khách lên đời máy mới tiết kiệm nhất!";
+            String promoReply = "🎁 **NEXOR hỗ trợ trả góp 0% lãi suất** xét duyệt chỉ 10 phút và tặng voucher 500k cho học sinh, sinh viên. Anh/chị đang quan tâm dòng máy nào để em báo giá tốt nhất ạ?";
             List<ProductResponse> pResp = products.stream().limit(3).map(productMapper::toResponse).collect(Collectors.toList());
             return AiChatResponse.builder()
                     .reply(promoReply)
@@ -583,34 +586,19 @@ public class AiServiceImpl implements AiService {
                     .build();
         }
 
-        // 5. Tìm kiếm theo danh mục và từ khóa
+        // 5. Tìm kiếm theo danh mục và từ khóa (Ngắn gọn, súc tích)
         List<Product> matched = filterRelevantProducts(rawQuery, products);
 
         StringBuilder reply = new StringBuilder();
-        reply.append("Dạ chào anh/chị! 👋 NEXOR rất vui được hỗ trợ.\n\n");
-
         if (!matched.isEmpty()) {
-            reply.append("Dưới đây là các mẫu sản phẩm chính hãng phù hợp nhất với nhu cầu của anh/chị:\n\n");
-            for (Product p : matched) {
+            reply.append("Dạ NEXOR gợi ý các mẫu máy phù hợp nhất với nhu cầu của anh/chị:\n\n");
+            for (Product p : matched.stream().limit(3).toList()) {
                 String priceStr = p.getPrice() != null ? nf.format(p.getPrice()) + "đ" : "Liên hệ";
-                reply.append(String.format("🔹 **%s [ID: %d]**\n", p.getName(), p.getId()));
-                reply.append(String.format("   - **Giá ưu đãi:** %s\n", priceStr));
-                if (StringUtils.hasText(p.getDescription())) {
-                    reply.append(String.format("   - **Đặc điểm:** %s\n", p.getDescription().trim()));
-                }
-                reply.append("\n");
+                reply.append(String.format("🔹 **%s [ID: %d]** — Giá: %s\n", p.getName(), p.getId(), priceStr));
             }
-            reply.append("🌟 **Đặc quyền tại NEXOR:**\n");
-            reply.append("- Miễn phí vận chuyển toàn quốc cho đơn từ 500.000đ 🚚\n");
-            reply.append("- Bảo hành chính hãng 12 - 24 tháng, 1 đổi 1 trong 30 ngày 🛡️\n\n");
-            reply.append("Anh/chị hãy bấm vào thẻ sản phẩm bên dưới để xem chi tiết thông số hoặc nhắn thêm nếu cần em tư vấn thêm nhé! 😊");
+            reply.append("\nAnh/chị ưng mẫu nào hoặc cần đặt hàng hộ cứ nhắn em lên đơn ngay nhé! 😊");
         } else {
-            reply.append("Hiện tại NEXOR chưa tìm thấy sản phẩm khớp hoàn toàn với từ khóa của anh/chị. Dưới đây là các dòng sản phẩm tiêu biểu đang bán chạy nhất tại cửa hàng:\n\n");
-            for (Product p : products.stream().limit(3).collect(Collectors.toList())) {
-                String priceStr = p.getPrice() != null ? nf.format(p.getPrice()) + "đ" : "Liên hệ";
-                reply.append(String.format("🔹 **%s [ID: %d]** (Giá: %s)\n", p.getName(), p.getId(), priceStr));
-            }
-            reply.append("\nAnh/chị có thể mô tả cụ thể hơn về khoảng ngân sách hoặc dòng máy mong muốn để em gợi ý chính xác nhất nhé! ✨");
+            reply.append("Dạ hiện kho chưa có dòng máy khớp hoàn toàn với yêu cầu. Anh/chị có thể cho em biết thêm về khoảng ngân sách hoặc thương hiệu mong muốn để em tìm giúp nhé! ✨");
         }
 
         List<ProductResponse> recommended = matched.stream()
@@ -626,6 +614,265 @@ public class AiServiceImpl implements AiService {
                 .build();
     }
 
+    // ====================================================================
+    //  HỆ THỐNG ĐẶT HÀNG HỘ KHÁCH HÀNG THÔNG QUA AI CHATBOT (AI ASSISTANT ORDER)
+    // ====================================================================
+
+    @lombok.Getter
+    @lombok.Setter
+    @lombok.AllArgsConstructor
+    private static class OrderProcessResult {
+        private boolean success;
+        private String message;
+        private ra.project.server.model.dto.response.OrderResponse order;
+        private List<Product> relatedProducts;
+    }
+
+    private static final Pattern ORDER_PHONE_PATTERN = Pattern.compile("(?:\\+?84|0)(?:3[2-9]|5[2689]|7[06-9]|8[1-9]|9[0-9])[0-9]{7}");
+
+    private boolean isOrderIntent(String message, List<ChatMessageDto> history) {
+        if (!StringUtils.hasText(message)) return false;
+        String norm = normalizeText(message);
+        if (norm.contains("dat hang") || norm.contains("mua hang") || norm.contains("mua ngay")
+                || norm.contains("chot don") || norm.contains("order") || norm.contains("dat mua")
+                || norm.contains("mua ho") || norm.contains("lay chiec nay") || norm.contains("lay con nay")
+                || norm.contains("lay may nay") || norm.contains("mua chiec nay") || norm.contains("mua con nay")
+                || norm.contains("mua em nay") || norm.contains("mua giup") || norm.contains("dat giup")
+                || norm.contains("mua gium") || norm.contains("dat gium") || norm.contains("mua luon")
+                || norm.contains("dat luon") || norm.contains("lay 1") || norm.contains("dat 1")
+                || norm.contains("mua 1") || norm.contains("len don")) {
+            return true;
+        }
+        if (ORDER_PHONE_PATTERN.matcher(message).find() && hasAddressClues(message)) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean hasAddressClues(String text) {
+        if (!StringUtils.hasText(text)) return false;
+        String lower = text.toLowerCase();
+        return lower.contains("địa chỉ") || lower.contains("dia chi") || lower.contains("đ/c") || lower.contains("dc:")
+                || lower.contains("đường") || lower.contains("duong") || lower.contains("phố") || lower.contains("pho")
+                || lower.contains("phường") || lower.contains("phuong") || lower.contains("quận") || lower.contains("quan")
+                || lower.contains("huyện") || lower.contains("huyen") || lower.contains("thành phố") || lower.contains("tp.")
+                || lower.contains("tp ") || lower.contains("hà nội") || lower.contains("ha noi") || lower.contains("hcm")
+                || lower.contains("hồ chí minh") || lower.contains("đà nẵng") || lower.contains("da nang")
+                || lower.contains("số ") || lower.contains("so ") || lower.contains("ngõ") || lower.contains("tòa");
+    }
+
+    private OrderProcessResult tryProcessOrder(String userMessage, List<ChatMessageDto> history, List<Product> allProducts) {
+        // 1. Tìm sản phẩm mục tiêu (ưu tiên tìm trong tin nhắn hiện tại, sau đó tìm ngược về lịch sử)
+        Product targetProduct = findTargetProductForOrder(userMessage, history, allProducts);
+
+        // 2. Trích xuất Số điện thoại
+        String phone = extractPhoneNumber(userMessage, history);
+
+        // 3. Trích xuất Họ tên
+        String receiverName = extractReceiverName(userMessage, history);
+
+        // 4. Trích xuất Địa chỉ
+        String address = extractAddress(userMessage, history);
+
+        // Nếu chưa xác định được sản phẩm
+        if (targetProduct == null) {
+            return new OrderProcessResult(false,
+                    "Dạ anh/chị muốn đặt mua sản phẩm nào ạ? Anh/chị có thể nhắn tên hoặc mã [ID: ...] để em lên đơn ngay nhé!",
+                    null, Collections.emptyList());
+        }
+
+        // Nếu thiếu số điện thoại hoặc địa chỉ nhận hàng
+        if (!StringUtils.hasText(phone) || !StringUtils.hasText(address)) {
+            Locale vn = Locale.forLanguageTag("vi-VN");
+            NumberFormat nf = NumberFormat.getInstance(vn);
+            String priceStr = targetProduct.getPrice() != null ? nf.format(targetProduct.getPrice()) + "đ" : "";
+            return new OrderProcessResult(false,
+                    String.format("Dạ em hỗ trợ lên đơn ngay cho **%s** (%s).\nAnh/chị vui lòng cung cấp: **Họ tên**, **Số điện thoại** và **Địa chỉ nhận hàng** nhé ạ!",
+                            targetProduct.getName(), priceStr),
+                    null, List.of(targetProduct));
+        }
+
+        if (!StringUtils.hasText(receiverName)) {
+            receiverName = "Khách hàng NEXOR";
+        }
+
+        // Tạo đơn hàng thật vào hệ thống thông qua orderService
+        try {
+            ra.project.server.model.dto.request.CheckoutRequest checkoutReq = ra.project.server.model.dto.request.CheckoutRequest.builder()
+                    .receiverName(receiverName.trim())
+                    .phoneNumber(phone.trim())
+                    .shippingAddress(address.trim())
+                    .paymentMethod(ra.project.server.model.enums.PaymentMethod.COD)
+                    .note("Đơn hàng đặt tự động qua NEXOR AI Assistant")
+                    .items(List.of(ra.project.server.model.dto.request.OrderItemRequest.builder()
+                            .productId(targetProduct.getId())
+                            .quantity(1)
+                            .build()))
+                    .build();
+
+            ra.project.server.common.response.ApiResponse<ra.project.server.model.dto.response.OrderResponse> orderResp = orderService.createOrderForAiAssistant(checkoutReq);
+            ra.project.server.model.dto.response.OrderResponse orderData = orderResp != null ? orderResp.getData() : null;
+
+            Locale vn = Locale.forLanguageTag("vi-VN");
+            NumberFormat nf = NumberFormat.getInstance(vn);
+            String totalStr = (orderData != null && orderData.getTotalAmount() != null)
+                    ? nf.format(orderData.getTotalAmount()) + "đ"
+                    : (targetProduct.getPrice() != null ? nf.format(targetProduct.getPrice()) + "đ" : "");
+
+            Long orderId = orderData != null ? orderData.getId() : System.currentTimeMillis();
+
+            String successMsg = String.format(
+                    "🎉 **Đặt hàng thành công!**\n" +
+                    "- **Mã đơn hàng**: #NXR-%d\n" +
+                    "- **Sản phẩm**: %s (SL: 1)\n" +
+                    "- **Người nhận**: %s (%s)\n" +
+                    "- **Địa chỉ giao**: %s\n" +
+                    "- **Thanh toán (COD)**: %s (Miễn phí giao hàng)\n\n" +
+                    "NEXOR sẽ liên hệ xác nhận và giao hàng sớm nhất cho anh/chị nhé ạ!",
+                    orderId, targetProduct.getName(), receiverName, phone, address, totalStr
+            );
+
+            return new OrderProcessResult(true, successMsg, orderData, List.of(targetProduct));
+        } catch (Exception ex) {
+            log.error("Lỗi khi AI Assistant tạo đơn hàng tự động: {}", ex.getMessage());
+            return new OrderProcessResult(false,
+                    "Dạ đơn hàng chưa tạo được do: " + ex.getMessage() + ". Anh/chị kiểm tra lại hoặc liên hệ hotline để được hỗ trợ ngay nhé!",
+                    null, List.of(targetProduct));
+        }
+    }
+
+    private Product findTargetProductForOrder(String message, List<ChatMessageDto> history, List<Product> allProducts) {
+        // 1. Kiểm tra mã [ID: <id>] trong tin nhắn hiện tại
+        Matcher idMatcher = Pattern.compile("\\[ID:\\s*(\\d+)\\]", Pattern.CASE_INSENSITIVE).matcher(message);
+        if (idMatcher.find()) {
+            long pid = Long.parseLong(idMatcher.group(1));
+            for (Product p : allProducts) {
+                if (p.getId().equals(pid)) return p;
+            }
+        }
+
+        // 2. Kiểm tra tên sản phẩm trong tin nhắn hiện tại
+        String normMsg = normalizeText(message);
+        for (Product p : allProducts) {
+            String pNorm = normalizeText(p.getName());
+            if (normMsg.contains(pNorm)) {
+                return p;
+            }
+        }
+
+        // 3. Nếu không có, tìm kiếm sản phẩm phù hợp nhất với từ khóa trong tin nhắn hiện tại
+        List<Product> relevant = filterRelevantProducts(message, allProducts);
+        if (!relevant.isEmpty() && (normMsg.contains("iphone") || normMsg.contains("macbook") || normMsg.contains("laptop")
+                || normMsg.contains("sony") || normMsg.contains("samsung") || normMsg.contains("asus")
+                || normMsg.contains("tai nghe") || normMsg.contains("airpods"))) {
+            return relevant.get(0);
+        }
+
+        // 4. Tìm ngược về các tin nhắn trước trong history
+        if (history != null && !history.isEmpty()) {
+            for (int i = history.size() - 1; i >= 0; i--) {
+                ChatMessageDto msg = history.get(i);
+                if (msg != null && StringUtils.hasText(msg.getContent())) {
+                    Matcher hMatcher = Pattern.compile("\\[ID:\\s*(\\d+)\\]", Pattern.CASE_INSENSITIVE).matcher(msg.getContent());
+                    if (hMatcher.find()) {
+                        long pid = Long.parseLong(hMatcher.group(1));
+                        for (Product p : allProducts) {
+                            if (p.getId().equals(pid)) return p;
+                        }
+                    }
+                    String hNorm = normalizeText(msg.getContent());
+                    for (Product p : allProducts) {
+                        String pNorm = normalizeText(p.getName());
+                        if (hNorm.contains(pNorm)) {
+                            return p;
+                        }
+                    }
+                }
+            }
+        }
+
+        return relevant.isEmpty() ? null : relevant.get(0);
+    }
+
+    private String extractPhoneNumber(String message, List<ChatMessageDto> history) {
+        if (StringUtils.hasText(message)) {
+            Matcher m = ORDER_PHONE_PATTERN.matcher(message);
+            if (m.find()) return m.group(0).trim();
+        }
+        if (history != null) {
+            for (int i = history.size() - 1; i >= 0; i--) {
+                ChatMessageDto dto = history.get(i);
+                if (dto != null && "user".equalsIgnoreCase(dto.getRole()) && StringUtils.hasText(dto.getContent())) {
+                    Matcher m = ORDER_PHONE_PATTERN.matcher(dto.getContent());
+                    if (m.find()) return m.group(0).trim();
+                }
+            }
+        }
+        return null;
+    }
+
+    private String extractAddress(String message, List<ChatMessageDto> history) {
+        String addr = findAddressInText(message);
+        if (StringUtils.hasText(addr)) return addr;
+        if (history != null) {
+            for (int i = history.size() - 1; i >= 0; i--) {
+                ChatMessageDto dto = history.get(i);
+                if (dto != null && "user".equalsIgnoreCase(dto.getRole()) && StringUtils.hasText(dto.getContent())) {
+                    String hAddr = findAddressInText(dto.getContent());
+                    if (StringUtils.hasText(hAddr)) return hAddr;
+                }
+            }
+        }
+        return null;
+    }
+
+    private String findAddressInText(String text) {
+        if (!StringUtils.hasText(text)) return null;
+        Pattern prefixPattern = Pattern.compile("(?:địa chỉ|dia chi|đ/c|dc|giao tại|giao den|ở|tai)[:\\s]+([^,\\n\\.;]+(?:,[^,\\n\\.;]+)*)", Pattern.CASE_INSENSITIVE);
+        Matcher m = prefixPattern.matcher(text);
+        if (m.find()) {
+            String cand = m.group(1).trim();
+            if (cand.length() >= 5) return cand;
+        }
+
+        String[] parts = text.split("[,;\\n]");
+        for (String part : parts) {
+            String pTrim = part.trim();
+            if (hasAddressClues(pTrim) && pTrim.length() >= 8) {
+                return pTrim;
+            }
+        }
+        return null;
+    }
+
+    private String extractReceiverName(String message, List<ChatMessageDto> history) {
+        String name = findNameInText(message);
+        if (StringUtils.hasText(name)) return name;
+        if (history != null) {
+            for (int i = history.size() - 1; i >= 0; i--) {
+                ChatMessageDto dto = history.get(i);
+                if (dto != null && "user".equalsIgnoreCase(dto.getRole()) && StringUtils.hasText(dto.getContent())) {
+                    String hName = findNameInText(dto.getContent());
+                    if (StringUtils.hasText(hName)) return hName;
+                }
+            }
+        }
+        return null;
+    }
+
+    private String findNameInText(String text) {
+        if (!StringUtils.hasText(text)) return null;
+        Pattern namePattern = Pattern.compile("(?:tên|họ tên|người nhận|ten|ho ten)[:\\s]+([\\p{L}\\s]{2,40})", Pattern.CASE_INSENSITIVE);
+        Matcher m = namePattern.matcher(text);
+        if (m.find()) {
+            String name = m.group(1).trim();
+            if (name.length() >= 2 && !name.toLowerCase().contains("sđt") && !name.toLowerCase().contains("địa chỉ")) {
+                return name;
+            }
+        }
+        return null;
+    }
+
     private String callGeminiApi(String prompt) {
         String effectiveKey = getEffectiveGeminiApiKey();
         String effectiveModel = getEffectiveGeminiModel();
@@ -633,8 +880,9 @@ public class AiServiceImpl implements AiService {
 
         String[] candidateModels = new String[]{
                 effectiveModel,
-                "gemini-1.5-flash",
-                "gemini-2.0-flash",
+                "gemini-3.5-flash-lite",
+                "gemini-flash-lite-latest",
+                "gemini-3.8-flash",
                 "gemini-2.5-flash"
         };
 

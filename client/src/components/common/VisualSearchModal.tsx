@@ -91,7 +91,7 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
         throw new Error(
           !isSecure
             ? 'Trình duyệt yêu cầu kết nối bảo mật (HTTPS hoặc localhost) để sử dụng máy ảnh.'
-            : 'Trình duyệt của bạn không hỗ trợ API truy cập máy ảnh (MediaDevices).'
+            : 'Trình duyệt của bạn hiện không hỗ trợ tính năng truy cập máy ảnh.'
         );
       }
 
@@ -201,7 +201,7 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
     setIsAnalyzing(true);
     setErrorMsg(null);
     setSearchResponse(null);
-    setStatusMessage('Đang tải hình ảnh và chuẩn bị vector AI...');
+    setStatusMessage('Đang tải hình ảnh và phân tích đặc trưng...');
 
     try {
       const res = await visualSearchService.search(imageInput, (step) => {
@@ -1019,9 +1019,8 @@ export const VisualSearchModal: React.FC<VisualSearchModalProps> = ({ isOpen, on
                                 AI nhận diện thiết bị là{' '}
                                 <strong className="text-gray-200">
                                   {searchResponse.detectedAttributes?.identifiedTitle ||
-                                    `${searchResponse.detectedAttributes?.brand || ''} ${
-                                      searchResponse.detectedAttributes?.productLine || ''
-                                    }`.trim() ||
+                                    `${searchResponse.detectedAttributes?.brand || ''} ${searchResponse.detectedAttributes?.productLine || ''
+                                      }`.trim() ||
                                     'thiết bị điện tử'}
                                 </strong>
                                 , tuy nhiên hiện tại kho hàng chưa có sản phẩm đạt độ tương đồng yêu cầu (&ge;50%).

@@ -51,7 +51,7 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
     @Value("${gemini.api-key:${GEMINI_API_KEY:}}")
     private String geminiApiKey;
 
-    @Value("${gemini.model:${GEMINI_MODEL:gemini-2.5-flash}}")
+    @Value("${gemini.model:${GEMINI_MODEL:gemini-3.5-flash-lite}}")
     private String geminiModel;
 
     @Value("${gemini.api-url:https://generativelanguage.googleapis.com/v1beta/models}")
@@ -238,42 +238,42 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
 
         String effectiveModel = getEffectiveGeminiModel();
         List<String> candidateModels = new ArrayList<>();
-        // Ưu tiên các model thế hệ mới nhất (Gemini 2.5 / 2.0 Flash) theo khuyến nghị
-        // từ tài liệu Google
-        if (StringUtils.hasText(effectiveModel) && !effectiveModel.contains("1.5") && !effectiveModel.contains("3.5")) {
+        // Ưu tiên các model hoạt động ổn định nhất (Gemini 3.5 Flash-Lite / Flash Lite Latest)
+        if (StringUtils.hasText(effectiveModel)) {
             candidateModels.add(effectiveModel.trim());
         }
+        if (!candidateModels.contains("gemini-3.5-flash-lite"))
+            candidateModels.add("gemini-3.5-flash-lite");
+        if (!candidateModels.contains("gemini-flash-lite-latest"))
+            candidateModels.add("gemini-flash-lite-latest");
+        if (!candidateModels.contains("gemini-3.8-flash"))
+            candidateModels.add("gemini-3.8-flash");
         if (!candidateModels.contains("gemini-2.5-flash"))
             candidateModels.add("gemini-2.5-flash");
-        if (!candidateModels.contains("gemini-2.0-flash"))
-            candidateModels.add("gemini-2.0-flash");
-        if (!candidateModels.contains("gemini-2.0-flash-lite"))
-            candidateModels.add("gemini-2.0-flash-lite");
-        if (!candidateModels.contains("gemini-1.5-flash"))
-            candidateModels.add("gemini-1.5-flash");
 
         String prompt = "Bạn là chuyên gia thẩm định và nhận diện thiết bị công nghệ của sàn thương mại điện tử NEXOR.\n"
-                +
-                "Nhiệm vụ: Nhận diện sản phẩm công nghệ CHÍNH trong ảnh, bỏ qua người, khuôn mặt, tay cầm máy, ảnh chụp selfie qua gương và hậu cảnh nền.\n"
-                +
-                "Đặc biệt quan sát kỹ mặt lưng điện thoại, cụm camera (số lượng camera và bố cục sắp xếp tam giác/dọc), logo thương hiệu (ví dụ quả táo Apple cắn dở), phom viền kim loại, mặt kính mờ.\n"
-                +
-                "Chỉ điền brand và product_line nếu thấy rõ logo hoặc kiểu dáng đặc trưng (ví dụ: Apple, iPhone Pro / Pro Max), nếu không chắc chắn hãy để null.\n"
-                +
-                "Bắt buộc trả về đúng định dạng JSON tuân thủ schema đã định nghĩa.";
+                + "Nhiệm vụ: Nhận diện sản phẩm công nghệ CHÍNH trong ảnh (điện thoại, laptop, tai nghe, hộp sạc tai nghe, máy tính bảng, đồng hồ thông minh, phụ kiện công nghệ). Bỏ qua người, khuôn mặt, tay cầm máy, ảnh selfie và hậu cảnh nền.\n"
+                + "Hãy quan sát kỹ lưỡng chữ in hoặc logo thương hiệu trên thân thiết bị/hộp sạc (ví dụ: Apple, Samsung, Xiaomi, Redmi, Sony, ASUS, Dell, Lenovo, HP, Logitech, XP-Pen...):\n"
+                + "- Nếu thấy chữ 'Redmi' hoặc 'Xiaomi' trên hộp nhỏ/tai nghe: category='headphone', brand='Redmi' (hoặc 'Xiaomi'), product_line='Redmi Buds'.\n"
+                + "- Nếu là tai nghe trùm đầu Sony: category='headphone', brand='Sony'.\n"
+                + "- Nếu là laptop ASUS / ROG: category='laptop', brand='ASUS'.\n"
+                + "- Nếu là điện thoại Apple: chỉ khi thấy rõ logo quả táo cắn dở hoặc cụm 3 camera xếp tam giác đặc trưng mới điền brand='Apple'.\n"
+                + "Tuyệt đối không đoán mò thành Apple hay iPhone nếu không có logo hoặc đặc trưng rõ ràng.\n"
+                + "QUAN TRỌNG: Mọi nội dung trả về trong JSON (ai_description, distinctive_features, color, identified_title, keywords) BẮT BUỘC PHẢI VIẾT BẰNG TIẾNG VIỆT 100%, tự nhiên, chuẩn ngôn ngữ thương mại điện tử Việt Nam, không được dùng tiếng Anh.\n"
+                + "Bắt buộc trả về đúng định dạng JSON tuân thủ schema đã định nghĩa.";
 
         // Định nghĩa JSON Schema cố định (Structured Outputs của Google Gemini)
         Map<String, Object> schemaProperties = new LinkedHashMap<>();
-        schemaProperties.put("brand", Map.of("type", "STRING", "nullable", true));
-        schemaProperties.put("product_line", Map.of("type", "STRING", "nullable", true));
+        schemaProperties.put("brand", Map.of("type", "STRING", "description", "Tên thương hiệu sản phẩm", "nullable", true));
+        schemaProperties.put("product_line", Map.of("type", "STRING", "description", "Dòng sản phẩm hoặc phân khúc", "nullable", true));
         schemaProperties.put("category",
                 Map.of("type", "STRING", "enum", List.of("phone", "laptop", "headphone", "watch", "tablet", "other")));
-        schemaProperties.put("identified_title", Map.of("type", "STRING", "nullable", true));
-        schemaProperties.put("ai_description", Map.of("type", "STRING", "nullable", true));
-        schemaProperties.put("color", Map.of("type", "STRING", "nullable", true));
+        schemaProperties.put("identified_title", Map.of("type", "STRING", "description", "Tên thiết bị nhận diện bằng TIẾNG VIỆT", "nullable", true));
+        schemaProperties.put("ai_description", Map.of("type", "STRING", "description", "Đoạn văn mô tả thị giác 1-2 câu bằng TIẾNG VIỆT", "nullable", true));
+        schemaProperties.put("color", Map.of("type", "STRING", "description", "Màu sắc thiết bị bằng TIẾNG VIỆT (ví dụ: Titan tự nhiên, Đen, Bạc...)", "nullable", true));
         schemaProperties.put("confidence", Map.of("type", "STRING", "enum", List.of("low", "medium", "high")));
-        schemaProperties.put("distinctive_features", Map.of("type", "ARRAY", "items", Map.of("type", "STRING")));
-        schemaProperties.put("keywords", Map.of("type", "ARRAY", "items", Map.of("type", "STRING")));
+        schemaProperties.put("distinctive_features", Map.of("type", "ARRAY", "description", "Đặc trưng nhận diện bằng TIẾNG VIỆT", "items", Map.of("type", "STRING")));
+        schemaProperties.put("keywords", Map.of("type", "ARRAY", "description", "Từ khóa tìm kiếm bằng TIẾNG VIỆT", "items", Map.of("type", "STRING")));
 
         Map<String, Object> responseSchema = new LinkedHashMap<>();
         responseSchema.put("type", "OBJECT");
@@ -498,22 +498,30 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
 
     private VisualSearchAttributes buildFallbackAttributes(String filename) {
         String cleanName = filename != null ? filename.toLowerCase() : "";
-        String category = "Điện thoại";
-        String brand = "Apple";
-        String productLine = "iPhone Pro";
-        String identifiedTitle = "Điện thoại Apple iPhone (Mặt lưng kính nhám, cụm 3 camera Pro)";
-        String aiDescription = "Hệ thống AI nhận diện mặt lưng điện thoại Apple với logo quả táo cắn dở và cụm 3 camera Pro xếp hình tam giác đặc trưng, mặt lưng kính nhám viền kim loại cao cấp màu Titan / Space Gray.";
-        String color = "Đen / Titan";
-        String confidence = "HIGH";
-        List<String> distinctiveFeatures = new ArrayList<>(List.of(
-                "Logo quả táo Apple khuyết ở mặt lưng",
-                "Cụm 3 camera Pro đa ống kính xếp tam giác",
-                "Mặt lưng kính nhám viền kim loại cao cấp"));
-        List<String> keywords = new ArrayList<>(List.of("Apple", "iPhone", "Pro Max", "Điện thoại", "Titan", "NEXOR"));
+        String category = "Thiết bị điện tử";
+        String brand = null;
+        String productLine = null;
+        String identifiedTitle = "Thiết bị chưa xác định";
+        String aiDescription = "Hệ thống AI chưa đủ dữ liệu để xác định chính xác thiết bị trong ảnh. Bạn vui lòng chụp cận cảnh hơn hoặc chọn ảnh rõ nét hơn.";
+        String color = "Tiêu chuẩn";
+        String confidence = "LOW";
+        List<String> distinctiveFeatures = new ArrayList<>(List.of("Chưa xác định đặc trưng rõ nét"));
+        List<String> keywords = new ArrayList<>(List.of("Thiết bị", "Công nghệ"));
 
-        if (cleanName.contains("tai-nghe") || cleanName.contains("headphone") || cleanName.contains("earphone")
+        if (cleanName.contains("redmi") || cleanName.contains("xiaomi")) {
+            category = "Thiết bị âm thanh";
+            brand = "Xiaomi";
+            productLine = "Redmi Buds";
+            identifiedTitle = "Hộp tai nghe Xiaomi Redmi Buds";
+            aiDescription = "Hệ thống nhận diện thiết bị tai nghe không dây dòng Redmi của Xiaomi với thiết kế bo tròn nhỏ gọn.";
+            color = "Đen";
+            confidence = "HIGH";
+            distinctiveFeatures = List.of("Chữ Redmi in trên hộp sạc", "Tai nghe không dây True Wireless", "Hộp sạc bo tròn nhỏ gọn");
+            keywords.addAll(List.of("Xiaomi", "Redmi", "Tai nghe"));
+        } else if (cleanName.contains("tai-nghe") || cleanName.contains("headphone") || cleanName.contains("earphone")
                 || cleanName.contains("airpod") || cleanName.contains("sony")) {
             category = "Thiết bị âm thanh";
+            color = "Đen";
             if (cleanName.contains("airpod")) {
                 brand = "Apple";
                 productLine = "AirPods";
@@ -536,6 +544,7 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
                 productLine = "MacBook";
                 identifiedTitle = "Apple MacBook Pro / Air";
                 aiDescription = "Laptop Apple MacBook với vỏ nhôm Unibody nguyên khối, màn hình Liquid Retina và bàn phím Magic Keyboard.";
+                color = "Xám không gian";
                 keywords.add("MacBook");
                 distinctiveFeatures = List.of("Vỏ nhôm Unibody nguyên khối", "Màn hình Retina tai thỏ",
                         "Bàn phím Magic Keyboard");
@@ -544,6 +553,7 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
                 productLine = "XPS";
                 identifiedTitle = "Laptop Dell XPS Ultrabook";
                 aiDescription = "Ultrabook cao cấp của Dell với màn hình InfinityEdge viền siêu mỏng và khung nhôm kết hợp sợi carbon.";
+                color = "Bạc";
                 keywords.add("XPS");
                 distinctiveFeatures = List.of("Màn hình InfinityEdge viền siêu mỏng", "Khung nhôm và sợi carbon");
             } else if (cleanName.contains("asus") || cleanName.contains("rog")) {
@@ -551,12 +561,14 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
                 productLine = "ROG Strix";
                 identifiedTitle = "Laptop Gaming ASUS ROG Strix";
                 aiDescription = "Laptop chơi game hiệu năng cao của ASUS với hệ thống LED RGB Aura Sync và khe tản nhiệt hầm hố.";
+                color = "Eclipse Gray";
                 keywords.add("ROG");
                 distinctiveFeatures = List.of("Hệ thống LED RGB Aura Sync", "Tản nhiệt buồng hơi chuẩn Gaming");
             } else {
                 brand = "Dell";
                 productLine = "Laptop";
                 identifiedTitle = "Laptop văn phòng & đồ họa";
+                color = "Xám";
             }
         } else if (cleanName.contains("samsung") || cleanName.contains("galaxy")) {
             category = "Điện thoại";
@@ -564,6 +576,7 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
             productLine = "Galaxy";
             identifiedTitle = "Samsung Galaxy S-Series Ultra";
             aiDescription = "Điện thoại thông minh Samsung Galaxy với cụm camera đa ống kính rời và màn hình Dynamic AMOLED.";
+            color = "Đen Titan";
             keywords.add("Galaxy");
             distinctiveFeatures = List.of("Cụm camera đa ống kính rời", "Thiết kế góc cạnh vuông vức");
         } else if (cleanName.contains("ipad") || cleanName.contains("tablet")) {
@@ -572,6 +585,7 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
             productLine = "iPad";
             identifiedTitle = "Apple iPad Tablet";
             aiDescription = "Máy tính bảng iPad của Apple với màn hình Retina sắc nét, hỗ trợ làm việc và đồ họa.";
+            color = "Bạc";
             keywords.add("iPad");
             distinctiveFeatures = List.of("Màn hình Retina viền mỏng", "Hỗ trợ bút cảm ứng Apple Pencil");
         } else if (cleanName.contains("img_20261110") || cleanName.contains("generic")) {
@@ -594,15 +608,15 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
             distinctiveFeatures = List.of("Logo quả táo Apple khuyết ở mặt lưng", "Cụm 3 camera Pro đa ống kính", "Khung viền kim loại cao cấp");
             keywords = List.of("Apple", "iPhone", "Smartphone", "Pro Max", "Điện thoại");
         } else {
-            // Trường hợp không có API Key và không khớp từ khóa: Trả về trạng thái chưa xác định thay vì đoán mò
+            // Trường hợp không xác định được thiết bị và không khớp từ khóa: Trả về trạng thái chưa xác định thân thiện với người dùng
             category = "Thiết bị điện tử";
             brand = null;
             productLine = null;
             identifiedTitle = "Thiết bị chưa xác định";
-            aiDescription = "Chưa nhận diện được thiết bị trong ảnh. Vui lòng cấu hình GEMINI_API_KEY trên máy chủ để kích hoạt AI Vision nhận diện trực tiếp.";
-            color = null;
+            aiDescription = "Hệ thống AI chưa đủ dữ liệu để nhận diện rõ ràng thiết bị trong ảnh. Bạn vui lòng chụp cận cảnh hơn hoặc chọn ảnh rõ nét hơn.";
+            color = "Tiêu chuẩn";
             confidence = "LOW";
-            distinctiveFeatures = List.of("Chưa cấu hình GEMINI_API_KEY trên máy chủ");
+            distinctiveFeatures = List.of("Chưa nhận diện được đặc trưng rõ nét");
             keywords = Collections.emptyList();
         }
 
@@ -783,24 +797,6 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
                 }
             }
 
-            // Đánh giá chuyên sâu: Khớp trực tiếp dòng điện thoại iPhone (ví dụ iPhone Pro
-            // / Pro Max)
-            if (brandMatched && pName.contains("iphone")) {
-                if (pName.contains("pro max") || pName.contains("pro")) {
-                    score = Math.max(score, 98);
-                    reasons.add("Khớp chính xác phân khúc iPhone Pro / Pro Max (mặt lưng kính nhám, cụm 3 camera)");
-                } else {
-                    score = Math.max(score, 92);
-                    reasons.add("Cùng thương hiệu Apple và dòng điện thoại iPhone chính hãng");
-                }
-            } else if (brandMatched && StringUtils.hasText(targetCat)
-                    && (pCat.equals(targetCat) || "thiet bi dien tu".equals(targetCat))) {
-                if (score < 60) {
-                    score = 60;
-                    reasons.add("Sản phẩm cùng hệ sinh thái Apple có sẵn tại NEXOR");
-                }
-            }
-
             int finalPercent = Math.min(100, Math.max(0, score));
 
             if (finalPercent >= 15) {
@@ -814,8 +810,7 @@ public class AiVisualSearchServiceImpl implements AiVisualSearchService {
         // Lấy tối đa 10 sản phẩm
         List<ScoredProduct> topMatches = scoredList.stream().limit(10).collect(Collectors.toList());
 
-        // Nếu không có sản phẩm nào đạt ngưỡng >= 15%, lấy tối đa 5 sản phẩm đầu tiên
-        // của cửa hàng làm gợi ý
+        // Nếu không có sản phẩm nào đạt ngưỡng >= 15%, lấy tối đa 5 sản phẩm đầu tiên của cửa hàng làm gợi ý
         if (topMatches.isEmpty()) {
             topMatches = allProducts.stream()
                     .limit(5)

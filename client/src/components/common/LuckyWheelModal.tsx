@@ -428,8 +428,8 @@ export const LuckyWheelModal: React.FC = () => {
   const remainingSpins = !isAuthenticated
     ? 1
     : (wheelStatus?.remainingSpins !== undefined
-      ? wheelStatus.remainingSpins
-      : (wheelStatus?.canSpin ? 1 : 0));
+        ? wheelStatus.remainingSpins
+        : (wheelStatus?.canSpin ? 1 : 0));
 
   // Xác định mã voucher hiển thị hôm nay
   const displayVoucherCode = spinResult?.voucherCode || wheelStatus?.todayVoucherCode;
@@ -451,12 +451,14 @@ export const LuckyWheelModal: React.FC = () => {
             <Gift className="w-6 h-6 text-gray-950 animate-bounce" />
             <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
               <span
-                className={`animate-ping absolute inline-flex h-full w-full rounded-full ${remainingSpins > 0 ? 'bg-emerald-400' : 'bg-red-400'
-                  } opacity-75`}
+                className={`animate-ping absolute inline-flex h-full w-full rounded-full ${
+                  remainingSpins > 0 ? 'bg-emerald-400' : 'bg-red-400'
+                } opacity-75`}
               />
               <span
-                className={`relative inline-flex rounded-full h-2.5 w-2.5 ${remainingSpins > 0 ? 'bg-emerald-500' : 'bg-red-500'
-                  }`}
+                className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                  remainingSpins > 0 ? 'bg-emerald-500' : 'bg-red-500'
+                }`}
               />
             </span>
           </div>
@@ -468,8 +470,8 @@ export const LuckyWheelModal: React.FC = () => {
               {!isAuthenticated
                 ? '1 LƯỢT MIỄN PHÍ'
                 : remainingSpins > 0
-                  ? 'CÒN 1 LƯỢT QUAY'
-                  : '0 LƯỢT - CHỜ MAI'}
+                ? 'CÒN 1 LƯỢT QUAY'
+                : '0 LƯỢT - CHỜ MAI'}
             </span>
           </div>
         </button>
@@ -566,10 +568,11 @@ export const LuckyWheelModal: React.FC = () => {
                 type="button"
                 onClick={handleSpin}
                 disabled={spinning || !isWheelActive || (wheelStatus ? !wheelStatus.canSpin : false)}
-                className={`absolute z-10 w-[62px] h-[62px] sm:w-[70px] sm:h-[70px] rounded-full flex flex-col items-center justify-center shadow-[0_4px_18px_rgba(0,0,0,0.6),0_0_18px_rgba(245,158,11,0.5)] transition-all cursor-pointer ${spinning || !isWheelActive || (wheelStatus ? !wheelStatus.canSpin : false)
-                  ? 'bg-gradient-to-b from-gray-600 to-gray-800 text-gray-300 cursor-not-allowed opacity-90 ring-4 ring-gray-900/60'
-                  : 'bg-gradient-to-b from-[#fef08a] via-[#f59e0b] to-[#d97706] text-[#291e0a] hover:scale-105 active:scale-95 hover:shadow-[0_0_25px_rgba(245,158,11,0.8)] ring-4 ring-amber-300/40 border-2 border-white'
-                  }`}
+                className={`absolute z-10 w-[62px] h-[62px] sm:w-[70px] sm:h-[70px] rounded-full flex flex-col items-center justify-center shadow-[0_4px_18px_rgba(0,0,0,0.6),0_0_18px_rgba(245,158,11,0.5)] transition-all cursor-pointer ${
+                  spinning || !isWheelActive || (wheelStatus ? !wheelStatus.canSpin : false)
+                    ? 'bg-gradient-to-b from-gray-600 to-gray-800 text-gray-300 cursor-not-allowed opacity-90 ring-4 ring-gray-900/60'
+                    : 'bg-gradient-to-b from-[#fef08a] via-[#f59e0b] to-[#d97706] text-[#291e0a] hover:scale-105 active:scale-95 hover:shadow-[0_0_25px_rgba(245,158,11,0.8)] ring-4 ring-amber-300/40 border-2 border-white'
+                }`}
               >
                 {spinning ? (
                   <RotateCw className="w-6 h-6 animate-spin text-white" />
@@ -632,10 +635,11 @@ export const LuckyWheelModal: React.FC = () => {
 
                     <div className="flex items-center gap-2">
                       <span
-                        className={`px-3 py-0.5 rounded-full font-black text-xs uppercase tracking-wide border ${remainingSpins > 0
-                          ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.3)]'
-                          : 'bg-red-950/80 border-red-500/40 text-red-400'
-                          }`}
+                        className={`px-3 py-0.5 rounded-full font-black text-xs uppercase tracking-wide border ${
+                          remainingSpins > 0
+                            ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.3)]'
+                            : 'bg-red-950/80 border-red-500/40 text-red-400'
+                        }`}
                       >
                         {remainingSpins} lượt
                       </span>
