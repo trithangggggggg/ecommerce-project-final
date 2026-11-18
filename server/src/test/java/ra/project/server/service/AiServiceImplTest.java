@@ -226,5 +226,51 @@ class AiServiceImplTest {
         assertEquals("ngõ 36 đường Thanh Hóa", passedReq.getShippingAddress(), "Địa chỉ không được chứa họ tên hoặc SĐT");
         assertEquals(99L, passedReq.getItems().get(0).getProductId(), "Sản phẩm được đặt phải là Sony WH-1000XM5");
     }
+
+    @Test
+    @DisplayName("TC_AI_08: Khách gửi tên số nhà đường Thanh Hóa theo sau tin nhắn tư vấn trước đó")
+    void whenCustomerProvidesInfoWithSoNha_thenPlacesOrderSuccessfully() {
+        org.springframework.test.util.ReflectionTestUtils.setField(aiService, "orderService", orderService);
+
+        Product mouse = Product.builder()
+                .id(50L)
+                .name("Chuột không dây Logitech MX Master 3S")
+                .description("Chuột công thái học")
+                .price(BigDecimal.valueOf(2490000))
+                .status("ACTIVE")
+                .build();
+        when(productRepository.findAll()).thenReturn(List.of(mouse));
+
+        ArgumentCaptor<CheckoutRequest> captor = ArgumentCaptor.forClass(CheckoutRequest.class);
+        OrderResponse mockOrderResponse = OrderResponse.builder()
+                .id(1223L)
+                .receiverName("Nguyên Tuấn Minh")
+                .phoneNumber("0333743203")
+                .shippingAddress("số nhà 36 đường Thanh Hóa")
+                .totalAmount(BigDecimal.valueOf(2490000))
+                .build();
+        when(orderService.createOrderForAiAssistant(captor.capture()))
+                .thenReturn(ra.project.server.common.response.ApiResponse.success(mockOrderResponse));
+
+        ra.project.server.model.dto.request.ChatMessageDto prevMsg = new ra.project.server.model.dto.request.ChatMessageDto();
+        prevMsg.setRole("assistant");
+        prevMsg.setContent("Dạ em hỗ trợ lên đơn ngay cho Chuột không dây Logitech MX Master 3S (2.490.000đ).\nAnh/chị vui lòng cung cấp: Họ tên, Số điện thoại và Địa chỉ nhận hàng nhé ạ!");
+
+        AiChatRequest request = AiChatRequest.builder()
+                .message("Nguyên Tuấn Minh 0333743203 số nhà 36 đường Thanh Hóa")
+                .history(List.of(prevMsg))
+                .build();
+
+        AiChatResponse response = aiService.chatWithCustomer(request);
+        assertNotNull(response);
+        assertNotNull(response.getCreatedOrder(), "Đơn hàng phải được tạo thành công thay vì hỏi lại thông tin!");
+
+        CheckoutRequest passedReq = captor.getValue();
+        assertNotNull(passedReq);
+        assertEquals("Nguyên Tuấn Minh", passedReq.getReceiverName(), "Họ tên phải được trích xuất chính xác");
+        assertEquals("0333743203", passedReq.getPhoneNumber(), "Số điện thoại phải chuẩn xác");
+        assertEquals("số nhà 36 đường Thanh Hóa", passedReq.getShippingAddress(), "Địa chỉ phải trích xuất chính xác số nhà và tên đường");
+        assertEquals(50L, passedReq.getItems().get(0).getProductId(), "Sản phẩm được đặt phải là Chuột Logitech MX Master 3S từ lịch sử");
+    }
 }
 

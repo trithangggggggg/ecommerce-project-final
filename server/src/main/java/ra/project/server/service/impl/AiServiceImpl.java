@@ -47,7 +47,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AiServiceImpl implements AiService {
 
-    private static final Pattern BUDGET_PATTERN = Pattern.compile("(?:duoi(?:\\s+tam)?|tam|khoang)?\\s*(\\d+)\\s*(?:tr|trieu)\\b");
+    private static final Pattern BUDGET_PATTERN = Pattern
+            .compile("(?:duoi(?:\\s+tam)?|tam|khoang)?\\s*(\\d+)\\s*(?:tr|trieu)\\b");
 
     private final ProductRepository productRepository;
     private final ProductMapper productMapper;
@@ -78,22 +79,26 @@ public class AiServiceImpl implements AiService {
     private String openAiModel;
 
     private String getEffectiveGeminiApiKey() {
-        if (aiConfigService != null) return aiConfigService.getEffectiveGeminiApiKey();
+        if (aiConfigService != null)
+            return aiConfigService.getEffectiveGeminiApiKey();
         return geminiApiKey;
     }
 
     private String getEffectiveGeminiModel() {
-        if (aiConfigService != null) return aiConfigService.getEffectiveGeminiModel();
+        if (aiConfigService != null)
+            return aiConfigService.getEffectiveGeminiModel();
         return geminiModel;
     }
 
     private String getEffectiveOpenAiApiKey() {
-        if (aiConfigService != null) return aiConfigService.getEffectiveOpenAiApiKey();
+        if (aiConfigService != null)
+            return aiConfigService.getEffectiveOpenAiApiKey();
         return openAiApiKey;
     }
 
     private String getEffectiveOpenAiModel() {
-        if (aiConfigService != null) return aiConfigService.getEffectiveOpenAiModel();
+        if (aiConfigService != null)
+            return aiConfigService.getEffectiveOpenAiModel();
         return openAiModel;
     }
 
@@ -109,7 +114,8 @@ public class AiServiceImpl implements AiService {
             throw new BadRequestException("Tên sản phẩm không được để trống");
         }
         String brand = request.getBrand();
-        String categoryName = StringUtils.hasText(request.getCategoryName()) ? request.getCategoryName().trim() : "Thiết bị điện tử";
+        String categoryName = StringUtils.hasText(request.getCategoryName()) ? request.getCategoryName().trim()
+                : "Thiết bị điện tử";
         Object specs = request.getSpecs();
         List<String> keywords = request.getKeywords();
 
@@ -118,7 +124,8 @@ public class AiServiceImpl implements AiService {
         // 1. Thử gọi Google Gemini AI nếu có API Key
         String activeGeminiKey = getEffectiveGeminiApiKey();
         String activeGeminiModel = getEffectiveGeminiModel();
-        if (StringUtils.hasText(activeGeminiKey) && !activeGeminiKey.equalsIgnoreCase("dummy") && !activeGeminiKey.startsWith("placeholder")) {
+        if (StringUtils.hasText(activeGeminiKey) && !activeGeminiKey.equalsIgnoreCase("dummy")
+                && !activeGeminiKey.startsWith("placeholder")) {
             log.info("Đang gọi Google Gemini AI Model [{}] để sinh mô tả SEO cho: {}", activeGeminiModel, productName);
             try {
                 String geminiText = callGeminiApi(prompt);
@@ -142,9 +149,11 @@ public class AiServiceImpl implements AiService {
         // 2. Thử gọi Spring AI (OpenAI) nếu có cấu hình OpenAI
         String activeOpenAiKey = getEffectiveOpenAiApiKey();
         String activeOpenAiModel = getEffectiveOpenAiModel();
-        if (StringUtils.hasText(activeOpenAiKey) && !activeOpenAiKey.equalsIgnoreCase("dummy") && !activeOpenAiKey.startsWith("sk-placeholder")) {
+        if (StringUtils.hasText(activeOpenAiKey) && !activeOpenAiKey.equalsIgnoreCase("dummy")
+                && !activeOpenAiKey.startsWith("sk-placeholder")) {
             try {
-                log.info("Đang gọi Spring AI OpenAI Model [{}] để sinh mô tả SEO cho: {}", activeOpenAiModel, productName);
+                log.info("Đang gọi Spring AI OpenAI Model [{}] để sinh mô tả SEO cho: {}", activeOpenAiModel,
+                        productName);
                 OpenAiApi openAiApi = new OpenAiApi(activeOpenAiKey);
                 OpenAiChatModel chatModel = new OpenAiChatModel(openAiApi);
                 String aiGeneratedText = chatModel.call(prompt);
@@ -162,11 +171,13 @@ public class AiServiceImpl implements AiService {
                             .build();
                 }
             } catch (Exception ex) {
-                log.warn("Không thể kết nối Spring AI OpenAI ({}), chuyển sang bộ dự phòng: {}", ex.getMessage(), ex.getClass().getSimpleName());
+                log.warn("Không thể kết nối Spring AI OpenAI ({}), chuyển sang bộ dự phòng: {}", ex.getMessage(),
+                        ex.getClass().getSimpleName());
             }
         }
 
-        // 3. Chế độ sinh mô tả chuẩn SEO thông minh (Smart Fallback Generator) khi không có API Key hoặc gặp lỗi/timeout
+        // 3. Chế độ sinh mô tả chuẩn SEO thông minh (Smart Fallback Generator) khi
+        // không có API Key hoặc gặp lỗi/timeout
         log.info("Sử dụng thuật toán sinh mô tả chuẩn SEO tự động cho: {}", productName);
         String fallbackDescription = generateSmartSeoDescription(productName, brand, categoryName, specs, keywords);
 
@@ -187,8 +198,10 @@ public class AiServiceImpl implements AiService {
         if (!StringUtils.hasText(title)) {
             throw new BadRequestException("Tiêu đề bài viết không được để trống");
         }
-        String category = request != null && StringUtils.hasText(request.getCategory()) ? request.getCategory().trim() : "Công nghệ";
-        String summary = request != null && StringUtils.hasText(request.getSummary()) ? request.getSummary().trim() : "";
+        String category = request != null && StringUtils.hasText(request.getCategory()) ? request.getCategory().trim()
+                : "Công nghệ";
+        String summary = request != null && StringUtils.hasText(request.getSummary()) ? request.getSummary().trim()
+                : "";
 
         String prompt = "Bạn là chuyên gia biên tập tin tức và đánh giá công nghệ hàng đầu cho NEXOR Flagship Tech Store. "
                 + "Hãy viết một bài viết chuyên sâu, chuẩn SEO, định dạng HTML phong phú (hỗ trợ trực tiếp cho trình soạn thảo CKEditor 5) "
@@ -204,13 +217,15 @@ public class AiServiceImpl implements AiService {
 
         String activeGeminiKey = getEffectiveGeminiApiKey();
         String activeGeminiModel = getEffectiveGeminiModel();
-        if (StringUtils.hasText(activeGeminiKey) && !activeGeminiKey.equalsIgnoreCase("dummy") && !activeGeminiKey.startsWith("placeholder")) {
+        if (StringUtils.hasText(activeGeminiKey) && !activeGeminiKey.equalsIgnoreCase("dummy")
+                && !activeGeminiKey.startsWith("placeholder")) {
             log.info("Đang gọi Google Gemini AI Model [{}] để sinh nội dung bài viết: {}", activeGeminiModel, title);
             try {
                 String geminiText = callGeminiApi(prompt);
                 if (StringUtils.hasText(geminiText)) {
                     String cleanContent = cleanHtmlOutput(geminiText);
-                    String generatedSummary = StringUtils.hasText(summary) ? summary : generateSmartSummary(title, category);
+                    String generatedSummary = StringUtils.hasText(summary) ? summary
+                            : generateSmartSummary(title, category);
                     return AiGenerateArticleResponse.builder()
                             .title(title)
                             .summary(generatedSummary)
@@ -258,16 +273,20 @@ public class AiServiceImpl implements AiService {
                         .suggestedProducts(relatedResp)
                         .recommendedProducts(relatedResp)
                         .createdOrder(orderResult.getOrder())
-                        .provider(orderResult.isSuccess() ? "NEXOR AI Assistant (Order Placement)" : "NEXOR AI Assistant")
+                        .provider(
+                                orderResult.isSuccess() ? "NEXOR AI Assistant (Order Placement)" : "NEXOR AI Assistant")
                         .build();
             }
         }
 
-        // 3. RAG Context 1: Lọc nhanh sản phẩm liên quan (theo từ khóa, danh mục, ngân sách)
-        // Giới hạn số lượng (tối đa 8 sản phẩm) để tiết kiệm token và tăng tốc độ xử lý trong 2-3s
+        // 3. RAG Context 1: Lọc nhanh sản phẩm liên quan (theo từ khóa, danh mục, ngân
+        // sách)
+        // Giới hạn số lượng (tối đa 8 sản phẩm) để tiết kiệm token và tăng tốc độ xử lý
+        // trong 2-3s
         List<Product> relevantProducts = filterRelevantProducts(userMessage, allProducts);
 
-        // 4. RAG Context 2: Truy xuất tri thức từ Knowledge Base (Chính sách, FAQ, hướng dẫn)
+        // 4. RAG Context 2: Truy xuất tri thức từ Knowledge Base (Chính sách, FAQ,
+        // hướng dẫn)
         List<String> relevantKnowledge = Collections.emptyList();
         boolean kbEnabled = aiConfigService == null || aiConfigService.isKnowledgeBaseEnabled();
         int topK = aiConfigService != null ? aiConfigService.getTopKChunks() : 3;
@@ -291,7 +310,8 @@ public class AiServiceImpl implements AiService {
         String activeOpenAiModel = getEffectiveOpenAiModel();
 
         // 6. Thử gọi Google Gemini AI (timeout 4s để đảm bảo cam kết trả lời 2-3 giây)
-        if (StringUtils.hasText(activeGeminiKey) && !activeGeminiKey.equalsIgnoreCase("dummy") && !activeGeminiKey.startsWith("placeholder")) {
+        if (StringUtils.hasText(activeGeminiKey) && !activeGeminiKey.equalsIgnoreCase("dummy")
+                && !activeGeminiKey.startsWith("placeholder")) {
             log.info("Đang gọi Google Gemini AI Model [{}] để tư vấn sản phẩm cho khách...", activeGeminiModel);
             replyText = callGeminiApi(prompt);
             if (StringUtils.hasText(replyText)) {
@@ -300,7 +320,8 @@ public class AiServiceImpl implements AiService {
         }
 
         // 7. Thử gọi Spring AI (OpenAI) nếu Gemini không khả dụng
-        if (!StringUtils.hasText(replyText) && StringUtils.hasText(activeOpenAiKey) && !activeOpenAiKey.equalsIgnoreCase("dummy")) {
+        if (!StringUtils.hasText(replyText) && StringUtils.hasText(activeOpenAiKey)
+                && !activeOpenAiKey.equalsIgnoreCase("dummy")) {
             try {
                 log.info("Đang gọi Spring AI OpenAI Model [{}] để tư vấn sản phẩm...", activeOpenAiModel);
                 OpenAiApi openAiApi = new OpenAiApi(activeOpenAiKey);
@@ -328,7 +349,8 @@ public class AiServiceImpl implements AiService {
         if (suggestEnabled) {
             recommended = extractRecommendedProducts(replyText, userMessage, allProducts);
             if (recommended.isEmpty() && !relevantProducts.isEmpty()) {
-                recommended = relevantProducts.stream().limit(maxProducts).map(productMapper::toResponse).collect(Collectors.toList());
+                recommended = relevantProducts.stream().limit(maxProducts).map(productMapper::toResponse)
+                        .collect(Collectors.toList());
             } else if (recommended.size() > maxProducts) {
                 recommended = recommended.subList(0, maxProducts);
             }
@@ -343,23 +365,33 @@ public class AiServiceImpl implements AiService {
     }
 
     private List<Product> filterRelevantProducts(String userMessage, List<Product> products) {
-        if (products.isEmpty()) return Collections.emptyList();
+        if (products.isEmpty())
+            return Collections.emptyList();
 
         String normQuery = normalizeText(userMessage);
 
-        boolean isMacBook = normQuery.contains("macbook") || normQuery.contains("mac book") || normQuery.contains("m3") || normQuery.contains("m2") || normQuery.contains("m1") || normQuery.contains("apple silicon");
-        boolean isLaptop = isMacBook || normQuery.contains("laptop") || normQuery.contains("dell") || normQuery.contains("xps") ||
-                normQuery.contains("asus") || normQuery.contains("zenbook") || normQuery.contains("legion") || normQuery.contains("lenovo") ||
-                normQuery.contains("thinkpad") || normQuery.contains("may tinh xach tay") || normQuery.contains("gaming") || normQuery.contains("do hoa");
-        boolean isPhone = normQuery.contains("dien thoai") || normQuery.contains("smartphone") || normQuery.contains("iphone") ||
-                normQuery.contains("samsung") || normQuery.contains("galaxy") || normQuery.contains("xiaomi") || normQuery.contains("phone");
-        boolean isTablet = normQuery.contains("ipad") || normQuery.contains("tablet") || normQuery.contains("may tinh bang");
-        boolean isAudio = normQuery.contains("tai nghe") || normQuery.contains("headphone") || normQuery.contains("airpods") ||
+        boolean isMacBook = normQuery.contains("macbook") || normQuery.contains("mac book") || normQuery.contains("m3")
+                || normQuery.contains("m2") || normQuery.contains("m1") || normQuery.contains("apple silicon");
+        boolean isLaptop = isMacBook || normQuery.contains("laptop") || normQuery.contains("dell")
+                || normQuery.contains("xps") ||
+                normQuery.contains("asus") || normQuery.contains("zenbook") || normQuery.contains("legion")
+                || normQuery.contains("lenovo") ||
+                normQuery.contains("thinkpad") || normQuery.contains("may tinh xach tay")
+                || normQuery.contains("gaming") || normQuery.contains("do hoa");
+        boolean isPhone = normQuery.contains("dien thoai") || normQuery.contains("smartphone")
+                || normQuery.contains("iphone") ||
+                normQuery.contains("samsung") || normQuery.contains("galaxy") || normQuery.contains("xiaomi")
+                || normQuery.contains("phone");
+        boolean isTablet = normQuery.contains("ipad") || normQuery.contains("tablet")
+                || normQuery.contains("may tinh bang");
+        boolean isAudio = normQuery.contains("tai nghe") || normQuery.contains("headphone")
+                || normQuery.contains("airpods") ||
                 normQuery.contains("loa") || normQuery.contains("am thanh") || normQuery.contains("sony");
 
         Long budgetMax = extractBudgetMax(normQuery);
 
-        Set<String> stopWords = Set.of("tu", "van", "cho", "minh", "toi", "can", "mua", "xem", "gia", "co", "khong", "re", "nao", "tot", "nhat", "a", "em", "anh", "chi", "shop", "dong", "loai");
+        Set<String> stopWords = Set.of("tu", "van", "cho", "minh", "toi", "can", "mua", "xem", "gia", "co", "khong",
+                "re", "nao", "tot", "nhat", "a", "em", "anh", "chi", "shop", "dong", "loai");
         List<String> keywords = Arrays.stream(normQuery.split("\\s+"))
                 .filter(w -> w.length() >= 2 && !stopWords.contains(w))
                 .collect(Collectors.toList());
@@ -371,15 +403,22 @@ public class AiServiceImpl implements AiService {
             String pNormDesc = normalizeText(p.getDescription());
             String pNormCat = p.getCategory() != null ? normalizeText(p.getCategory().getName()) : "";
 
-            if (isMacBook && pNormName.contains("macbook")) score += 300;
-            else if (isLaptop && pNormCat.contains("laptop")) score += 150;
-            else if (isPhone && pNormCat.contains("dien thoai")) score += 150;
-            else if (isTablet && pNormCat.contains("may tinh bang")) score += 150;
-            else if (isAudio && pNormCat.contains("am thanh")) score += 150;
+            if (isMacBook && pNormName.contains("macbook"))
+                score += 300;
+            else if (isLaptop && pNormCat.contains("laptop"))
+                score += 150;
+            else if (isPhone && pNormCat.contains("dien thoai"))
+                score += 150;
+            else if (isTablet && pNormCat.contains("may tinh bang"))
+                score += 150;
+            else if (isAudio && pNormCat.contains("am thanh"))
+                score += 150;
 
             for (String kw : keywords) {
-                if (pNormName.contains(kw)) score += 40;
-                else if (pNormDesc.contains(kw)) score += 10;
+                if (pNormName.contains(kw))
+                    score += 40;
+                else if (pNormDesc.contains(kw))
+                    score += 10;
             }
 
             if (budgetMax != null && p.getPrice() != null) {
@@ -401,7 +440,8 @@ public class AiServiceImpl implements AiService {
                     .collect(Collectors.toList());
         }
 
-        // Nếu người dùng có tìm kiếm từ khóa cụ thể (vd: chuột, logitech, bàn phím...) mà kho không có
+        // Nếu người dùng có tìm kiếm từ khóa cụ thể (vd: chuột, logitech, bàn phím...)
+        // mà kho không có
         // TUYỆT ĐỐI không trả về sản phẩm linh tinh để tránh tư vấn sai lệch
         if (!keywords.isEmpty()) {
             return Collections.emptyList();
@@ -416,22 +456,26 @@ public class AiServiceImpl implements AiService {
             try {
                 long val = Long.parseLong(m.group(1));
                 return val * 1_000_000L;
-            } catch (NumberFormatException ignored) {}
+            } catch (NumberFormatException ignored) {
+            }
         }
         return null;
     }
 
-    private String buildChatPrompt(String userMessage, List<ChatMessageDto> history, List<Product> products, List<String> knowledge) {
+    private String buildChatPrompt(String userMessage, List<ChatMessageDto> history, List<Product> products,
+            List<String> knowledge) {
         StringBuilder sb = new StringBuilder();
         if (aiConfigService != null && StringUtils.hasText(aiConfigService.getSystemPrompt())) {
             sb.append(aiConfigService.getSystemPrompt()).append("\n\n");
         } else {
-            sb.append("Bạn là 'NEXOR AI Assistant' - Chuyên viên tư vấn bán hàng công nghệ thông minh, nhiệt tình và am hiểu sản phẩm của website thương mại điện tử NEXOR.\n\n");
+            sb.append(
+                    "Bạn là 'NEXOR AI Assistant' - Chuyên viên tư vấn bán hàng công nghệ thông minh, nhiệt tình và am hiểu sản phẩm của website thương mại điện tử NEXOR.\n\n");
         }
 
         sb.append("=== CHÍNH SÁCH BÁN HÀNG CỦA NEXOR ===\n");
         sb.append("- Miễn phí vận chuyển toàn quốc cho đơn hàng từ 500.000đ.\n");
-        sb.append("- Bảo hành chính hãng 12 đến 24 tháng theo từng sản phẩm, 1 đổi 1 trong 30 ngày nếu phát sinh lỗi nhà sản xuất.\n");
+        sb.append(
+                "- Bảo hành chính hãng 12 đến 24 tháng theo từng sản phẩm, 1 đổi 1 trong 30 ngày nếu phát sinh lỗi nhà sản xuất.\n");
         sb.append("- Hỗ trợ trả góp 0% lãi suất, giao hàng hỏa tốc trong 2 giờ tại nội thành.\n\n");
 
         if (knowledge != null && !knowledge.isEmpty()) {
@@ -444,10 +488,13 @@ public class AiServiceImpl implements AiService {
 
         if (products.isEmpty()) {
             sb.append("=== LƯU Ý ĐẶC BIỆT VỀ KHO HÀNG (QUAN TRỌNG) ===\n");
-            sb.append("- Khách hàng đang hỏi về sản phẩm/phụ kiện mà sàn NEXOR HIỆN CHƯA KINH DOANH (ví dụ: chuột máy tính, bàn phím rời, linh kiện hoặc thương hiệu không có trong hệ thống).\n");
+            sb.append(
+                    "- Khách hàng đang hỏi về sản phẩm/phụ kiện mà sàn NEXOR HIỆN CHƯA KINH DOANH (ví dụ: chuột máy tính, bàn phím rời, linh kiện hoặc thương hiệu không có trong hệ thống).\n");
             sb.append("- BẮT BUỘC: Lịch sự thông báo rõ ràng rằng NEXOR hiện CHƯA KINH DOANH sản phẩm này.\n");
-            sb.append("- TUYỆT ĐỐI KHÔNG tự tiện gợi ý iPhone 16 Pro Max hay các dòng máy khác nếu khách hàng không hỏi đến.\n");
-            sb.append("- Hãy gợi ý lịch sự các ngành hàng chính hiện có tại NEXOR: Điện thoại (iPhone, Samsung Galaxy), Laptop (MacBook, ASUS ROG), Máy tính bảng (iPad) và Tai nghe cao cấp (Sony WH-1000XM5) để khách hàng tham khảo.\n\n");
+            sb.append(
+                    "- TUYỆT ĐỐI KHÔNG tự tiện gợi ý iPhone 16 Pro Max hay các dòng máy khác nếu khách hàng không hỏi đến.\n");
+            sb.append(
+                    "- Hãy gợi ý lịch sự các ngành hàng chính hiện có tại NEXOR: Điện thoại (iPhone, Samsung Galaxy), Laptop (MacBook, ASUS ROG), Máy tính bảng (iPad) và Tai nghe cao cấp (Sony WH-1000XM5) để khách hàng tham khảo.\n\n");
         } else {
             sb.append("=== DANH SÁCH SẢN PHẨM PHÙ HỢP CỬA HÀNG ĐANG BÁN (DỮ LIỆU THỰC TẾ) ===\n");
             Locale vn = Locale.forLanguageTag("vi-VN");
@@ -467,11 +514,16 @@ public class AiServiceImpl implements AiService {
         }
 
         sb.append("\n=== NGUYÊN TẮC TƯ VẤN QUAN TRỌNG (BẮT BUỘC TUÂN THỦ) ===\n");
-        sb.append("1. TRẢ LỜI CỰC KỲ NGẮN GỌN (Tối đa 2 đến 3 câu). Tuyệt đối không giải thích dài dòng, không văn hoa sáo rỗng, đi thẳng vào trọng tâm câu hỏi.\n");
-        sb.append("2. HỎI ĐÚNG VẤN ĐỀ: Khi tư vấn, hỏi đúng 1 câu trực diện về ngân sách hoặc nhu cầu (học tập / đồ họa / gaming). Khi khách muốn mua/đặt hàng, hỏi gọn Họ tên, Số điện thoại và Địa chỉ giao hàng.\n");
-        sb.append("3. ĐẶT HÀNG HỘ KHÁCH: Khi khách muốn đặt mua hoặc cung cấp thông tin, xác nhận ngắn gọn sản phẩm và ghi nhận đơn hàng.\n");
-        sb.append("4. Chỉ gợi ý và tư vấn các sản phẩm CÓ TRONG DANH SÁCH TRÊN. Khi đề cập đến sản phẩm cụ thể, LUÔN ghi kèm mã [ID: <id>], Tên chính xác và Giá bán (ví dụ: '**MacBook Air M3 [ID: 4]** (Giá: 21.590.000đ)').\n");
-        sb.append("5. Nếu khách hàng hỏi sản phẩm mà shop hiện KHÔNG CÓ, thông báo ngắn gọn và gợi ý 1-2 mẫu tương đương đang có sẵn tại shop.\n\n");
+        sb.append(
+                "1. TRẢ LỜI CỰC KỲ NGẮN GỌN (Tối đa 2 đến 3 câu). Tuyệt đối không giải thích dài dòng, không văn hoa sáo rỗng, đi thẳng vào trọng tâm câu hỏi.\n");
+        sb.append(
+                "2. HỎI ĐÚNG VẤN ĐỀ: Khi tư vấn, hỏi đúng 1 câu trực diện về ngân sách hoặc nhu cầu (học tập / đồ họa / gaming). Khi khách muốn mua/đặt hàng, hỏi gọn Họ tên, Số điện thoại và Địa chỉ giao hàng.\n");
+        sb.append(
+                "3. ĐẶT HÀNG HỘ KHÁCH: Khi khách muốn đặt mua hoặc cung cấp thông tin, xác nhận ngắn gọn sản phẩm và ghi nhận đơn hàng.\n");
+        sb.append(
+                "4. Chỉ gợi ý và tư vấn các sản phẩm CÓ TRONG DANH SÁCH TRÊN. Khi đề cập đến sản phẩm cụ thể, LUÔN ghi kèm mã [ID: <id>], Tên chính xác và Giá bán (ví dụ: '**MacBook Air M3 [ID: 4]** (Giá: 21.590.000đ)').\n");
+        sb.append(
+                "5. Nếu khách hàng hỏi sản phẩm mà shop hiện KHÔNG CÓ, thông báo ngắn gọn và gợi ý 1-2 mẫu tương đương đang có sẵn tại shop.\n\n");
 
         if (history != null && !history.isEmpty()) {
             sb.append("=== LỊCH SỬ HỘI THOẠI TRƯỚC ĐÓ ===\n");
@@ -488,7 +540,8 @@ public class AiServiceImpl implements AiService {
         return sb.toString();
     }
 
-    private List<ProductResponse> extractRecommendedProducts(String replyText, String userMessage, List<Product> products) {
+    private List<ProductResponse> extractRecommendedProducts(String replyText, String userMessage,
+            List<Product> products) {
         Set<Long> foundIds = new LinkedHashSet<>();
 
         Pattern pattern = Pattern.compile("\\[ID:\\s*(\\d+)\\]", Pattern.CASE_INSENSITIVE);
@@ -496,14 +549,16 @@ public class AiServiceImpl implements AiService {
         while (matcher.find()) {
             try {
                 foundIds.add(Long.parseLong(matcher.group(1)));
-            } catch (NumberFormatException ignored) {}
+            } catch (NumberFormatException ignored) {
+            }
         }
 
         if (foundIds.isEmpty()) {
             for (Product p : products) {
                 if (replyText.toLowerCase().contains(p.getName().toLowerCase())) {
                     foundIds.add(p.getId());
-                    if (foundIds.size() >= 4) break;
+                    if (foundIds.size() >= 4)
+                        break;
                 }
             }
         }
@@ -515,7 +570,8 @@ public class AiServiceImpl implements AiService {
                 String catName = p.getCategory() != null ? p.getCategory().getName().toLowerCase() : "";
                 if (lowerQuery.contains(pName) || pName.contains(lowerQuery) || lowerQuery.contains(catName)) {
                     foundIds.add(p.getId());
-                    if (foundIds.size() >= 3) break;
+                    if (foundIds.size() >= 3)
+                        break;
                 }
             }
         }
@@ -532,7 +588,8 @@ public class AiServiceImpl implements AiService {
     }
 
     private String normalizeText(String input) {
-        if (!StringUtils.hasText(input)) return "";
+        if (!StringUtils.hasText(input))
+            return "";
         String normalized = Normalizer.normalize(input, Normalizer.Form.NFD);
         return Pattern.compile("\\p{InCombiningDiacriticalMarks}+")
                 .matcher(normalized)
@@ -556,7 +613,8 @@ public class AiServiceImpl implements AiService {
                 normQuery.equals("oi")) {
             List<Product> topFeatured = products.stream().limit(3).collect(Collectors.toList());
             String greetingReply = "Dạ em chào anh/chị! 👋 Em là **NEXOR AI**. Anh/chị đang tìm thiết bị nào (điện thoại, laptop hay âm thanh) và trong tầm giá bao nhiêu để em hỗ trợ nhanh nhất ạ?";
-            List<ProductResponse> featuredResp = topFeatured.stream().map(productMapper::toResponse).collect(Collectors.toList());
+            List<ProductResponse> featuredResp = topFeatured.stream().map(productMapper::toResponse)
+                    .collect(Collectors.toList());
             return AiChatResponse.builder()
                     .reply(greetingReply)
                     .suggestedProducts(featuredResp)
@@ -566,9 +624,11 @@ public class AiServiceImpl implements AiService {
         }
 
         // 2. Ý định hỏi về chính sách bảo hành / đổi trả
-        if (normQuery.contains("bao hanh") || normQuery.contains("doi tra") || normQuery.contains("hong") || normQuery.contains("loi")) {
+        if (normQuery.contains("bao hanh") || normQuery.contains("doi tra") || normQuery.contains("hong")
+                || normQuery.contains("loi")) {
             String warrantyReply = "🛡️ **NEXOR cam kết 100% chính hãng**, bảo hành 12 - 24 tháng và 1 đổi 1 trong 30 ngày nếu phát sinh lỗi nhà sản xuất. Anh/chị cần hỗ trợ bảo hành sản phẩm nào ạ?";
-            List<ProductResponse> wResp = products.stream().limit(2).map(productMapper::toResponse).collect(Collectors.toList());
+            List<ProductResponse> wResp = products.stream().limit(2).map(productMapper::toResponse)
+                    .collect(Collectors.toList());
             return AiChatResponse.builder()
                     .reply(warrantyReply)
                     .suggestedProducts(wResp)
@@ -578,9 +638,11 @@ public class AiServiceImpl implements AiService {
         }
 
         // 3. Ý định hỏi về vận chuyển / giao hàng
-        if (normQuery.contains("van chuyen") || normQuery.contains("giao hang") || normQuery.contains("ship") || normQuery.contains("freeship") || normQuery.contains("hoa toc")) {
+        if (normQuery.contains("van chuyen") || normQuery.contains("giao hang") || normQuery.contains("ship")
+                || normQuery.contains("freeship") || normQuery.contains("hoa toc")) {
             String shipReply = "🚚 **NEXOR miễn phí vận chuyển toàn quốc** cho đơn từ 500.000đ và giao hỏa tốc 2 giờ tại nội thành. Anh/chị muốn đặt hàng giao về địa chỉ nào ạ?";
-            List<ProductResponse> sResp = products.stream().limit(2).map(productMapper::toResponse).collect(Collectors.toList());
+            List<ProductResponse> sResp = products.stream().limit(2).map(productMapper::toResponse)
+                    .collect(Collectors.toList());
             return AiChatResponse.builder()
                     .reply(shipReply)
                     .suggestedProducts(sResp)
@@ -590,9 +652,11 @@ public class AiServiceImpl implements AiService {
         }
 
         // 4. Ý định hỏi về trả góp / khuyến mãi
-        if (normQuery.contains("tra gop") || normQuery.contains("khuyen mai") || normQuery.contains("uu dai") || normQuery.contains("giam gia") || normQuery.contains("sale")) {
+        if (normQuery.contains("tra gop") || normQuery.contains("khuyen mai") || normQuery.contains("uu dai")
+                || normQuery.contains("giam gia") || normQuery.contains("sale")) {
             String promoReply = "🎁 **NEXOR hỗ trợ trả góp 0% lãi suất** xét duyệt chỉ 10 phút và tặng voucher 500k cho học sinh, sinh viên. Anh/chị đang quan tâm dòng máy nào để em báo giá tốt nhất ạ?";
-            List<ProductResponse> pResp = products.stream().limit(3).map(productMapper::toResponse).collect(Collectors.toList());
+            List<ProductResponse> pResp = products.stream().limit(3).map(productMapper::toResponse)
+                    .collect(Collectors.toList());
             return AiChatResponse.builder()
                     .reply(promoReply)
                     .suggestedProducts(pResp)
@@ -613,7 +677,8 @@ public class AiServiceImpl implements AiService {
             }
             reply.append("\nAnh/chị ưng mẫu nào hoặc cần đặt hàng hộ cứ nhắn em lên đơn ngay nhé! 😊");
         } else {
-            reply.append("Dạ hiện tại sàn NEXOR chưa kinh doanh sản phẩm này ạ. Cửa hàng bên em chuyên phân phối chính hãng các dòng: Điện thoại (iPhone, Samsung Galaxy), Laptop (MacBook, ASUS ROG), Máy tính bảng (iPad) và Tai nghe cao cấp (Sony WH-1000XM5). Anh/chị tham khảo thêm nhé! ✨");
+            reply.append(
+                    "Dạ hiện tại sàn NEXOR chưa kinh doanh sản phẩm này ạ. Cửa hàng bên em chuyên phân phối chính hãng các dòng: Điện thoại (iPhone, Samsung Galaxy), Laptop (MacBook, ASUS ROG), Máy tính bảng (iPad) và Tai nghe cao cấp (Sony WH-1000XM5). Anh/chị tham khảo thêm nhé! ✨");
         }
 
         List<ProductResponse> recommended = matched.stream()
@@ -630,7 +695,7 @@ public class AiServiceImpl implements AiService {
     }
 
     // ====================================================================
-    //  HỆ THỐNG ĐẶT HÀNG HỘ KHÁCH HÀNG THÔNG QUA AI CHATBOT (AI ASSISTANT ORDER)
+    // HỆ THỐNG ĐẶT HÀNG HỘ KHÁCH HÀNG THÔNG QUA AI CHATBOT (AI ASSISTANT ORDER)
     // ====================================================================
 
     @lombok.Getter
@@ -643,10 +708,12 @@ public class AiServiceImpl implements AiService {
         private List<Product> relatedProducts;
     }
 
-    private static final Pattern ORDER_PHONE_PATTERN = Pattern.compile("(?:\\+?84|0)(?:3[2-9]|5[2689]|7[06-9]|8[1-9]|9[0-9])[0-9]{7}");
+    private static final Pattern ORDER_PHONE_PATTERN = Pattern
+            .compile("(?:\\+?84|0)(?:3[2-9]|5[2689]|7[06-9]|8[1-9]|9[0-9])[0-9]{7}");
 
     private boolean isOrderIntent(String message, List<ChatMessageDto> history) {
-        if (!StringUtils.hasText(message)) return false;
+        if (!StringUtils.hasText(message))
+            return false;
         String norm = normalizeText(message);
         if (norm.contains("dat hang") || norm.contains("mua hang") || norm.contains("mua ngay")
                 || norm.contains("chot don") || norm.contains("order") || norm.contains("dat mua")
@@ -666,17 +733,23 @@ public class AiServiceImpl implements AiService {
     }
 
     private boolean hasAddressClues(String text) {
-        if (!StringUtils.hasText(text)) return false;
+        if (!StringUtils.hasText(text))
+            return false;
         String lower = text.toLowerCase();
         return lower.contains("địa chỉ") || lower.contains("dia chi") || lower.contains("đ/c") || lower.contains("dc:")
                 || lower.contains("đường") || lower.contains("duong") || lower.contains("phố") || lower.contains("pho")
-                || lower.contains("phường") || lower.contains("phuong") || lower.contains("quận") || lower.contains("quan")
-                || lower.contains("huyện") || lower.contains("huyen") || lower.contains("thành phố") || lower.contains("tp.")
-                || lower.contains("tp ") || lower.contains("hà nội") || lower.contains("ha noi") || lower.contains("hcm")
+                || lower.contains("phường") || lower.contains("phuong") || lower.contains("quận")
+                || lower.contains("quan")
+                || lower.contains("huyện") || lower.contains("huyen") || lower.contains("thành phố")
+                || lower.contains("tp.")
+                || lower.contains("tp ") || lower.contains("hà nội") || lower.contains("ha noi")
+                || lower.contains("hcm")
                 || lower.contains("hồ chí minh") || lower.contains("đà nẵng") || lower.contains("da nang")
                 || lower.contains("thanh hóa") || lower.contains("thanh hoa") || lower.contains("hải phòng")
+                || lower.contains("số nhà") || lower.contains("so nha") || lower.contains("nhà số") || lower.contains("nha so")
                 || lower.contains("số ") || lower.contains("so ") || lower.contains("ngõ") || lower.contains("ngach")
-                || lower.contains("hẻm") || lower.contains("hem") || lower.contains("tòa") || lower.contains("chung cư");
+                || lower.contains("hẻm") || lower.contains("hem") || lower.contains("tòa")
+                || lower.contains("chung cư");
     }
 
     @lombok.Getter
@@ -689,11 +762,14 @@ public class AiServiceImpl implements AiService {
         private String shippingAddress;
     }
 
-    private OrderProcessResult tryProcessOrder(String userMessage, List<ChatMessageDto> history, List<Product> allProducts) {
-        // 1. Tìm sản phẩm mục tiêu (ưu tiên tìm trong tin nhắn hiện tại, sau đó tìm ngược về lịch sử)
+    private OrderProcessResult tryProcessOrder(String userMessage, List<ChatMessageDto> history,
+            List<Product> allProducts) {
+        // 1. Tìm sản phẩm mục tiêu (ưu tiên tìm trong tin nhắn hiện tại, sau đó tìm
+        // ngược về lịch sử)
         Product targetProduct = findTargetProductForOrder(userMessage, history, allProducts);
 
-        // 2. Trích xuất thông tin người nhận, số điện thoại và địa chỉ giao hàng hoàn chỉnh
+        // 2. Trích xuất thông tin người nhận, số điện thoại và địa chỉ giao hàng hoàn
+        // chỉnh
         DeliveryCustomerInfo deliveryInfo = extractDeliveryCustomerInfo(userMessage, history, targetProduct);
         String phone = deliveryInfo.getPhoneNumber();
         String receiverName = deliveryInfo.getReceiverName();
@@ -712,7 +788,8 @@ public class AiServiceImpl implements AiService {
             NumberFormat nf = NumberFormat.getInstance(vn);
             String priceStr = targetProduct.getPrice() != null ? nf.format(targetProduct.getPrice()) + "đ" : "";
             return new OrderProcessResult(false,
-                    String.format("Dạ em hỗ trợ lên đơn ngay cho **%s** (%s).\nAnh/chị vui lòng cung cấp: **Họ tên**, **Số điện thoại** và **Địa chỉ nhận hàng** nhé ạ!",
+                    String.format(
+                            "Dạ em hỗ trợ lên đơn ngay cho **%s** (%s).\nAnh/chị vui lòng cung cấp: **Họ tên**, **Số điện thoại** và **Địa chỉ nhận hàng** nhé ạ!",
                             targetProduct.getName(), priceStr),
                     null, List.of(targetProduct));
         }
@@ -723,7 +800,8 @@ public class AiServiceImpl implements AiService {
 
         // Tạo đơn hàng thật vào hệ thống thông qua orderService
         try {
-            ra.project.server.model.dto.request.CheckoutRequest checkoutReq = ra.project.server.model.dto.request.CheckoutRequest.builder()
+            ra.project.server.model.dto.request.CheckoutRequest checkoutReq = ra.project.server.model.dto.request.CheckoutRequest
+                    .builder()
                     .receiverName(receiverName.trim())
                     .phoneNumber(phone.trim())
                     .shippingAddress(address.trim())
@@ -735,8 +813,10 @@ public class AiServiceImpl implements AiService {
                             .build()))
                     .build();
 
-            ra.project.server.common.response.ApiResponse<ra.project.server.model.dto.response.OrderResponse> orderResp = orderService.createOrderForAiAssistant(checkoutReq);
-            ra.project.server.model.dto.response.OrderResponse orderData = orderResp != null ? orderResp.getData() : null;
+            ra.project.server.common.response.ApiResponse<ra.project.server.model.dto.response.OrderResponse> orderResp = orderService
+                    .createOrderForAiAssistant(checkoutReq);
+            ra.project.server.model.dto.response.OrderResponse orderData = orderResp != null ? orderResp.getData()
+                    : null;
 
             Locale vn = Locale.forLanguageTag("vi-VN");
             NumberFormat nf = NumberFormat.getInstance(vn);
@@ -748,33 +828,35 @@ public class AiServiceImpl implements AiService {
 
             String successMsg = String.format(
                     "🎉 **Đặt hàng thành công!**\n" +
-                    "- **Mã đơn hàng**: #NXR-%d\n" +
-                    "- **Sản phẩm**: %s (SL: 1)\n" +
-                    "- **Người nhận**: %s (%s)\n" +
-                    "- **Địa chỉ giao**: %s\n" +
-                    "- **Thanh toán (COD)**: %s (Miễn phí giao hàng)\n\n" +
-                    "NEXOR sẽ liên hệ xác nhận và giao hàng sớm nhất cho anh/chị nhé ạ!",
-                    orderId, targetProduct.getName(), receiverName, phone, address, totalStr
-            );
+                            "- **Mã đơn hàng**: #NXR-%d\n" +
+                            "- **Sản phẩm**: %s (SL: 1)\n" +
+                            "- **Người nhận**: %s (%s)\n" +
+                            "- **Địa chỉ giao**: %s\n" +
+                            "- **Thanh toán (COD)**: %s (Miễn phí giao hàng)\n\n" +
+                            "NEXOR sẽ liên hệ xác nhận và giao hàng sớm nhất cho anh/chị nhé ạ!",
+                    orderId, targetProduct.getName(), receiverName, phone, address, totalStr);
 
             return new OrderProcessResult(true, successMsg, orderData, List.of(targetProduct));
         } catch (Exception ex) {
             log.error("Lỗi khi AI Assistant tạo đơn hàng tự động: {}", ex.getMessage());
             return new OrderProcessResult(false,
-                    "Dạ đơn hàng chưa tạo được do: " + ex.getMessage() + ". Anh/chị kiểm tra lại hoặc liên hệ hotline để được hỗ trợ ngay nhé!",
+                    "Dạ đơn hàng chưa tạo được do: " + ex.getMessage()
+                            + ". Anh/chị kiểm tra lại hoặc liên hệ hotline để được hỗ trợ ngay nhé!",
                     null, List.of(targetProduct));
         }
     }
 
     private Product findTargetProductForOrder(String message, List<ChatMessageDto> history, List<Product> allProducts) {
-        if (allProducts == null || allProducts.isEmpty()) return null;
+        if (allProducts == null || allProducts.isEmpty())
+            return null;
 
         // 1. Kiểm tra mã [ID: <id>] trong tin nhắn hiện tại
         Matcher idMatcher = Pattern.compile("\\[ID:\\s*(\\d+)\\]", Pattern.CASE_INSENSITIVE).matcher(message);
         if (idMatcher.find()) {
             long pid = Long.parseLong(idMatcher.group(1));
             for (Product p : allProducts) {
-                if (p.getId().equals(pid)) return p;
+                if (p.getId().equals(pid))
+                    return p;
             }
         }
 
@@ -809,11 +891,13 @@ public class AiServiceImpl implements AiService {
             for (int i = history.size() - 1; i >= 0; i--) {
                 ChatMessageDto msg = history.get(i);
                 if (msg != null && StringUtils.hasText(msg.getContent())) {
-                    Matcher hMatcher = Pattern.compile("\\[ID:\\s*(\\d+)\\]", Pattern.CASE_INSENSITIVE).matcher(msg.getContent());
+                    Matcher hMatcher = Pattern.compile("\\[ID:\\s*(\\d+)\\]", Pattern.CASE_INSENSITIVE)
+                            .matcher(msg.getContent());
                     if (hMatcher.find()) {
                         long pid = Long.parseLong(hMatcher.group(1));
                         for (Product p : allProducts) {
-                            if (p.getId().equals(pid)) return p;
+                            if (p.getId().equals(pid))
+                                return p;
                         }
                     }
                     String hNorm = normalizeText(msg.getContent());
@@ -846,7 +930,8 @@ public class AiServiceImpl implements AiService {
         return null;
     }
 
-    private DeliveryCustomerInfo extractDeliveryCustomerInfo(String userMessage, List<ChatMessageDto> history, Product targetProduct) {
+    private DeliveryCustomerInfo extractDeliveryCustomerInfo(String userMessage, List<ChatMessageDto> history,
+            Product targetProduct) {
         DeliveryCustomerInfo info = new DeliveryCustomerInfo();
 
         List<String> userTexts = new ArrayList<>();
@@ -875,20 +960,78 @@ public class AiServiceImpl implements AiService {
             }
         }
 
+        // 1.1. Khai thác trục mốc SĐT (Phone-pivot) để nhận diện địa chỉ và họ tên trong cùng tin nhắn
+        if (phoneTextSource != null && StringUtils.hasText(info.getPhoneNumber())) {
+            int phoneEndIdx = phoneStartIdx + info.getPhoneNumber().length();
+            String beforePhone = phoneTextSource.substring(0, phoneStartIdx).trim();
+            String afterPhone = phoneTextSource.substring(phoneEndIdx).trim();
+
+            // Nếu sau SĐT có manh mối địa chỉ (ví dụ: "0333743203 số nhà 36 đường Thanh Hóa")
+            if (!StringUtils.hasText(info.getShippingAddress()) && hasAddressClues(afterPhone)) {
+                String cand = cleanAddressCandidate(afterPhone, info.getPhoneNumber());
+                if (cand.length() >= 5) {
+                    info.setShippingAddress(cand);
+                }
+            }
+
+            // Nếu trước SĐT có manh mối địa chỉ (ví dụ: "Giao số 36 đường Thanh Hóa 0333743203...")
+            if (!StringUtils.hasText(info.getShippingAddress()) && hasAddressClues(beforePhone)) {
+                String cand = cleanAddressCandidate(beforePhone, info.getPhoneNumber());
+                if (cand.length() >= 5) {
+                    info.setShippingAddress(cand);
+                }
+            }
+
+            // Nếu sau SĐT là địa chỉ, kiểm tra xem trước SĐT có phải họ tên không
+            if (hasAddressClues(afterPhone) || StringUtils.hasText(info.getShippingAddress())) {
+                String cleanBefore = beforePhone;
+                int lastSep = Math.max(cleanBefore.lastIndexOf(','),
+                        Math.max(cleanBefore.lastIndexOf(';'), cleanBefore.lastIndexOf('-')));
+                if (lastSep >= 0) {
+                    cleanBefore = cleanBefore.substring(lastSep + 1).trim();
+                }
+                cleanBefore = cleanBefore
+                        .replaceAll("(?i)(?U)\\b(đặt|mua|lấy|cho|hộ|giúp|tôi|em|anh|chị|1\\s+cái|1|shop|ơi|nhé|nha|với)\\b", " ")
+                        .replaceAll("[,;\\-\\:\\+\\(\\)]", " ")
+                        .replaceAll("\\s+", " ").trim();
+                if (isValidPersonName(cleanBefore)) {
+                    info.setReceiverName(capitalizeWords(cleanBefore));
+                } else {
+                    String[] words = cleanBefore.split("\\s+");
+                    for (int wCount = 4; wCount >= 2; wCount--) {
+                        if (words.length >= wCount) {
+                            StringBuilder sbName = new StringBuilder();
+                            for (int k = words.length - wCount; k < words.length; k++) {
+                                if (sbName.length() > 0)
+                                    sbName.append(" ");
+                                sbName.append(words[k]);
+                            }
+                            String cand = sbName.toString();
+                            if (isValidPersonName(cand)) {
+                                info.setReceiverName(capitalizeWords(cand));
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // 2. Trích xuất Địa chỉ và Họ tên
         for (String rawText : userTexts) {
-            if (!StringUtils.hasText(rawText)) continue;
+            if (!StringUtils.hasText(rawText))
+                continue;
 
             // 2.1. Tìm kiếm họ tên theo tiền tố tường minh
             if (!StringUtils.hasText(info.getReceiverName())) {
                 Pattern namePattern = Pattern.compile(
                         "(?i)(?:họ\\s+và\\s+tên|họ\\s+tên|tên\\s+tôi\\s+là|tên\\s+em\\s+là|tên\\s+là|người\\s+nhận\\s+là|người\\s+nhận|giao\\s+cho|ten|ho\\s+ten)\\s*[:\\-]?\\s*([\\p{L}\\s]{2,30})",
-                        Pattern.CASE_INSENSITIVE
-                );
+                        Pattern.CASE_INSENSITIVE);
                 Matcher mName = namePattern.matcher(rawText);
                 if (mName.find()) {
                     String cand = mName.group(1).trim();
-                    cand = cand.replaceAll("(?i)\\b(sđt|sdt|địa\\s+chỉ|dia\\s+chi|đ\\/c|dc|tại|tai|ở|o)\\b.*$", "").trim();
+                    cand = cand.replaceAll("(?i)\\b(sđt|sdt|địa\\s+chỉ|dia\\s+chi|đ\\/c|dc|tại|tai|ở|o)\\b.*$", "")
+                            .trim();
                     if (isValidPersonName(cand)) {
                         info.setReceiverName(capitalizeWords(cand));
                     }
@@ -899,8 +1042,7 @@ public class AiServiceImpl implements AiService {
             if (!StringUtils.hasText(info.getShippingAddress())) {
                 Pattern addrPrefixPattern = Pattern.compile(
                         "(?i)(?:nhận\\s+hàng\\s+tại|giao\\s+hàng\\s+tại|giao\\s+tại|giao\\s+đến|giao\\s+về|ship\\s+đến|ship\\s+về|địa\\s+chỉ|dia\\s+chi|đ\\/c|dc|ở|tại)\\s*[:\\-]?\\s*([^\\n;]+)",
-                        Pattern.CASE_INSENSITIVE
-                );
+                        Pattern.CASE_INSENSITIVE);
                 Matcher mAddr = addrPrefixPattern.matcher(rawText);
                 if (mAddr.find()) {
                     String candAddr = mAddr.group(1).trim();
@@ -921,14 +1063,18 @@ public class AiServiceImpl implements AiService {
         }
 
         // 3. Phân tích ngữ cảnh tìm họ tên quanh Số điện thoại nếu chưa có
-        if (!StringUtils.hasText(info.getReceiverName()) && phoneTextSource != null && StringUtils.hasText(info.getPhoneNumber())) {
+        if (!StringUtils.hasText(info.getReceiverName()) && phoneTextSource != null
+                && StringUtils.hasText(info.getPhoneNumber())) {
             // Xét đoạn text ngay trước số điện thoại
             String beforePhone = phoneTextSource.substring(0, phoneStartIdx).trim();
-            int lastComma = Math.max(beforePhone.lastIndexOf(','), Math.max(beforePhone.lastIndexOf(';'), beforePhone.lastIndexOf('-')));
+            int lastComma = Math.max(beforePhone.lastIndexOf(','),
+                    Math.max(beforePhone.lastIndexOf(';'), beforePhone.lastIndexOf('-')));
             if (lastComma >= 0) {
                 beforePhone = beforePhone.substring(lastComma + 1).trim();
             }
-            beforePhone = beforePhone.replaceAll("(?i)\\b(đặt|mua|lấy|cho|hộ|giúp|tôi|em|anh|chị|1 cái|1|shop|ơi|nhé|nha)\\b", " ").trim();
+            beforePhone = beforePhone
+                    .replaceAll("(?i)\\b(đặt|mua|lấy|cho|hộ|giúp|tôi|em|anh|chị|1 cái|1|shop|ơi|nhé|nha)\\b", " ")
+                    .trim();
             if (isValidPersonName(beforePhone)) {
                 info.setReceiverName(capitalizeWords(beforePhone));
             } else {
@@ -937,7 +1083,8 @@ public class AiServiceImpl implements AiService {
                     if (words.length >= wCount) {
                         StringBuilder sbName = new StringBuilder();
                         for (int k = words.length - wCount; k < words.length; k++) {
-                            if (sbName.length() > 0) sbName.append(" ");
+                            if (sbName.length() > 0)
+                                sbName.append(" ");
                             sbName.append(words[k]);
                         }
                         String cand = sbName.toString();
@@ -956,7 +1103,9 @@ public class AiServiceImpl implements AiService {
                 if (StringUtils.hasText(info.getShippingAddress())) {
                     afterPhone = afterPhone.replace(info.getShippingAddress(), " ");
                 }
-                afterPhone = afterPhone.replaceAll("(?i)\\b(nhận\\s+hàng\\s+tại|giao\\s+hàng\\s+tại|giao\\s+tại|giao\\s+đến|giao\\s+về|ship\\s+đến|ship\\s+về|địa\\s+chỉ|dia\\s+chi|đ\\/c|dc|ở|tại)\\b", " ");
+                afterPhone = afterPhone.replaceAll(
+                        "(?i)\\b(nhận\\s+hàng\\s+tại|giao\\s+hàng\\s+tại|giao\\s+tại|giao\\s+đến|giao\\s+về|ship\\s+đến|ship\\s+về|địa\\s+chỉ|dia\\s+chi|đ\\/c|dc|ở|tại)\\b",
+                        " ");
                 afterPhone = afterPhone.replaceAll("[,;\\-\\:\\+\\(\\)]", " ").trim();
                 afterPhone = afterPhone.replaceAll("\\s+", " ");
                 if (isValidPersonName(afterPhone)) {
@@ -983,7 +1132,9 @@ public class AiServiceImpl implements AiService {
                 if (StringUtils.hasText(info.getShippingAddress())) {
                     residual = residual.replace(info.getShippingAddress(), " ");
                 }
-                residual = residual.replaceAll("(?i)\\b(nhận\\s+hàng\\s+tại|giao\\s+hàng\\s+tại|giao\\s+tại|giao\\s+đến|giao\\s+về|ship\\s+đến|ship\\s+về|địa\\s+chỉ|dia\\s+chi|đ\\/c|dc|nhận\\s+hàng|giao\\s+hàng|đặt\\s+hàng|đặt\\s+mua|mua\\s+hàng|mua\\s+hộ|đặt\\s+hộ|cho\\s+tôi|cho\\s+mình|cho\\s+em|lấy\\s+1|đặt\\s+1|mua\\s+1|shop\\s+ơi|em\\s+ơi|nhé|nha|với|tại|ở)\\b", " ");
+                residual = residual.replaceAll(
+                        "(?i)\\b(nhận\\s+hàng\\s+tại|giao\\s+hàng\\s+tại|giao\\s+tại|giao\\s+đến|giao\\s+về|ship\\s+đến|ship\\s+về|địa\\s+chỉ|dia\\s+chi|đ\\/c|dc|nhận\\s+hàng|giao\\s+hàng|đặt\\s+hàng|đặt\\s+mua|mua\\s+hàng|mua\\s+hộ|đặt\\s+hộ|cho\\s+tôi|cho\\s+mình|cho\\s+em|lấy\\s+1|đặt\\s+1|mua\\s+1|shop\\s+ơi|em\\s+ơi|nhé|nha|với|tại|ở)\\b",
+                        " ");
                 residual = residual.replaceAll("[,;\\-\\:\\+\\(\\)]", " ").trim();
                 residual = residual.replaceAll("\\s+", " ");
 
@@ -998,43 +1149,54 @@ public class AiServiceImpl implements AiService {
     }
 
     private boolean isValidPersonName(String text) {
-        if (!StringUtils.hasText(text)) return false;
+        if (!StringUtils.hasText(text))
+            return false;
         String trimmed = text.trim();
-        if (trimmed.length() < 2 || trimmed.length() > 35) return false;
-        if (!trimmed.matches("^[\\p{L}\\s]+$")) return false;
+        if (trimmed.length() < 2 || trimmed.length() > 35)
+            return false;
+        if (!trimmed.matches("^[\\p{L}\\s]+$"))
+            return false;
         String[] words = trimmed.split("\\s+");
-        if (words.length < 1 || words.length > 5) return false;
+        if (words.length < 1 || words.length > 5)
+            return false;
         String lower = trimmed.toLowerCase();
         List<String> blacklisted = List.of(
                 "iphone", "macbook", "laptop", "sony", "samsung", "asus", "rog", "tai nghe", "dien thoai",
                 "nexor", "shop", "don hang", "dia chi", "so dien thoai", "sdt", "khach hang", "nhan hang",
-                "giao hang", "san pham", "dat mua", "gia", "tien", "freeship"
-        );
+                "giao hang", "san pham", "dat mua", "gia", "tien", "freeship");
         for (String b : blacklisted) {
-            if (lower.contains(b)) return false;
+            if (lower.contains(b))
+                return false;
         }
         return true;
     }
 
     private String cleanAddressCandidate(String candAddr, String phone) {
-        if (!StringUtils.hasText(candAddr)) return "";
+        if (!StringUtils.hasText(candAddr))
+            return "";
         String clean = candAddr;
         if (StringUtils.hasText(phone)) {
             clean = clean.replace(phone, " ");
         }
-        clean = clean.replaceAll("(?i)\\b(sđt|sdt|số\\s+điện\\s+thoại|người\\s+nhận|tên\\s+là|tên|họ\\s+tên)\\b.*$", " ");
+        clean = clean.replaceAll(
+                "(?i)(?U)^\\s*(?:nhận\\s+hàng\\s+tại|giao\\s+hàng\\s+tại|giao\\s+tại|giao\\s+đến|giao\\s+về|ship\\s+đến|ship\\s+về|địa\\s+chỉ|dia\\s+chi|đ\\/c|dc|ở|tại)\\s*[:\\-]?\\s*",
+                "");
+        clean = clean.replaceAll("(?i)\\b(sđt|sdt|số\\s+điện\\s+thoại|người\\s+nhận|tên\\s+là|tên|họ\\s+tên)\\b.*$",
+                " ");
         clean = clean.replaceAll("^[,;:\\-\\s]+", "").replaceAll("[,;:\\-\\s]+$", "");
         clean = clean.replaceAll("\\s+", " ").trim();
         return clean;
     }
 
     private String extractAddressByClues(String rawText, String phone) {
-        if (!StringUtils.hasText(rawText)) return null;
+        if (!StringUtils.hasText(rawText))
+            return null;
         String text = rawText;
         if (StringUtils.hasText(phone)) {
             text = text.replace(phone, " ");
         }
-        Pattern cluePattern = Pattern.compile("(?i)\\b(số\\s+\\d+|ngõ\\s+\\d+|ngách\\s+\\d+|hẻm\\s+\\d+|đường\\s+[\\p{L}\\d\\s]+|phố\\s+[\\p{L}\\d\\s]+|phường\\s+[\\p{L}\\d\\s]+|quận\\s+[\\p{L}\\d\\s]+|huyện\\s+[\\p{L}\\d\\s]+|tỉnh\\s+[\\p{L}\\d\\s]+|thành\\s+phố\\s+[\\p{L}\\d\\s]+|tp\\.\\s*[\\p{L}\\d\\s]+)");
+        Pattern cluePattern = Pattern.compile(
+                "(?i)(?U)(?:số\\s+nhà\\s+\\d+|nhà\\s+số\\s+\\d+|số\\s+\\d+|ngõ\\s+\\d+|ngách\\s+\\d+|hẻm\\s+\\d+|tầng\\s+\\d+|tòa\\s+nhà|chung\\s+cư|căn\\s+hộ|đường\\s+[\\p{L}\\d\\s]+|phố\\s+[\\p{L}\\d\\s]+|phường\\s+[\\p{L}\\d\\s]+|quận\\s+[\\p{L}\\d\\s]+|huyện\\s+[\\p{L}\\d\\s]+|tỉnh\\s+[\\p{L}\\d\\s]+|thành\\s+phố\\s+[\\p{L}\\d\\s]+|tp\\.\\s*[\\p{L}\\d\\s]+)");
         Matcher m = cluePattern.matcher(text);
         if (m.find()) {
             int start = m.start();
@@ -1052,12 +1214,14 @@ public class AiServiceImpl implements AiService {
     }
 
     private String capitalizeWords(String text) {
-        if (!StringUtils.hasText(text)) return text;
+        if (!StringUtils.hasText(text))
+            return text;
         String[] words = text.trim().split("\\s+");
         StringBuilder sb = new StringBuilder();
         for (String w : words) {
             if (!w.isEmpty()) {
-                if (sb.length() > 0) sb.append(" ");
+                if (sb.length() > 0)
+                    sb.append(" ");
                 sb.append(Character.toUpperCase(w.charAt(0)));
                 if (w.length() > 1) {
                     sb.append(w.substring(1).toLowerCase());
@@ -1070,9 +1234,10 @@ public class AiServiceImpl implements AiService {
     private String callGeminiApi(String prompt) {
         String effectiveKey = getEffectiveGeminiApiKey();
         String effectiveModel = getEffectiveGeminiModel();
-        if (!StringUtils.hasText(effectiveKey)) return null;
+        if (!StringUtils.hasText(effectiveKey))
+            return null;
 
-        String[] candidateModels = new String[]{
+        String[] candidateModels = new String[] {
                 effectiveModel,
                 "gemini-3.5-flash-lite",
                 "gemini-flash-lite-latest",
@@ -1081,9 +1246,11 @@ public class AiServiceImpl implements AiService {
         };
 
         for (String model : candidateModels) {
-            if (!StringUtils.hasText(model)) continue;
+            if (!StringUtils.hasText(model))
+                continue;
             try {
-                String url = String.format("%s/%s:generateContent?key=%s", geminiApiUrl, model.trim(), effectiveKey.trim());
+                String url = String.format("%s/%s:generateContent?key=%s", geminiApiUrl, model.trim(),
+                        effectiveKey.trim());
                 Map<String, Object> part = Map.of("text", prompt);
                 Map<String, Object> content = Map.of("parts", List.of(part));
                 Map<String, Object> requestPayload = Map.of("contents", List.of(content));
@@ -1097,7 +1264,8 @@ public class AiServiceImpl implements AiService {
                         .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
                         .build();
 
-                HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+                HttpResponse<String> response = httpClient.send(httpRequest,
+                        HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
 
                 if (response.statusCode() == 200) {
                     JsonNode root = objectMapper.readTree(response.body());
@@ -1167,22 +1335,33 @@ public class AiServiceImpl implements AiService {
     public String generateSmartSummary(String title, String category) {
         String lower = (title + " " + category).toLowerCase();
         if (lower.contains("so sánh") || lower.contains(" vs ") || lower.contains("đối đầu") || lower.contains("kèo")) {
-            return "Phân tích chi tiết cuộc đối đầu công nghệ trong bài viết '" + title + "'. Đâu là sự lựa chọn tối ưu cho nhu cầu thực tế và ngân sách của bạn?";
+            return "Phân tích chi tiết cuộc đối đầu công nghệ trong bài viết '" + title
+                    + "'. Đâu là sự lựa chọn tối ưu cho nhu cầu thực tế và ngân sách của bạn?";
         }
-        if (lower.contains("mẹo") || lower.contains("thủ thuật") || lower.contains("cách ") || lower.contains("hướng dẫn") || lower.contains("tối ưu")) {
-            return "Tổng hợp các thủ thuật và hướng dẫn thiết thực nhất về " + title + " giúp bạn làm chủ thiết bị, nâng cao hiệu suất và kéo dài tuổi thọ phần cứng.";
+        if (lower.contains("mẹo") || lower.contains("thủ thuật") || lower.contains("cách ")
+                || lower.contains("hướng dẫn") || lower.contains("tối ưu")) {
+            return "Tổng hợp các thủ thuật và hướng dẫn thiết thực nhất về " + title
+                    + " giúp bạn làm chủ thiết bị, nâng cao hiệu suất và kéo dài tuổi thọ phần cứng.";
         }
-        if (lower.contains("macbook") || lower.contains("laptop") || lower.contains("máy tính") || lower.contains("gaming")) {
-            return "Đánh giá chuyên sâu " + title + " từ hiệu năng CPU/GPU, màn hình hiển thị đến khả năng tản nhiệt thực tế cho lập trình viên, designer và game thủ.";
+        if (lower.contains("macbook") || lower.contains("laptop") || lower.contains("máy tính")
+                || lower.contains("gaming")) {
+            return "Đánh giá chuyên sâu " + title
+                    + " từ hiệu năng CPU/GPU, màn hình hiển thị đến khả năng tản nhiệt thực tế cho lập trình viên, designer và game thủ.";
         }
-        if (lower.contains("iphone") || lower.contains("samsung") || lower.contains("galaxy") || lower.contains("điện thoại") || lower.contains("phone")) {
-            return "Trải nghiệm thực tế " + title + " với những đánh giá khách quan về cụm camera, thời lượng pin, độ mượt mà của hệ điều hành và giá trị sở hữu.";
+        if (lower.contains("iphone") || lower.contains("samsung") || lower.contains("galaxy")
+                || lower.contains("điện thoại") || lower.contains("phone")) {
+            return "Trải nghiệm thực tế " + title
+                    + " với những đánh giá khách quan về cụm camera, thời lượng pin, độ mượt mà của hệ điều hành và giá trị sở hữu.";
         }
-        if (lower.contains("tai nghe") || lower.contains("loa") || lower.contains("âm thanh") || lower.contains("airpods") || lower.contains("sony")) {
-            return "Cảm nhận chất âm chân thực và hiệu quả chống ồn của " + title + ". Góc nhìn chuyên sâu từ chuyên gia âm thanh tại NEXOR Flagship Store.";
+        if (lower.contains("tai nghe") || lower.contains("loa") || lower.contains("âm thanh")
+                || lower.contains("airpods") || lower.contains("sony")) {
+            return "Cảm nhận chất âm chân thực và hiệu quả chống ồn của " + title
+                    + ". Góc nhìn chuyên sâu từ chuyên gia âm thanh tại NEXOR Flagship Store.";
         }
-        if (lower.contains("ai") || lower.contains("trí tuệ nhân tạo") || lower.contains("agent") || lower.contains("xu hướng")) {
-            return "Khám phá làn sóng công nghệ đột phá trong bài viết " + title + ". Cập nhật xu hướng AI thế hệ mới và ứng dụng thực tiễn trong công việc số.";
+        if (lower.contains("ai") || lower.contains("trí tuệ nhân tạo") || lower.contains("agent")
+                || lower.contains("xu hướng")) {
+            return "Khám phá làn sóng công nghệ đột phá trong bài viết " + title
+                    + ". Cập nhật xu hướng AI thế hệ mới và ứng dụng thực tiễn trong công việc số.";
         }
         return "Khám phá bài viết chuyên sâu về " + title + " thuộc chuyên mục " + category
                 + ". Đánh giá chi tiết ưu điểm, hiệu năng thực tế và tư vấn trải nghiệm tối ưu tại hệ thống NEXOR.";
@@ -1194,7 +1373,9 @@ public class AiServiceImpl implements AiService {
         // 1. Dạng bài SO SÁNH / ĐỐI ĐẦU
         if (lower.contains("so sánh") || lower.contains(" vs ") || lower.contains("đối đầu") || lower.contains("kèo")) {
             return "<h2>1. Đặt lên bàn cân: Cuộc đối đầu giữa hai biểu tượng công nghệ</h2>\n"
-                    + "<p>Thị trường công nghệ cao cấp luôn chứng kiến sự cạnh tranh khốc liệt giữa các ông lớn. Trong bài viết <strong>" + title + "</strong> hôm nay, chúng ta cùng phân tích chi tiết từng khía cạnh để tìm ra đâu là sự lựa chọn chân ái cho nhu cầu thực tế của bạn.</p>\n\n"
+                    + "<p>Thị trường công nghệ cao cấp luôn chứng kiến sự cạnh tranh khốc liệt giữa các ông lớn. Trong bài viết <strong>"
+                    + title
+                    + "</strong> hôm nay, chúng ta cùng phân tích chi tiết từng khía cạnh để tìm ra đâu là sự lựa chọn chân ái cho nhu cầu thực tế của bạn.</p>\n\n"
                     + "<h2>2. Ngôn ngữ thiết kế & Trải nghiệm cầm nắm thực tế</h2>\n"
                     + "<p>Mỗi thiết bị đều theo đuổi một triết lý thẩm mỹ và vật liệu chế tác riêng biệt:</p>\n"
                     + "<ul>\n"
@@ -1213,9 +1394,11 @@ public class AiServiceImpl implements AiService {
         }
 
         // 2. Dạng bài THỦ THUẬT / MẸO / HƯỚNG DẪN TỐI ƯU
-        if (lower.contains("mẹo") || lower.contains("thủ thuật") || lower.contains("cách ") || lower.contains("hướng dẫn") || lower.contains("tối ưu")) {
+        if (lower.contains("mẹo") || lower.contains("thủ thuật") || lower.contains("cách ")
+                || lower.contains("hướng dẫn") || lower.contains("tối ưu")) {
             return "<h2>1. Tầm quan trọng của việc tối ưu hóa thiết bị</h2>\n"
-                    + "<p>Sau một thời gian sử dụng, hệ điều hành và các ứng dụng ngầm thường tích tụ dữ liệu rác, gây hao pin và làm giảm độ mượt mà. Với chủ đề <strong>" + title + "</strong>, bạn sẽ nắm trọn các bước thiết lập chuẩn chỉ từ chuyên gia kỹ thuật.</p>\n\n"
+                    + "<p>Sau một thời gian sử dụng, hệ điều hành và các ứng dụng ngầm thường tích tụ dữ liệu rác, gây hao pin và làm giảm độ mượt mà. Với chủ đề <strong>"
+                    + title + "</strong>, bạn sẽ nắm trọn các bước thiết lập chuẩn chỉ từ chuyên gia kỹ thuật.</p>\n\n"
                     + "<h2>2. Các bước thiết lập quan trọng cần làm ngay</h2>\n"
                     + "<ul>\n"
                     + "  <li><strong>Bước 1 - Dọn dẹp ứng dụng chạy ngầm:</strong> Tắt các tiến trình không cần thiết và hạn chế quyền định vị nền của những app ít sử dụng.</li>\n"
@@ -1232,9 +1415,11 @@ public class AiServiceImpl implements AiService {
         }
 
         // 3. Dạng bài LAPTOP / MACBOOK / PC GAMING
-        if (lower.contains("macbook") || lower.contains("laptop") || lower.contains("máy tính") || lower.contains("gaming") || lower.contains("dell") || lower.contains("asus")) {
+        if (lower.contains("macbook") || lower.contains("laptop") || lower.contains("máy tính")
+                || lower.contains("gaming") || lower.contains("dell") || lower.contains("asus")) {
             return "<h2>1. Đột phá về kiến trúc vi xử lý và hiệu suất tản nhiệt</h2>\n"
-                    + "<p>Trong phân khúc máy tính xách tay cao cấp hiện nay, <strong>" + title + "</strong> được sinh ra để giải quyết bài toán cân bằng giữa tính di động cao và sức mạnh tính toán ấn tượng.</p>\n\n"
+                    + "<p>Trong phân khúc máy tính xách tay cao cấp hiện nay, <strong>" + title
+                    + "</strong> được sinh ra để giải quyết bài toán cân bằng giữa tính di động cao và sức mạnh tính toán ấn tượng.</p>\n\n"
                     + "<h2>2. Màn hình chuẩn màu đồ họa & Bàn phím gõ êm ái</h2>\n"
                     + "<p>Trải nghiệm thị giác và xúc giác luôn là điểm cộng lớn của dòng máy này:</p>\n"
                     + "<ul>\n"
@@ -1253,9 +1438,12 @@ public class AiServiceImpl implements AiService {
         }
 
         // 4. Dạng bài SMARTPHONE / ĐIỆN THOẠI FLAGSHIP
-        if (lower.contains("iphone") || lower.contains("samsung") || lower.contains("galaxy") || lower.contains("điện thoại") || lower.contains("phone")) {
+        if (lower.contains("iphone") || lower.contains("samsung") || lower.contains("galaxy")
+                || lower.contains("điện thoại") || lower.contains("phone")) {
             return "<h2>1. Tổng quan thiết kế & Sự tinh tế của dòng Flagship</h2>\n"
-                    + "<p>Những chiếc smartphone đỉnh cao luôn là nơi hội tụ tinh hoa công nghệ chế tác. Với <strong>" + title + "</strong>, người dùng có cơ hội tiếp cận những công nghệ di động tiên phong nhất năm nay.</p>\n\n"
+                    + "<p>Những chiếc smartphone đỉnh cao luôn là nơi hội tụ tinh hoa công nghệ chế tác. Với <strong>"
+                    + title
+                    + "</strong>, người dùng có cơ hội tiếp cận những công nghệ di động tiên phong nhất năm nay.</p>\n\n"
                     + "<h2>2. Camera đỉnh cao: Sáng tạo nội dung không giới hạn</h2>\n"
                     + "<p>Hệ thống quang học thế hệ mới mang lại sự bứt phá vượt bậc về khả năng thu sáng và xử lý ảnh điện toán:</p>\n"
                     + "<ul>\n"
@@ -1275,9 +1463,11 @@ public class AiServiceImpl implements AiService {
         }
 
         // 5. Dạng bài ÂM THANH / TAI NGHE / LOA
-        if (lower.contains("tai nghe") || lower.contains("loa") || lower.contains("âm thanh") || lower.contains("airpods") || lower.contains("sony")) {
+        if (lower.contains("tai nghe") || lower.contains("loa") || lower.contains("âm thanh")
+                || lower.contains("airpods") || lower.contains("sony")) {
             return "<h2>1. Đắm chìm vào không gian âm nhạc chất lượng cao</h2>\n"
-                    + "<p>Với những người yêu âm nhạc và thường xuyên làm việc trong môi trường ồn ào, <strong>" + title + "</strong> là chiếc chìa khóa mở ra không gian tĩnh lặng và giai điệu sống động.</p>\n\n"
+                    + "<p>Với những người yêu âm nhạc và thường xuyên làm việc trong môi trường ồn ào, <strong>" + title
+                    + "</strong> là chiếc chìa khóa mở ra không gian tĩnh lặng và giai điệu sống động.</p>\n\n"
                     + "<h2>2. Công nghệ chống ồn chủ động (ANC) & Chế độ xuyên âm</h2>\n"
                     + "<p>Hệ thống microphone kép đa hướng lọc sạch tiếng ồn tàu xe, tiếng người trò chuyện nơi văn phòng, giúp bạn tập trung tuyệt đối vào công việc.</p>\n"
                     + "<ul>\n"
@@ -1292,9 +1482,11 @@ public class AiServiceImpl implements AiService {
         }
 
         // 6. Dạng bài AI & XU HƯỚNG CÔNG NGHỆ TƯƠNG LAI
-        if (lower.contains("ai") || lower.contains("trí tuệ nhân tạo") || lower.contains("agent") || lower.contains("xu hướng") || lower.contains("tương lai")) {
+        if (lower.contains("ai") || lower.contains("trí tuệ nhân tạo") || lower.contains("agent")
+                || lower.contains("xu hướng") || lower.contains("tương lai")) {
             return "<h2>1. Làn sóng trí tuệ nhân tạo đang tái định hình thế giới</h2>\n"
-                    + "<p>Không còn là những lý thuyết xa xôi, chủ đề <strong>" + title + "</strong> đang trực tiếp tác động đến quy trình làm việc, sản xuất và đời sống hàng ngày của hàng triệu người dùng công nghệ.</p>\n\n"
+                    + "<p>Không còn là những lý thuyết xa xôi, chủ đề <strong>" + title
+                    + "</strong> đang trực tiếp tác động đến quy trình làm việc, sản xuất và đời sống hàng ngày của hàng triệu người dùng công nghệ.</p>\n\n"
                     + "<h2>2. Từ trợ lý ảo thụ động đến hệ thống tự hành thông minh</h2>\n"
                     + "<p>Bước ngoặt lớn nhất nằm ở khả năng tự suy luận logic, phối hợp nhiều công cụ và xử lý chuỗi tác vụ phức tạp một cách chủ động:</p>\n"
                     + "<ul>\n"
@@ -1313,7 +1505,9 @@ public class AiServiceImpl implements AiService {
 
         // 7. Dạng bài ĐÁNH GIÁ CHUYÊN SÂU (Mặc định cho các chủ đề khác)
         return "<h2>1. Đặt vấn đề: Tại sao chủ đề này lại nhận được nhiều sự quan tâm?</h2>\n"
-                + "<p>Trong dòng chảy không ngừng của thế giới số, <strong>" + title + "</strong> đang thu hút đông đảo sự quan tâm của cộng đồng đam mê công nghệ. Thuộc nhóm nội dung <em>" + category + "</em>, bài viết này sẽ mang đến góc nhìn chân thực, khách quan và chi tiết nhất.</p>\n\n"
+                + "<p>Trong dòng chảy không ngừng của thế giới số, <strong>" + title
+                + "</strong> đang thu hút đông đảo sự quan tâm của cộng đồng đam mê công nghệ. Thuộc nhóm nội dung <em>"
+                + category + "</em>, bài viết này sẽ mang đến góc nhìn chân thực, khách quan và chi tiết nhất.</p>\n\n"
                 + "<h2>2. Những điểm sáng nổi bật và giá trị thực tế mang lại</h2>\n"
                 + "<p>Sau khi tổng hợp các bài thử nghiệm và phản hồi thực tế từ người dùng, đây là những ưu điểm đáng giá nhất:</p>\n"
                 + "<ul>\n"
@@ -1372,7 +1566,8 @@ public class AiServiceImpl implements AiService {
         return sb.toString().trim();
     }
 
-    private String buildPrompt(String productName, String brand, String categoryName, Object specs, List<String> keywords) {
+    private String buildPrompt(String productName, String brand, String categoryName, Object specs,
+            List<String> keywords) {
         StringBuilder sb = new StringBuilder();
         sb.append("Bạn là chuyên gia Content Marketing & SEO Thương Mại Điện Tử hàng đầu.\n");
         sb.append("Hãy viết bài mô tả sản phẩm hấp dẫn, chuẩn kỹ thuật, tối ưu hóa SEO cho sản phẩm sau:\n");
@@ -1392,22 +1587,28 @@ public class AiServiceImpl implements AiService {
         }
 
         sb.append("\n--- YÊU CẦU ĐỊNH DẠNG ĐẦU RA BẮT BUỘC ---\n");
-        sb.append("Chỉ trả về nội dung Markdown thuần túy (tuyệt đối KHÔNG bọc trong khối code block `markdown hoặc `).\n");
+        sb.append(
+                "Chỉ trả về nội dung Markdown thuần túy (tuyệt đối KHÔNG bọc trong khối code block `markdown hoặc `).\n");
         sb.append("Cấu trúc bài viết phải bao gồm chính xác 4 phần sau:\n\n");
         sb.append("### 1. Tiêu đề\n");
-        sb.append("Tiêu đề hấp dẫn, chứa tên sản phẩm và điểm nhấn công nghệ, kèm đoạn giới thiệu mở đầu 2-3 câu lôi cuốn.\n\n");
+        sb.append(
+                "Tiêu đề hấp dẫn, chứa tên sản phẩm và điểm nhấn công nghệ, kèm đoạn giới thiệu mở đầu 2-3 câu lôi cuốn.\n\n");
         sb.append("### 2. Điểm nổi bật\n");
-        sb.append("Trình bày từ 3-5 gạch đầu dòng (bullet points) nêu bật công nghệ đột phá, thiết kế, hiệu năng và trải nghiệm sử dụng thực tế.\n\n");
+        sb.append(
+                "Trình bày từ 3-5 gạch đầu dòng (bullet points) nêu bật công nghệ đột phá, thiết kế, hiệu năng và trải nghiệm sử dụng thực tế.\n\n");
         sb.append("### 3. Thông số kỹ thuật\n");
         sb.append("Liệt kê đầy đủ, chính xác các thông số kỹ thuật (dựa trên thông số cung cấp).\n\n");
         sb.append("### 4. Đối tượng phù hợp\n");
-        sb.append("Phân tích rõ sản phẩm phù hợp nhất với nhóm khách hàng nào (học sinh, sinh viên, dân văn phòng, game thủ, sáng tạo nội dung...) kèm cam kết chất lượng, bảo hành chính hãng tại NEXOR.\n");
+        sb.append(
+                "Phân tích rõ sản phẩm phù hợp nhất với nhóm khách hàng nào (học sinh, sinh viên, dân văn phòng, game thủ, sáng tạo nội dung...) kèm cam kết chất lượng, bảo hành chính hãng tại NEXOR.\n");
         return sb.toString();
     }
 
-    private String generateSmartSeoDescription(String productName, String brand, String categoryName, Object specs, List<String> keywords) {
+    private String generateSmartSeoDescription(String productName, String brand, String categoryName, Object specs,
+            List<String> keywords) {
         String brandPrefix = StringUtils.hasText(brand) ? (" từ thương hiệu danh tiếng **" + brand.trim() + "**") : "";
-        String keywordStr = (keywords != null && !keywords.isEmpty()) ? String.join(", ", keywords) : "công nghệ tiên tiến, thiết kế đẳng cấp";
+        String keywordStr = (keywords != null && !keywords.isEmpty()) ? String.join(", ", keywords)
+                : "công nghệ tiên tiến, thiết kế đẳng cấp";
         String specsBlock = formatSpecs(specs);
         if (!StringUtils.hasText(specsBlock)) {
             specsBlock = "- **Thương hiệu**: " + (StringUtils.hasText(brand) ? brand.trim() : "Chính hãng") + "\n" +
@@ -1418,25 +1619,30 @@ public class AiServiceImpl implements AiService {
 
         return String.format(
                 "## %s – Đỉnh Cao Công Nghệ, Trải Nghiệm Hoàn Mỹ\n\n" +
-                "**%s**%s là sự kết hợp hoàn hảo giữa ngôn ngữ thiết kế thời thượng và hiệu năng vượt bậc trong phân khúc **%s**. " +
-                "Sở hữu độ hoàn thiện cao cấp cùng độ bền bỉ đáng tin cậy, sản phẩm mang lại trải nghiệm đỉnh cao cho cả nhu cầu công việc lẫn giải trí thường ngày.\n\n" +
-                "### Điểm nổi bật vượt trội\n" +
-                "- **Hiệu năng bứt phá**: Tối ưu hóa xử lý mượt mà, phản hồi tức thì với tốc độ ấn tượng.\n" +
-                "- **Trải nghiệm đỉnh cao**: Tích hợp các tính năng công nghệ thông minh (%s) nâng tầm tiện ích.\n" +
-                "- **Thiết kế sang trọng**: Kiểu dáng hiện đại, gia công tỉ mỉ, vật liệu cao cấp và an toàn tuyệt đối.\n" +
-                "- **Tiết kiệm năng lượng**: Tối ưu thời lượng sử dụng bền bỉ suốt cả ngày dài.\n\n" +
-                "### Thông số kỹ thuật\n" +
-                "%s\n\n" +
-                "### Đối tượng phù hợp\n" +
-                "Sản phẩm là lựa chọn lý tưởng dành cho người dùng cá nhân, học sinh, sinh viên và giới chuyên môn cần một thiết bị bền bỉ, mạnh mẽ và thời trang. " +
-                "Được phân phối chính hãng tại NEXOR với cam kết 100%% New Seal, bảo hành 12 tháng 1 đổi 1 và hỗ trợ giao hàng hỏa tốc toàn quốc.",
-                productName, productName, brandPrefix, categoryName, keywordStr, specsBlock
-        );
+                        "**%s**%s là sự kết hợp hoàn hảo giữa ngôn ngữ thiết kế thời thượng và hiệu năng vượt bậc trong phân khúc **%s**. "
+                        +
+                        "Sở hữu độ hoàn thiện cao cấp cùng độ bền bỉ đáng tin cậy, sản phẩm mang lại trải nghiệm đỉnh cao cho cả nhu cầu công việc lẫn giải trí thường ngày.\n\n"
+                        +
+                        "### Điểm nổi bật vượt trội\n" +
+                        "- **Hiệu năng bứt phá**: Tối ưu hóa xử lý mượt mà, phản hồi tức thì với tốc độ ấn tượng.\n" +
+                        "- **Trải nghiệm đỉnh cao**: Tích hợp các tính năng công nghệ thông minh (%s) nâng tầm tiện ích.\n"
+                        +
+                        "- **Thiết kế sang trọng**: Kiểu dáng hiện đại, gia công tỉ mỉ, vật liệu cao cấp và an toàn tuyệt đối.\n"
+                        +
+                        "- **Tiết kiệm năng lượng**: Tối ưu thời lượng sử dụng bền bỉ suốt cả ngày dài.\n\n" +
+                        "### Thông số kỹ thuật\n" +
+                        "%s\n\n" +
+                        "### Đối tượng phù hợp\n" +
+                        "Sản phẩm là lựa chọn lý tưởng dành cho người dùng cá nhân, học sinh, sinh viên và giới chuyên môn cần một thiết bị bền bỉ, mạnh mẽ và thời trang. "
+                        +
+                        "Được phân phối chính hãng tại NEXOR với cam kết 100%% New Seal, bảo hành 12 tháng 1 đổi 1 và hỗ trợ giao hàng hỏa tốc toàn quốc.",
+                productName, productName, brandPrefix, categoryName, keywordStr, specsBlock);
     }
 
     private String generateSeoTitle(String productName, String brand, String categoryName) {
         if (StringUtils.hasText(brand)) {
-            return String.format("%s %s - Chính Hãng, Giá Tốt Nhất Phân Khúc %s | NEXOR", brand.trim(), productName, categoryName);
+            return String.format("%s %s - Chính Hãng, Giá Tốt Nhất Phân Khúc %s | NEXOR", brand.trim(), productName,
+                    categoryName);
         }
         return String.format("%s - Chính Hãng, Giá Tốt Nhất Phân Khúc %s | NEXOR", productName, categoryName);
     }
