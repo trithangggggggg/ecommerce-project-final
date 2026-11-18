@@ -14,18 +14,18 @@ import { aiService, type ChatMessage } from '../../../api/services/ai.service';
 import { formatPrice } from '../../../utils/format';
 
 const QUICK_PROMPTS = [
+  '📦 Đặt hàng hộ tôi',
   '💻 Laptop sinh viên giá tốt',
   '🔥 iPhone 16 Pro Max',
   '🎧 Tai nghe chống ồn',
   '🚚 Chính sách bảo hành',
-  '💳 Hỗ trợ trả góp 0%',
 ];
 
 const INITIAL_MESSAGE: ChatMessage = {
   id: 'welcome',
   role: 'assistant',
   content:
-    'Dạ xin chào bạn! 👋 Mình là **Trợ lý AI của NEXOR**.\n\nMình có thể giúp bạn tìm kiếm thiết bị công nghệ phù hợp với ngân sách, so sánh cấu hình hoặc giải đáp chính sách bảo hành. Bạn đang quan tâm đến sản phẩm nào ạ?',
+    'Dạ em chào bạn! 👋 Mình là **Trợ lý AI của NEXOR**.\n\nBạn đang cần tìm thiết bị nào hoặc cần đặt hàng hộ cứ nhắn mình hỗ trợ ngay nhé!',
   timestamp: new Date(),
 };
 
@@ -109,6 +109,7 @@ export function AiChatbot() {
         content: response.reply,
         suggestedProducts: products,
         recommendedProducts: products,
+        createdOrder: response.createdOrder,
         timestamp: new Date(),
       };
 
@@ -376,6 +377,44 @@ export function AiChatbot() {
                       )}
                     </div>
                   </div>
+
+                  {/* Hiển thị thẻ xác nhận Đơn hàng tự động nếu vừa tạo đơn qua AI */}
+                  {msg.createdOrder && (
+                    <div className="mt-2.5 ml-9 p-3 bg-emerald-50 border border-emerald-200 rounded-xl w-[calc(100%-2.25rem)] text-xs text-emerald-950 shadow-xs">
+                      <div className="flex items-center justify-between font-bold text-emerald-800 mb-1">
+                        <span className="flex items-center gap-1.5">
+                          <CheckCircle2 size={14} className="text-emerald-600" />
+                          Đơn hàng #{msg.createdOrder.id}
+                        </span>
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-semibold">
+                          Chờ xác nhận (COD)
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-gray-700 space-y-0.5 mt-1.5 border-t border-emerald-100 pt-1.5">
+                        <div>
+                          <strong className="text-gray-900">Người nhận:</strong> {msg.createdOrder.receiverName} ({msg.createdOrder.phoneNumber})
+                        </div>
+                        <div className="truncate">
+                          <strong className="text-gray-900">Địa chỉ:</strong> {msg.createdOrder.shippingAddress}
+                        </div>
+                        <div>
+                          <strong className="text-gray-900">Tổng thanh toán:</strong>{' '}
+                          <span className="font-bold text-blue-600">
+                            {formatPrice(msg.createdOrder.totalAmount)}
+                          </span>{' '}
+                          (Freeship)
+                        </div>
+                      </div>
+                      <Link
+                        to="/profile"
+                        onClick={() => setIsOpen(false)}
+                        className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 hover:underline"
+                      >
+                        <span>Xem chi tiết trong lịch sử đơn hàng</span>
+                        <ArrowRight size={12} />
+                      </Link>
+                    </div>
+                  )}
 
                   {/* Hiển thị thẻ sản phẩm đề xuất (click mở /products/{id}) */}
                   {displayProducts && displayProducts.length > 0 && (

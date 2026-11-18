@@ -25,5 +25,10 @@ public class AiChatResponse {
      */
     private List<ProductResponse> recommendedProducts;
 
+    /**
+     * Thông tin đơn hàng được hỗ trợ tạo tự động bởi AI (nếu có hành động đặt hàng)
+     */
+    private OrderResponse createdOrder;
+
     private String provider;
 }

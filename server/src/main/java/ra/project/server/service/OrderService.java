@@ -14,6 +14,8 @@ public interface OrderService {
 
     ApiResponse<OrderResponse> checkout(CheckoutRequest request);
 
+    ApiResponse<OrderResponse> createOrderForAiAssistant(CheckoutRequest request);
+
     ApiResponse<OrderResponse> adminCreateOrder(AdminCreateOrderRequest request);
 
     ApiResponse<List<OrderResponse>> getMyOrders();

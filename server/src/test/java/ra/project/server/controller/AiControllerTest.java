@@ -19,6 +19,7 @@ import ra.project.server.model.dto.response.ProductResponse;
 import ra.project.server.model.dto.response.VisualSearchAttributes;
 import ra.project.server.model.dto.response.VisualSearchProductItem;
 import ra.project.server.model.dto.response.VisualSearchResponse;
+import ra.project.server.service.AiConfigService;
 import ra.project.server.service.AiService;
 import ra.project.server.service.RateLimiterService;
 
@@ -44,6 +45,9 @@ class AiControllerTest {
 
     @Mock
     private RateLimiterService rateLimiterService;
+
+    @Mock
+    private AiConfigService aiConfigService;
 
     @InjectMocks
     private AiController aiController;

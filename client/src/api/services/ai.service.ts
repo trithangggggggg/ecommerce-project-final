@@ -10,6 +10,7 @@ export interface ChatMessage {
   timestamp?: Date;
   recommendedProducts?: Product[];
   suggestedProducts?: Product[];
+  createdOrder?: any;
   isError?: boolean;
   failedText?: string;
 }
@@ -21,6 +22,7 @@ export interface AiChatApiResponse {
     reply: string;
     suggestedProducts?: any[];
     recommendedProducts?: any[];
+    createdOrder?: any;
     provider?: string;
   };
 }
@@ -34,6 +36,7 @@ export interface AiChatResult {
   reply: string;
   recommendedProducts: Product[];
   suggestedProducts?: Product[];
+  createdOrder?: any;
   provider: string;
 }
 
@@ -305,6 +308,7 @@ export const aiService = {
         reply: data?.reply || 'Dạ NEXOR luôn sẵn sàng hỗ trợ quý khách!',
         recommendedProducts: formattedProducts,
         suggestedProducts: formattedProducts,
+        createdOrder: data?.createdOrder || undefined,
         provider: data?.provider || 'NEXOR AI Assistant',
       };
     } catch {
