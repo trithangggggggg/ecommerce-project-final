@@ -401,6 +401,12 @@ public class AiServiceImpl implements AiService {
                     .collect(Collectors.toList());
         }
 
+        // Nếu người dùng có tìm kiếm từ khóa cụ thể (vd: chuột, logitech, bàn phím...) mà kho không có
+        // TUYỆT ĐỐI không trả về sản phẩm linh tinh để tránh tư vấn sai lệch
+        if (!keywords.isEmpty()) {
+            return Collections.emptyList();
+        }
+
         return products.stream().limit(6).collect(Collectors.toList());
     }
 
@@ -436,19 +442,28 @@ public class AiServiceImpl implements AiService {
             sb.append("\n");
         }
 
-        sb.append("=== DANH SÁCH SẢN PHẨM PHÙ HỢP CỬA HÀNG ĐANG BÁN (DỮ LIỆU THỰC TẾ) ===\n");
-        Locale vn = Locale.forLanguageTag("vi-VN");
-        NumberFormat nf = NumberFormat.getInstance(vn);
+        if (products.isEmpty()) {
+            sb.append("=== LƯU Ý ĐẶC BIỆT VỀ KHO HÀNG (QUAN TRỌNG) ===\n");
+            sb.append("- Khách hàng đang hỏi về sản phẩm/phụ kiện mà sàn NEXOR HIỆN CHƯA KINH DOANH (ví dụ: chuột máy tính, bàn phím rời, linh kiện hoặc thương hiệu không có trong hệ thống).\n");
+            sb.append("- BẮT BUỘC: Lịch sự thông báo rõ ràng rằng NEXOR hiện CHƯA KINH DOANH sản phẩm này.\n");
+            sb.append("- TUYỆT ĐỐI KHÔNG tự tiện gợi ý iPhone 16 Pro Max hay các dòng máy khác nếu khách hàng không hỏi đến.\n");
+            sb.append("- Hãy gợi ý lịch sự các ngành hàng chính hiện có tại NEXOR: Điện thoại (iPhone, Samsung Galaxy), Laptop (MacBook, ASUS ROG), Máy tính bảng (iPad) và Tai nghe cao cấp (Sony WH-1000XM5) để khách hàng tham khảo.\n\n");
+        } else {
+            sb.append("=== DANH SÁCH SẢN PHẨM PHÙ HỢP CỬA HÀNG ĐANG BÁN (DỮ LIỆU THỰC TẾ) ===\n");
+            Locale vn = Locale.forLanguageTag("vi-VN");
+            NumberFormat nf = NumberFormat.getInstance(vn);
 
-        for (Product p : products) {
-            String priceStr = p.getPrice() != null ? nf.format(p.getPrice()) + "đ" : "Liên hệ";
-            String catName = p.getCategory() != null ? p.getCategory().getName() : "Thiết bị điện tử";
-            String desc = p.getDescription() != null ? p.getDescription().replaceAll("\\s+", " ").trim() : "";
-            if (desc.length() > 120) {
-                desc = desc.substring(0, 120) + "...";
+            for (Product p : products) {
+                String priceStr = p.getPrice() != null ? nf.format(p.getPrice()) + "đ" : "Liên hệ";
+                String catName = p.getCategory() != null ? p.getCategory().getName() : "Thiết bị điện tử";
+                String desc = p.getDescription() != null ? p.getDescription().replaceAll("\\s+", " ").trim() : "";
+                if (desc.length() > 120) {
+                    desc = desc.substring(0, 120) + "...";
+                }
+                sb.append(String.format("- [ID: %d] %s | Giá: %s | Danh mục: %s | Tồn kho: %d | Đặc điểm: %s\n",
+                        p.getId(), p.getName(), priceStr, catName, p.getStock() != null ? p.getStock() : 0, desc));
             }
-            sb.append(String.format("- [ID: %d] %s | Giá: %s | Danh mục: %s | Tồn kho: %d | Đặc điểm: %s\n",
-                    p.getId(), p.getName(), priceStr, catName, p.getStock() != null ? p.getStock() : 0, desc));
+            sb.append("\n");
         }
 
         sb.append("\n=== NGUYÊN TẮC TƯ VẤN QUAN TRỌNG (BẮT BUỘC TUÂN THỦ) ===\n");
@@ -598,7 +613,7 @@ public class AiServiceImpl implements AiService {
             }
             reply.append("\nAnh/chị ưng mẫu nào hoặc cần đặt hàng hộ cứ nhắn em lên đơn ngay nhé! 😊");
         } else {
-            reply.append("Dạ hiện kho chưa có dòng máy khớp hoàn toàn với yêu cầu. Anh/chị có thể cho em biết thêm về khoảng ngân sách hoặc thương hiệu mong muốn để em tìm giúp nhé! ✨");
+            reply.append("Dạ hiện tại sàn NEXOR chưa kinh doanh sản phẩm này ạ. Cửa hàng bên em chuyên phân phối chính hãng các dòng: Điện thoại (iPhone, Samsung Galaxy), Laptop (MacBook, ASUS ROG), Máy tính bảng (iPad) và Tai nghe cao cấp (Sony WH-1000XM5). Anh/chị tham khảo thêm nhé! ✨");
         }
 
         List<ProductResponse> recommended = matched.stream()
@@ -635,12 +650,13 @@ public class AiServiceImpl implements AiService {
         String norm = normalizeText(message);
         if (norm.contains("dat hang") || norm.contains("mua hang") || norm.contains("mua ngay")
                 || norm.contains("chot don") || norm.contains("order") || norm.contains("dat mua")
-                || norm.contains("mua ho") || norm.contains("lay chiec nay") || norm.contains("lay con nay")
+                || norm.contains("mua ho") || norm.contains("dat ho") || norm.contains("dat cho")
+                || norm.contains("mua cho") || norm.contains("lay chiec nay") || norm.contains("lay con nay")
                 || norm.contains("lay may nay") || norm.contains("mua chiec nay") || norm.contains("mua con nay")
                 || norm.contains("mua em nay") || norm.contains("mua giup") || norm.contains("dat giup")
                 || norm.contains("mua gium") || norm.contains("dat gium") || norm.contains("mua luon")
                 || norm.contains("dat luon") || norm.contains("lay 1") || norm.contains("dat 1")
-                || norm.contains("mua 1") || norm.contains("len don")) {
+                || norm.contains("mua 1") || norm.contains("len don") || norm.contains("nhan hang tai")) {
             return true;
         }
         if (ORDER_PHONE_PATTERN.matcher(message).find() && hasAddressClues(message)) {
@@ -658,26 +674,35 @@ public class AiServiceImpl implements AiService {
                 || lower.contains("huyện") || lower.contains("huyen") || lower.contains("thành phố") || lower.contains("tp.")
                 || lower.contains("tp ") || lower.contains("hà nội") || lower.contains("ha noi") || lower.contains("hcm")
                 || lower.contains("hồ chí minh") || lower.contains("đà nẵng") || lower.contains("da nang")
-                || lower.contains("số ") || lower.contains("so ") || lower.contains("ngõ") || lower.contains("tòa");
+                || lower.contains("thanh hóa") || lower.contains("thanh hoa") || lower.contains("hải phòng")
+                || lower.contains("số ") || lower.contains("so ") || lower.contains("ngõ") || lower.contains("ngach")
+                || lower.contains("hẻm") || lower.contains("hem") || lower.contains("tòa") || lower.contains("chung cư");
+    }
+
+    @lombok.Getter
+    @lombok.Setter
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    private static class DeliveryCustomerInfo {
+        private String receiverName;
+        private String phoneNumber;
+        private String shippingAddress;
     }
 
     private OrderProcessResult tryProcessOrder(String userMessage, List<ChatMessageDto> history, List<Product> allProducts) {
         // 1. Tìm sản phẩm mục tiêu (ưu tiên tìm trong tin nhắn hiện tại, sau đó tìm ngược về lịch sử)
         Product targetProduct = findTargetProductForOrder(userMessage, history, allProducts);
 
-        // 2. Trích xuất Số điện thoại
-        String phone = extractPhoneNumber(userMessage, history);
-
-        // 3. Trích xuất Họ tên
-        String receiverName = extractReceiverName(userMessage, history);
-
-        // 4. Trích xuất Địa chỉ
-        String address = extractAddress(userMessage, history);
+        // 2. Trích xuất thông tin người nhận, số điện thoại và địa chỉ giao hàng hoàn chỉnh
+        DeliveryCustomerInfo deliveryInfo = extractDeliveryCustomerInfo(userMessage, history, targetProduct);
+        String phone = deliveryInfo.getPhoneNumber();
+        String receiverName = deliveryInfo.getReceiverName();
+        String address = deliveryInfo.getShippingAddress();
 
         // Nếu chưa xác định được sản phẩm
         if (targetProduct == null) {
             return new OrderProcessResult(false,
-                    "Dạ anh/chị muốn đặt mua sản phẩm nào ạ? Anh/chị có thể nhắn tên hoặc mã [ID: ...] để em lên đơn ngay nhé!",
+                    "Dạ NEXOR rất sẵn lòng hỗ trợ anh/chị đặt hàng! Anh/chị vui lòng cho em biết tên sản phẩm công nghệ muốn đặt (ví dụ: iPhone 16 Pro Max, Sony WH-1000XM5, MacBook...) hoặc mã [ID: ...] để em hoàn tất đơn ngay nhé ạ!",
                     null, Collections.emptyList());
         }
 
@@ -742,6 +767,8 @@ public class AiServiceImpl implements AiService {
     }
 
     private Product findTargetProductForOrder(String message, List<ChatMessageDto> history, List<Product> allProducts) {
+        if (allProducts == null || allProducts.isEmpty()) return null;
+
         // 1. Kiểm tra mã [ID: <id>] trong tin nhắn hiện tại
         Matcher idMatcher = Pattern.compile("\\[ID:\\s*(\\d+)\\]", Pattern.CASE_INSENSITIVE).matcher(message);
         if (idMatcher.find()) {
@@ -760,12 +787,21 @@ public class AiServiceImpl implements AiService {
             }
         }
 
-        // 3. Nếu không có, tìm kiếm sản phẩm phù hợp nhất với từ khóa trong tin nhắn hiện tại
+        // 3. Tìm kiếm theo từ khóa nhận diện cao trong tin nhắn hiện tại
         List<Product> relevant = filterRelevantProducts(message, allProducts);
-        if (!relevant.isEmpty() && (normMsg.contains("iphone") || normMsg.contains("macbook") || normMsg.contains("laptop")
-                || normMsg.contains("sony") || normMsg.contains("samsung") || normMsg.contains("asus")
-                || normMsg.contains("tai nghe") || normMsg.contains("airpods"))) {
-            return relevant.get(0);
+        if (!relevant.isEmpty()) {
+            Product top = relevant.get(0);
+            String topNorm = normalizeText(top.getName());
+            String[] tokens = topNorm.split("\\s+");
+            int matchCount = 0;
+            for (String tok : tokens) {
+                if (tok.length() > 2 && normMsg.contains(tok)) {
+                    matchCount++;
+                }
+            }
+            if (matchCount >= 2) {
+                return top;
+            }
         }
 
         // 4. Tìm ngược về các tin nhắn trước trong history
@@ -787,90 +823,248 @@ public class AiServiceImpl implements AiService {
                             return p;
                         }
                     }
+                    List<Product> hRelevant = filterRelevantProducts(msg.getContent(), allProducts);
+                    if (!hRelevant.isEmpty()) {
+                        Product top = hRelevant.get(0);
+                        String topNorm = normalizeText(top.getName());
+                        String[] tokens = topNorm.split("\\s+");
+                        int matchCount = 0;
+                        for (String tok : tokens) {
+                            if (tok.length() > 2 && hNorm.contains(tok)) {
+                                matchCount++;
+                            }
+                        }
+                        if (matchCount >= 2) {
+                            return top;
+                        }
+                    }
                 }
             }
         }
 
-        return relevant.isEmpty() ? null : relevant.get(0);
+        // Tuyệt đối không chọn bừa sản phẩm đầu danh sách
+        return null;
     }
 
-    private String extractPhoneNumber(String message, List<ChatMessageDto> history) {
-        if (StringUtils.hasText(message)) {
-            Matcher m = ORDER_PHONE_PATTERN.matcher(message);
-            if (m.find()) return m.group(0).trim();
+    private DeliveryCustomerInfo extractDeliveryCustomerInfo(String userMessage, List<ChatMessageDto> history, Product targetProduct) {
+        DeliveryCustomerInfo info = new DeliveryCustomerInfo();
+
+        List<String> userTexts = new ArrayList<>();
+        if (StringUtils.hasText(userMessage)) {
+            userTexts.add(userMessage);
         }
         if (history != null) {
             for (int i = history.size() - 1; i >= 0; i--) {
                 ChatMessageDto dto = history.get(i);
                 if (dto != null && "user".equalsIgnoreCase(dto.getRole()) && StringUtils.hasText(dto.getContent())) {
-                    Matcher m = ORDER_PHONE_PATTERN.matcher(dto.getContent());
-                    if (m.find()) return m.group(0).trim();
+                    userTexts.add(dto.getContent());
                 }
             }
         }
-        return null;
-    }
 
-    private String extractAddress(String message, List<ChatMessageDto> history) {
-        String addr = findAddressInText(message);
-        if (StringUtils.hasText(addr)) return addr;
-        if (history != null) {
-            for (int i = history.size() - 1; i >= 0; i--) {
-                ChatMessageDto dto = history.get(i);
-                if (dto != null && "user".equalsIgnoreCase(dto.getRole()) && StringUtils.hasText(dto.getContent())) {
-                    String hAddr = findAddressInText(dto.getContent());
-                    if (StringUtils.hasText(hAddr)) return hAddr;
+        // 1. Trích xuất Số điện thoại
+        int phoneStartIdx = -1;
+        String phoneTextSource = null;
+        for (String text : userTexts) {
+            Matcher m = ORDER_PHONE_PATTERN.matcher(text);
+            if (m.find()) {
+                info.setPhoneNumber(m.group(0).trim());
+                phoneStartIdx = m.start();
+                phoneTextSource = text;
+                break;
+            }
+        }
+
+        // 2. Trích xuất Địa chỉ và Họ tên
+        for (String rawText : userTexts) {
+            if (!StringUtils.hasText(rawText)) continue;
+
+            // 2.1. Tìm kiếm họ tên theo tiền tố tường minh
+            if (!StringUtils.hasText(info.getReceiverName())) {
+                Pattern namePattern = Pattern.compile(
+                        "(?i)(?:họ\\s+và\\s+tên|họ\\s+tên|tên\\s+tôi\\s+là|tên\\s+em\\s+là|tên\\s+là|người\\s+nhận\\s+là|người\\s+nhận|giao\\s+cho|ten|ho\\s+ten)\\s*[:\\-]?\\s*([\\p{L}\\s]{2,30})",
+                        Pattern.CASE_INSENSITIVE
+                );
+                Matcher mName = namePattern.matcher(rawText);
+                if (mName.find()) {
+                    String cand = mName.group(1).trim();
+                    cand = cand.replaceAll("(?i)\\b(sđt|sdt|địa\\s+chỉ|dia\\s+chi|đ\\/c|dc|tại|tai|ở|o)\\b.*$", "").trim();
+                    if (isValidPersonName(cand)) {
+                        info.setReceiverName(capitalizeWords(cand));
+                    }
+                }
+            }
+
+            // 2.2. Tìm kiếm địa chỉ theo tiền tố
+            if (!StringUtils.hasText(info.getShippingAddress())) {
+                Pattern addrPrefixPattern = Pattern.compile(
+                        "(?i)(?:nhận\\s+hàng\\s+tại|giao\\s+hàng\\s+tại|giao\\s+tại|giao\\s+đến|giao\\s+về|ship\\s+đến|ship\\s+về|địa\\s+chỉ|dia\\s+chi|đ\\/c|dc|ở|tại)\\s*[:\\-]?\\s*([^\\n;]+)",
+                        Pattern.CASE_INSENSITIVE
+                );
+                Matcher mAddr = addrPrefixPattern.matcher(rawText);
+                if (mAddr.find()) {
+                    String candAddr = mAddr.group(1).trim();
+                    candAddr = cleanAddressCandidate(candAddr, info.getPhoneNumber());
+                    if (candAddr.length() >= 5 && hasAddressClues(candAddr)) {
+                        info.setShippingAddress(candAddr);
+                    }
+                }
+            }
+
+            // 2.3. Nếu chưa có địa chỉ, tìm kiếm theo manh mối địa chỉ
+            if (!StringUtils.hasText(info.getShippingAddress())) {
+                String candAddr = extractAddressByClues(rawText, info.getPhoneNumber());
+                if (StringUtils.hasText(candAddr)) {
+                    info.setShippingAddress(candAddr);
                 }
             }
         }
-        return null;
+
+        // 3. Phân tích ngữ cảnh tìm họ tên quanh Số điện thoại nếu chưa có
+        if (!StringUtils.hasText(info.getReceiverName()) && phoneTextSource != null && StringUtils.hasText(info.getPhoneNumber())) {
+            // Xét đoạn text ngay trước số điện thoại
+            String beforePhone = phoneTextSource.substring(0, phoneStartIdx).trim();
+            int lastComma = Math.max(beforePhone.lastIndexOf(','), Math.max(beforePhone.lastIndexOf(';'), beforePhone.lastIndexOf('-')));
+            if (lastComma >= 0) {
+                beforePhone = beforePhone.substring(lastComma + 1).trim();
+            }
+            beforePhone = beforePhone.replaceAll("(?i)\\b(đặt|mua|lấy|cho|hộ|giúp|tôi|em|anh|chị|1 cái|1|shop|ơi|nhé|nha)\\b", " ").trim();
+            if (isValidPersonName(beforePhone)) {
+                info.setReceiverName(capitalizeWords(beforePhone));
+            } else {
+                String[] words = beforePhone.split("\\s+");
+                for (int wCount = 4; wCount >= 2; wCount--) {
+                    if (words.length >= wCount) {
+                        StringBuilder sbName = new StringBuilder();
+                        for (int k = words.length - wCount; k < words.length; k++) {
+                            if (sbName.length() > 0) sbName.append(" ");
+                            sbName.append(words[k]);
+                        }
+                        String cand = sbName.toString();
+                        if (isValidPersonName(cand)) {
+                            info.setReceiverName(capitalizeWords(cand));
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Nếu vẫn chưa có, xét đoạn text ngay sau số điện thoại trước địa chỉ
+            if (!StringUtils.hasText(info.getReceiverName())) {
+                int phoneEndIdx = phoneStartIdx + info.getPhoneNumber().length();
+                String afterPhone = phoneTextSource.substring(phoneEndIdx).trim();
+                if (StringUtils.hasText(info.getShippingAddress())) {
+                    afterPhone = afterPhone.replace(info.getShippingAddress(), " ");
+                }
+                afterPhone = afterPhone.replaceAll("(?i)\\b(nhận\\s+hàng\\s+tại|giao\\s+hàng\\s+tại|giao\\s+tại|giao\\s+đến|giao\\s+về|ship\\s+đến|ship\\s+về|địa\\s+chỉ|dia\\s+chi|đ\\/c|dc|ở|tại)\\b", " ");
+                afterPhone = afterPhone.replaceAll("[,;\\-\\:\\+\\(\\)]", " ").trim();
+                afterPhone = afterPhone.replaceAll("\\s+", " ");
+                if (isValidPersonName(afterPhone)) {
+                    info.setReceiverName(capitalizeWords(afterPhone));
+                }
+            }
+        }
+
+        // 4. Fallback phần còn lại sau khi bỏ product, phone, address
+        if (!StringUtils.hasText(info.getReceiverName())) {
+            for (String rawText : userTexts) {
+                String residual = rawText;
+                if (targetProduct != null && StringUtils.hasText(targetProduct.getName())) {
+                    residual = residual.replace(targetProduct.getName(), " ");
+                    for (String tok : targetProduct.getName().split("\\s+")) {
+                        if (tok.length() > 2) {
+                            residual = residual.replaceAll("(?i)\\b" + Pattern.quote(tok) + "\\b", " ");
+                        }
+                    }
+                }
+                if (StringUtils.hasText(info.getPhoneNumber())) {
+                    residual = residual.replace(info.getPhoneNumber(), " ");
+                }
+                if (StringUtils.hasText(info.getShippingAddress())) {
+                    residual = residual.replace(info.getShippingAddress(), " ");
+                }
+                residual = residual.replaceAll("(?i)\\b(nhận\\s+hàng\\s+tại|giao\\s+hàng\\s+tại|giao\\s+tại|giao\\s+đến|giao\\s+về|ship\\s+đến|ship\\s+về|địa\\s+chỉ|dia\\s+chi|đ\\/c|dc|nhận\\s+hàng|giao\\s+hàng|đặt\\s+hàng|đặt\\s+mua|mua\\s+hàng|mua\\s+hộ|đặt\\s+hộ|cho\\s+tôi|cho\\s+mình|cho\\s+em|lấy\\s+1|đặt\\s+1|mua\\s+1|shop\\s+ơi|em\\s+ơi|nhé|nha|với|tại|ở)\\b", " ");
+                residual = residual.replaceAll("[,;\\-\\:\\+\\(\\)]", " ").trim();
+                residual = residual.replaceAll("\\s+", " ");
+
+                if (isValidPersonName(residual)) {
+                    info.setReceiverName(capitalizeWords(residual));
+                    break;
+                }
+            }
+        }
+
+        return info;
     }
 
-    private String findAddressInText(String text) {
-        if (!StringUtils.hasText(text)) return null;
-        Pattern prefixPattern = Pattern.compile("(?:địa chỉ|dia chi|đ/c|dc|giao tại|giao den|ở|tai)[:\\s]+([^,\\n\\.;]+(?:,[^,\\n\\.;]+)*)", Pattern.CASE_INSENSITIVE);
-        Matcher m = prefixPattern.matcher(text);
+    private boolean isValidPersonName(String text) {
+        if (!StringUtils.hasText(text)) return false;
+        String trimmed = text.trim();
+        if (trimmed.length() < 2 || trimmed.length() > 35) return false;
+        if (!trimmed.matches("^[\\p{L}\\s]+$")) return false;
+        String[] words = trimmed.split("\\s+");
+        if (words.length < 1 || words.length > 5) return false;
+        String lower = trimmed.toLowerCase();
+        List<String> blacklisted = List.of(
+                "iphone", "macbook", "laptop", "sony", "samsung", "asus", "rog", "tai nghe", "dien thoai",
+                "nexor", "shop", "don hang", "dia chi", "so dien thoai", "sdt", "khach hang", "nhan hang",
+                "giao hang", "san pham", "dat mua", "gia", "tien", "freeship"
+        );
+        for (String b : blacklisted) {
+            if (lower.contains(b)) return false;
+        }
+        return true;
+    }
+
+    private String cleanAddressCandidate(String candAddr, String phone) {
+        if (!StringUtils.hasText(candAddr)) return "";
+        String clean = candAddr;
+        if (StringUtils.hasText(phone)) {
+            clean = clean.replace(phone, " ");
+        }
+        clean = clean.replaceAll("(?i)\\b(sđt|sdt|số\\s+điện\\s+thoại|người\\s+nhận|tên\\s+là|tên|họ\\s+tên)\\b.*$", " ");
+        clean = clean.replaceAll("^[,;:\\-\\s]+", "").replaceAll("[,;:\\-\\s]+$", "");
+        clean = clean.replaceAll("\\s+", " ").trim();
+        return clean;
+    }
+
+    private String extractAddressByClues(String rawText, String phone) {
+        if (!StringUtils.hasText(rawText)) return null;
+        String text = rawText;
+        if (StringUtils.hasText(phone)) {
+            text = text.replace(phone, " ");
+        }
+        Pattern cluePattern = Pattern.compile("(?i)\\b(số\\s+\\d+|ngõ\\s+\\d+|ngách\\s+\\d+|hẻm\\s+\\d+|đường\\s+[\\p{L}\\d\\s]+|phố\\s+[\\p{L}\\d\\s]+|phường\\s+[\\p{L}\\d\\s]+|quận\\s+[\\p{L}\\d\\s]+|huyện\\s+[\\p{L}\\d\\s]+|tỉnh\\s+[\\p{L}\\d\\s]+|thành\\s+phố\\s+[\\p{L}\\d\\s]+|tp\\.\\s*[\\p{L}\\d\\s]+)");
+        Matcher m = cluePattern.matcher(text);
         if (m.find()) {
-            String cand = m.group(1).trim();
-            if (cand.length() >= 5) return cand;
-        }
-
-        String[] parts = text.split("[,;\\n]");
-        for (String part : parts) {
-            String pTrim = part.trim();
-            if (hasAddressClues(pTrim) && pTrim.length() >= 8) {
-                return pTrim;
+            int start = m.start();
+            String candidate = text.substring(start).trim();
+            int endPunct = candidate.indexOf('\n');
+            if (endPunct > 0) {
+                candidate = candidate.substring(0, endPunct);
+            }
+            candidate = cleanAddressCandidate(candidate, phone);
+            if (candidate.length() >= 5) {
+                return candidate;
             }
         }
         return null;
     }
 
-    private String extractReceiverName(String message, List<ChatMessageDto> history) {
-        String name = findNameInText(message);
-        if (StringUtils.hasText(name)) return name;
-        if (history != null) {
-            for (int i = history.size() - 1; i >= 0; i--) {
-                ChatMessageDto dto = history.get(i);
-                if (dto != null && "user".equalsIgnoreCase(dto.getRole()) && StringUtils.hasText(dto.getContent())) {
-                    String hName = findNameInText(dto.getContent());
-                    if (StringUtils.hasText(hName)) return hName;
+    private String capitalizeWords(String text) {
+        if (!StringUtils.hasText(text)) return text;
+        String[] words = text.trim().split("\\s+");
+        StringBuilder sb = new StringBuilder();
+        for (String w : words) {
+            if (!w.isEmpty()) {
+                if (sb.length() > 0) sb.append(" ");
+                sb.append(Character.toUpperCase(w.charAt(0)));
+                if (w.length() > 1) {
+                    sb.append(w.substring(1).toLowerCase());
                 }
             }
         }
-        return null;
-    }
-
-    private String findNameInText(String text) {
-        if (!StringUtils.hasText(text)) return null;
-        Pattern namePattern = Pattern.compile("(?:tên|họ tên|người nhận|ten|ho ten)[:\\s]+([\\p{L}\\s]{2,40})", Pattern.CASE_INSENSITIVE);
-        Matcher m = namePattern.matcher(text);
-        if (m.find()) {
-            String name = m.group(1).trim();
-            if (name.length() >= 2 && !name.toLowerCase().contains("sđt") && !name.toLowerCase().contains("địa chỉ")) {
-                return name;
-            }
-        }
-        return null;
+        return sb.toString();
     }
 
     private String callGeminiApi(String prompt) {
