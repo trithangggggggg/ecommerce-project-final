@@ -244,7 +244,6 @@ const InteractiveMapPicker: React.FC<InteractiveMapPickerProps> = ({
           center={mapCenter}
           zoom={zoomLevel}
           scrollWheelZoom={true}
-          attributionControl={false}
           className="w-full h-full"
         >
           <TileLayer
