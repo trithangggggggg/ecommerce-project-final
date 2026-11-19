@@ -418,7 +418,26 @@ public class OrderServiceImpl implements OrderService {
     @Transactional(readOnly = true)
     public ApiResponse<List<OrderResponse>> getMyOrders() {
         User user = getCurrentAuthenticatedUser();
-        List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
+        List<Order> orders;
+        if (user.getRole() == Role.ADMIN) {
+            orders = orderRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
+        } else {
+            orders = orderRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
+            if (StringUtils.hasText(user.getPhoneNumber())) {
+                String cleanPhone = user.getPhoneNumber().replaceAll("[^0-9]", "");
+                List<Order> phoneOrders = orderRepository.findAll().stream()
+                        .filter(o -> StringUtils.hasText(o.getPhoneNumber())
+                                && cleanPhone.equals(o.getPhoneNumber().replaceAll("[^0-9]", ""))
+                                && (o.getUser() == null || !o.getUser().getId().equals(user.getId())))
+                        .toList();
+                if (!phoneOrders.isEmpty()) {
+                    List<Order> combined = new ArrayList<>(orders);
+                    combined.addAll(phoneOrders);
+                    combined.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+                    orders = combined;
+                }
+            }
+        }
         List<OrderResponse> responses = orders.stream()
                 .map(orderMapper::toResponse)
                 .toList();
@@ -433,7 +452,12 @@ public class OrderServiceImpl implements OrderService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Đơn hàng", "id", orderId));
 
-        if (!order.getUser().getId().equals(user.getId()) && user.getRole() != Role.ADMIN) {
+        boolean canView = (order.getUser() != null && order.getUser().getId().equals(user.getId()))
+                || user.getRole() == Role.ADMIN
+                || (StringUtils.hasText(user.getPhoneNumber()) && StringUtils.hasText(order.getPhoneNumber())
+                        && user.getPhoneNumber().replaceAll("[^0-9]", "").equals(order.getPhoneNumber().replaceAll("[^0-9]", "")));
+
+        if (!canView) {
             throw new ForbiddenException("Bạn không có quyền xem đơn hàng này");
         }
 

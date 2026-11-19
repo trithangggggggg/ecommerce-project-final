@@ -12,6 +12,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import ra.project.server.mapper.OrderMapper;
 import ra.project.server.mapper.ProductMapper;
 import ra.project.server.model.dto.request.AiChatRequest;
 import ra.project.server.model.dto.request.AiGenerateArticleRequest;
@@ -20,9 +23,12 @@ import ra.project.server.model.dto.request.ChatMessageDto;
 import ra.project.server.model.dto.response.AiChatResponse;
 import ra.project.server.model.dto.response.AiGenerateArticleResponse;
 import ra.project.server.model.dto.response.AiGenerateDescriptionResponse;
+import ra.project.server.model.dto.response.OrderResponse;
 import ra.project.server.model.dto.response.ProductResponse;
 import ra.project.server.model.dto.response.VisualSearchResponse;
+import ra.project.server.model.entity.Order;
 import ra.project.server.model.entity.Product;
+import ra.project.server.repository.OrderRepository;
 import ra.project.server.repository.ProductRepository;
 import ra.project.server.service.AiConfigService;
 import ra.project.server.service.AiService;
@@ -62,6 +68,12 @@ public class AiServiceImpl implements AiService {
 
     @Autowired(required = false)
     private ra.project.server.service.OrderService orderService;
+
+    @Autowired(required = false)
+    private OrderRepository orderRepository;
+
+    @Autowired(required = false)
+    private OrderMapper orderMapper;
 
     @Value("${gemini.api-key:${GEMINI_API_KEY:}}")
     private String geminiApiKey;
@@ -275,6 +287,56 @@ public class AiServiceImpl implements AiService {
                         .createdOrder(orderResult.getOrder())
                         .provider(
                                 orderResult.isSuccess() ? "NEXOR AI Assistant (Order Placement)" : "NEXOR AI Assistant")
+                        .build();
+            }
+        }
+
+        // 2.1. Kiểm tra ý định tra cứu / xem lại đơn hàng của khách hàng (AI Order Inquiry)
+        if (isOrderInquiryIntent(userMessage)) {
+            OrderResponse foundOrder = findOrderForInquiry(userMessage, request.getHistory());
+            if (foundOrder != null) {
+                Locale vn = Locale.forLanguageTag("vi-VN");
+                NumberFormat nf = NumberFormat.getInstance(vn);
+                String totalStr = foundOrder.getTotalAmount() != null ? nf.format(foundOrder.getTotalAmount()) + "đ"
+                        : "0đ";
+                String statusLabel = foundOrder.getStatus() != null ? foundOrder.getStatus().name() : "PENDING";
+                if ("PENDING".equalsIgnoreCase(statusLabel))
+                    statusLabel = "Chờ xử lý";
+                else if ("PROCESSING".equalsIgnoreCase(statusLabel))
+                    statusLabel = "Đang xử lý";
+                else if ("SHIPPING".equalsIgnoreCase(statusLabel))
+                    statusLabel = "Đang giao";
+                else if ("COMPLETED".equalsIgnoreCase(statusLabel))
+                    statusLabel = "Hoàn thành";
+                else if ("CANCELLED".equalsIgnoreCase(statusLabel))
+                    statusLabel = "Đã hủy";
+
+                String reply = String.format(
+                        "Dạ em gửi anh/chị thông tin đơn hàng **#%d** (Trạng thái: **%s**):\n" +
+                                "- **Người nhận**: %s (%s)\n" +
+                                "- **Địa chỉ giao**: %s\n" +
+                                "- **Tổng thanh toán**: %s\n\n" +
+                                "Anh/chị có thể nhấn nút **Xem chi tiết đơn** bên dưới để mở toàn bộ chi tiết đơn hàng hoặc vào **Lịch sử đơn hàng** nhé ạ! 😊",
+                        foundOrder.getId(), statusLabel,
+                        foundOrder.getReceiverName() != null ? foundOrder.getReceiverName() : "Khách hàng",
+                        foundOrder.getPhoneNumber() != null ? foundOrder.getPhoneNumber() : "",
+                        foundOrder.getShippingAddress() != null ? foundOrder.getShippingAddress() : "",
+                        totalStr);
+
+                return AiChatResponse.builder()
+                        .reply(reply)
+                        .createdOrder(foundOrder)
+                        .suggestedProducts(Collections.emptyList())
+                        .recommendedProducts(Collections.emptyList())
+                        .provider("NEXOR AI Assistant (Order Lookup)")
+                        .build();
+            } else {
+                return AiChatResponse.builder()
+                        .reply(
+                                "Dạ em chưa tìm thấy đơn hàng gần đây của anh/chị. Anh/chị vui lòng cung cấp thêm Mã đơn hàng (ví dụ: #1221) hoặc Số điện thoại đặt hàng để em tra cứu ngay nhé ạ!")
+                        .suggestedProducts(Collections.emptyList())
+                        .recommendedProducts(Collections.emptyList())
+                        .provider("NEXOR AI Assistant (Order Lookup)")
                         .build();
             }
         }
@@ -750,6 +812,113 @@ public class AiServiceImpl implements AiService {
                 || lower.contains("số ") || lower.contains("so ") || lower.contains("ngõ") || lower.contains("ngach")
                 || lower.contains("hẻm") || lower.contains("hem") || lower.contains("tòa")
                 || lower.contains("chung cư");
+    }
+
+    private boolean isOrderInquiryIntent(String message) {
+        if (!StringUtils.hasText(message))
+            return false;
+        String norm = normalizeText(message);
+        return norm.contains("xem don") || norm.contains("kiem tra don") || norm.contains("tra cuu don")
+                || norm.contains("don hang cua toi") || norm.contains("don cua toi") || norm.contains("lich su don")
+                || norm.contains("tinh trang don") || norm.contains("theo doi don") || norm.contains("xem lai don")
+                || norm.contains("don hang o dau") || norm.contains("don hang dau roi");
+    }
+
+    private OrderResponse findOrderForInquiry(String userMessage, List<ChatMessageDto> history) {
+        // 1. Kiểm tra mã đơn hàng trực tiếp trong userMessage (ví dụ: "#1221", "đơn 1221", "NXR-1221")
+        Matcher mId = Pattern.compile("(?i)(?:#nxr-|#|đơn\\s+số\\s+|đơn\\s+)(\\d+)").matcher(userMessage);
+        if (mId.find()) {
+            try {
+                Long orderId = Long.parseLong(mId.group(1));
+                if (orderRepository != null && orderMapper != null) {
+                    Optional<Order> orderOpt = orderRepository.findById(orderId);
+                    if (orderOpt.isPresent()) {
+                        return orderMapper.toResponse(orderOpt.get());
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        // 2. Tìm mã đơn hàng trong lịch sử chat gần nhất
+        if (history != null && !history.isEmpty()) {
+            for (int i = history.size() - 1; i >= 0; i--) {
+                ChatMessageDto msg = history.get(i);
+                if (msg != null && StringUtils.hasText(msg.getContent())) {
+                    Matcher mHist = Pattern.compile("(?i)(?:#nxr-|#|mã đơn hàng:?\\s*#?)(\\d+)")
+                            .matcher(msg.getContent());
+                    if (mHist.find()) {
+                        try {
+                            Long orderId = Long.parseLong(mHist.group(1));
+                            if (orderRepository != null && orderMapper != null) {
+                                Optional<Order> orderOpt = orderRepository.findById(orderId);
+                                if (orderOpt.isPresent()) {
+                                    return orderMapper.toResponse(orderOpt.get());
+                                }
+                            }
+                        } catch (Exception ignored) {
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Nếu người dùng đã đăng nhập, lấy đơn hàng gần nhất của họ
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+            try {
+                if (orderService != null) {
+                    var myOrders = orderService.getMyOrders();
+                    if (myOrders != null && myOrders.getData() != null && !myOrders.getData().isEmpty()) {
+                        return myOrders.getData().get(0);
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        // 4. Tìm kiếm theo SĐT xuất hiện trong tin nhắn hoặc lịch sử
+        String phone = null;
+        Matcher mPhone = ORDER_PHONE_PATTERN.matcher(userMessage);
+        if (mPhone.find()) {
+            phone = mPhone.group(0);
+        } else if (history != null) {
+            for (int i = history.size() - 1; i >= 0; i--) {
+                ChatMessageDto dto = history.get(i);
+                if (dto != null && StringUtils.hasText(dto.getContent())) {
+                    Matcher mp = ORDER_PHONE_PATTERN.matcher(dto.getContent());
+                    if (mp.find()) {
+                        phone = mp.group(0);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (StringUtils.hasText(phone) && orderRepository != null && orderMapper != null) {
+            String cleanPhone = phone.trim();
+            List<Order> matched = orderRepository.findAll().stream()
+                    .filter(o -> cleanPhone.equals(o.getPhoneNumber()))
+                    .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                    .toList();
+            if (!matched.isEmpty()) {
+                return orderMapper.toResponse(matched.get(0));
+            }
+        }
+
+        // 5. Fallback: Lấy đơn hàng mới nhất trên toàn hệ thống (dành cho demo / anonymous)
+        if (orderRepository != null && orderMapper != null) {
+            try {
+                List<Order> latest = orderRepository.findAll(org.springframework.data.domain.Sort.by(
+                        org.springframework.data.domain.Sort.Direction.DESC, "createdAt"));
+                if (!latest.isEmpty()) {
+                    return orderMapper.toResponse(latest.get(0));
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        return null;
     }
 
     @lombok.Getter
