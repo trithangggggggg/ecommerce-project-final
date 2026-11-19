@@ -119,6 +119,12 @@ export function AiChatbot() {
         }
       }
 
+      if (orderToAttach) {
+        try {
+          localStorage.setItem('nexor_ai_last_order', JSON.stringify(orderToAttach));
+        } catch {}
+      }
+
       const products = orderToAttach
         ? []
         : response.suggestedProducts || response.recommendedProducts;
@@ -442,6 +448,7 @@ export function AiChatbot() {
                         </button>
                         <Link
                           to="/my-orders"
+                          state={{ newOrderId: msg.createdOrder?.id }}
                           onClick={() => setIsOpen(false)}
                           className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 hover:underline"
                         >

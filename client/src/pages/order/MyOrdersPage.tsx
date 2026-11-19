@@ -92,17 +92,44 @@ export const MyOrdersPage: React.FC = () => {
     setError(null);
     try {
       const data = await orderService.getMyOrders();
-      const userOrders = Array.isArray(data)
-        ? data
-            .filter((o) => !o.userId || !user?.id || String(o.userId) === String(user.id))
-            .sort(
-              (a, b) =>
-                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-            )
-        : [];
+      let list = Array.isArray(data) ? [...data] : [];
+
+      // Kiểm tra đơn vừa đặt qua AI Chatbot được lưu ở localStorage
+      try {
+        const lastAiOrderRaw = localStorage.getItem('nexor_ai_last_order');
+        if (lastAiOrderRaw) {
+          const lastAiOrder = JSON.parse(lastAiOrderRaw);
+          if (lastAiOrder && lastAiOrder.id) {
+            const alreadyExists = list.some((o) => o.id === lastAiOrder.id);
+            if (!alreadyExists) {
+              list.unshift(lastAiOrder);
+            }
+          }
+        }
+      } catch {}
+
+      // Lọc danh sách: ADMIN xem được tất cả đơn; người dùng thường xem đơn của mình hoặc khớp SĐT / newOrderId
+      const userOrders = (user?.role === 'ADMIN'
+        ? list
+        : list.filter((o) => {
+            if (!user?.id || !o.userId) return true;
+            if (String(o.userId) === String(user.id)) return true;
+            if (user.phoneNumber && o.phoneNumber) {
+              const uPhone = user.phoneNumber.replace(/\D/g, '');
+              const oPhone = o.phoneNumber.replace(/\D/g, '');
+              if (uPhone && uPhone === oPhone) return true;
+            }
+            if (newOrderId && o.id === newOrderId) return true;
+            return false;
+          })
+      ).sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+
       setOrders(userOrders);
 
-      // Nếu có newOrderId từ trang Checkout, mở xem chi tiết đơn đó
+      // Nếu có newOrderId từ trang Checkout hoặc AI Chatbot, mở xem chi tiết đơn đó
       if (newOrderId) {
         const found = userOrders.find((o) => o.id === newOrderId);
         if (found) setSelectedOrder(found);
@@ -113,7 +140,7 @@ export const MyOrdersPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [newOrderId, user?.id]);
+  }, [newOrderId, user?.id, user?.role, user?.phoneNumber]);
 
   useEffect(() => {
     if (!isAuthenticated) {
