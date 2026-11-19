@@ -134,7 +134,6 @@ export const CheckoutPage: React.FC = () => {
 
   // Modal Chọn mã giảm giá (bảng hiển thị tất cả voucher có hiệu lực giống nhập kho)
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
-  const [selectedVoucherCode, setSelectedVoucherCode] = useState<string>('');
   const [voucherSearchQuery, setVoucherSearchQuery] = useState('');
   const [voucherTypeTab, setVoucherTypeTab] = useState<'ALL' | 'ORDER' | 'SHIPPING' | 'COMPENSATION'>('ALL');
 
@@ -364,15 +363,6 @@ export const CheckoutPage: React.FC = () => {
         if (Array.isArray(data)) setAvailablePromotions(data);
       })
       .catch(() => {});
-    if (appliedPromotion) {
-      setSelectedVoucherCode(appliedPromotion.code);
-    } else if (appliedShippingPromotion) {
-      setSelectedVoucherCode(appliedShippingPromotion.code);
-    } else if (couponInput.trim()) {
-      setSelectedVoucherCode(couponInput.trim());
-    } else {
-      setSelectedVoucherCode('');
-    }
     setVoucherSearchQuery('');
     setVoucherTypeTab('ALL');
     setIsVoucherModalOpen(true);
@@ -735,7 +725,7 @@ export const CheckoutPage: React.FC = () => {
     );
   }
 
-  // Phân loại mã giảm giá khả dụng: Mã freeship, Mã đền bù cá nhân, Mã công khai
+  // Phân loại mã giảm giá khả dụng: Mã freeship, Mã cá nhân (thưởng vòng quay/tri ân), Mã công khai
   const shippingVouchers = availablePromotions.filter(
     (p) =>
       p.type === 'SHIPPING' ||
@@ -1399,7 +1389,7 @@ export const CheckoutPage: React.FC = () => {
                                 </span>
                                 {appliedPromotion.code.toUpperCase().startsWith('DENBU') && (
                                   <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                                    Mã đền bù
+                                    Mã cá nhân
                                   </span>
                                 )}
                               </div>
@@ -1509,12 +1499,12 @@ export const CheckoutPage: React.FC = () => {
                       </p>
                     )}
 
-                    {/* 1. Mã đền bù cá nhân (nếu có) */}
+                    {/* 1. Mã ưu đãi cá nhân (nếu có) */}
                     {compensationVouchers.length > 0 && (
                       <div className="p-2.5 rounded-xl bg-amber-50/90 border border-amber-200/90 space-y-1.5 shadow-2xs">
                         <div className="flex items-center gap-1.5 text-amber-900 font-bold text-[11px]">
                           <Gift className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                          <span>Mã đền bù dành riêng cho bạn:</span>
+                          <span>Mã cá nhân dành riêng cho bạn:</span>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
                           {compensationVouchers.map((promo) => (
@@ -1523,7 +1513,7 @@ export const CheckoutPage: React.FC = () => {
                               type="button"
                               onClick={() => handleApplyCoupon(promo.code)}
                               className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 transition cursor-pointer shadow-2xs"
-                              title={promo.title || `Mã đền bù giảm ${promo.discount}`}
+                              title={promo.title || `Mã cá nhân giảm ${promo.discount}`}
                             >
                               <span className="font-mono">{promo.code}</span>
                               <span className="text-amber-400">|</span>
@@ -1749,7 +1739,7 @@ export const CheckoutPage: React.FC = () => {
                           : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
                       }`}
                     >
-                      Mã đền bù của bạn ({compensationVouchers.length})
+                      Mã cá nhân của bạn ({compensationVouchers.length})
                     </button>
                   )}
                 </div>
@@ -1757,11 +1747,10 @@ export const CheckoutPage: React.FC = () => {
 
               {/* BẢNG DANH SÁCH MÃ GIẢM GIÁ (GIỐNG BẢNG NHẬP KHO) */}
               <div className="flex-1 min-h-[180px] max-h-[400px] border border-slate-200 rounded-xl overflow-x-auto overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-2xs my-2">
-                <table className="w-full text-left text-xs border-collapse min-w-[760px]">
+                <table className="w-full text-left text-xs border-collapse min-w-[720px]">
                   <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200 text-slate-600 text-[11px] font-bold shadow-2xs">
                     <tr>
                       <th className="py-2.5 px-2 text-center w-10 bg-slate-50">STT</th>
-                      <th className="py-2.5 px-2 text-center w-12 bg-slate-50">Chọn</th>
                       <th className="py-2.5 px-3 min-w-[130px] bg-slate-50">Mã Voucher</th>
                       <th className="py-2.5 px-3 min-w-[210px] bg-slate-50">Tên chương trình & Mô tả</th>
                       <th className="py-2.5 px-3 min-w-[130px] bg-slate-50">Loại ưu đãi</th>
@@ -1774,7 +1763,7 @@ export const CheckoutPage: React.FC = () => {
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {filteredVouchers.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="py-10 text-center text-slate-400">
+                        <td colSpan={8} className="py-10 text-center text-slate-400">
                           <div className="flex flex-col items-center justify-center">
                             <Tag className="w-8 h-8 text-slate-300 stroke-[1.5] mb-2" />
                             <p className="text-xs font-semibold text-slate-600">
@@ -1797,32 +1786,19 @@ export const CheckoutPage: React.FC = () => {
                         const isApplied =
                           (appliedPromotion && appliedPromotion.code === promo.code) ||
                           (appliedShippingPromotion && appliedShippingPromotion.code === promo.code);
-                        const isSelected = selectedVoucherCode === promo.code;
                         const minReq = parseMinOrder(promo.minOrder);
                         const isEligible = checkoutTotalPrice >= minReq;
 
                         return (
                           <tr
                             key={promo.id || promo.code}
-                            onClick={() => setSelectedVoucherCode(promo.code)}
-                            className={`hover:bg-slate-50/70 transition cursor-pointer ${
-                              isSelected ? 'bg-blue-50/40' : ''
+                            className={`hover:bg-slate-50/70 transition ${
+                              isApplied ? 'bg-emerald-50/30' : ''
                             }`}
                           >
                             {/* STT */}
                             <td className="py-2.5 px-2 text-center font-bold text-slate-600">
                               {idx + 1}
-                            </td>
-
-                            {/* Chọn (Radio) */}
-                            <td className="py-2.5 px-2 text-center">
-                              <input
-                                type="radio"
-                                name="voucherRadio"
-                                checked={isSelected}
-                                onChange={() => setSelectedVoucherCode(promo.code)}
-                                className="w-3.5 h-3.5 text-blue-600 accent-blue-600 cursor-pointer"
-                              />
                             </td>
 
                             {/* Mã voucher */}
@@ -1852,7 +1828,7 @@ export const CheckoutPage: React.FC = () => {
                                 </span>
                               ) : isCompensation ? (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                                  <Gift className="w-2.5 h-2.5" /> Mã đền bù
+                                  <Gift className="w-2.5 h-2.5" /> Mã cá nhân
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
@@ -1893,7 +1869,6 @@ export const CheckoutPage: React.FC = () => {
                                 type="button"
                                 onClick={async (e) => {
                                   e.stopPropagation();
-                                  setSelectedVoucherCode(promo.code);
                                   await handleApplyCoupon(promo.code);
                                   setIsVoucherModalOpen(false);
                                 }}
@@ -1915,49 +1890,19 @@ export const CheckoutPage: React.FC = () => {
                 </table>
               </div>
 
-              {/* Footer Modal: Hiển thị mã đang chọn + Nút Áp dụng */}
+              {/* Footer Modal: Hướng dẫn + Nút Đóng */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2.5 border-t border-slate-100 shrink-0">
-                <div className="text-xs">
-                  {selectedVoucherCode ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-500 font-medium">Mã đã chọn:</span>
-                      <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                        {selectedVoucherCode}
-                      </span>
-                      {availablePromotions.find((p) => p.code === selectedVoucherCode) && (
-                        <span className="text-emerald-600 font-bold">
-                          (Giảm {availablePromotions.find((p) => p.code === selectedVoucherCode)?.discount})
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-slate-400 italic">
-                      * Nhấp vào một mã trong bảng để chọn, sau đó bấm "Áp dụng"
-                    </span>
-                  )}
+                <div className="text-xs text-slate-400 italic">
+                  * Bấm nút <span className="font-bold text-blue-600 not-italic">"Áp dụng"</span> tại mã bạn muốn dùng trong bảng
                 </div>
 
                 <div className="flex items-center justify-end gap-2.5">
                   <button
                     type="button"
                     onClick={() => setIsVoucherModalOpen(false)}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+                    className="px-5 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition cursor-pointer"
                   >
-                    Hủy
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (selectedVoucherCode) {
-                        await handleApplyCoupon(selectedVoucherCode);
-                        setIsVoucherModalOpen(false);
-                      }
-                    }}
-                    disabled={!selectedVoucherCode || isCheckingCoupon}
-                    className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl transition cursor-pointer shadow-xs flex items-center gap-1.5"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>{isCheckingCoupon ? 'Đang kiểm tra...' : 'Áp dụng'}</span>
+                    Đóng
                   </button>
                 </div>
               </div>
