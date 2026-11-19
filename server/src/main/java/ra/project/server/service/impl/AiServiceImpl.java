@@ -38,6 +38,7 @@ import ra.project.server.service.AiService;
 import ra.project.server.service.AiVisualSearchService;
 import ra.project.server.service.KnowledgeBaseService;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -77,6 +78,9 @@ public class AiServiceImpl implements AiService {
 
     @Autowired(required = false)
     private OrderMapper orderMapper;
+
+    @Autowired(required = false)
+    private ra.project.server.repository.UserRepository userRepository;
 
     @Autowired(required = false)
     private ra.project.server.config.SepayConfig sepayConfig;
@@ -313,7 +317,8 @@ public class AiServiceImpl implements AiService {
             }
         }
 
-        // 2.1. Kiểm tra ý định tra cứu / xem lại đơn hàng của khách hàng (AI Order Inquiry)
+        // 2.1. Kiểm tra ý định tra cứu / xem lại đơn hàng của khách hàng (AI Order
+        // Inquiry)
         if (isOrderInquiryIntent(userMessage)) {
             OrderResponse foundOrder = findOrderForInquiry(userMessage, request.getHistory());
             if (foundOrder != null) {
@@ -597,17 +602,21 @@ public class AiServiceImpl implements AiService {
             sb.append("\n");
         }
 
-        sb.append("\n=== NGUYÊN TẮC TƯ VẤN QUAN TRỌNG (BẮT BUỘC TUÂN THỦ) ===\n");
-        sb.append(
-                "1. TRẢ LỜI CỰC KỲ NGẮN GỌN (Tối đa 2 đến 3 câu). Tuyệt đối không giải thích dài dòng, không văn hoa sáo rỗng, đi thẳng vào trọng tâm câu hỏi.\n");
-        sb.append(
-                "2. HỎI ĐÚNG VẤN ĐỀ: Khi tư vấn, hỏi đúng 1 câu trực diện về ngân sách hoặc nhu cầu (học tập / đồ họa / gaming). Khi khách muốn mua/đặt hàng, hỏi gọn Họ tên, Số điện thoại và Địa chỉ giao hàng.\n");
-        sb.append(
-                "3. ĐẶT HÀNG HỘ KHÁCH: Khi khách muốn đặt mua hoặc cung cấp thông tin, xác nhận ngắn gọn sản phẩm và ghi nhận đơn hàng.\n");
-        sb.append(
-                "4. Chỉ gợi ý và tư vấn các sản phẩm CÓ TRONG DANH SÁCH TRÊN. Khi đề cập đến sản phẩm cụ thể, LUÔN ghi kèm mã [ID: <id>], Tên chính xác và Giá bán (ví dụ: '**MacBook Air M3 [ID: 4]** (Giá: 21.590.000đ)').\n");
-        sb.append(
-                "5. Nếu khách hàng hỏi sản phẩm mà shop hiện KHÔNG CÓ, thông báo ngắn gọn và gợi ý 1-2 mẫu tương đương đang có sẵn tại shop.\n\n");
+        sb.append("\n=== NGUYÊN TẮC TƯ VẤN & BÁN HÀNG CÔNG NGHỆ CHUYÊN NGHIỆP (BẮT BUỘC TUÂN THỦ) ===\n");
+        sb.append("1. PHONG THÁI CHUYÊN VIÊN TƯ VẤN CHỐT SALE:\n");
+        sb.append("   - Luôn xưng hô lịch thiệp: 'Dạ em chào anh/chị', 'Dạ NEXOR sẵn lòng hỗ trợ...'.\n");
+        sb.append("   - Trả lời súc tích, trực diện (2 đến 3 câu), làm nổi bật ưu điểm công nghệ (chip xử lý, màn hình, chống ồn, pin) và ưu đãi chính hãng (bảo hành 12-24 tháng 1 đổi 1 30 ngày, miễn phí giao toàn quốc).\n");
+        sb.append("   - Chủ động dẫn dắt và khơi gợi chốt đơn: Luôn có câu hỏi gợi mở hoặc đề xuất hỗ trợ lên đơn giữ máy giao tận nơi.\n");
+        sb.append("2. HỖ TRỢ ĐẶT HÀNG HỘ THÔNG MINH (MULTI-TURN STATE):\n");
+        sb.append("   - Khi khách muốn mua/lên đơn, hỏi thông tin nhận hàng (Họ tên, SĐT, Địa chỉ).\n");
+        sb.append("   - Nếu khách đã cung cấp SĐT mà chưa có Địa chỉ, ghi nhận SĐT và CHỈ hỏi thêm Địa chỉ. Tuyệt đối không hỏi lại thông tin đã có.\n");
+        sb.append("   - Nếu khách đã cung cấp Địa chỉ mà chưa có SĐT, ghi nhận Địa chỉ và CHỈ hỏi thêm SĐT.\n");
+        sb.append("   - Khi đã đủ thông tin, tóm tắt đơn hàng và hướng dẫn khách chọn phương thức thanh toán: 1️⃣ COD (khi nhận hàng) hoặc 2️⃣ VietQR (quét mã QR chuyển khoản).\n");
+        sb.append("3. TRA CỨU & HẬU MÃI TOÀN QUYỀN:\n");
+        sb.append("   - Khi khách hỏi xem đơn ('cho tôi xem đơn', 'đơn hàng của tôi'), tra cứu và trả về chi tiết đơn hàng lịch sự.\n");
+        sb.append("   - Hỗ trợ cập nhật địa chỉ hoặc hủy đơn nếu đơn hàng còn ở trạng thái chờ xử lý.\n");
+        sb.append("4. Chỉ gợi ý và tư vấn các sản phẩm CÓ TRONG DANH SÁCH TRÊN. Khi đề cập đến sản phẩm cụ thể, LUÔN ghi kèm mã [ID: <id>], Tên chính xác và Giá bán (ví dụ: '**MacBook Air M3 [ID: 4]** (Giá: 21.590.000đ)').\n");
+        sb.append("5. Nếu khách hàng hỏi sản phẩm mà shop hiện KHÔNG CÓ, thông báo lịch sự rằng NEXOR hiện chưa kinh doanh sản phẩm này và gợi ý 1-2 ngành hàng chính hiện có tại shop.\n\n");
 
         if (history != null && !history.isEmpty()) {
             sb.append("=== LỊCH SỬ HỘI THOẠI TRƯỚC ĐÓ ===\n");
@@ -807,7 +816,8 @@ public class AiServiceImpl implements AiService {
                 || norm.contains("mua em nay") || norm.contains("mua giup") || norm.contains("dat giup")
                 || norm.contains("mua gium") || norm.contains("dat gium") || norm.contains("mua luon")
                 || norm.contains("dat luon") || norm.contains("lay 1") || norm.contains("dat 1")
-                || norm.contains("mua 1") || norm.contains("len don") || norm.contains("nhan hang tai")) {
+                || norm.contains("mua 1") || norm.contains("len don") || norm.contains("nhan hang tai")
+                || norm.contains("giao ve") || norm.contains("giao den") || norm.contains("giao tai") || norm.contains("ship ve")) {
             return true;
         }
         // Bất kỳ tin nhắn nào chứa số điện thoại hoặc yêu cầu sửa thông tin nhận hàng đều biểu thị ý định cung cấp thông tin lên đơn
@@ -1156,6 +1166,7 @@ public class AiServiceImpl implements AiService {
                         || content.contains("thong tin nhan hang")
                         || content.contains("thong tin dat hang")
                         || content.contains("dia chi nhan hang")
+                        || content.contains("len don")
                         || content.contains("nguoi nhan:")
                         || content.contains("nguoi nhan")
                         || content.contains("ghi nhan thong tin")
@@ -1185,7 +1196,8 @@ public class AiServiceImpl implements AiService {
                 || lower.contains("hcm")
                 || lower.contains("hồ chí minh") || lower.contains("đà nẵng") || lower.contains("da nang")
                 || lower.contains("thanh hóa") || lower.contains("thanh hoa") || lower.contains("hải phòng")
-                || lower.contains("số nhà") || lower.contains("so nha") || lower.contains("nhà số") || lower.contains("nha so")
+                || lower.contains("số nhà") || lower.contains("so nha") || lower.contains("nhà số")
+                || lower.contains("nha so")
                 || lower.contains("số ") || lower.contains("so ") || lower.contains("ngõ") || lower.contains("ngach")
                 || lower.contains("hẻm") || lower.contains("hem") || lower.contains("tòa")
                 || lower.contains("chung cư");
@@ -1202,7 +1214,8 @@ public class AiServiceImpl implements AiService {
     }
 
     private OrderResponse findOrderForInquiry(String userMessage, List<ChatMessageDto> history) {
-        // 1. Kiểm tra mã đơn hàng trực tiếp trong userMessage (ví dụ: "#1221", "đơn 1221", "NXR-1221")
+        // 1. Kiểm tra mã đơn hàng trực tiếp trong userMessage (ví dụ: "#1221", "đơn
+        // 1221", "NXR-1221")
         Matcher mId = Pattern.compile("(?i)(?:#nxr-|#|đơn\\s+số\\s+|đơn\\s+)(\\d+)").matcher(userMessage);
         if (mId.find()) {
             try {
@@ -1283,7 +1296,8 @@ public class AiServiceImpl implements AiService {
             }
         }
 
-        // 5. Fallback: Lấy đơn hàng mới nhất trên toàn hệ thống (dành cho demo / anonymous)
+        // 5. Fallback: Lấy đơn hàng mới nhất trên toàn hệ thống (dành cho demo /
+        // anonymous)
         if (orderRepository != null && orderMapper != null) {
             try {
                 List<Order> latest = orderRepository.findAll(org.springframework.data.domain.Sort.by(
@@ -1307,11 +1321,50 @@ public class AiServiceImpl implements AiService {
         private String phoneNumber;
         private String shippingAddress;
         private String note;
+        private int quantity = 1;
+    }
+
+    private int extractQuantity(String userMessage, List<ChatMessageDto> history) {
+        List<String> texts = new ArrayList<>();
+        if (StringUtils.hasText(userMessage))
+            texts.add(userMessage);
+        if (history != null) {
+            for (int i = history.size() - 1; i >= 0; i--) {
+                ChatMessageDto dto = history.get(i);
+                if (dto != null && "user".equalsIgnoreCase(dto.getRole()) && StringUtils.hasText(dto.getContent())) {
+                    texts.add(dto.getContent());
+                }
+            }
+        }
+
+        Pattern qtyPattern = Pattern.compile(
+                "(?i)(?:số\\s+lượng|so\\s+luong|sl)\\s*[:\\-=]?\\s*(\\d+)|\\b(?:lấy|lay|đặt|dat|mua|cho\\s+tôi|cho\\s+anh|cho\\s+em)\\s+(\\d+)\\s*(?:cái|chiếc|con|que|máy|bộ|sp|hộp|cuộn)?|\\b(\\d+)\\s+(?:cái|chiếc|con|que|máy|bộ|sp|hộp|cuộn)\\b");
+        for (String t : texts) {
+            Matcher m = qtyPattern.matcher(t);
+            if (m.find()) {
+                String val = m.group(1);
+                if (!StringUtils.hasText(val))
+                    val = m.group(2);
+                if (!StringUtils.hasText(val))
+                    val = m.group(3);
+                if (StringUtils.hasText(val)) {
+                    try {
+                        int q = Integer.parseInt(val.trim());
+                        if (q > 0 && q <= 100) {
+                            return q;
+                        }
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+            }
+        }
+        return 1;
     }
 
     private OrderProcessResult tryProcessOrder(String userMessage, List<ChatMessageDto> history,
             List<Product> allProducts) {
-        // 1. Tìm sản phẩm mục tiêu (ưu tiên tìm trong tin nhắn hiện tại, sau đó tìm ngược về lịch sử)
+        // 1. Tìm sản phẩm mục tiêu (ưu tiên tìm trong tin nhắn hiện tại, sau đó tìm
+        // ngược về lịch sử)
         Product targetProduct = findTargetProductForOrder(userMessage, history, allProducts);
 
         // Nếu chưa xác định được sản phẩm
@@ -1327,21 +1380,49 @@ public class AiServiceImpl implements AiService {
         String receiverName = deliveryInfo.getReceiverName();
         String address = deliveryInfo.getShippingAddress();
         String note = deliveryInfo.getNote();
+        int quantity = deliveryInfo.getQuantity() > 0 ? deliveryInfo.getQuantity() : 1;
 
         Locale vn = Locale.forLanguageTag("vi-VN");
         NumberFormat nf = NumberFormat.getInstance(vn);
-        String priceStr = targetProduct.getPrice() != null ? nf.format(targetProduct.getPrice()) + "đ" : "";
+        BigDecimal unitPrice = targetProduct.getPrice() != null ? targetProduct.getPrice() : BigDecimal.ZERO;
+        BigDecimal calculatedTotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
+        String totalAmountStr = nf.format(calculatedTotal) + "đ";
 
-        // BƯỚC 1: Nếu thiếu số điện thoại hoặc địa chỉ nhận hàng -> Yêu cầu người dùng cung cấp thông tin
-        if (!StringUtils.hasText(phone) || !StringUtils.hasText(address)) {
-            String promptMsg = String.format(
-                    "Dạ em hỗ trợ lên đơn ngay cho **%s** (%s).\n" +
-                            "Anh/chị vui lòng cung cấp thông tin nhận hàng gồm:\n" +
-                            "- **Họ và tên người nhận**\n" +
-                            "- **Số điện thoại**\n" +
-                            "- **Địa chỉ nhận hàng**\n" +
-                            "- **Ghi chú giao hàng** (nếu có) nhé ạ!",
-                    targetProduct.getName(), priceStr);
+        // BƯỚC 1: Nếu thiếu số điện thoại hoặc địa chỉ nhận hàng -> Yêu cầu người dùng cung cấp thông tin (Targeted Prompting)
+        boolean hasPhone = StringUtils.hasText(phone);
+        boolean hasAddress = StringUtils.hasText(address);
+
+        if (!hasPhone || !hasAddress) {
+            String promptMsg;
+            if (hasPhone && !hasAddress) {
+                // Đã có SĐT, thiếu Địa chỉ -> Chỉ hỏi Địa chỉ cụ thể
+                String namePart = (StringUtils.hasText(receiverName) && !"Khách hàng NEXOR".equalsIgnoreCase(receiverName))
+                        ? " của **" + receiverName + "**"
+                        : "";
+                promptMsg = String.format(
+                        "Dạ em đã ghi nhận số điện thoại%s là **%s** rồi ạ! ✨\n\n" +
+                        "Để hoàn tất lên đơn cho **%s** (SL: %d - Tổng tiền: %s), anh/chị cho em xin thêm **Địa chỉ nhận hàng cụ thể** (Số nhà, tên đường hoặc tên tòa nhà/chung cư) nhé ạ!",
+                        namePart, phone, targetProduct.getName(), quantity, totalAmountStr);
+            } else if (!hasPhone && hasAddress) {
+                // Đã có Địa chỉ, thiếu SĐT -> Chỉ hỏi SĐT
+                String namePart = (StringUtils.hasText(receiverName) && !"Khách hàng NEXOR".equalsIgnoreCase(receiverName))
+                        ? " của **" + receiverName + "**"
+                        : "";
+                promptMsg = String.format(
+                        "Dạ em đã ghi nhận địa chỉ giao hàng%s tại **%s** rồi ạ! ✨\n\n" +
+                        "Anh/chị vui lòng cho em xin thêm **Số điện thoại nhận hàng** để bưu tá liên hệ giao **%s** (SL: %d) đúng hẹn nhé ạ!",
+                        namePart, address, targetProduct.getName(), quantity);
+            } else {
+                // Thiếu cả SĐT và Địa chỉ -> Yêu cầu cung cấp thông tin
+                promptMsg = String.format(
+                        "Dạ em hỗ trợ lên đơn ngay cho **%s** (SL: %d - %s) ạ! ✨\n\n" +
+                        "Anh/chị vui lòng cung cấp thông tin nhận hàng gồm:\n" +
+                        "- **Họ và tên người nhận**\n" +
+                        "- **Số điện thoại**\n" +
+                        "- **Địa chỉ nhận hàng**\n" +
+                        "- **Ghi chú giao hàng** (nếu có) nhé ạ!",
+                        targetProduct.getName(), quantity, totalAmountStr);
+            }
             return new OrderProcessResult(false, promptMsg, null, List.of(targetProduct));
         }
 
@@ -1357,25 +1438,26 @@ public class AiServiceImpl implements AiService {
         // BƯỚC 2: Kiểm tra phương thức thanh toán (COD hoặc VietQR Online)
         PaymentMethod paymentMethod = extractPaymentMethod(userMessage, history);
         if (paymentMethod == null) {
-            // Đã đủ thông tin giao hàng nhưng chưa rõ phương thức thanh toán -> Xác nhận thông tin và hỏi phương thức thanh toán
+            // Đã đủ thông tin giao hàng nhưng chưa rõ phương thức thanh toán -> Tóm tắt phiếu đặt hàng & hỏi phương thức thanh toán
             String noteDisplay = StringUtils.hasText(note) ? note : "Không có";
             boolean isEditMsg = isEditDeliveryInfoIntent(userMessage);
             String titleMsg = isEditMsg
-                    ? "Dạ em đã cập nhật lại thông tin nhận hàng của anh/chị:\n"
-                    : "Dạ em đã ghi nhận thông tin nhận hàng của anh/chị:\n";
+                    ? "Dạ em đã cập nhật lại thông tin nhận hàng của anh/chị như sau ạ:\n\n"
+                    : "Dạ em đã ghi nhận đầy đủ thông tin đặt hàng của anh/chị như sau ạ:\n\n";
 
             String askPaymentMsg = String.format(
                     titleMsg +
+                            "- **Sản phẩm:** %s (SL: %d)\n" +
+                            "- **Tổng thanh toán:** **%s** (Miễn phí vận chuyển toàn quốc)\n" +
                             "- **Người nhận:** %s (%s)\n" +
-                            "- **Địa chỉ:** %s\n" +
-                            "- **Ghi chú:** %s\n" +
-                            "- **Sản phẩm:** %s (%s)\n\n" +
-                            "Anh/chị vui lòng kiểm tra lại thông tin trên đã chính xác chưa nhé:\n" +
+                            "- **Địa chỉ giao:** %s\n" +
+                            "- **Ghi chú:** %s\n\n" +
+                            "Anh/chị vui lòng kiểm tra lại thông tin trên giúp em xem đã chính xác chưa nhé ạ!\n" +
                             "- Nếu cần chỉnh sửa gì (địa chỉ, SĐT, họ tên, ghi chú), anh/chị cứ nhắn em sửa ngay ạ.\n" +
                             "- Nếu thông tin đã chính xác, anh/chị vui lòng chọn **hình thức thanh toán** giúp em để hoàn tất đơn nhé:\n" +
                             "1️⃣ **Thanh toán khi nhận hàng (COD)**\n" +
                             "2️⃣ **Chuyển khoản VietQR Online (SePay)**",
-                    receiverName, phone, address, noteDisplay, targetProduct.getName(), priceStr);
+                    targetProduct.getName(), quantity, totalAmountStr, receiverName, phone, address, noteDisplay);
 
             return new OrderProcessResult(false, askPaymentMsg, null, List.of(targetProduct));
         }
@@ -1392,7 +1474,7 @@ public class AiServiceImpl implements AiService {
                     .note(finalNote)
                     .items(List.of(ra.project.server.model.dto.request.OrderItemRequest.builder()
                             .productId(targetProduct.getId())
-                            .quantity(1)
+                            .quantity(quantity)
                             .build()))
                     .build();
 
@@ -1403,14 +1485,15 @@ public class AiServiceImpl implements AiService {
 
             String totalStr = (orderData != null && orderData.getTotalAmount() != null)
                     ? nf.format(orderData.getTotalAmount()) + "đ"
-                    : (targetProduct.getPrice() != null ? nf.format(targetProduct.getPrice()) + "đ" : "");
+                    : totalAmountStr;
 
             Long orderId = orderData != null ? orderData.getId() : System.currentTimeMillis();
 
             if (paymentMethod == PaymentMethod.SEPAY) {
-                String paymentPrefix = (sepayConfig != null && StringUtils.hasText(sepayConfig.getEffectivePaymentPrefix()))
-                        ? sepayConfig.getEffectivePaymentPrefix()
-                        : "DH";
+                String paymentPrefix = (sepayConfig != null
+                        && StringUtils.hasText(sepayConfig.getEffectivePaymentPrefix()))
+                                ? sepayConfig.getEffectivePaymentPrefix()
+                                : "DH";
                 String paymentCode = paymentPrefix + orderId;
 
                 if (orderData != null) {
@@ -1447,7 +1530,7 @@ public class AiServiceImpl implements AiService {
 
                 String successOnlineMsg = String.format(
                         "🎉 **Tạo đơn hàng thành công! Mã đơn: #NXR-%d**\n" +
-                                "- **Sản phẩm**: %s (SL: 1)\n" +
+                                "- **Sản phẩm**: %s (SL: %d)\n" +
                                 "- **Người nhận**: %s (%s)\n" +
                                 "- **Địa chỉ giao**: %s\n" +
                                 (StringUtils.hasText(note) ? ("- **Ghi chú**: " + note + "\n") : "") +
@@ -1462,7 +1545,7 @@ public class AiServiceImpl implements AiService {
                                 "Anh/chị có thể quét mã VietQR hoặc bấm vào link bên dưới để thanh toán ngay nhé:\n" +
                                 "👉 [Bấm vào đây để mở trang quét mã QR thanh toán](/payment/qr/%d)\n\n" +
                                 "*(Hệ thống sẽ tự động xác nhận đơn ngay khi nhận được thanh toán!)*",
-                        orderId, targetProduct.getName(), receiverName, phone, address, totalStr,
+                        orderId, targetProduct.getName(), quantity, receiverName, phone, address, totalStr,
                         paymentCode, bankName, bankAccount, accountHolder, totalStr, orderId);
 
                 return new OrderProcessResult(true, successOnlineMsg, orderData, List.of(targetProduct));
@@ -1471,14 +1554,14 @@ public class AiServiceImpl implements AiService {
                 String successCodMsg = String.format(
                         "🎉 **Đặt hàng thành công!**\n" +
                                 "- **Mã đơn hàng**: #NXR-%d\n" +
-                                "- **Sản phẩm**: %s (SL: 1)\n" +
+                                "- **Sản phẩm**: %s (SL: %d)\n" +
                                 "- **Người nhận**: %s (%s)\n" +
                                 "- **Địa chỉ giao**: %s\n" +
                                 (StringUtils.hasText(note) ? ("- **Ghi chú**: " + note + "\n") : "") +
                                 "- **Hình thức thanh toán**: Thanh toán khi nhận hàng (COD)\n" +
                                 "- **Tổng thanh toán**: %s (Miễn phí giao hàng)\n\n" +
                                 "NEXOR sẽ liên hệ xác nhận và giao hàng sớm nhất cho anh/chị nhé ạ!",
-                        orderId, targetProduct.getName(), receiverName, phone, address, totalStr);
+                        orderId, targetProduct.getName(), quantity, receiverName, phone, address, totalStr);
 
                 return new OrderProcessResult(true, successCodMsg, orderData, List.of(targetProduct));
             }
@@ -1569,6 +1652,17 @@ public class AiServiceImpl implements AiService {
             if (normMsg.contains(pNorm)) {
                 return p;
             }
+            // Khớp theo token từ khóa người dùng (ví dụ: "chuột logitech" khớp "Chuột không dây Logitech MX Master 3S")
+            String[] userTokens = normMsg.split("\\s+");
+            int matches = 0;
+            for (String uTok : userTokens) {
+                if (uTok.length() > 2 && pNorm.contains(uTok)) {
+                    matches++;
+                }
+            }
+            if (matches >= 2) {
+                return p;
+            }
         }
 
         // 3. Tìm kiếm theo từ khóa nhận diện cao trong tin nhắn hiện tại
@@ -1608,6 +1702,16 @@ public class AiServiceImpl implements AiService {
                         if (hNorm.contains(pNorm)) {
                             return p;
                         }
+                        String[] userTokens = hNorm.split("\\s+");
+                        int matches = 0;
+                        for (String uTok : userTokens) {
+                            if (uTok.length() > 2 && pNorm.contains(uTok)) {
+                                matches++;
+                            }
+                        }
+                        if (matches >= 2) {
+                            return p;
+                        }
                     }
                     List<Product> hRelevant = filterRelevantProducts(msg.getContent(), allProducts);
                     if (!hRelevant.isEmpty()) {
@@ -1635,6 +1739,7 @@ public class AiServiceImpl implements AiService {
     private DeliveryCustomerInfo extractDeliveryCustomerInfo(String userMessage, List<ChatMessageDto> history,
             Product targetProduct) {
         DeliveryCustomerInfo info = new DeliveryCustomerInfo();
+        info.setQuantity(extractQuantity(userMessage, history));
 
         List<String> userTexts = new ArrayList<>();
         if (StringUtils.hasText(userMessage)) {
@@ -1723,7 +1828,8 @@ public class AiServiceImpl implements AiService {
             }
         }
 
-        // 1.1. Khai thác trục mốc SĐT (Phone-pivot) để nhận diện địa chỉ và họ tên trong cùng tin nhắn
+        // 1.1. Khai thác trục mốc SĐT (Phone-pivot) để nhận diện địa chỉ và họ tên
+        // trong cùng tin nhắn
         if (phoneTextSource != null && StringUtils.hasText(info.getPhoneNumber())) {
             String workingText = phoneTextSource;
             if (StringUtils.hasText(info.getNote())) {
@@ -1748,7 +1854,7 @@ public class AiServiceImpl implements AiService {
                     if (!StringUtils.hasText(info.getReceiverName())) {
                         info.setReceiverName(capitalizeWords(cleanBefore));
                     }
-                    if (!StringUtils.hasText(info.getShippingAddress()) && cleanAfter.length() >= 2) {
+                    if (!StringUtils.hasText(info.getShippingAddress()) && (cleanAfter.length() >= 4 || hasAddressClues(cleanAfter))) {
                         info.setShippingAddress(cleanAfter);
                     }
                 }
@@ -1758,7 +1864,7 @@ public class AiServiceImpl implements AiService {
                         info.setReceiverName(capitalizeWords(cleanNameCandidate(afterPhone)));
                     }
                     String candBefore = cleanAddressCandidate(beforePhone, info.getPhoneNumber());
-                    if (!StringUtils.hasText(info.getShippingAddress()) && candBefore.length() >= 2) {
+                    if (!StringUtils.hasText(info.getShippingAddress()) && (candBefore.length() >= 4 || hasAddressClues(candBefore))) {
                         info.setShippingAddress(candBefore);
                     }
                 }
@@ -1769,7 +1875,7 @@ public class AiServiceImpl implements AiService {
                         if (!StringUtils.hasText(info.getReceiverName())) {
                             info.setReceiverName(capitalizeWords(strippedName));
                         }
-                        if (!StringUtils.hasText(info.getShippingAddress()) && cleanAfter.length() >= 2) {
+                        if (!StringUtils.hasText(info.getShippingAddress()) && (cleanAfter.length() >= 4 || hasAddressClues(cleanAfter))) {
                             info.setShippingAddress(cleanAfter);
                         }
                     } else {
@@ -1778,7 +1884,7 @@ public class AiServiceImpl implements AiService {
                                 info.setShippingAddress(cleanAfter);
                             } else if (hasAddressClues(beforePhone)) {
                                 info.setShippingAddress(cleanAddressCandidate(beforePhone, info.getPhoneNumber()));
-                            } else if (cleanAfter.length() >= 2) {
+                            } else if (cleanAfter.length() >= 5) {
                                 info.setShippingAddress(cleanAfter);
                             }
                         }
@@ -1819,6 +1925,13 @@ public class AiServiceImpl implements AiService {
                     candAddr = cleanAddressCandidate(candAddr, info.getPhoneNumber());
                     if (candAddr.length() >= 3) {
                         info.setShippingAddress(candAddr);
+                        if (!StringUtils.hasText(info.getReceiverName())) {
+                            String beforeAddr = rawText.substring(0, mAddr.start()).trim();
+                            String candName = cleanNameCandidate(beforeAddr);
+                            if (isValidPersonName(candName)) {
+                                info.setReceiverName(capitalizeWords(candName));
+                            }
+                        }
                     }
                 }
             }
@@ -1828,6 +1941,32 @@ public class AiServiceImpl implements AiService {
                 String candAddr = extractAddressByClues(rawText, info.getPhoneNumber());
                 if (StringUtils.hasText(candAddr)) {
                     info.setShippingAddress(candAddr);
+                    if (!StringUtils.hasText(info.getReceiverName())) {
+                        int idx = rawText.indexOf(candAddr);
+                        if (idx > 0) {
+                            String before = rawText.substring(0, idx).trim();
+                            before = before.replaceAll("(?i)\\b(ở|tai|tại|đến|ve|về)\\b\\s*$", "").trim();
+                            String candName = cleanNameCandidate(before);
+                            if (isValidPersonName(candName)) {
+                                info.setReceiverName(capitalizeWords(candName));
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2.4. Nếu một tin nhắn đứng độc lập chỉ gồm họ tên (ví dụ: "Nguyễn Tuấn Minh")
+            if (!StringUtils.hasText(info.getReceiverName())) {
+                String trimmedText = rawText.trim();
+                String normTrim = normalizeText(trimmedText);
+                boolean isActionIntent = normTrim.contains("dat") || normTrim.contains("mua")
+                        || normTrim.contains("lay") || normTrim.contains("order") || normTrim.contains("chot")
+                        || normTrim.contains("hang") || normTrim.contains("san pham");
+                if (!isActionIntent && !hasAddressClues(trimmedText) && !ORDER_PHONE_PATTERN.matcher(trimmedText).find()) {
+                    String candName = cleanNameCandidate(trimmedText);
+                    if (isValidPersonName(candName)) {
+                        info.setReceiverName(capitalizeWords(candName));
+                    }
                 }
             }
         }
@@ -1863,7 +2002,8 @@ public class AiServiceImpl implements AiService {
         if (history != null && (!StringUtils.hasText(info.getPhoneNumber()) || !StringUtils.hasText(info.getShippingAddress()) || !StringUtils.hasText(info.getReceiverName()))) {
             for (int i = history.size() - 1; i >= 0; i--) {
                 ChatMessageDto dto = history.get(i);
-                if (dto != null && "assistant".equalsIgnoreCase(dto.getRole()) && StringUtils.hasText(dto.getContent())) {
+                if (dto != null && "assistant".equalsIgnoreCase(dto.getRole())
+                        && StringUtils.hasText(dto.getContent())) {
                     String c = dto.getContent();
                     if (c.contains("Người nhận:") || c.contains("Địa chỉ:")) {
                         Matcher mRec = Pattern.compile("(?i)Người nhận:?\\s*\\*?\\*?([^\\(\\n\\*]+)").matcher(c);
@@ -1881,13 +2021,34 @@ public class AiServiceImpl implements AiService {
                         Matcher mNot = Pattern.compile("(?i)Ghi chú:?\\s*\\*?\\*?([^\\n\\*]+)").matcher(c);
                         if (!StringUtils.hasText(info.getNote()) && mNot.find()) {
                             String n = mNot.group(1).trim();
-                            if (!"Không có".equalsIgnoreCase(n) && !"Đơn hàng đặt tự động qua NEXOR AI Assistant".equalsIgnoreCase(n)) {
+                            if (!"Không có".equalsIgnoreCase(n)
+                                    && !"Đơn hàng đặt tự động qua NEXOR AI Assistant".equalsIgnoreCase(n)) {
                                 info.setNote(n);
                             }
                         }
                         break;
                     }
                 }
+            }
+        }
+
+        // 5. Khai thác hồ sơ người dùng đã đăng nhập (Logged-in User Intelligence)
+        if (!StringUtils.hasText(info.getPhoneNumber()) || !StringUtils.hasText(info.getShippingAddress())
+                || !StringUtils.hasText(info.getReceiverName())) {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())
+                    && userRepository != null) {
+                userRepository.findByUsername(auth.getName()).ifPresent(u -> {
+                    if (!StringUtils.hasText(info.getReceiverName()) && StringUtils.hasText(u.getFullName())) {
+                        info.setReceiverName(u.getFullName().trim());
+                    }
+                    if (!StringUtils.hasText(info.getPhoneNumber()) && StringUtils.hasText(u.getPhoneNumber())) {
+                        info.setPhoneNumber(u.getPhoneNumber().trim());
+                    }
+                    if (!StringUtils.hasText(info.getShippingAddress()) && StringUtils.hasText(u.getAddress())) {
+                        info.setShippingAddress(u.getAddress().trim());
+                    }
+                });
             }
         }
 
@@ -1932,7 +2093,8 @@ public class AiServiceImpl implements AiService {
                 "nexor", "shop", "don hang", "dia chi", "so dien thoai", "sdt", "khach hang", "nhan hang",
                 "giao hang", "san pham", "dat mua", "gia", "tien", "freeship", "thanh toan", "online", "cod",
                 "landmark", "hpc", "keangnam", "toa nha", "chung cu", "duong", "pho", "ngo", "ngach", "hem",
-                "quan", "huyen", "thanh pho", "tinh", "phuong", "xa");
+                "quan", "huyen", "thanh pho", "tinh", "phuong", "xa", "chuot", "logitech", "ban phim", "phu kien",
+                "que choc sim", "sim");
         for (String b : blacklisted) {
             if (lower.contains(b))
                 return false;
@@ -1954,7 +2116,10 @@ public class AiServiceImpl implements AiService {
         clean = clean.replaceAll("(?i)\\b(sđt|sdt|số\\s+điện\\s+thoại|người\\s+nhận|tên\\s+là|tên|họ\\s+tên)\\b.*$",
                 " ");
         clean = clean.replaceAll("(?i)(?:ghi\\s+chú|note|lưu\\s+ý|dặn\\s+dò|lời\\s+nhắn)\\s*[:\\-]?\\s*.*$", " ");
-        clean = clean.replaceAll("(?i)\\b(thanh\\s+toán|chuyển\\s+khoản|online|vietqr|sepay|cod|tiền\\s+mặt)\\b.*$", " ");
+        clean = clean.replaceAll("(?i)\\b(thanh\\s+toán|chuyển\\s+khoản|online|vietqr|sepay|cod|tiền\\s+mặt)\\b.*$",
+                " ");
+        clean = clean.replaceAll("(?i)(?U)\\b(?:nhé|nha|với|ạ|a|ơi|em|shop|đi|hộ|giúp|nhé\\s+ạ|nha\\s+shop|ạ\\s+shop)\\s*$", " ");
+        clean = clean.replaceAll("(?i)(?U)^\\s*(?:nhé|nha|với|ạ|a|ơi|em|shop|đi|hộ|giúp)\\b", " ");
         clean = clean.replaceAll("^[,;:\\-\\s]+", "").replaceAll("[,;:\\-\\s]+$", "");
         clean = clean.replaceAll("\\s+", " ").trim();
         return clean;
