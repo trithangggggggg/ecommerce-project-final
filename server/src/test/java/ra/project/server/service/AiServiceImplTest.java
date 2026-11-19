@@ -23,6 +23,7 @@ import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -271,6 +272,53 @@ class AiServiceImplTest {
         assertEquals("0333743203", passedReq.getPhoneNumber(), "Số điện thoại phải chuẩn xác");
         assertEquals("số nhà 36 đường Thanh Hóa", passedReq.getShippingAddress(), "Địa chỉ phải trích xuất chính xác số nhà và tên đường");
         assertEquals(50L, passedReq.getItems().get(0).getProductId(), "Sản phẩm được đặt phải là Chuột Logitech MX Master 3S từ lịch sử");
+    }
+
+    @Test
+    @DisplayName("TC_AI_09: Khách hàng hỏi 'cho tôi xem đơn' -> Trả về thông tin đơn hàng và createdOrder")
+    void whenCustomerAsksToViewOrder_thenReturnsOrderCardAndDetails() {
+        OrderResponse mockOrderResponse = OrderResponse.builder()
+                .id(1224L)
+                .receiverName("Nguyễn Trí Thắng")
+                .phoneNumber("0333743203")
+                .shippingAddress("HPC Landmark")
+                .totalAmount(BigDecimal.valueOf(200000))
+                .status(ra.project.server.model.enums.OrderStatus.PENDING)
+                .build();
+
+        ra.project.server.model.entity.Order mockEntityOrder = ra.project.server.model.entity.Order.builder()
+                .id(1224L)
+                .receiverName("Nguyễn Trí Thắng")
+                .phoneNumber("0333743203")
+                .shippingAddress("HPC Landmark")
+                .totalAmount(BigDecimal.valueOf(200000))
+                .status(ra.project.server.model.enums.OrderStatus.PENDING)
+                .build();
+
+        ra.project.server.repository.OrderRepository mockOrderRepo = mock(ra.project.server.repository.OrderRepository.class);
+        ra.project.server.mapper.OrderMapper mockOrderMapper = mock(ra.project.server.mapper.OrderMapper.class);
+
+        org.springframework.test.util.ReflectionTestUtils.setField(aiService, "orderRepository", mockOrderRepo);
+        org.springframework.test.util.ReflectionTestUtils.setField(aiService, "orderMapper", mockOrderMapper);
+
+        when(mockOrderRepo.findById(1224L)).thenReturn(Optional.of(mockEntityOrder));
+        when(mockOrderMapper.toResponse(mockEntityOrder)).thenReturn(mockOrderResponse);
+
+        ra.project.server.model.dto.request.ChatMessageDto prevBotMsg = new ra.project.server.model.dto.request.ChatMessageDto();
+        prevBotMsg.setRole("assistant");
+        prevBotMsg.setContent("🎉 Đặt hàng thành công!\n- Mã đơn hàng: #NXR-1224\n- Sản phẩm: Que chọc sim (SL: 10)");
+
+        AiChatRequest request = AiChatRequest.builder()
+                .message("cho tôi xem đơn")
+                .history(List.of(prevBotMsg))
+                .build();
+
+        AiChatResponse response = aiService.chatWithCustomer(request);
+        assertNotNull(response);
+        assertNotNull(response.getCreatedOrder(), "Phải trả về thông tin đơn hàng để chatbot hiển thị Order Card");
+        assertEquals(1224L, response.getCreatedOrder().getId());
+        assertTrue(response.getSuggestedProducts().isEmpty(), "Không được hiển thị sản phẩm đề xuất bừa bãi khi khách đang xem đơn");
+        assertTrue(response.getReply().contains("1224"));
     }
 }
 

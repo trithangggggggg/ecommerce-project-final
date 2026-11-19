@@ -9,9 +9,11 @@ import {
   ArrowRight,
   CheckCircle2,
   AlertCircle,
+  Eye,
 } from 'lucide-react';
 import { aiService, type ChatMessage } from '../../../api/services/ai.service';
 import { formatPrice } from '../../../utils/format';
+import OrderDetailModal from '../../../pages/order/OrderDetailModal';
 
 const QUICK_PROMPTS = [
   '📦 Đặt hàng hộ tôi',
@@ -52,6 +54,7 @@ export function AiChatbot() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
+  const [viewingOrder, setViewingOrder] = useState<any | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -101,7 +104,24 @@ export function AiChatbot() {
       const history = messages.map((m) => ({ role: m.role, content: m.content }));
       const response = await aiService.chat(text, history);
 
-      const products = response.suggestedProducts || response.recommendedProducts;
+      let orderToAttach = response.createdOrder;
+      // Fallback: nếu câu hỏi là tra cứu/xem đơn nhưng backend chưa trả order,
+      // tìm đơn gần nhất trong phiên chat để hiển thị thẻ chi tiết
+      if (
+        !orderToAttach &&
+        /xem\s+đơn|kiem\s+tra\s+don|tra\s+cuu\s+don|don\s+hang|don\s+cua\s+toi/i.test(text)
+      ) {
+        for (let i = messages.length - 1; i >= 0; i--) {
+          if (messages[i].createdOrder) {
+            orderToAttach = messages[i].createdOrder;
+            break;
+          }
+        }
+      }
+
+      const products = orderToAttach
+        ? []
+        : response.suggestedProducts || response.recommendedProducts;
 
       const botMsg: ChatMessage = {
         id: `bot-${Date.now()}`,
@@ -109,7 +129,7 @@ export function AiChatbot() {
         content: response.reply,
         suggestedProducts: products,
         recommendedProducts: products,
-        createdOrder: response.createdOrder,
+        createdOrder: orderToAttach,
         timestamp: new Date(),
       };
 
@@ -387,7 +407,13 @@ export function AiChatbot() {
                           Đơn hàng #{msg.createdOrder.id}
                         </span>
                         <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-semibold">
-                          Chờ xác nhận (COD)
+                          {msg.createdOrder.status === 'COMPLETED'
+                            ? 'Hoàn thành'
+                            : msg.createdOrder.status === 'SHIPPING'
+                            ? 'Đang giao'
+                            : msg.createdOrder.status === 'CANCELLED'
+                            ? 'Đã hủy'
+                            : 'Chờ xác nhận (COD)'}
                         </span>
                       </div>
                       <div className="text-[11px] text-gray-700 space-y-0.5 mt-1.5 border-t border-emerald-100 pt-1.5">
@@ -405,14 +431,24 @@ export function AiChatbot() {
                           (Freeship)
                         </div>
                       </div>
-                      <Link
-                        to="/my-orders"
-                        onClick={() => setIsOpen(false)}
-                        className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 hover:underline"
-                      >
-                        <span>Xem chi tiết trong lịch sử đơn hàng</span>
-                        <ArrowRight size={12} />
-                      </Link>
+                      <div className="mt-2.5 pt-2 border-t border-emerald-200/60 flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setViewingOrder(msg.createdOrder)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition shadow-xs cursor-pointer active:scale-95"
+                        >
+                          <Eye size={12} />
+                          <span>Xem chi tiết đơn</span>
+                        </button>
+                        <Link
+                          to="/my-orders"
+                          onClick={() => setIsOpen(false)}
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 hover:underline"
+                        >
+                          <span>Lịch sử đơn hàng</span>
+                          <ArrowRight size={12} />
+                        </Link>
+                      </div>
                     </div>
                   )}
 
@@ -528,6 +564,15 @@ export function AiChatbot() {
           </form>
 
         </div>
+      )}
+
+      {/* Modal hiển thị chi tiết đơn hàng trực tiếp ngay trong Chatbot */}
+      {viewingOrder && (
+        <OrderDetailModal
+          isOpen={!!viewingOrder}
+          order={viewingOrder}
+          onClose={() => setViewingOrder(null)}
+        />
       )}
     </div>
   );
