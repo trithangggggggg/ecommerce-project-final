@@ -715,12 +715,31 @@ export const AdminOrdersPage: React.FC = () => {
 
         // Date filter
         if (dateFilter !== 'all') {
-          const orderDate = new Date(order.createdAt).getTime();
-          const now = Date.now();
-          const oneDay = 24 * 60 * 60 * 1000;
-          if (dateFilter === 'today' && now - orderDate > oneDay) return false;
-          if (dateFilter === '7days' && now - orderDate > 7 * oneDay) return false;
-          if (dateFilter === 'month' && now - orderDate > 30 * oneDay) return false;
+          const dateStr = String(order.createdAt || '');
+          const normalized = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
+          const orderDate = new Date(normalized);
+          if (!isNaN(orderDate.getTime())) {
+            const now = new Date();
+
+            if (dateFilter === 'today') {
+              // Cùng ngày, tháng, năm với hôm nay (theo lịch thực tế)
+              const isToday =
+                orderDate.getFullYear() === now.getFullYear() &&
+                orderDate.getMonth() === now.getMonth() &&
+                orderDate.getDate() === now.getDate();
+              if (!isToday) return false;
+            } else if (dateFilter === '7days') {
+              // Trong vòng 7 ngày gần nhất (tính từ 00:00:00 của 7 ngày trước)
+              const startOf7Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7, 0, 0, 0);
+              if (orderDate < startOf7Days) return false;
+            } else if (dateFilter === 'month') {
+              // Trong tháng hiện tại (tính từ ngày 1 đầu tháng)
+              const isCurrentMonth =
+                orderDate.getFullYear() === now.getFullYear() &&
+                orderDate.getMonth() === now.getMonth();
+              if (!isCurrentMonth) return false;
+            }
+          }
         }
 
         // Search Query

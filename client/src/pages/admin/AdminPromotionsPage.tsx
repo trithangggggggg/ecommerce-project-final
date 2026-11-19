@@ -1125,7 +1125,7 @@ export const AdminPromotionsPage: React.FC = () => {
                       {detailPromo.userId ? (
                         <>Chỉ định cho khách hàng: <strong className="font-mono text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">User ID #{detailPromo.userId}</strong></>
                       ) : (
-                        <>Mã đền bù / thưởng quay may mắn chỉ dành riêng cho tài khoản được cấp</>
+                        <>Mã cá nhân / thưởng quay may mắn chỉ dành riêng cho tài khoản được cấp</>
                       )}
                     </span>
                   </div>
