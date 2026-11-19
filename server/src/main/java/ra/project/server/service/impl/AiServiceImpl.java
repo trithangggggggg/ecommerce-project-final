@@ -26,6 +26,7 @@ import ra.project.server.model.dto.response.AiGenerateDescriptionResponse;
 import ra.project.server.model.dto.response.OrderResponse;
 import ra.project.server.model.dto.response.ProductResponse;
 import ra.project.server.model.dto.response.VisualSearchResponse;
+import ra.project.server.model.enums.OrderStatus;
 import ra.project.server.model.enums.PaymentMethod;
 import ra.project.server.model.enums.PaymentStatus;
 import ra.project.server.model.entity.Order;
@@ -276,6 +277,22 @@ public class AiServiceImpl implements AiService {
         List<Product> allProducts = productRepository.findAll().stream()
                 .filter(p -> p.getStatus() == null || !"INACTIVE".equalsIgnoreCase(p.getStatus()))
                 .collect(Collectors.toList());
+
+        // 1.1. Kiểm tra ý định chỉnh sửa thông tin hoặc hủy đơn hàng ĐÃ TẠO (Order Modification / Cancellation)
+        boolean hasExplicitOrderId = Pattern.compile("(?i)(?:#nxr-|#|đơn\\s+số\\s+|đơn\\s+)(\\d+)").matcher(userMessage).find();
+        if (orderRepository != null && isOrderModificationOrCancelIntent(userMessage)
+                && (hasExplicitOrderId || hasExistingOrderInHistory(request.getHistory()))) {
+            OrderProcessResult modResult = tryProcessOrderModification(userMessage, request.getHistory());
+            if (modResult != null) {
+                return AiChatResponse.builder()
+                        .reply(modResult.getMessage().trim())
+                        .createdOrder(modResult.getOrder())
+                        .suggestedProducts(Collections.emptyList())
+                        .recommendedProducts(Collections.emptyList())
+                        .provider("NEXOR AI Assistant (Order Management)")
+                        .build();
+            }
+        }
 
         // 2. Kiểm tra ý định đặt hàng tự động của khách hàng (AI Order Placement)
         if (orderService != null && isOrderIntent(userMessage, request.getHistory())) {
@@ -776,7 +793,7 @@ public class AiServiceImpl implements AiService {
     }
 
     private static final Pattern ORDER_PHONE_PATTERN = Pattern
-            .compile("(?:\\+?84|0)(?:3[2-9]|5[2689]|7[06-9]|8[1-9]|9[0-9])[0-9]{7}");
+            .compile("(?:\\+?84|0)[1-9](?:[0-9][\\s\\.\\-]?){8}");
 
     private boolean isOrderIntent(String message, List<ChatMessageDto> history) {
         if (!StringUtils.hasText(message))
@@ -793,13 +810,339 @@ public class AiServiceImpl implements AiService {
                 || norm.contains("mua 1") || norm.contains("len don") || norm.contains("nhan hang tai")) {
             return true;
         }
-        if (ORDER_PHONE_PATTERN.matcher(message).find() && hasAddressClues(message)) {
+        // Bất kỳ tin nhắn nào chứa số điện thoại hoặc yêu cầu sửa thông tin nhận hàng đều biểu thị ý định cung cấp thông tin lên đơn
+        if (ORDER_PHONE_PATTERN.matcher(message).find() || isEditDeliveryInfoIntent(message)) {
             return true;
         }
         if (isBotInOrderConversationFlow(history)) {
             return true;
         }
         return false;
+    }
+
+    private boolean hasExistingOrderInHistory(List<ChatMessageDto> history) {
+        if (history == null || history.isEmpty())
+            return false;
+        for (ChatMessageDto msg : history) {
+            if (msg != null && StringUtils.hasText(msg.getContent())) {
+                String c = msg.getContent();
+                if (c.contains("Đặt hàng thành công") || c.contains("Tạo đơn hàng thành công")
+                        || c.contains("Mã đơn hàng: #NXR-") || c.contains("Mã đơn: #NXR-")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isOrderModificationOrCancelIntent(String message) {
+        if (!StringUtils.hasText(message))
+            return false;
+        String norm = normalizeText(message);
+        boolean isCancel = norm.contains("huy don") || norm.contains("khong mua nua") || norm.contains("huy dat hang")
+                || norm.contains("cancel") || norm.contains("xoa don") || (norm.contains("huy") && norm.contains("don"));
+        boolean isEditAddr = norm.contains("dia chi") && (norm.contains("sua") || norm.contains("doi") || norm.contains("thay") || norm.contains("cap nhat"));
+        boolean isEditPhone = (norm.contains("sdt") || norm.contains("so dien thoai") || norm.contains("dien thoai"))
+                && (norm.contains("sua") || norm.contains("doi") || norm.contains("thay") || norm.contains("cap nhat"));
+        boolean isEditName = (norm.contains("ten") || norm.contains("nguoi nhan"))
+                && (norm.contains("sua") || norm.contains("doi") || norm.contains("thay") || norm.contains("cap nhat"));
+        boolean isEditNote = (norm.contains("ghi chu") || norm.contains("note"))
+                && (norm.contains("sua") || norm.contains("doi") || norm.contains("thay") || norm.contains("them") || norm.contains("cap nhat"));
+
+        return isCancel || isEditAddr || isEditPhone || isEditName || isEditNote;
+    }
+
+    private boolean isEditDeliveryInfoIntent(String userMessage) {
+        if (!StringUtils.hasText(userMessage))
+            return false;
+        String norm = normalizeText(userMessage);
+        boolean isEditAddr = norm.contains("dia chi") && (norm.contains("sua") || norm.contains("doi") || norm.contains("thay") || norm.contains("cap nhat"));
+        boolean isEditPhone = (norm.contains("sdt") || norm.contains("so dien thoai") || norm.contains("dien thoai"))
+                && (norm.contains("sua") || norm.contains("doi") || norm.contains("thay") || norm.contains("cap nhat"));
+        boolean isEditName = (norm.contains("ten") || norm.contains("nguoi nhan"))
+                && (norm.contains("sua") || norm.contains("doi") || norm.contains("thay") || norm.contains("cap nhat"));
+        boolean isEditNote = (norm.contains("ghi chu") || norm.contains("note"))
+                && (norm.contains("sua") || norm.contains("doi") || norm.contains("thay") || norm.contains("them") || norm.contains("cap nhat"));
+
+        return isEditAddr || isEditPhone || isEditName || isEditNote;
+    }
+
+    private OrderProcessResult tryProcessOrderModification(String userMessage, List<ChatMessageDto> history) {
+        String norm = normalizeText(userMessage);
+        Order targetOrder = findOrderEntityForModification(userMessage, history);
+        if (targetOrder == null) {
+            return new OrderProcessResult(false,
+                    "Dạ em chưa tìm thấy đơn hàng cần xử lý. Anh/chị vui lòng cho em xin Mã đơn hàng (ví dụ: #1221) hoặc Số điện thoại đặt hàng để em hỗ trợ ngay nhé ạ!",
+                    null, Collections.emptyList());
+        }
+
+        Long orderId = targetOrder.getId();
+
+        // 1. Xử lý Hủy đơn hàng
+        if (norm.contains("huy don") || norm.contains("khong mua nua") || norm.contains("huy dat hang")
+                || norm.contains("cancel") || norm.contains("xoa don") || (norm.contains("huy") && norm.contains("don"))) {
+            if (targetOrder.getStatus() == OrderStatus.CANCELLED) {
+                return new OrderProcessResult(false,
+                        String.format("Dạ đơn hàng **#NXR-%d** đã được hủy trước đó rồi ạ. Anh/chị có cần em hỗ trợ đặt lại sản phẩm nào khác không ạ? 😊", orderId),
+                        orderMapper != null ? orderMapper.toResponse(targetOrder) : null,
+                        Collections.emptyList());
+            }
+            if (targetOrder.getStatus() != OrderStatus.PENDING) {
+                String statusName = targetOrder.getStatus() != null ? targetOrder.getStatus().name() : "";
+                return new OrderProcessResult(false,
+                        String.format("Dạ đơn hàng **#NXR-%d** hiện đang ở trạng thái **%s**, đơn đã được bàn giao cho bộ phận kho/vận chuyển nên không thể hủy trực tiếp qua chat. Anh/chị vui lòng liên hệ hotline để được hỗ trợ khẩn cấp nhé ạ!", orderId, statusName),
+                        orderMapper != null ? orderMapper.toResponse(targetOrder) : null,
+                        Collections.emptyList());
+            }
+
+            targetOrder.setStatus(OrderStatus.CANCELLED);
+            if (orderRepository != null) {
+                orderRepository.save(targetOrder);
+            }
+
+            String cancelMsg = String.format(
+                    "✅ **Đã hủy thành công đơn hàng #NXR-%d theo yêu cầu của anh/chị!**\n\n" +
+                            "- **Người nhận**: %s (%s)\n" +
+                            "- **Địa chỉ giao**: %s\n" +
+                            "- **Trạng thái mới**: **Đã hủy** ❌\n\n" +
+                            "Đơn hàng đã được cập nhật hủy trên hệ thống. Nếu anh/chị đổi ý hoặc muốn tham khảo thêm sản phẩm khác, em luôn sẵn sàng hỗ trợ nhé ạ! 🙏",
+                    orderId,
+                    targetOrder.getReceiverName() != null ? targetOrder.getReceiverName() : "Quý khách",
+                    targetOrder.getPhoneNumber() != null ? targetOrder.getPhoneNumber() : "",
+                    targetOrder.getShippingAddress() != null ? targetOrder.getShippingAddress() : "");
+
+            return new OrderProcessResult(true, cancelMsg, orderMapper != null ? orderMapper.toResponse(targetOrder) : null, Collections.emptyList());
+        }
+
+        // 2. Xử lý Sửa địa chỉ giao hàng
+        if (norm.contains("dia chi") && (norm.contains("sua") || norm.contains("doi") || norm.contains("thay") || norm.contains("cap nhat"))) {
+            if (targetOrder.getStatus() != OrderStatus.PENDING) {
+                return new OrderProcessResult(false,
+                        String.format("Dạ đơn hàng **#NXR-%d** hiện đang ở trạng thái **%s**, không thể thay đổi địa chỉ lúc này ạ.", orderId, targetOrder.getStatus()),
+                        orderMapper != null ? orderMapper.toResponse(targetOrder) : null, Collections.emptyList());
+            }
+
+            String newAddr = extractNewAddressFromMessage(userMessage);
+            if (!StringUtils.hasText(newAddr) || newAddr.length() < 3) {
+                return new OrderProcessResult(false,
+                        String.format("Dạ anh/chị muốn đổi địa chỉ đơn **#NXR-%d** sang địa chỉ cụ thể nào ạ? (Ví dụ: 'đổi địa chỉ sang 36 đường Thanh Hóa')", orderId),
+                        orderMapper != null ? orderMapper.toResponse(targetOrder) : null, Collections.emptyList());
+            }
+
+            targetOrder.setShippingAddress(newAddr);
+            if (orderRepository != null) {
+                orderRepository.save(targetOrder);
+            }
+
+            String updateMsg = String.format(
+                    "✅ **Đã cập nhật địa chỉ giao hàng cho đơn #NXR-%d thành công!**\n\n" +
+                            "- **Địa chỉ mới**: 📍 **%s**\n" +
+                            "- **Người nhận**: %s (%s)\n" +
+                            "- **Trạng thái**: Chờ xử lý\n\n" +
+                            "NEXOR sẽ giao hàng theo đúng địa chỉ mới này cho anh/chị nhé ạ! 😊",
+                    orderId, newAddr,
+                    targetOrder.getReceiverName() != null ? targetOrder.getReceiverName() : "Quý khách",
+                    targetOrder.getPhoneNumber() != null ? targetOrder.getPhoneNumber() : "");
+
+            return new OrderProcessResult(true, updateMsg, orderMapper != null ? orderMapper.toResponse(targetOrder) : null, Collections.emptyList());
+        }
+
+        // 3. Xử lý Sửa số điện thoại
+        if ((norm.contains("sdt") || norm.contains("so dien thoai") || norm.contains("dien thoai"))
+                && (norm.contains("sua") || norm.contains("doi") || norm.contains("thay") || norm.contains("cap nhat"))) {
+            Matcher mPhone = ORDER_PHONE_PATTERN.matcher(userMessage);
+            if (mPhone.find()) {
+                String newPhone = mPhone.group(0).replaceAll("[\\s\\.\\-]", "");
+                targetOrder.setPhoneNumber(newPhone);
+                if (orderRepository != null) {
+                    orderRepository.save(targetOrder);
+                }
+                String updatePhoneMsg = String.format(
+                        "✅ **Đã cập nhật số điện thoại cho đơn #NXR-%d thành công!**\n\n" +
+                                "- **Số điện thoại mới**: 📞 **%s**\n" +
+                                "- **Người nhận**: %s\n" +
+                                "- **Địa chỉ giao**: %s\n\n" +
+                                "Shipper sẽ liên hệ theo số điện thoại mới này khi giao hàng ạ!",
+                        orderId, newPhone,
+                        targetOrder.getReceiverName() != null ? targetOrder.getReceiverName() : "Quý khách",
+                        targetOrder.getShippingAddress() != null ? targetOrder.getShippingAddress() : "");
+                return new OrderProcessResult(true, updatePhoneMsg, orderMapper != null ? orderMapper.toResponse(targetOrder) : null, Collections.emptyList());
+            } else {
+                return new OrderProcessResult(false,
+                        String.format("Dạ anh/chị vui lòng cung cấp số điện thoại mới (10 số) để em cập nhật cho đơn **#NXR-%d** nhé ạ!", orderId),
+                        orderMapper != null ? orderMapper.toResponse(targetOrder) : null, Collections.emptyList());
+            }
+        }
+
+        // 4. Xử lý Sửa tên người nhận
+        if ((norm.contains("ten") || norm.contains("nguoi nhan"))
+                && (norm.contains("sua") || norm.contains("doi") || norm.contains("thay") || norm.contains("cap nhat"))) {
+            String newName = extractNewNameFromMessage(userMessage);
+            if (StringUtils.hasText(newName) && isValidPersonName(newName)) {
+                targetOrder.setReceiverName(capitalizeWords(newName));
+                if (orderRepository != null) {
+                    orderRepository.save(targetOrder);
+                }
+                String updateNameMsg = String.format(
+                        "✅ **Đã cập nhật tên người nhận cho đơn #NXR-%d thành công!**\n\n" +
+                                "- **Người nhận mới**: 👤 **%s**\n" +
+                                "- **Số điện thoại**: %s\n" +
+                                "- **Địa chỉ giao**: %s\n",
+                        orderId, capitalizeWords(newName),
+                        targetOrder.getPhoneNumber() != null ? targetOrder.getPhoneNumber() : "",
+                        targetOrder.getShippingAddress() != null ? targetOrder.getShippingAddress() : "");
+                return new OrderProcessResult(true, updateNameMsg, orderMapper != null ? orderMapper.toResponse(targetOrder) : null, Collections.emptyList());
+            }
+        }
+
+        // 5. Xử lý Sửa / thêm ghi chú
+        if ((norm.contains("ghi chu") || norm.contains("note"))
+                && (norm.contains("sua") || norm.contains("doi") || norm.contains("thay") || norm.contains("them") || norm.contains("cap nhat"))) {
+            String newNote = extractNewNoteFromMessage(userMessage);
+            if (StringUtils.hasText(newNote)) {
+                targetOrder.setNote(newNote);
+                if (orderRepository != null) {
+                    orderRepository.save(targetOrder);
+                }
+                String updateNoteMsg = String.format(
+                        "✅ **Đã cập nhật ghi chú cho đơn #NXR-%d thành công!**\n\n" +
+                                "- **Ghi chú mới**: 📝 **%s**\n" +
+                                "- **Người nhận**: %s (%s)\n",
+                        orderId, newNote,
+                        targetOrder.getReceiverName() != null ? targetOrder.getReceiverName() : "Quý khách",
+                        targetOrder.getPhoneNumber() != null ? targetOrder.getPhoneNumber() : "");
+                return new OrderProcessResult(true, updateNoteMsg, orderMapper != null ? orderMapper.toResponse(targetOrder) : null, Collections.emptyList());
+            }
+        }
+
+        return null;
+    }
+
+    private Order findOrderEntityForModification(String userMessage, List<ChatMessageDto> history) {
+        if (orderRepository == null)
+            return null;
+
+        // 1. Mã đơn trong userMessage
+        Matcher mId = Pattern.compile("(?i)(?:#nxr-|#|đơn\\s+số\\s+|đơn\\s+)(\\d+)").matcher(userMessage);
+        if (mId.find()) {
+            try {
+                Long orderId = Long.parseLong(mId.group(1));
+                Optional<Order> orderOpt = orderRepository.findById(orderId);
+                if (orderOpt.isPresent())
+                    return orderOpt.get();
+            } catch (Exception ignored) {
+            }
+        }
+
+        // 2. Tìm mã đơn gần nhất trong lịch sử chat
+        if (history != null && !history.isEmpty()) {
+            for (int i = history.size() - 1; i >= 0; i--) {
+                ChatMessageDto msg = history.get(i);
+                if (msg != null && StringUtils.hasText(msg.getContent())) {
+                    Matcher mHist = Pattern.compile("(?i)(?:#nxr-|#|mã đơn hàng:?\\s*#?)(\\d+)")
+                            .matcher(msg.getContent());
+                    if (mHist.find()) {
+                        try {
+                            Long orderId = Long.parseLong(mHist.group(1));
+                            Optional<Order> orderOpt = orderRepository.findById(orderId);
+                            if (orderOpt.isPresent())
+                                return orderOpt.get();
+                        } catch (Exception ignored) {
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Tìm theo SĐT trong tin nhắn hoặc lịch sử
+        String phone = null;
+        Matcher mPhone = ORDER_PHONE_PATTERN.matcher(userMessage);
+        if (mPhone.find()) {
+            phone = mPhone.group(0).replaceAll("[\\s\\.\\-]", "");
+        } else if (history != null) {
+            for (int i = history.size() - 1; i >= 0; i--) {
+                ChatMessageDto dto = history.get(i);
+                if (dto != null && StringUtils.hasText(dto.getContent())) {
+                    Matcher mp = ORDER_PHONE_PATTERN.matcher(dto.getContent());
+                    if (mp.find()) {
+                        phone = mp.group(0).replaceAll("[\\s\\.\\-]", "");
+                        break;
+                    }
+                }
+            }
+        }
+        if (StringUtils.hasText(phone)) {
+            String finalPhone = phone;
+            List<Order> matched = orderRepository.findAll().stream()
+                    .filter(o -> finalPhone.equals(o.getPhoneNumber()))
+                    .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                    .toList();
+            if (!matched.isEmpty())
+                return matched.get(0);
+        }
+
+        // 4. Nếu đăng nhập, tìm đơn gần nhất của tài khoản
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+            try {
+                if (orderService != null) {
+                    var myOrders = orderService.getMyOrders();
+                    if (myOrders != null && myOrders.getData() != null && !myOrders.getData().isEmpty()) {
+                        Long myOrderId = myOrders.getData().get(0).getId();
+                        return orderRepository.findById(myOrderId).orElse(null);
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        // 5. Fallback đơn mới nhất hệ thống
+        try {
+            List<Order> latest = orderRepository.findAll(org.springframework.data.domain.Sort.by(
+                    org.springframework.data.domain.Sort.Direction.DESC, "createdAt"));
+            if (!latest.isEmpty())
+                return latest.get(0);
+        } catch (Exception ignored) {
+        }
+
+        return null;
+    }
+
+    private String extractNewAddressFromMessage(String message) {
+        if (!StringUtils.hasText(message))
+            return "";
+        String cand = message.replaceAll("(?i)(?:#nxr-|#|đơn\\s+số\\s+|đơn\\s+)\\d+", " ");
+        cand = cand.replaceAll(
+                "(?i)(?U)^.*?(?:sửa\\s+lại\\s+địa\\s+chỉ|sửa\\s+địa\\s+chỉ|đổi\\s+lại\\s+địa\\s+chỉ|đổi\\s+địa\\s+chỉ|thay\\s+địa\\s+chỉ|cập\\s+nhật\\s+địa\\s+chỉ|địa\\s+chỉ\\s+mới|sua\\s+lai\\s+dia\\s+chi|sua\\s+dia\\s+chi|doi\\s+lai\\s+dia\\s+chi|doi\\s+dia\\s+chi|thay\\s+dia\\s+chi|dia\\s+chi\\s+moi)(?:\\s+đơn\\s+vừa\\s+đặt|\\s+đơn\\s+vừa\\s+tạo|\\s+đơn\\s+hàng|\\s+don\\s+vua\\s+dat|\\s+don\\s+hang|\\s+thành|\\s+sang|\\s+về|\\s+thanh|\\s+sang|\\s+ve|\\s*:)?\\s*",
+                "");
+        cand = cand.replaceAll("(?i)(?U)\\b(nhé|nha|giúp|hộ|với|ạ|em|shop|nhe|giup|ho|voi|a)\\b.*$", "");
+        cand = cand.replaceAll("^[,;:\\-\\s]+", "").replaceAll("[,;:\\-\\s]+$", "");
+        return cand.trim();
+    }
+
+    private String extractNewNameFromMessage(String message) {
+        if (!StringUtils.hasText(message))
+            return "";
+        String cand = message.replaceAll(
+                "(?i)(?U)^.*?(?:sửa\\s+lại\\s+tên|sửa\\s+tên|đổi\\s+lại\\s+tên|đổi\\s+tên|thay\\s+tên|cập\\s+nhật\\s+tên|sua\\s+lai\\s+ten|sua\\s+ten|doi\\s+lai\\s+ten|doi\\s+ten|thay\\s+ten)(?:\\s+người\\s+nhận|\\s+nguoi\\s+nhan|\\s+thành|\\s+sang|\\s+thanh|\\s+sang|\\s*:)?\\s*",
+                "");
+        cand = cand.replaceAll("(?i)(?U)\\b(nhé|nha|giúp|hộ|với|ạ|em|shop|nhe|giup|ho|voi|a)\\b.*$", "");
+        cand = cand.replaceAll("^[,;:\\-\\s]+", "").replaceAll("[,;:\\-\\s]+$", "");
+        return cand.trim();
+    }
+
+    private String extractNewNoteFromMessage(String message) {
+        if (!StringUtils.hasText(message))
+            return "";
+        Matcher mQuote = Pattern.compile("[\"“'‘]([^\"”'’]{2,120})[\"”'’]").matcher(message);
+        if (mQuote.find())
+            return mQuote.group(1).trim();
+        String cand = message.replaceAll(
+                "(?i)(?U)^.*?(?:sửa\\s+ghi\\s+chú|đổi\\s+ghi\\s+chú|thêm\\s+ghi\\s+chú|ghi\\s+chú|sua\\s+ghi\\s+chu|doi\\s+ghi\\s+chu|them\\s+ghi\\s+chu|ghi\\s+chu)(?:\\s+là|\\s+thành|\\s+la|\\s+thanh|\\s*:)?\\s*",
+                "");
+        cand = cand.replaceAll("(?i)(?U)\\b(nhé|nha|giúp|hộ|với|ạ|em|shop|nhe|giup|ho|voi|a)\\b.*$", "");
+        cand = cand.replaceAll("^[,;:\\-\\s]+", "").replaceAll("[,;:\\-\\s]+$", "");
+        return cand.trim();
     }
 
     private boolean isBotInOrderConversationFlow(List<ChatMessageDto> history) {
@@ -811,7 +1154,12 @@ public class AiServiceImpl implements AiService {
                 String content = normalizeText(msg.getContent());
                 if (content.contains("ho ten, so dien thoai")
                         || content.contains("thong tin nhan hang")
+                        || content.contains("thong tin dat hang")
                         || content.contains("dia chi nhan hang")
+                        || content.contains("nguoi nhan:")
+                        || content.contains("nguoi nhan")
+                        || content.contains("ghi nhan thong tin")
+                        || content.contains("kiem tra lai thong tin")
                         || content.contains("hinh thuc thanh toan")
                         || content.contains("phuong thuc thanh toan")
                         || (content.contains("thanh toan khi nhan hang") && content.contains("vietqr"))) {
@@ -1011,13 +1359,20 @@ public class AiServiceImpl implements AiService {
         if (paymentMethod == null) {
             // Đã đủ thông tin giao hàng nhưng chưa rõ phương thức thanh toán -> Xác nhận thông tin và hỏi phương thức thanh toán
             String noteDisplay = StringUtils.hasText(note) ? note : "Không có";
+            boolean isEditMsg = isEditDeliveryInfoIntent(userMessage);
+            String titleMsg = isEditMsg
+                    ? "Dạ em đã cập nhật lại thông tin nhận hàng của anh/chị:\n"
+                    : "Dạ em đã ghi nhận thông tin nhận hàng của anh/chị:\n";
+
             String askPaymentMsg = String.format(
-                    "Dạ em đã ghi nhận thông tin nhận hàng của anh/chị:\n" +
+                    titleMsg +
                             "- **Người nhận:** %s (%s)\n" +
                             "- **Địa chỉ:** %s\n" +
                             "- **Ghi chú:** %s\n" +
                             "- **Sản phẩm:** %s (%s)\n\n" +
-                            "Anh/chị vui lòng chọn **hình thức thanh toán** giúp em nhé:\n" +
+                            "Anh/chị vui lòng kiểm tra lại thông tin trên đã chính xác chưa nhé:\n" +
+                            "- Nếu cần chỉnh sửa gì (địa chỉ, SĐT, họ tên, ghi chú), anh/chị cứ nhắn em sửa ngay ạ.\n" +
+                            "- Nếu thông tin đã chính xác, anh/chị vui lòng chọn **hình thức thanh toán** giúp em để hoàn tất đơn nhé:\n" +
                             "1️⃣ **Thanh toán khi nhận hàng (COD)**\n" +
                             "2️⃣ **Chuyển khoản VietQR Online (SePay)**",
                     receiverName, phone, address, noteDisplay, targetProduct.getName(), priceStr);
@@ -1165,6 +1520,12 @@ public class AiServiceImpl implements AiService {
                     || norm.equals("2") || norm.startsWith("2 ")) {
                 return PaymentMethod.SEPAY;
             }
+            if (norm.equals("ok") || norm.equals("ok em") || norm.equals("ok shop") || norm.equals("ok roi")
+                    || norm.contains("dung roi") || norm.contains("chinh xac") || norm.contains("xac nhan")
+                    || norm.contains("dat di") || norm.contains("len don di") || norm.contains("chot don di")
+                    || norm.contains("dong y")) {
+                return PaymentMethod.COD;
+            }
         }
 
         return null;
@@ -1288,18 +1649,61 @@ public class AiServiceImpl implements AiService {
             }
         }
 
-        // 0. Trích xuất Ghi chú giao hàng (nếu có)
-        Pattern notePattern = Pattern.compile(
-                "(?i)(?:ghi\\s+chú|note|lưu\\s+ý|dặn\\s+dò)\\s*[:\\-]?\\s*([^\\n;]+)");
+        // 0. Trích xuất Ghi chú giao hàng từ dấu ngoặc kép hoặc từ khóa
+        Pattern quotePattern = Pattern.compile("[\"“'‘]([^\"”'’]{2,120})[\"”'’]");
         for (String text : userTexts) {
-            Matcher mNote = notePattern.matcher(text);
-            if (mNote.find()) {
-                String candNote = mNote.group(1).trim();
-                candNote = candNote.replaceAll("(?i)\\b(thanh\\s+toán|online|chuyển\\s+khoản|cod)\\b.*$", "").trim();
-                candNote = candNote.replaceAll("^[,;:\\-\\s]+", "").replaceAll("[,;:\\-\\s]+$", "").trim();
-                if (StringUtils.hasText(candNote)) {
-                    info.setNote(candNote);
+            Matcher mQuote = quotePattern.matcher(text);
+            if (mQuote.find()) {
+                String cand = mQuote.group(1).trim();
+                if (StringUtils.hasText(cand) && cand.length() <= 80) {
+                    info.setNote(cand);
                     break;
+                }
+            }
+        }
+
+        Pattern noteKeywordPattern = Pattern.compile(
+                "(?i)(?:ghi\\s+chú|note|lưu\\s+ý|dặn\\s+dò|lời\\s+nhắn)\\s*[:\\-]?\\s*([^\\n;]+)");
+        if (!StringUtils.hasText(info.getNote())) {
+            for (String text : userTexts) {
+                Matcher mNote = noteKeywordPattern.matcher(text);
+                if (mNote.find()) {
+                    String candNote = mNote.group(1).trim();
+                    candNote = candNote.replaceAll("(?i)\\b(thanh\\s+toán|online|chuyển\\s+khoản|cod)\\b.*$", "").trim();
+                    candNote = candNote.replaceAll("^[,;:\\-\\s]+", "").replaceAll("[,;:\\-\\s]+$", "").trim();
+                    if (StringUtils.hasText(candNote)) {
+                        info.setNote(candNote);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 0.1. Kiểm tra nếu tin nhắn người dùng hiện tại là yêu cầu chỉnh sửa/cập nhật thông tin trong bước xác nhận
+        if (isEditDeliveryInfoIntent(userMessage)) {
+            String normUserMsg = normalizeText(userMessage);
+            if (normUserMsg.contains("dia chi")) {
+                String newAddr = extractNewAddressFromMessage(userMessage);
+                if (StringUtils.hasText(newAddr) && newAddr.length() >= 3) {
+                    info.setShippingAddress(newAddr);
+                }
+            }
+            if (normUserMsg.contains("sdt") || normUserMsg.contains("so dien thoai")) {
+                Matcher mPho = ORDER_PHONE_PATTERN.matcher(userMessage);
+                if (mPho.find()) {
+                    info.setPhoneNumber(mPho.group(0).replaceAll("[\\s\\.\\-]", ""));
+                }
+            }
+            if (normUserMsg.contains("ten")) {
+                String newName = extractNewNameFromMessage(userMessage);
+                if (StringUtils.hasText(newName) && isValidPersonName(newName)) {
+                    info.setReceiverName(capitalizeWords(newName));
+                }
+            }
+            if (normUserMsg.contains("ghi chu")) {
+                String newNote = extractNewNoteFromMessage(userMessage);
+                if (StringUtils.hasText(newNote)) {
+                    info.setNote(newNote);
                 }
             }
         }
@@ -1307,66 +1711,75 @@ public class AiServiceImpl implements AiService {
         // 1. Trích xuất Số điện thoại
         int phoneStartIdx = -1;
         String phoneTextSource = null;
-        for (String text : userTexts) {
-            Matcher m = ORDER_PHONE_PATTERN.matcher(text);
-            if (m.find()) {
-                info.setPhoneNumber(m.group(0).trim());
-                phoneStartIdx = m.start();
-                phoneTextSource = text;
-                break;
+        if (!StringUtils.hasText(info.getPhoneNumber())) {
+            for (String text : userTexts) {
+                Matcher m = ORDER_PHONE_PATTERN.matcher(text);
+                if (m.find()) {
+                    info.setPhoneNumber(m.group(0).replaceAll("[\\s\\.\\-]", ""));
+                    phoneStartIdx = m.start();
+                    phoneTextSource = text;
+                    break;
+                }
             }
         }
 
         // 1.1. Khai thác trục mốc SĐT (Phone-pivot) để nhận diện địa chỉ và họ tên trong cùng tin nhắn
         if (phoneTextSource != null && StringUtils.hasText(info.getPhoneNumber())) {
-            int phoneEndIdx = phoneStartIdx + info.getPhoneNumber().length();
-            String beforePhone = phoneTextSource.substring(0, phoneStartIdx).trim();
-            String afterPhone = phoneTextSource.substring(phoneEndIdx).trim();
-
-            // Nếu sau SĐT có manh mối địa chỉ (ví dụ: "0333743203 số nhà 36 đường Thanh Hóa")
-            if (!StringUtils.hasText(info.getShippingAddress()) && hasAddressClues(afterPhone)) {
-                String cand = cleanAddressCandidate(afterPhone, info.getPhoneNumber());
-                if (cand.length() >= 5) {
-                    info.setShippingAddress(cand);
-                }
+            String workingText = phoneTextSource;
+            if (StringUtils.hasText(info.getNote())) {
+                workingText = workingText.replace("\"" + info.getNote() + "\"", " ")
+                        .replace("“" + info.getNote() + "”", " ")
+                        .replace("'" + info.getNote() + "'", " ")
+                        .replace("‘" + info.getNote() + "’", " ");
+                workingText = workingText.replaceAll("(?i)(?:ghi\\s+chú|note|lưu\\s+ý|dặn\\s+dò|lời\\s+nhắn)\\s*[:\\-]?\\s*"
+                        + Pattern.quote(info.getNote()), " ");
             }
 
-            // Nếu trước SĐT có manh mối địa chỉ (ví dụ: "Giao số 36 đường Thanh Hóa 0333743203...")
-            if (!StringUtils.hasText(info.getShippingAddress()) && hasAddressClues(beforePhone)) {
-                String cand = cleanAddressCandidate(beforePhone, info.getPhoneNumber());
-                if (cand.length() >= 5) {
-                    info.setShippingAddress(cand);
-                }
-            }
+            Matcher mWork = ORDER_PHONE_PATTERN.matcher(workingText);
+            if (mWork.find()) {
+                String beforePhone = workingText.substring(0, mWork.start()).trim();
+                String afterPhone = workingText.substring(mWork.end()).trim();
 
-            // Nếu sau SĐT là địa chỉ, kiểm tra xem trước SĐT có phải họ tên không
-            if (hasAddressClues(afterPhone) || StringUtils.hasText(info.getShippingAddress())) {
-                String cleanBefore = beforePhone;
-                int lastSep = Math.max(cleanBefore.lastIndexOf(','),
-                        Math.max(cleanBefore.lastIndexOf(';'), cleanBefore.lastIndexOf('-')));
-                if (lastSep >= 0) {
-                    cleanBefore = cleanBefore.substring(lastSep + 1).trim();
-                }
-                cleanBefore = cleanBefore
-                        .replaceAll("(?i)(?U)\\b(tôi\\s+tên\\s+là|tên\\s+tôi\\s+là|tên\\s+em\\s+là|tôi\\s+tên|tên\\s+là|họ\\s+và\\s+tên|họ\\s+tên|người\\s+nhận\\s+là|người\\s+nhận|tên|đặt|mua|lấy|cho|hộ|giúp|tôi|em|anh|chị|1\\s+cái|1|shop|ơi|nhé|nha|với)\\b", " ")
-                        .replaceAll("[,;\\-\\:\\+\\(\\)]", " ")
-                        .replaceAll("\\s+", " ").trim();
+                String cleanBefore = cleanNameCandidate(beforePhone);
+                String cleanAfter = cleanAddressCandidate(afterPhone, info.getPhoneNumber());
+
+                // Trường hợp 1: Phía trước SĐT là Họ tên (Ví dụ: "Nguyễn Tuấn Minh 0333743208 HPC Landmark")
                 if (isValidPersonName(cleanBefore)) {
-                    info.setReceiverName(capitalizeWords(cleanBefore));
-                } else {
-                    String[] words = cleanBefore.split("\\s+");
-                    for (int wCount = 4; wCount >= 2; wCount--) {
-                        if (words.length >= wCount) {
-                            StringBuilder sbName = new StringBuilder();
-                            for (int k = words.length - wCount; k < words.length; k++) {
-                                if (sbName.length() > 0)
-                                    sbName.append(" ");
-                                sbName.append(words[k]);
-                            }
-                            String cand = sbName.toString();
-                            if (isValidPersonName(cand)) {
-                                info.setReceiverName(capitalizeWords(cand));
-                                break;
+                    if (!StringUtils.hasText(info.getReceiverName())) {
+                        info.setReceiverName(capitalizeWords(cleanBefore));
+                    }
+                    if (!StringUtils.hasText(info.getShippingAddress()) && cleanAfter.length() >= 2) {
+                        info.setShippingAddress(cleanAfter);
+                    }
+                }
+                // Trường hợp 2: Phía sau SĐT là Họ tên (Ví dụ: "HPC Landmark 0333743208 Nguyễn Tuấn Minh")
+                else if (isValidPersonName(cleanNameCandidate(afterPhone))) {
+                    if (!StringUtils.hasText(info.getReceiverName())) {
+                        info.setReceiverName(capitalizeWords(cleanNameCandidate(afterPhone)));
+                    }
+                    String candBefore = cleanAddressCandidate(beforePhone, info.getPhoneNumber());
+                    if (!StringUtils.hasText(info.getShippingAddress()) && candBefore.length() >= 2) {
+                        info.setShippingAddress(candBefore);
+                    }
+                }
+                // Trường hợp 3: Có tiền tố tên hoặc manh mối địa chỉ
+                else {
+                    String strippedName = stripNamePrefixes(beforePhone);
+                    if (isValidPersonName(strippedName)) {
+                        if (!StringUtils.hasText(info.getReceiverName())) {
+                            info.setReceiverName(capitalizeWords(strippedName));
+                        }
+                        if (!StringUtils.hasText(info.getShippingAddress()) && cleanAfter.length() >= 2) {
+                            info.setShippingAddress(cleanAfter);
+                        }
+                    } else {
+                        if (!StringUtils.hasText(info.getShippingAddress())) {
+                            if (hasAddressClues(afterPhone)) {
+                                info.setShippingAddress(cleanAfter);
+                            } else if (hasAddressClues(beforePhone)) {
+                                info.setShippingAddress(cleanAddressCandidate(beforePhone, info.getPhoneNumber()));
+                            } else if (cleanAfter.length() >= 2) {
+                                info.setShippingAddress(cleanAfter);
                             }
                         }
                     }
@@ -1374,7 +1787,7 @@ public class AiServiceImpl implements AiService {
             }
         }
 
-        // 2. Trích xuất Địa chỉ và Họ tên
+        // 2. Trích xuất Địa chỉ và Họ tên bổ sung từ các tin nhắn khác nếu còn thiếu
         for (String rawText : userTexts) {
             if (!StringUtils.hasText(rawText))
                 continue;
@@ -1404,7 +1817,7 @@ public class AiServiceImpl implements AiService {
                 if (mAddr.find()) {
                     String candAddr = mAddr.group(1).trim();
                     candAddr = cleanAddressCandidate(candAddr, info.getPhoneNumber());
-                    if (candAddr.length() >= 5 && hasAddressClues(candAddr)) {
+                    if (candAddr.length() >= 3) {
                         info.setShippingAddress(candAddr);
                     }
                 }
@@ -1422,20 +1835,12 @@ public class AiServiceImpl implements AiService {
         // 3. Phân tích ngữ cảnh tìm họ tên quanh Số điện thoại nếu chưa có
         if (!StringUtils.hasText(info.getReceiverName()) && phoneTextSource != null
                 && StringUtils.hasText(info.getPhoneNumber())) {
-            // Xét đoạn text ngay trước số điện thoại
             String beforePhone = phoneTextSource.substring(0, phoneStartIdx).trim();
-            int lastComma = Math.max(beforePhone.lastIndexOf(','),
-                    Math.max(beforePhone.lastIndexOf(';'), beforePhone.lastIndexOf('-')));
-            if (lastComma >= 0) {
-                beforePhone = beforePhone.substring(lastComma + 1).trim();
-            }
-            beforePhone = beforePhone
-                    .replaceAll("(?i)(?U)\\b(tôi\\s+tên\\s+là|tên\\s+tôi\\s+là|tên\\s+em\\s+là|tôi\\s+tên|tên\\s+là|họ\\s+và\\s+tên|họ\\s+tên|người\\s+nhận\\s+là|người\\s+nhận|tên|đặt|mua|lấy|cho|hộ|giúp|tôi|em|anh|chị|1 cái|1|shop|ơi|nhé|nha)\\b", " ")
-                    .trim();
-            if (isValidPersonName(beforePhone)) {
-                info.setReceiverName(capitalizeWords(beforePhone));
+            String cleanBefore = cleanNameCandidate(beforePhone);
+            if (isValidPersonName(cleanBefore)) {
+                info.setReceiverName(capitalizeWords(cleanBefore));
             } else {
-                String[] words = beforePhone.split("\\s+");
+                String[] words = cleanBefore.split("\\s+");
                 for (int wCount = 4; wCount >= 2; wCount--) {
                     if (words.length >= wCount) {
                         StringBuilder sbName = new StringBuilder();
@@ -1452,58 +1857,10 @@ public class AiServiceImpl implements AiService {
                     }
                 }
             }
-
-            // Nếu vẫn chưa có, xét đoạn text ngay sau số điện thoại trước địa chỉ
-            if (!StringUtils.hasText(info.getReceiverName())) {
-                int phoneEndIdx = phoneStartIdx + info.getPhoneNumber().length();
-                String afterPhone = phoneTextSource.substring(phoneEndIdx).trim();
-                if (StringUtils.hasText(info.getShippingAddress())) {
-                    afterPhone = afterPhone.replace(info.getShippingAddress(), " ");
-                }
-                afterPhone = afterPhone.replaceAll(
-                        "(?i)\\b(nhận\\s+hàng\\s+tại|giao\\s+hàng\\s+tại|giao\\s+tại|giao\\s+đến|giao\\s+về|ship\\s+đến|ship\\s+về|địa\\s+chỉ|dia\\s+chi|đ\\/c|dc|ở|tại)\\b",
-                        " ");
-                afterPhone = afterPhone.replaceAll("[,;\\-\\:\\+\\(\\)]", " ").trim();
-                afterPhone = afterPhone.replaceAll("\\s+", " ");
-                if (isValidPersonName(afterPhone)) {
-                    info.setReceiverName(capitalizeWords(afterPhone));
-                }
-            }
         }
 
-        // 4. Fallback phần còn lại sau khi bỏ product, phone, address
-        if (!StringUtils.hasText(info.getReceiverName())) {
-            for (String rawText : userTexts) {
-                String residual = rawText;
-                if (targetProduct != null && StringUtils.hasText(targetProduct.getName())) {
-                    residual = residual.replace(targetProduct.getName(), " ");
-                    for (String tok : targetProduct.getName().split("\\s+")) {
-                        if (tok.length() > 2) {
-                            residual = residual.replaceAll("(?i)\\b" + Pattern.quote(tok) + "\\b", " ");
-                        }
-                    }
-                }
-                if (StringUtils.hasText(info.getPhoneNumber())) {
-                    residual = residual.replace(info.getPhoneNumber(), " ");
-                }
-                if (StringUtils.hasText(info.getShippingAddress())) {
-                    residual = residual.replace(info.getShippingAddress(), " ");
-                }
-                residual = residual.replaceAll(
-                        "(?i)\\b(tôi\\s+tên\\s+là|tên\\s+tôi\\s+là|tên\\s+em\\s+là|tôi\\s+tên|tên\\s+là|họ\\s+và\\s+tên|họ\\s+tên|tên|nhận\\s+hàng\\s+tại|giao\\s+hàng\\s+tại|giao\\s+tại|giao\\s+đến|giao\\s+về|ship\\s+đến|ship\\s+về|địa\\s+chỉ|dia\\s+chi|đ\\/c|dc|nhận\\s+hàng|giao\\s+hàng|đặt\\s+hàng|đặt\\s+mua|mua\\s+hàng|mua\\s+hộ|đặt\\s+hộ|cho\\s+tôi|cho\\s+mình|cho\\s+em|lấy\\s+1|đặt\\s+1|mua\\s+1|shop\\s+ơi|em\\s+ơi|nhé|nha|với|tại|ở)\\b",
-                        " ");
-                residual = residual.replaceAll("[,;\\-\\:\\+\\(\\)]", " ").trim();
-                residual = residual.replaceAll("\\s+", " ");
-
-                if (isValidPersonName(residual)) {
-                    info.setReceiverName(capitalizeWords(residual));
-                    break;
-                }
-            }
-        }
-
-        // 5. Nếu trong các tin nhắn của người dùng chưa trích xuất đủ, tìm kiếm trong tin nhắn xác nhận trước đó của Trợ lý (Assistant)
-        if (history != null && (!StringUtils.hasText(info.getPhoneNumber()) || !StringUtils.hasText(info.getShippingAddress()))) {
+        // 4. Fallback tìm kiếm trong tin nhắn xác nhận trước đó của Trợ lý (Assistant)
+        if (history != null && (!StringUtils.hasText(info.getPhoneNumber()) || !StringUtils.hasText(info.getShippingAddress()) || !StringUtils.hasText(info.getReceiverName()))) {
             for (int i = history.size() - 1; i >= 0; i--) {
                 ChatMessageDto dto = history.get(i);
                 if (dto != null && "assistant".equalsIgnoreCase(dto.getRole()) && StringUtils.hasText(dto.getContent())) {
@@ -1517,7 +1874,7 @@ public class AiServiceImpl implements AiService {
                         if (!StringUtils.hasText(info.getPhoneNumber()) && mPho.find()) {
                             info.setPhoneNumber(mPho.group(0).replaceAll("[^0-9]", "").trim());
                         }
-                        Matcher mAdd = Pattern.compile("(?i)Địa chỉ:?\\s*\\*?\\*?([^\\n\\*]+)").matcher(c);
+                        Matcher mAdd = Pattern.compile("(?i)(?:Địa chỉ|Địa chỉ giao):?\\s*\\*?\\*?([^\\n\\*]+)").matcher(c);
                         if (!StringUtils.hasText(info.getShippingAddress()) && mAdd.find()) {
                             info.setShippingAddress(mAdd.group(1).trim());
                         }
@@ -1537,6 +1894,27 @@ public class AiServiceImpl implements AiService {
         return info;
     }
 
+    private String cleanNameCandidate(String text) {
+        if (!StringUtils.hasText(text))
+            return "";
+        String clean = text;
+        int lastSep = Math.max(clean.lastIndexOf(','),
+                Math.max(clean.lastIndexOf(';'), clean.lastIndexOf('-')));
+        if (lastSep >= 0) {
+            clean = clean.substring(lastSep + 1).trim();
+        }
+        return stripNamePrefixes(clean);
+    }
+
+    private String stripNamePrefixes(String text) {
+        if (!StringUtils.hasText(text))
+            return "";
+        return text
+                .replaceAll("(?i)(?U)\\b(tôi\\s+tên\\s+là|tên\\s+tôi\\s+là|tên\\s+em\\s+là|tôi\\s+tên|tên\\s+là|họ\\s+và\\s+tên|họ\\s+tên|người\\s+nhận\\s+là|người\\s+nhận|giao\\s+cho|tên|đặt|mua|lấy|cho|hộ|giúp|tôi|em|anh|chị|1\\s+cái|1|shop|ơi|nhé|nha|với)\\b", " ")
+                .replaceAll("[,;\\-\\:\\+\\(\\)]", " ")
+                .replaceAll("\\s+", " ").trim();
+    }
+
     private boolean isValidPersonName(String text) {
         if (!StringUtils.hasText(text))
             return false;
@@ -1552,7 +1930,9 @@ public class AiServiceImpl implements AiService {
         List<String> blacklisted = List.of(
                 "iphone", "macbook", "laptop", "sony", "samsung", "asus", "rog", "tai nghe", "dien thoai",
                 "nexor", "shop", "don hang", "dia chi", "so dien thoai", "sdt", "khach hang", "nhan hang",
-                "giao hang", "san pham", "dat mua", "gia", "tien", "freeship", "thanh toan", "online", "cod");
+                "giao hang", "san pham", "dat mua", "gia", "tien", "freeship", "thanh toan", "online", "cod",
+                "landmark", "hpc", "keangnam", "toa nha", "chung cu", "duong", "pho", "ngo", "ngach", "hem",
+                "quan", "huyen", "thanh pho", "tinh", "phuong", "xa");
         for (String b : blacklisted) {
             if (lower.contains(b))
                 return false;
@@ -1567,12 +1947,13 @@ public class AiServiceImpl implements AiService {
         if (StringUtils.hasText(phone)) {
             clean = clean.replace(phone, " ");
         }
+        clean = clean.replaceAll("[\"“'‘][^\"”'’]+[\"”'’]", " ");
         clean = clean.replaceAll(
                 "(?i)(?U)^\\s*(?:nhận\\s+hàng\\s+tại|giao\\s+hàng\\s+tại|giao\\s+tại|giao\\s+đến|giao\\s+về|ship\\s+đến|ship\\s+về|địa\\s+chỉ|dia\\s+chi|đ\\/c|dc|ở|tại)\\s*[:\\-]?\\s*",
                 "");
         clean = clean.replaceAll("(?i)\\b(sđt|sdt|số\\s+điện\\s+thoại|người\\s+nhận|tên\\s+là|tên|họ\\s+tên)\\b.*$",
                 " ");
-        clean = clean.replaceAll("(?i)(?:ghi\\s+chú|note|lưu\\s+ý|dặn\\s+dò)\\s*[:\\-]?\\s*.*$", " ");
+        clean = clean.replaceAll("(?i)(?:ghi\\s+chú|note|lưu\\s+ý|dặn\\s+dò|lời\\s+nhắn)\\s*[:\\-]?\\s*.*$", " ");
         clean = clean.replaceAll("(?i)\\b(thanh\\s+toán|chuyển\\s+khoản|online|vietqr|sepay|cod|tiền\\s+mặt)\\b.*$", " ");
         clean = clean.replaceAll("^[,;:\\-\\s]+", "").replaceAll("[,;:\\-\\s]+$", "");
         clean = clean.replaceAll("\\s+", " ").trim();

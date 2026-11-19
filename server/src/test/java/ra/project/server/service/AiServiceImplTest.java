@@ -456,5 +456,158 @@ class AiServiceImplTest {
         assertTrue(response.getSuggestedProducts().isEmpty(), "Không được hiển thị sản phẩm đề xuất bừa bãi khi khách đang xem đơn");
         assertTrue(response.getReply().contains("1224"));
     }
+
+    @Test
+    @DisplayName("TC_AI_10: Trích xuất chính xác Họ tên, SĐT, Địa chỉ dạng tòa nhà (HPC Landmark) và Ghi chú trong dấu ngoặc kép")
+    void whenCustomerProvidesNaturalInputWithQuotesAndLandmarkAddress_thenExtractsAccurately() {
+        org.springframework.test.util.ReflectionTestUtils.setField(aiService, "orderService", orderService);
+
+        Product simPin = Product.builder()
+                .id(31L)
+                .name("Que chọc sim")
+                .price(BigDecimal.valueOf(20000))
+                .status("ACTIVE")
+                .build();
+        when(productRepository.findAll()).thenReturn(List.of(simPin));
+
+        ra.project.server.model.dto.request.ChatMessageDto prevMsg = new ra.project.server.model.dto.request.ChatMessageDto();
+        prevMsg.setRole("assistant");
+        prevMsg.setContent("Dạ em hỗ trợ lên đơn ngay cho Que chọc sim (20.000đ). Anh/chị vui lòng cung cấp thông tin nhận hàng gồm: Họ và tên người nhận, Số điện thoại, Địa chỉ nhận hàng, Ghi chú giao hàng (nếu có) nhé ạ!");
+
+        AiChatRequest request = AiChatRequest.builder()
+                .message("Nguyễn Tuấn Minh 0333743208 HPC Landmark \"giao hàng sớm\"")
+                .history(List.of(prevMsg))
+                .build();
+
+        AiChatResponse response = aiService.chatWithCustomer(request);
+        assertNotNull(response);
+        assertNull(response.getCreatedOrder(), "Chưa tạo đơn hàng vì chờ khách xác nhận và chọn phương thức thanh toán");
+        assertTrue(response.getReply().contains("Nguyễn Tuấn Minh"), "Phải nhận diện đúng Họ và tên");
+        assertTrue(response.getReply().contains("0333743208"), "Phải nhận diện đúng Số điện thoại");
+        assertTrue(response.getReply().contains("HPC Landmark"), "Phải nhận diện đúng Địa chỉ kể cả tên tòa nhà/landmark");
+        assertTrue(response.getReply().contains("giao hàng sớm"), "Phải trích xuất Ghi chú trong dấu ngoặc kép");
+        assertTrue(response.getReply().contains("Thanh toán khi nhận hàng (COD)"));
+        assertTrue(response.getReply().contains("Chuyển khoản VietQR Online (SePay)"));
+    }
+
+    @Test
+    @DisplayName("TC_AI_11: Cho phép người dùng chỉnh sửa thông tin tạm trước khi chốt đơn")
+    void whenCustomerEditsDraftAddressBeforeConfirming_thenUpdatesDraftAndReconfirms() {
+        org.springframework.test.util.ReflectionTestUtils.setField(aiService, "orderService", orderService);
+
+        Product simPin = Product.builder()
+                .id(31L)
+                .name("Que chọc sim")
+                .price(BigDecimal.valueOf(20000))
+                .status("ACTIVE")
+                .build();
+        when(productRepository.findAll()).thenReturn(List.of(simPin));
+
+        ra.project.server.model.dto.request.ChatMessageDto botMsg1 = new ra.project.server.model.dto.request.ChatMessageDto();
+        botMsg1.setRole("assistant");
+        botMsg1.setContent("Dạ em đã ghi nhận thông tin đặt hàng cho Que chọc sim (20.000đ):\n- Người nhận: Nguyễn Tuấn Minh (0333743208)\n- Địa chỉ: HPC Landmark\n- Ghi chú: giao hàng sớm\nAnh/chị vui lòng kiểm tra lại thông tin trên...");
+
+        AiChatRequest request = AiChatRequest.builder()
+                .message("đổi địa chỉ sang 36 đường Thanh Hóa giúp em nhé")
+                .history(List.of(botMsg1))
+                .build();
+
+        AiChatResponse response = aiService.chatWithCustomer(request);
+        assertNotNull(response);
+        assertNull(response.getCreatedOrder());
+        assertTrue(response.getReply().contains("Nguyễn Tuấn Minh"), "Giữ nguyên họ tên cũ");
+        assertTrue(response.getReply().contains("0333743208"), "Giữ nguyên SĐT cũ");
+        assertTrue(response.getReply().contains("36 đường Thanh Hóa"), "Địa chỉ phải được cập nhật mới");
+        assertTrue(response.getReply().contains("giao hàng sớm"), "Giữ nguyên ghi chú cũ");
+    }
+
+    @Test
+    @DisplayName("TC_AI_12: Chỉnh sửa địa chỉ đơn hàng ĐÃ TẠO trên hệ thống theo yêu cầu")
+    void whenCustomerEditsPlacedOrderAddress_thenUpdatesOrderInDatabase() {
+        ra.project.server.model.entity.Order mockEntityOrder = ra.project.server.model.entity.Order.builder()
+                .id(1228L)
+                .receiverName("Nguyễn Tuấn Minh")
+                .phoneNumber("0333743208")
+                .shippingAddress("HPC Landmark")
+                .status(ra.project.server.model.enums.OrderStatus.PENDING)
+                .build();
+
+        OrderResponse mockOrderResponse = OrderResponse.builder()
+                .id(1228L)
+                .receiverName("Nguyễn Tuấn Minh")
+                .phoneNumber("0333743208")
+                .shippingAddress("HPC Landmark 105")
+                .status(ra.project.server.model.enums.OrderStatus.PENDING)
+                .build();
+
+        ra.project.server.repository.OrderRepository mockOrderRepo = mock(ra.project.server.repository.OrderRepository.class);
+        ra.project.server.mapper.OrderMapper mockOrderMapper = mock(ra.project.server.mapper.OrderMapper.class);
+
+        org.springframework.test.util.ReflectionTestUtils.setField(aiService, "orderRepository", mockOrderRepo);
+        org.springframework.test.util.ReflectionTestUtils.setField(aiService, "orderMapper", mockOrderMapper);
+
+        when(mockOrderRepo.findById(1228L)).thenReturn(Optional.of(mockEntityOrder));
+        when(mockOrderMapper.toResponse(mockEntityOrder)).thenReturn(mockOrderResponse);
+
+        ra.project.server.model.dto.request.ChatMessageDto botMsg = new ra.project.server.model.dto.request.ChatMessageDto();
+        botMsg.setRole("assistant");
+        botMsg.setContent("🎉 Đặt hàng thành công! Mã đơn hàng: #NXR-1228");
+
+        AiChatRequest request = AiChatRequest.builder()
+                .message("sửa lại địa chỉ thành HPC Landmark 105")
+                .history(List.of(botMsg))
+                .build();
+
+        AiChatResponse response = aiService.chatWithCustomer(request);
+        assertNotNull(response);
+        verify(mockOrderRepo, times(1)).save(mockEntityOrder);
+        assertEquals("HPC Landmark 105", mockEntityOrder.getShippingAddress(), "Địa chỉ đơn hàng trong DB phải được cập nhật mới");
+        assertTrue(response.getReply().contains("HPC Landmark 105"));
+        assertTrue(response.getReply().contains("cập nhật địa chỉ"));
+    }
+
+    @Test
+    @DisplayName("TC_AI_13: Hủy đơn hàng ĐÃ TẠO trên hệ thống theo yêu cầu")
+    void whenCustomerCancelsPlacedOrder_thenSetsStatusToCancelled() {
+        ra.project.server.model.entity.Order mockEntityOrder = ra.project.server.model.entity.Order.builder()
+                .id(1229L)
+                .receiverName("Nguyễn Tuấn Minh")
+                .phoneNumber("0333743208")
+                .shippingAddress("HPC Landmark")
+                .status(ra.project.server.model.enums.OrderStatus.PENDING)
+                .build();
+
+        OrderResponse mockOrderResponse = OrderResponse.builder()
+                .id(1229L)
+                .receiverName("Nguyễn Tuấn Minh")
+                .phoneNumber("0333743208")
+                .shippingAddress("HPC Landmark")
+                .status(ra.project.server.model.enums.OrderStatus.CANCELLED)
+                .build();
+
+        ra.project.server.repository.OrderRepository mockOrderRepo = mock(ra.project.server.repository.OrderRepository.class);
+        ra.project.server.mapper.OrderMapper mockOrderMapper = mock(ra.project.server.mapper.OrderMapper.class);
+
+        org.springframework.test.util.ReflectionTestUtils.setField(aiService, "orderRepository", mockOrderRepo);
+        org.springframework.test.util.ReflectionTestUtils.setField(aiService, "orderMapper", mockOrderMapper);
+
+        when(mockOrderRepo.findById(1229L)).thenReturn(Optional.of(mockEntityOrder));
+        when(mockOrderMapper.toResponse(mockEntityOrder)).thenReturn(mockOrderResponse);
+
+        ra.project.server.model.dto.request.ChatMessageDto botMsg = new ra.project.server.model.dto.request.ChatMessageDto();
+        botMsg.setRole("assistant");
+        botMsg.setContent("🎉 Đặt hàng thành công! Mã đơn hàng: #NXR-1229");
+
+        AiChatRequest request = AiChatRequest.builder()
+                .message("tôi muốn hủy đơn này, không mua nữa")
+                .history(List.of(botMsg))
+                .build();
+
+        AiChatResponse response = aiService.chatWithCustomer(request);
+        assertNotNull(response);
+        verify(mockOrderRepo, times(1)).save(mockEntityOrder);
+        assertEquals(ra.project.server.model.enums.OrderStatus.CANCELLED, mockEntityOrder.getStatus(), "Trạng thái đơn hàng trong DB phải thành CANCELLED");
+        assertTrue(response.getReply().contains("Đã hủy thành công đơn hàng"));
+    }
 }
 
