@@ -484,71 +484,74 @@ export const AdminWheelPage: React.FC = () => {
         </button>
       </div>
 
-      {/* STAT STRIP / KPIS */}
-      <AdminSummaryStrip
-        items={[
-          {
-            label: 'Tổng lượt quay',
-            value: (stats?.totalSpins ?? 0).toLocaleString('vi-VN'),
-          },
-          {
-            label: 'Hôm nay',
-            value: (stats?.spinsToday ?? 0).toLocaleString('vi-VN'),
-            valueClassName: 'text-emerald-600',
-          },
-          {
-            label: 'Người chơi',
-            value: (stats?.uniqueUsers ?? 0).toLocaleString('vi-VN'),
-            valueClassName: 'text-purple-600',
-          },
-          {
-            label: 'Voucher trúng',
-            value: (stats?.vouchersIssued ?? 0).toLocaleString('vi-VN'),
-            subValue: `Đã dùng ${stats?.vouchersUsed ?? 0}`,
-            valueClassName: 'text-amber-600',
-          },
-        ]}
-      />
-
-      {/* TABS NAVIGATION */}
-      <div className="flex flex-wrap items-center gap-1.5 bg-white p-1.5 rounded-xl border border-slate-200/80 shadow-2xs w-fit shrink-0">
-        <button
-          type="button"
-          onClick={() => setActiveTab('HISTORY')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-2 ${
-            activeTab === 'HISTORY'
-              ? 'bg-blue-600 text-white shadow-2xs font-bold'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-          }`}
-        >
-          <span>Lịch sử quay thưởng</span>
-          <span
-            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-              activeTab === 'HISTORY' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+      {/* TABS NAVIGATION & STAT STRIP TRÊN CÙNG MỘT HÀNG */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0">
+        {/* TABS NAVIGATION */}
+        <div className="flex flex-wrap items-center gap-1.5 bg-white p-1.5 rounded-xl border border-slate-200/80 shadow-2xs w-fit shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab('HISTORY')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-2 ${
+              activeTab === 'HISTORY'
+                ? 'bg-blue-600 text-white shadow-2xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
             }`}
           >
-            {totalElements}
-          </span>
-        </button>
+            <span>Lịch sử quay thưởng</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                activeTab === 'HISTORY' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+              }`}
+            >
+              {totalElements}
+            </span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('REWARDS')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-2 ${
-            activeTab === 'REWARDS'
-              ? 'bg-blue-600 text-white shadow-2xs font-bold'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-          }`}
-        >
-          <span>Cấu hình 8 ô giải thưởng</span>
-          <span
-            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-              activeTab === 'REWARDS' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+          <button
+            type="button"
+            onClick={() => setActiveTab('REWARDS')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-2 ${
+              activeTab === 'REWARDS'
+                ? 'bg-blue-600 text-white shadow-2xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
             }`}
           >
-            {rewards.length} ô
-          </span>
-        </button>
+            <span>Cấu hình 8 ô giải thưởng</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                activeTab === 'REWARDS' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+              }`}
+            >
+              {rewards.length} ô
+            </span>
+          </button>
+        </div>
+
+        {/* STAT STRIP / KPIS */}
+        <AdminSummaryStrip
+          items={[
+            {
+              label: 'Tổng lượt quay',
+              value: (stats?.totalSpins ?? 0).toLocaleString('vi-VN'),
+            },
+            {
+              label: 'Hôm nay',
+              value: (stats?.spinsToday ?? 0).toLocaleString('vi-VN'),
+              valueClassName: 'text-emerald-600',
+            },
+            {
+              label: 'Người chơi',
+              value: (stats?.uniqueUsers ?? 0).toLocaleString('vi-VN'),
+              valueClassName: 'text-purple-600',
+            },
+            {
+              label: 'Voucher trúng',
+              value: (stats?.vouchersIssued ?? 0).toLocaleString('vi-VN'),
+              subValue: `Đã dùng ${stats?.vouchersUsed ?? 0}`,
+              valueClassName: 'text-amber-600',
+            },
+          ]}
+        />
       </div>
 
       {/* ========================================================= */}
