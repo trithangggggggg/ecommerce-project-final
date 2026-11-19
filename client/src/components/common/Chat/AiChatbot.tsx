@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Eye,
+  QrCode,
 } from 'lucide-react';
 import { aiService, type ChatMessage } from '../../../api/services/ai.service';
 import { formatPrice } from '../../../utils/format';
@@ -186,9 +187,9 @@ export function AiChatbot() {
         );
       }
 
-      // Xử lý các token inline (In đậm **text**, Code `text`)
-      const parts = line.split(/(\*\*.*?\*\*|`.*?`)/g);
-      const formattedParts = parts.map((part, pIdx) => {
+      // Xử lý các token inline (In đậm **text**, Code `text`, Links [text](url))
+      const parts = line.split(/(\*\*.*?\*\*|`.*?`|\[.*?\]\(.*?\))/g);
+      const parseToken = (part: string, pIdx: number) => {
         if (part.startsWith('**') && part.endsWith('**')) {
           return (
             <strong
@@ -209,8 +210,37 @@ export function AiChatbot() {
             </code>
           );
         }
+        const linkMatch = part.match(/^\[(.*?)\]\((.*?)\)$/);
+        if (linkMatch) {
+          const [, label, url] = linkMatch;
+          if (url.startsWith('/')) {
+            return (
+              <Link
+                key={pIdx}
+                to={url}
+                onClick={() => setIsOpen(false)}
+                className="font-bold text-blue-600 hover:text-blue-800 underline inline-flex items-center gap-0.5"
+              >
+                {label}
+              </Link>
+            );
+          }
+          return (
+            <a
+              key={pIdx}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-blue-600 hover:text-blue-800 underline"
+            >
+              {label}
+            </a>
+          );
+        }
         return part;
-      });
+      };
+
+      const formattedParts = parts.map((part, pIdx) => parseToken(part, pIdx));
 
       // Danh sách gạch đầu dòng (- / * / • / 🔹)
       const trimmed = line.trim();
@@ -222,16 +252,7 @@ export function AiChatbot() {
       ) {
         const bulletIcon = trimmed.startsWith('🔹 ') ? '🔹' : '•';
         const cleanLine = trimmed.replace(/^[-*•🔹]\s+/, '');
-        const cleanParts = cleanLine.split(/(\*\*.*?\*\*|`.*?`)/g).map((part, pIdx) => {
-          if (part.startsWith('**') && part.endsWith('**')) {
-            return (
-              <strong key={pIdx} className="font-bold text-gray-950">
-                {part.slice(2, -2)}
-              </strong>
-            );
-          }
-          return part;
-        });
+        const cleanParts = cleanLine.split(/(\*\*.*?\*\*|`.*?`|\[.*?\]\(.*?\))/g).map((part, pIdx) => parseToken(part, pIdx));
 
         return (
           <div
@@ -406,28 +427,61 @@ export function AiChatbot() {
 
                   {/* Hiển thị thẻ xác nhận Đơn hàng tự động nếu vừa tạo đơn qua AI */}
                   {msg.createdOrder && (
-                    <div className="mt-2.5 ml-9 p-3 bg-emerald-50 border border-emerald-200 rounded-xl w-[calc(100%-2.25rem)] text-xs text-emerald-950 shadow-xs">
-                      <div className="flex items-center justify-between font-bold text-emerald-800 mb-1">
-                        <span className="flex items-center gap-1.5">
-                          <CheckCircle2 size={14} className="text-emerald-600" />
+                    <div className={`mt-2.5 ml-9 p-3 rounded-xl w-[calc(100%-2.25rem)] text-xs shadow-xs ${
+                      msg.createdOrder.paymentMethod === 'SEPAY'
+                        ? 'bg-blue-50/90 border border-blue-200 text-blue-950'
+                        : 'bg-emerald-50/90 border border-emerald-200 text-emerald-950'
+                    }`}>
+                      <div className="flex items-center justify-between font-bold mb-1">
+                        <span className={`flex items-center gap-1.5 ${
+                          msg.createdOrder.paymentMethod === 'SEPAY' ? 'text-blue-800' : 'text-emerald-800'
+                        }`}>
+                          <CheckCircle2 size={14} className={
+                            msg.createdOrder.paymentMethod === 'SEPAY' ? 'text-blue-600' : 'text-emerald-600'
+                          } />
                           Đơn hàng #{msg.createdOrder.id}
                         </span>
-                        <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-semibold">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                          msg.createdOrder.status === 'COMPLETED'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : msg.createdOrder.status === 'SHIPPING'
+                            ? 'bg-blue-100 text-blue-800'
+                            : msg.createdOrder.status === 'CANCELLED'
+                            ? 'bg-red-100 text-red-800'
+                            : msg.createdOrder.paymentMethod === 'SEPAY'
+                            ? 'bg-amber-100 text-amber-800 font-bold'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}>
                           {msg.createdOrder.status === 'COMPLETED'
                             ? 'Hoàn thành'
                             : msg.createdOrder.status === 'SHIPPING'
                             ? 'Đang giao'
                             : msg.createdOrder.status === 'CANCELLED'
                             ? 'Đã hủy'
+                            : msg.createdOrder.paymentMethod === 'SEPAY'
+                            ? 'Chờ thanh toán (VietQR)'
                             : 'Chờ xác nhận (COD)'}
                         </span>
                       </div>
-                      <div className="text-[11px] text-gray-700 space-y-0.5 mt-1.5 border-t border-emerald-100 pt-1.5">
+                      <div className={`text-[11px] text-gray-700 space-y-0.5 mt-1.5 border-t pt-1.5 ${
+                        msg.createdOrder.paymentMethod === 'SEPAY' ? 'border-blue-100' : 'border-emerald-100'
+                      }`}>
                         <div>
                           <strong className="text-gray-900">Người nhận:</strong> {msg.createdOrder.receiverName} ({msg.createdOrder.phoneNumber})
                         </div>
                         <div className="truncate">
                           <strong className="text-gray-900">Địa chỉ:</strong> {msg.createdOrder.shippingAddress}
+                        </div>
+                        {msg.createdOrder.note && (
+                          <div className="truncate">
+                            <strong className="text-gray-900">Ghi chú:</strong> {msg.createdOrder.note}
+                          </div>
+                        )}
+                        <div>
+                          <strong className="text-gray-900">Hình thức:</strong>{' '}
+                          <span className="font-semibold text-gray-900">
+                            {msg.createdOrder.paymentMethod === 'SEPAY' ? 'Chuyển khoản VietQR Online (SePay)' : 'Thanh toán khi nhận hàng (COD)'}
+                          </span>
                         </div>
                         <div>
                           <strong className="text-gray-900">Tổng thanh toán:</strong>{' '}
@@ -437,20 +491,34 @@ export function AiChatbot() {
                           (Freeship)
                         </div>
                       </div>
-                      <div className="mt-2.5 pt-2 border-t border-emerald-200/60 flex items-center justify-between gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setViewingOrder(msg.createdOrder)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition shadow-xs cursor-pointer active:scale-95"
-                        >
-                          <Eye size={12} />
-                          <span>Xem chi tiết đơn</span>
-                        </button>
+                      <div className={`mt-2.5 pt-2 border-t flex flex-wrap items-center justify-between gap-2 ${
+                        msg.createdOrder.paymentMethod === 'SEPAY' ? 'border-blue-200/60' : 'border-emerald-200/60'
+                      }`}>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => setViewingOrder(msg.createdOrder)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition shadow-xs cursor-pointer active:scale-95"
+                          >
+                            <Eye size={12} />
+                            <span>Chi tiết</span>
+                          </button>
+                          {msg.createdOrder.paymentMethod === 'SEPAY' && (
+                            <Link
+                              to={`/payment/qr/${msg.createdOrder.id}`}
+                              onClick={() => setIsOpen(false)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] transition shadow-xs cursor-pointer active:scale-95"
+                            >
+                              <QrCode size={12} />
+                              <span>Quét mã VietQR</span>
+                            </Link>
+                          )}
+                        </div>
                         <Link
                           to="/my-orders"
                           state={{ newOrderId: msg.createdOrder?.id }}
                           onClick={() => setIsOpen(false)}
-                          className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 hover:underline"
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-gray-700 hover:text-gray-900 hover:underline"
                         >
                           <span>Lịch sử đơn hàng</span>
                           <ArrowRight size={12} />

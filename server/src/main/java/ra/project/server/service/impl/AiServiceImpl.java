@@ -26,6 +26,8 @@ import ra.project.server.model.dto.response.AiGenerateDescriptionResponse;
 import ra.project.server.model.dto.response.OrderResponse;
 import ra.project.server.model.dto.response.ProductResponse;
 import ra.project.server.model.dto.response.VisualSearchResponse;
+import ra.project.server.model.enums.PaymentMethod;
+import ra.project.server.model.enums.PaymentStatus;
 import ra.project.server.model.entity.Order;
 import ra.project.server.model.entity.Product;
 import ra.project.server.repository.OrderRepository;
@@ -74,6 +76,9 @@ public class AiServiceImpl implements AiService {
 
     @Autowired(required = false)
     private OrderMapper orderMapper;
+
+    @Autowired(required = false)
+    private ra.project.server.config.SepayConfig sepayConfig;
 
     @Value("${gemini.api-key:${GEMINI_API_KEY:}}")
     private String geminiApiKey;
@@ -791,6 +796,30 @@ public class AiServiceImpl implements AiService {
         if (ORDER_PHONE_PATTERN.matcher(message).find() && hasAddressClues(message)) {
             return true;
         }
+        if (isBotInOrderConversationFlow(history)) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isBotInOrderConversationFlow(List<ChatMessageDto> history) {
+        if (history == null || history.isEmpty())
+            return false;
+        for (int i = history.size() - 1; i >= 0; i--) {
+            ChatMessageDto msg = history.get(i);
+            if (msg != null && "assistant".equalsIgnoreCase(msg.getRole()) && StringUtils.hasText(msg.getContent())) {
+                String content = normalizeText(msg.getContent());
+                if (content.contains("ho ten, so dien thoai")
+                        || content.contains("thong tin nhan hang")
+                        || content.contains("dia chi nhan hang")
+                        || content.contains("hinh thuc thanh toan")
+                        || content.contains("phuong thuc thanh toan")
+                        || (content.contains("thanh toan khi nhan hang") && content.contains("vietqr"))) {
+                    return true;
+                }
+                break;
+            }
+        }
         return false;
     }
 
@@ -929,53 +958,83 @@ public class AiServiceImpl implements AiService {
         private String receiverName;
         private String phoneNumber;
         private String shippingAddress;
+        private String note;
     }
 
     private OrderProcessResult tryProcessOrder(String userMessage, List<ChatMessageDto> history,
             List<Product> allProducts) {
-        // 1. Tìm sản phẩm mục tiêu (ưu tiên tìm trong tin nhắn hiện tại, sau đó tìm
-        // ngược về lịch sử)
+        // 1. Tìm sản phẩm mục tiêu (ưu tiên tìm trong tin nhắn hiện tại, sau đó tìm ngược về lịch sử)
         Product targetProduct = findTargetProductForOrder(userMessage, history, allProducts);
-
-        // 2. Trích xuất thông tin người nhận, số điện thoại và địa chỉ giao hàng hoàn
-        // chỉnh
-        DeliveryCustomerInfo deliveryInfo = extractDeliveryCustomerInfo(userMessage, history, targetProduct);
-        String phone = deliveryInfo.getPhoneNumber();
-        String receiverName = deliveryInfo.getReceiverName();
-        String address = deliveryInfo.getShippingAddress();
 
         // Nếu chưa xác định được sản phẩm
         if (targetProduct == null) {
             return new OrderProcessResult(false,
-                    "Dạ NEXOR rất sẵn lòng hỗ trợ anh/chị đặt hàng! Anh/chị vui lòng cho em biết tên sản phẩm công nghệ muốn đặt (ví dụ: iPhone 16 Pro Max, Sony WH-1000XM5, MacBook...) hoặc mã [ID: ...] để em hoàn tất đơn ngay nhé ạ!",
+                    "Dạ NEXOR rất sẵn lòng hỗ trợ anh/chị đặt hàng! Anh/chị vui lòng cho em biết tên sản phẩm công nghệ muốn đặt (ví dụ: Chuột Logitech, iPhone 16 Pro Max, Sony WH-1000XM5, MacBook...) hoặc mã [ID: ...] để em lên đơn ngay nhé ạ!",
                     null, Collections.emptyList());
         }
 
-        // Nếu thiếu số điện thoại hoặc địa chỉ nhận hàng
+        // 2. Trích xuất thông tin người nhận, số điện thoại, địa chỉ giao hàng và ghi chú
+        DeliveryCustomerInfo deliveryInfo = extractDeliveryCustomerInfo(userMessage, history, targetProduct);
+        String phone = deliveryInfo.getPhoneNumber();
+        String receiverName = deliveryInfo.getReceiverName();
+        String address = deliveryInfo.getShippingAddress();
+        String note = deliveryInfo.getNote();
+
+        Locale vn = Locale.forLanguageTag("vi-VN");
+        NumberFormat nf = NumberFormat.getInstance(vn);
+        String priceStr = targetProduct.getPrice() != null ? nf.format(targetProduct.getPrice()) + "đ" : "";
+
+        // BƯỚC 1: Nếu thiếu số điện thoại hoặc địa chỉ nhận hàng -> Yêu cầu người dùng cung cấp thông tin
         if (!StringUtils.hasText(phone) || !StringUtils.hasText(address)) {
-            Locale vn = Locale.forLanguageTag("vi-VN");
-            NumberFormat nf = NumberFormat.getInstance(vn);
-            String priceStr = targetProduct.getPrice() != null ? nf.format(targetProduct.getPrice()) + "đ" : "";
-            return new OrderProcessResult(false,
-                    String.format(
-                            "Dạ em hỗ trợ lên đơn ngay cho **%s** (%s).\nAnh/chị vui lòng cung cấp: **Họ tên**, **Số điện thoại** và **Địa chỉ nhận hàng** nhé ạ!",
-                            targetProduct.getName(), priceStr),
-                    null, List.of(targetProduct));
+            String promptMsg = String.format(
+                    "Dạ em hỗ trợ lên đơn ngay cho **%s** (%s).\n" +
+                            "Anh/chị vui lòng cung cấp thông tin nhận hàng gồm:\n" +
+                            "- **Họ và tên người nhận**\n" +
+                            "- **Số điện thoại**\n" +
+                            "- **Địa chỉ nhận hàng**\n" +
+                            "- **Ghi chú giao hàng** (nếu có) nhé ạ!",
+                    targetProduct.getName(), priceStr);
+            return new OrderProcessResult(false, promptMsg, null, List.of(targetProduct));
         }
 
         if (!StringUtils.hasText(receiverName)) {
-            receiverName = "Khách hàng NEXOR";
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+                receiverName = auth.getName();
+            } else {
+                receiverName = "Khách hàng NEXOR";
+            }
         }
 
-        // Tạo đơn hàng thật vào hệ thống thông qua orderService
+        // BƯỚC 2: Kiểm tra phương thức thanh toán (COD hoặc VietQR Online)
+        PaymentMethod paymentMethod = extractPaymentMethod(userMessage, history);
+        if (paymentMethod == null) {
+            // Đã đủ thông tin giao hàng nhưng chưa rõ phương thức thanh toán -> Xác nhận thông tin và hỏi phương thức thanh toán
+            String noteDisplay = StringUtils.hasText(note) ? note : "Không có";
+            String askPaymentMsg = String.format(
+                    "Dạ em đã ghi nhận thông tin nhận hàng của anh/chị:\n" +
+                            "- **Người nhận:** %s (%s)\n" +
+                            "- **Địa chỉ:** %s\n" +
+                            "- **Ghi chú:** %s\n" +
+                            "- **Sản phẩm:** %s (%s)\n\n" +
+                            "Anh/chị vui lòng chọn **hình thức thanh toán** giúp em nhé:\n" +
+                            "1️⃣ **Thanh toán khi nhận hàng (COD)**\n" +
+                            "2️⃣ **Chuyển khoản VietQR Online (SePay)**",
+                    receiverName, phone, address, noteDisplay, targetProduct.getName(), priceStr);
+
+            return new OrderProcessResult(false, askPaymentMsg, null, List.of(targetProduct));
+        }
+
+        // BƯỚC 3: Đã có đủ thông tin nhận hàng VÀ phương thức thanh toán -> Tạo đơn hàng thực tế
         try {
+            String finalNote = StringUtils.hasText(note) ? note.trim() : "Đơn hàng đặt tự động qua NEXOR AI Assistant";
             ra.project.server.model.dto.request.CheckoutRequest checkoutReq = ra.project.server.model.dto.request.CheckoutRequest
                     .builder()
                     .receiverName(receiverName.trim())
                     .phoneNumber(phone.trim())
                     .shippingAddress(address.trim())
-                    .paymentMethod(ra.project.server.model.enums.PaymentMethod.COD)
-                    .note("Đơn hàng đặt tự động qua NEXOR AI Assistant")
+                    .paymentMethod(paymentMethod)
+                    .note(finalNote)
                     .items(List.of(ra.project.server.model.dto.request.OrderItemRequest.builder()
                             .productId(targetProduct.getId())
                             .quantity(1)
@@ -987,25 +1046,87 @@ public class AiServiceImpl implements AiService {
             ra.project.server.model.dto.response.OrderResponse orderData = orderResp != null ? orderResp.getData()
                     : null;
 
-            Locale vn = Locale.forLanguageTag("vi-VN");
-            NumberFormat nf = NumberFormat.getInstance(vn);
             String totalStr = (orderData != null && orderData.getTotalAmount() != null)
                     ? nf.format(orderData.getTotalAmount()) + "đ"
                     : (targetProduct.getPrice() != null ? nf.format(targetProduct.getPrice()) + "đ" : "");
 
             Long orderId = orderData != null ? orderData.getId() : System.currentTimeMillis();
 
-            String successMsg = String.format(
-                    "🎉 **Đặt hàng thành công!**\n" +
-                            "- **Mã đơn hàng**: #NXR-%d\n" +
-                            "- **Sản phẩm**: %s (SL: 1)\n" +
-                            "- **Người nhận**: %s (%s)\n" +
-                            "- **Địa chỉ giao**: %s\n" +
-                            "- **Thanh toán (COD)**: %s (Miễn phí giao hàng)\n\n" +
-                            "NEXOR sẽ liên hệ xác nhận và giao hàng sớm nhất cho anh/chị nhé ạ!",
-                    orderId, targetProduct.getName(), receiverName, phone, address, totalStr);
+            if (paymentMethod == PaymentMethod.SEPAY) {
+                String paymentPrefix = (sepayConfig != null && StringUtils.hasText(sepayConfig.getEffectivePaymentPrefix()))
+                        ? sepayConfig.getEffectivePaymentPrefix()
+                        : "DH";
+                String paymentCode = paymentPrefix + orderId;
 
-            return new OrderProcessResult(true, successMsg, orderData, List.of(targetProduct));
+                if (orderData != null) {
+                    orderData.setSepayInvoiceNumber(paymentCode);
+                    orderData.setPaymentMethod(PaymentMethod.SEPAY);
+                    orderData.setPaymentStatus(PaymentStatus.UNPAID);
+                    if (orderRepository != null) {
+                        try {
+                            orderRepository.findById(orderId).ifPresent(o -> {
+                                o.setSepayInvoiceNumber(paymentCode);
+                                o.setPaymentMethod(PaymentMethod.SEPAY);
+                                if (o.getPaymentStatus() != PaymentStatus.PAID) {
+                                    o.setPaymentStatus(PaymentStatus.UNPAID);
+                                }
+                                orderRepository.save(o);
+                            });
+                        } catch (Exception ignored) {
+                        }
+                    }
+                }
+
+                String bankAccount = (sepayConfig != null && StringUtils.hasText(sepayConfig.getBankAccount()))
+                        ? sepayConfig.getBankAccount().trim()
+                        : "0333743203";
+                String bankCode = (sepayConfig != null && StringUtils.hasText(sepayConfig.getBankCode()))
+                        ? sepayConfig.getBankCode().trim()
+                        : "MBBank";
+                String bankName = (sepayConfig != null && StringUtils.hasText(sepayConfig.resolveDisplayBankName()))
+                        ? sepayConfig.resolveDisplayBankName()
+                        : "MB Bank (Ngân hàng TMCP Quân Đội)";
+                String accountHolder = (sepayConfig != null && StringUtils.hasText(sepayConfig.getAccountHolder()))
+                        ? sepayConfig.getAccountHolder().trim()
+                        : "CONG TY CO PHAN CONG NGHE NEXOR";
+
+                String successOnlineMsg = String.format(
+                        "🎉 **Tạo đơn hàng thành công! Mã đơn: #NXR-%d**\n" +
+                                "- **Sản phẩm**: %s (SL: 1)\n" +
+                                "- **Người nhận**: %s (%s)\n" +
+                                "- **Địa chỉ giao**: %s\n" +
+                                (StringUtils.hasText(note) ? ("- **Ghi chú**: " + note + "\n") : "") +
+                                "- **Tổng thanh toán**: %s\n\n" +
+                                "💳 **THÔNG TIN THANH TOÁN VIETQR ONLINE (SEPAY):**\n" +
+                                "- **Mã thanh toán (Nội dung CK)**: `%s`\n" +
+                                "- **Ngân hàng**: %s\n" +
+                                "- **Số tài khoản**: `%s`\n" +
+                                "- **Chủ tài khoản**: %s\n" +
+                                "- **Số tiền**: **%s**\n\n" +
+                                "📸 **Quét mã VietQR chuyển khoản:**\n" +
+                                "Anh/chị có thể quét mã VietQR hoặc bấm vào link bên dưới để thanh toán ngay nhé:\n" +
+                                "👉 [Bấm vào đây để mở trang quét mã QR thanh toán](/payment/qr/%d)\n\n" +
+                                "*(Hệ thống sẽ tự động xác nhận đơn ngay khi nhận được thanh toán!)*",
+                        orderId, targetProduct.getName(), receiverName, phone, address, totalStr,
+                        paymentCode, bankName, bankAccount, accountHolder, totalStr, orderId);
+
+                return new OrderProcessResult(true, successOnlineMsg, orderData, List.of(targetProduct));
+            } else {
+                // COD
+                String successCodMsg = String.format(
+                        "🎉 **Đặt hàng thành công!**\n" +
+                                "- **Mã đơn hàng**: #NXR-%d\n" +
+                                "- **Sản phẩm**: %s (SL: 1)\n" +
+                                "- **Người nhận**: %s (%s)\n" +
+                                "- **Địa chỉ giao**: %s\n" +
+                                (StringUtils.hasText(note) ? ("- **Ghi chú**: " + note + "\n") : "") +
+                                "- **Hình thức thanh toán**: Thanh toán khi nhận hàng (COD)\n" +
+                                "- **Tổng thanh toán**: %s (Miễn phí giao hàng)\n\n" +
+                                "NEXOR sẽ liên hệ xác nhận và giao hàng sớm nhất cho anh/chị nhé ạ!",
+                        orderId, targetProduct.getName(), receiverName, phone, address, totalStr);
+
+                return new OrderProcessResult(true, successCodMsg, orderData, List.of(targetProduct));
+            }
         } catch (Exception ex) {
             log.error("Lỗi khi AI Assistant tạo đơn hàng tự động: {}", ex.getMessage());
             return new OrderProcessResult(false,
@@ -1013,6 +1134,57 @@ public class AiServiceImpl implements AiService {
                             + ". Anh/chị kiểm tra lại hoặc liên hệ hotline để được hỗ trợ ngay nhé!",
                     null, List.of(targetProduct));
         }
+    }
+
+    private PaymentMethod extractPaymentMethod(String userMessage, List<ChatMessageDto> history) {
+        if (!StringUtils.hasText(userMessage))
+            return null;
+        String norm = normalizeText(userMessage);
+
+        if (norm.contains("chuyen khoan") || norm.contains("online") || norm.contains("ck")
+                || norm.contains("vietqr") || norm.contains("sepay")
+                || norm.contains("ngan hang") || norm.contains("the tin dung") || norm.contains("banking")
+                || norm.contains("chuyen tien") || norm.contains("thanh toan truoc")) {
+            return PaymentMethod.SEPAY;
+        }
+
+        if (norm.contains("cod") || norm.contains("khi nhan hang") || norm.contains("tien mat")
+                || norm.contains("tra tien mat") || norm.contains("nhan hang tra tien")
+                || norm.contains("nhan hang moi tra") || norm.contains("thanh toan sau")
+                || norm.contains("tra sau") || norm.contains("ship cod")) {
+            return PaymentMethod.COD;
+        }
+
+        boolean botAskedPayment = isBotWaitingForPaymentMethod(history);
+        if (botAskedPayment) {
+            if (norm.matches("^(?:chon\\s+|so\\s+|phuong\\s+thuc\\s+|hinh\\s+thuc\\s+|cach\\s+)?1(?:\\.|\\b|\\s*$).*")
+                    || norm.equals("1") || norm.startsWith("1 ")) {
+                return PaymentMethod.COD;
+            }
+            if (norm.matches("^(?:chon\\s+|so\\s+|phuong\\s+thuc\\s+|hinh\\s+thuc\\s+|cach\\s+)?2(?:\\.|\\b|\\s*$).*")
+                    || norm.equals("2") || norm.startsWith("2 ")) {
+                return PaymentMethod.SEPAY;
+            }
+        }
+
+        return null;
+    }
+
+    private boolean isBotWaitingForPaymentMethod(List<ChatMessageDto> history) {
+        if (history == null || history.isEmpty())
+            return false;
+        for (int i = history.size() - 1; i >= 0; i--) {
+            ChatMessageDto msg = history.get(i);
+            if (msg != null && "assistant".equalsIgnoreCase(msg.getRole()) && StringUtils.hasText(msg.getContent())) {
+                String content = normalizeText(msg.getContent());
+                if (content.contains("hinh thuc thanh toan") || content.contains("phuong thuc thanh toan")
+                        || (content.contains("thanh toan khi nhan hang") && content.contains("vietqr"))) {
+                    return true;
+                }
+                break;
+            }
+        }
+        return false;
     }
 
     private Product findTargetProductForOrder(String message, List<ChatMessageDto> history, List<Product> allProducts) {
@@ -1116,6 +1288,22 @@ public class AiServiceImpl implements AiService {
             }
         }
 
+        // 0. Trích xuất Ghi chú giao hàng (nếu có)
+        Pattern notePattern = Pattern.compile(
+                "(?i)(?:ghi\\s+chú|note|lưu\\s+ý|dặn\\s+dò)\\s*[:\\-]?\\s*([^\\n;]+)");
+        for (String text : userTexts) {
+            Matcher mNote = notePattern.matcher(text);
+            if (mNote.find()) {
+                String candNote = mNote.group(1).trim();
+                candNote = candNote.replaceAll("(?i)\\b(thanh\\s+toán|online|chuyển\\s+khoản|cod)\\b.*$", "").trim();
+                candNote = candNote.replaceAll("^[,;:\\-\\s]+", "").replaceAll("[,;:\\-\\s]+$", "").trim();
+                if (StringUtils.hasText(candNote)) {
+                    info.setNote(candNote);
+                    break;
+                }
+            }
+        }
+
         // 1. Trích xuất Số điện thoại
         int phoneStartIdx = -1;
         String phoneTextSource = null;
@@ -1160,7 +1348,7 @@ public class AiServiceImpl implements AiService {
                     cleanBefore = cleanBefore.substring(lastSep + 1).trim();
                 }
                 cleanBefore = cleanBefore
-                        .replaceAll("(?i)(?U)\\b(đặt|mua|lấy|cho|hộ|giúp|tôi|em|anh|chị|1\\s+cái|1|shop|ơi|nhé|nha|với)\\b", " ")
+                        .replaceAll("(?i)(?U)\\b(tôi\\s+tên\\s+là|tên\\s+tôi\\s+là|tên\\s+em\\s+là|tôi\\s+tên|tên\\s+là|họ\\s+và\\s+tên|họ\\s+tên|người\\s+nhận\\s+là|người\\s+nhận|tên|đặt|mua|lấy|cho|hộ|giúp|tôi|em|anh|chị|1\\s+cái|1|shop|ơi|nhé|nha|với)\\b", " ")
                         .replaceAll("[,;\\-\\:\\+\\(\\)]", " ")
                         .replaceAll("\\s+", " ").trim();
                 if (isValidPersonName(cleanBefore)) {
@@ -1242,7 +1430,7 @@ public class AiServiceImpl implements AiService {
                 beforePhone = beforePhone.substring(lastComma + 1).trim();
             }
             beforePhone = beforePhone
-                    .replaceAll("(?i)\\b(đặt|mua|lấy|cho|hộ|giúp|tôi|em|anh|chị|1 cái|1|shop|ơi|nhé|nha)\\b", " ")
+                    .replaceAll("(?i)(?U)\\b(tôi\\s+tên\\s+là|tên\\s+tôi\\s+là|tên\\s+em\\s+là|tôi\\s+tên|tên\\s+là|họ\\s+và\\s+tên|họ\\s+tên|người\\s+nhận\\s+là|người\\s+nhận|tên|đặt|mua|lấy|cho|hộ|giúp|tôi|em|anh|chị|1 cái|1|shop|ơi|nhé|nha)\\b", " ")
                     .trim();
             if (isValidPersonName(beforePhone)) {
                 info.setReceiverName(capitalizeWords(beforePhone));
@@ -1302,7 +1490,7 @@ public class AiServiceImpl implements AiService {
                     residual = residual.replace(info.getShippingAddress(), " ");
                 }
                 residual = residual.replaceAll(
-                        "(?i)\\b(nhận\\s+hàng\\s+tại|giao\\s+hàng\\s+tại|giao\\s+tại|giao\\s+đến|giao\\s+về|ship\\s+đến|ship\\s+về|địa\\s+chỉ|dia\\s+chi|đ\\/c|dc|nhận\\s+hàng|giao\\s+hàng|đặt\\s+hàng|đặt\\s+mua|mua\\s+hàng|mua\\s+hộ|đặt\\s+hộ|cho\\s+tôi|cho\\s+mình|cho\\s+em|lấy\\s+1|đặt\\s+1|mua\\s+1|shop\\s+ơi|em\\s+ơi|nhé|nha|với|tại|ở)\\b",
+                        "(?i)\\b(tôi\\s+tên\\s+là|tên\\s+tôi\\s+là|tên\\s+em\\s+là|tôi\\s+tên|tên\\s+là|họ\\s+và\\s+tên|họ\\s+tên|tên|nhận\\s+hàng\\s+tại|giao\\s+hàng\\s+tại|giao\\s+tại|giao\\s+đến|giao\\s+về|ship\\s+đến|ship\\s+về|địa\\s+chỉ|dia\\s+chi|đ\\/c|dc|nhận\\s+hàng|giao\\s+hàng|đặt\\s+hàng|đặt\\s+mua|mua\\s+hàng|mua\\s+hộ|đặt\\s+hộ|cho\\s+tôi|cho\\s+mình|cho\\s+em|lấy\\s+1|đặt\\s+1|mua\\s+1|shop\\s+ơi|em\\s+ơi|nhé|nha|với|tại|ở)\\b",
                         " ");
                 residual = residual.replaceAll("[,;\\-\\:\\+\\(\\)]", " ").trim();
                 residual = residual.replaceAll("\\s+", " ");
@@ -1310,6 +1498,38 @@ public class AiServiceImpl implements AiService {
                 if (isValidPersonName(residual)) {
                     info.setReceiverName(capitalizeWords(residual));
                     break;
+                }
+            }
+        }
+
+        // 5. Nếu trong các tin nhắn của người dùng chưa trích xuất đủ, tìm kiếm trong tin nhắn xác nhận trước đó của Trợ lý (Assistant)
+        if (history != null && (!StringUtils.hasText(info.getPhoneNumber()) || !StringUtils.hasText(info.getShippingAddress()))) {
+            for (int i = history.size() - 1; i >= 0; i--) {
+                ChatMessageDto dto = history.get(i);
+                if (dto != null && "assistant".equalsIgnoreCase(dto.getRole()) && StringUtils.hasText(dto.getContent())) {
+                    String c = dto.getContent();
+                    if (c.contains("Người nhận:") || c.contains("Địa chỉ:")) {
+                        Matcher mRec = Pattern.compile("(?i)Người nhận:?\\s*\\*?\\*?([^\\(\\n\\*]+)").matcher(c);
+                        if (!StringUtils.hasText(info.getReceiverName()) && mRec.find()) {
+                            info.setReceiverName(mRec.group(1).trim());
+                        }
+                        Matcher mPho = Pattern.compile("(?i)(?:\\(|Số điện thoại:?\\s*\\*?\\*?)(0[0-9]{9})").matcher(c);
+                        if (!StringUtils.hasText(info.getPhoneNumber()) && mPho.find()) {
+                            info.setPhoneNumber(mPho.group(0).replaceAll("[^0-9]", "").trim());
+                        }
+                        Matcher mAdd = Pattern.compile("(?i)Địa chỉ:?\\s*\\*?\\*?([^\\n\\*]+)").matcher(c);
+                        if (!StringUtils.hasText(info.getShippingAddress()) && mAdd.find()) {
+                            info.setShippingAddress(mAdd.group(1).trim());
+                        }
+                        Matcher mNot = Pattern.compile("(?i)Ghi chú:?\\s*\\*?\\*?([^\\n\\*]+)").matcher(c);
+                        if (!StringUtils.hasText(info.getNote()) && mNot.find()) {
+                            String n = mNot.group(1).trim();
+                            if (!"Không có".equalsIgnoreCase(n) && !"Đơn hàng đặt tự động qua NEXOR AI Assistant".equalsIgnoreCase(n)) {
+                                info.setNote(n);
+                            }
+                        }
+                        break;
+                    }
                 }
             }
         }
@@ -1332,7 +1552,7 @@ public class AiServiceImpl implements AiService {
         List<String> blacklisted = List.of(
                 "iphone", "macbook", "laptop", "sony", "samsung", "asus", "rog", "tai nghe", "dien thoai",
                 "nexor", "shop", "don hang", "dia chi", "so dien thoai", "sdt", "khach hang", "nhan hang",
-                "giao hang", "san pham", "dat mua", "gia", "tien", "freeship");
+                "giao hang", "san pham", "dat mua", "gia", "tien", "freeship", "thanh toan", "online", "cod");
         for (String b : blacklisted) {
             if (lower.contains(b))
                 return false;
@@ -1352,6 +1572,8 @@ public class AiServiceImpl implements AiService {
                 "");
         clean = clean.replaceAll("(?i)\\b(sđt|sdt|số\\s+điện\\s+thoại|người\\s+nhận|tên\\s+là|tên|họ\\s+tên)\\b.*$",
                 " ");
+        clean = clean.replaceAll("(?i)(?:ghi\\s+chú|note|lưu\\s+ý|dặn\\s+dò)\\s*[:\\-]?\\s*.*$", " ");
+        clean = clean.replaceAll("(?i)\\b(thanh\\s+toán|chuyển\\s+khoản|online|vietqr|sepay|cod|tiền\\s+mặt)\\b.*$", " ");
         clean = clean.replaceAll("^[,;:\\-\\s]+", "").replaceAll("[,;:\\-\\s]+$", "");
         clean = clean.replaceAll("\\s+", " ").trim();
         return clean;

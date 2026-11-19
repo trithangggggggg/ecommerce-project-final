@@ -213,7 +213,7 @@ class AiServiceImplTest {
                 .thenReturn(ra.project.server.common.response.ApiResponse.success(mockOrderResponse));
 
         AiChatRequest request = AiChatRequest.builder()
-                .message("Đặt hộ tôi 1 tai nghe Sony WH-1000XM5, Nguyễn Thị Thanh 0333743201 nhận hàng tại ngõ 36 đường Thanh Hóa")
+                .message("Đặt hộ tôi 1 tai nghe Sony WH-1000XM5, Nguyễn Thị Thanh 0333743201 nhận hàng tại ngõ 36 đường Thanh Hóa, thanh toán khi nhận hàng")
                 .build();
 
         AiChatResponse response = aiService.chatWithCustomer(request);
@@ -229,8 +229,8 @@ class AiServiceImplTest {
     }
 
     @Test
-    @DisplayName("TC_AI_08: Khách gửi tên số nhà đường Thanh Hóa theo sau tin nhắn tư vấn trước đó")
-    void whenCustomerProvidesInfoWithSoNha_thenPlacesOrderSuccessfully() {
+    @DisplayName("TC_AI_08a: Khách gửi thông tin nhận hàng -> Chatbot ghi nhận thông tin và hỏi phương thức thanh toán")
+    void whenCustomerProvidesDeliveryInfo_withoutPaymentMethod_thenAsksForPaymentMethod() {
         org.springframework.test.util.ReflectionTestUtils.setField(aiService, "orderService", orderService);
 
         Product mouse = Product.builder()
@@ -242,36 +242,172 @@ class AiServiceImplTest {
                 .build();
         when(productRepository.findAll()).thenReturn(List.of(mouse));
 
+        ra.project.server.model.dto.request.ChatMessageDto prevMsg = new ra.project.server.model.dto.request.ChatMessageDto();
+        prevMsg.setRole("assistant");
+        prevMsg.setContent("Dạ em hỗ trợ lên đơn ngay cho Chuột không dây Logitech MX Master 3S (2.490.000đ).\nAnh/chị vui lòng cung cấp thông tin nhận hàng gồm: Họ tên, Số điện thoại, Địa chỉ nhận hàng và Ghi chú nhé ạ!");
+
+        AiChatRequest request = AiChatRequest.builder()
+                .message("Nguyên Tuấn Minh 0333743203 số nhà 36 đường Thanh Hóa, ghi chú: giao trước 17h")
+                .history(List.of(prevMsg))
+                .build();
+
+        AiChatResponse response = aiService.chatWithCustomer(request);
+        assertNotNull(response);
+        assertNull(response.getCreatedOrder(), "Chưa tạo đơn hàng vì cần khách hàng chọn hình thức thanh toán");
+        assertTrue(response.getReply().contains("Nguyên Tuấn Minh"), "Phải xác nhận họ tên");
+        assertTrue(response.getReply().contains("0333743203"), "Phải xác nhận số điện thoại");
+        assertTrue(response.getReply().contains("số nhà 36 đường Thanh Hóa"), "Phải xác nhận địa chỉ");
+        assertTrue(response.getReply().contains("giao trước 17h"), "Phải trích xuất và hiển thị ghi chú");
+        assertTrue(response.getReply().contains("Thanh toán khi nhận hàng (COD)"), "Phải hỏi lựa chọn COD");
+        assertTrue(response.getReply().contains("Chuyển khoản VietQR Online (SePay)"), "Phải hỏi lựa chọn VietQR Online");
+    }
+
+    @Test
+    @DisplayName("TC_AI_08b: Khách chọn hình thức COD (bằng số 1 hoặc từ khóa) -> Tạo đơn COD thành công")
+    void whenCustomerChoosesCod_thenCreatesCodOrderSuccessfully() {
+        org.springframework.test.util.ReflectionTestUtils.setField(aiService, "orderService", orderService);
+
+        Product mouse = Product.builder()
+                .id(50L)
+                .name("Chuột không dây Logitech MX Master 3S")
+                .price(BigDecimal.valueOf(2490000))
+                .status("ACTIVE")
+                .build();
+        when(productRepository.findAll()).thenReturn(List.of(mouse));
+
         ArgumentCaptor<CheckoutRequest> captor = ArgumentCaptor.forClass(CheckoutRequest.class);
         OrderResponse mockOrderResponse = OrderResponse.builder()
                 .id(1223L)
                 .receiverName("Nguyên Tuấn Minh")
                 .phoneNumber("0333743203")
                 .shippingAddress("số nhà 36 đường Thanh Hóa")
+                .paymentMethod(ra.project.server.model.enums.PaymentMethod.COD)
+                .totalAmount(BigDecimal.valueOf(2490000))
+                .note("giao trước 17h")
+                .build();
+        when(orderService.createOrderForAiAssistant(captor.capture()))
+                .thenReturn(ra.project.server.common.response.ApiResponse.success(mockOrderResponse));
+
+        ra.project.server.model.dto.request.ChatMessageDto botMsg1 = new ra.project.server.model.dto.request.ChatMessageDto();
+        botMsg1.setRole("assistant");
+        botMsg1.setContent("Dạ em hỗ trợ lên đơn cho Chuột không dây Logitech MX Master 3S");
+
+        ra.project.server.model.dto.request.ChatMessageDto userMsg1 = new ra.project.server.model.dto.request.ChatMessageDto();
+        userMsg1.setRole("user");
+        userMsg1.setContent("Nguyên Tuấn Minh 0333743203 số nhà 36 đường Thanh Hóa, ghi chú: giao trước 17h");
+
+        ra.project.server.model.dto.request.ChatMessageDto botMsg2 = new ra.project.server.model.dto.request.ChatMessageDto();
+        botMsg2.setRole("assistant");
+        botMsg2.setContent("Dạ em đã ghi nhận thông tin:\n- Người nhận: Nguyên Tuấn Minh (0333743203)\n- Địa chỉ: số nhà 36 đường Thanh Hóa\n- Ghi chú: giao trước 17h\nAnh/chị vui lòng chọn hình thức thanh toán giúp em nhé:\n1️⃣ Thanh toán khi nhận hàng (COD)\n2️⃣ Chuyển khoản VietQR Online (SePay)");
+
+        AiChatRequest request = AiChatRequest.builder()
+                .message("1")
+                .history(List.of(botMsg1, userMsg1, botMsg2))
+                .build();
+
+        AiChatResponse response = aiService.chatWithCustomer(request);
+        assertNotNull(response);
+        assertNotNull(response.getCreatedOrder(), "Đơn hàng COD phải được tạo thành công!");
+        assertEquals(ra.project.server.model.enums.PaymentMethod.COD, captor.getValue().getPaymentMethod());
+        assertEquals("Nguyên Tuấn Minh", captor.getValue().getReceiverName());
+        assertEquals("0333743203", captor.getValue().getPhoneNumber());
+        assertEquals("số nhà 36 đường Thanh Hóa", captor.getValue().getShippingAddress());
+        assertEquals("giao trước 17h", captor.getValue().getNote());
+        assertTrue(response.getReply().contains("Đặt hàng thành công"));
+        assertTrue(response.getReply().contains("Thanh toán khi nhận hàng (COD)"));
+    }
+
+    @Test
+    @DisplayName("TC_AI_08c: Khách chọn hình thức Chuyển khoản Online -> Tạo đơn SePay, trả mã chuyển khoản và VietQR")
+    void whenCustomerChoosesOnlinePayment_thenCreatesSepayOrderWithPaymentCodeAndQr() {
+        org.springframework.test.util.ReflectionTestUtils.setField(aiService, "orderService", orderService);
+
+        Product mouse = Product.builder()
+                .id(50L)
+                .name("Chuột không dây Logitech MX Master 3S")
+                .price(BigDecimal.valueOf(2490000))
+                .status("ACTIVE")
+                .build();
+        when(productRepository.findAll()).thenReturn(List.of(mouse));
+
+        ArgumentCaptor<CheckoutRequest> captor = ArgumentCaptor.forClass(CheckoutRequest.class);
+        OrderResponse mockOrderResponse = OrderResponse.builder()
+                .id(1225L)
+                .receiverName("Nguyên Tuấn Minh")
+                .phoneNumber("0333743203")
+                .shippingAddress("số nhà 36 đường Thanh Hóa")
+                .paymentMethod(ra.project.server.model.enums.PaymentMethod.SEPAY)
                 .totalAmount(BigDecimal.valueOf(2490000))
                 .build();
         when(orderService.createOrderForAiAssistant(captor.capture()))
                 .thenReturn(ra.project.server.common.response.ApiResponse.success(mockOrderResponse));
 
-        ra.project.server.model.dto.request.ChatMessageDto prevMsg = new ra.project.server.model.dto.request.ChatMessageDto();
-        prevMsg.setRole("assistant");
-        prevMsg.setContent("Dạ em hỗ trợ lên đơn ngay cho Chuột không dây Logitech MX Master 3S (2.490.000đ).\nAnh/chị vui lòng cung cấp: Họ tên, Số điện thoại và Địa chỉ nhận hàng nhé ạ!");
+        ra.project.server.model.dto.request.ChatMessageDto botMsg1 = new ra.project.server.model.dto.request.ChatMessageDto();
+        botMsg1.setRole("assistant");
+        botMsg1.setContent("Dạ em hỗ trợ lên đơn cho Chuột không dây Logitech MX Master 3S");
+
+        ra.project.server.model.dto.request.ChatMessageDto userMsg1 = new ra.project.server.model.dto.request.ChatMessageDto();
+        userMsg1.setRole("user");
+        userMsg1.setContent("Nguyên Tuấn Minh 0333743203 số nhà 36 đường Thanh Hóa");
+
+        ra.project.server.model.dto.request.ChatMessageDto botMsg2 = new ra.project.server.model.dto.request.ChatMessageDto();
+        botMsg2.setRole("assistant");
+        botMsg2.setContent("Dạ em đã ghi nhận thông tin:\n- Người nhận: Nguyên Tuấn Minh (0333743203)\n- Địa chỉ: số nhà 36 đường Thanh Hóa\nAnh/chị vui lòng chọn hình thức thanh toán:\n1️⃣ Thanh toán khi nhận hàng (COD)\n2️⃣ Chuyển khoản VietQR Online (SePay)");
 
         AiChatRequest request = AiChatRequest.builder()
-                .message("Nguyên Tuấn Minh 0333743203 số nhà 36 đường Thanh Hóa")
-                .history(List.of(prevMsg))
+                .message("chuyển khoản online nhé")
+                .history(List.of(botMsg1, userMsg1, botMsg2))
                 .build();
 
         AiChatResponse response = aiService.chatWithCustomer(request);
         assertNotNull(response);
-        assertNotNull(response.getCreatedOrder(), "Đơn hàng phải được tạo thành công thay vì hỏi lại thông tin!");
+        assertNotNull(response.getCreatedOrder(), "Đơn hàng SePay phải được tạo thành công!");
+        assertEquals(ra.project.server.model.enums.PaymentMethod.SEPAY, captor.getValue().getPaymentMethod());
+        assertEquals("DH1225", response.getCreatedOrder().getSepayInvoiceNumber(), "Mã thanh toán SePay phải được gắn vào đơn");
 
-        CheckoutRequest passedReq = captor.getValue();
-        assertNotNull(passedReq);
-        assertEquals("Nguyên Tuấn Minh", passedReq.getReceiverName(), "Họ tên phải được trích xuất chính xác");
-        assertEquals("0333743203", passedReq.getPhoneNumber(), "Số điện thoại phải chuẩn xác");
-        assertEquals("số nhà 36 đường Thanh Hóa", passedReq.getShippingAddress(), "Địa chỉ phải trích xuất chính xác số nhà và tên đường");
-        assertEquals(50L, passedReq.getItems().get(0).getProductId(), "Sản phẩm được đặt phải là Chuột Logitech MX Master 3S từ lịch sử");
+        String reply = response.getReply();
+        assertTrue(reply.contains("THÔNG TIN THANH TOÁN VIETQR ONLINE"), "Phải có tiêu đề thanh toán VietQR Online");
+        assertTrue(reply.contains("DH1225"), "Phải gửi mã thanh toán / nội dung chuyển khoản cho người dùng");
+        assertTrue(reply.contains("/payment/qr/1225"), "Phải có đường link mở trang quét mã QR thanh toán");
+    }
+
+    @Test
+    @DisplayName("TC_AI_08d: Khách cung cấp đầy đủ thông tin nhận hàng và thanh toán online trong 1 câu -> Tạo đơn ngay")
+    void whenCustomerProvidesAllInfoAndOnlinePayment_thenCreatesSepayOrderImmediately() {
+        org.springframework.test.util.ReflectionTestUtils.setField(aiService, "orderService", orderService);
+
+        Product mouse = Product.builder()
+                .id(50L)
+                .name("Chuột không dây Logitech MX Master 3S")
+                .price(BigDecimal.valueOf(2490000))
+                .status("ACTIVE")
+                .build();
+        when(productRepository.findAll()).thenReturn(List.of(mouse));
+
+        ArgumentCaptor<CheckoutRequest> captor = ArgumentCaptor.forClass(CheckoutRequest.class);
+        OrderResponse mockOrderResponse = OrderResponse.builder()
+                .id(1226L)
+                .receiverName("Nguyên Tuấn Minh")
+                .phoneNumber("0333743203")
+                .shippingAddress("số nhà 36 đường Thanh Hóa")
+                .paymentMethod(ra.project.server.model.enums.PaymentMethod.SEPAY)
+                .totalAmount(BigDecimal.valueOf(2490000))
+                .build();
+        when(orderService.createOrderForAiAssistant(captor.capture()))
+                .thenReturn(ra.project.server.common.response.ApiResponse.success(mockOrderResponse));
+
+        AiChatRequest request = AiChatRequest.builder()
+                .message("Tôi tên Nguyên Tuấn Minh 0333743203 số nhà 36 đường Thanh Hóa, mua chuột logitech thanh toán online")
+                .build();
+
+        AiChatResponse response = aiService.chatWithCustomer(request);
+        assertNotNull(response);
+        assertNotNull(response.getCreatedOrder());
+        assertEquals(ra.project.server.model.enums.PaymentMethod.SEPAY, captor.getValue().getPaymentMethod());
+        assertEquals("Nguyên Tuấn Minh", captor.getValue().getReceiverName());
+        assertEquals("0333743203", captor.getValue().getPhoneNumber());
+        assertEquals("DH1226", response.getCreatedOrder().getSepayInvoiceNumber());
+        assertTrue(response.getReply().contains("/payment/qr/1226"));
     }
 
     @Test
