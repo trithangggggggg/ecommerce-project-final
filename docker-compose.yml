@@ -43,6 +43,7 @@ services:
     image: ${APP_IMAGE:-ecommerce-app}:${APP_TAG:-latest}
     restart: unless-stopped
     environment:
+      SERVER_PORT: "8080"
       DB_HOST: mysql
       DB_PORT: "3306"
       DB_NAME: ${MYSQL_DATABASE:-ecommerce_db}

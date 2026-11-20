@@ -107,7 +107,7 @@ axiosClient.interceptors.response.use(
         } else if (status === 405) {
           message = message || 'Phương thức yêu cầu không hợp lệ. Vui lòng thử lại!';
         } else if (status >= 500) {
-          message = 'Máy chủ Backend (Port 8088) đang gặp sự cố hoặc chưa khởi động. Vui lòng kiểm tra lại server!';
+          message = 'Máy chủ Backend đang gặp sự cố hoặc chưa khởi động. Vui lòng kiểm tra lại server!';
         } else if (!message || message.includes('status code')) {
           message = `Thao tác không thành công (Mã lỗi ${status || 'Unknown'}). Vui lòng kiểm tra lại!`;
         }
