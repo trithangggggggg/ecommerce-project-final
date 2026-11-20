@@ -31,6 +31,8 @@ import ra.project.server.service.impl.SepayServiceImpl;
 
 import java.math.BigDecimal;
 import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -73,7 +75,7 @@ class SepayServiceImplTest {
         sepayConfig.setPaymentPrefix("DH");
         sepayConfig.setQrBaseUrl("https://qr.sepay.vn/img");
         sepayConfig.setQrTemplate("qronly");
-        sepayConfig.setQrTimeoutMinutes(15);
+        sepayConfig.setQrTimeoutMinutes(5);
         sepayConfig.setMerchantId("SP-TEST-MERCHANT");
         sepayConfig.setSecretKey(SECRET_KEY);
         sepayConfig.setCheckoutUrl("https://pay-sandbox.sepay.vn/v1/checkout/init");
@@ -165,7 +167,7 @@ class SepayServiceImplTest {
         assertTrue(response.getQrImageUrl().contains("template=qronly"));
         assertNotNull(response.getQrDownloadUrl());
         assertTrue(response.getQrDownloadUrl().contains("download=true"));
-        assertEquals(900L, response.getTimeoutSeconds());
+        assertEquals(300L, response.getTimeoutSeconds());
         assertNotNull(response.getExpiresAt());
 
         assertEquals(PaymentMethod.SEPAY, pendingOrder.getPaymentMethod());
@@ -178,10 +180,48 @@ class SepayServiceImplTest {
     void createPaymentCheckout_MissingBankConfig_ThrowsBadRequest() {
         sepayConfig.setBankAccount("");
         sepayConfig.setBankCode("");
+        sepayConfig.setWebhookApiKey("");
+        sepayConfig.setApiToken("");
 
         assertThrows(BadRequestException.class,
                 () -> sepayService.createPaymentCheckout(CreatePaymentRequest.builder().orderId(10L).build()));
         verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Tự động đồng bộ tài khoản ngân hàng từ SePay API thành công")
+    void syncBankAccountsFromApi_Success() throws Exception {
+        sepayConfig.setBankAccount("");
+        sepayConfig.setBankCode("");
+        sepayConfig.setApiToken("test-sepay-token");
+
+        String apiJson = """
+                {
+                  "status": 200,
+                  "bankaccounts": [
+                    {
+                      "account_number": "0987654321",
+                      "bank_short_name": "MBBank",
+                      "bank_full_name": "MB Bank (Ngân hàng Quân Đội)",
+                      "account_holder_name": "NGUYEN TRI THANG",
+                      "active": "1"
+                    }
+                  ]
+                }
+                """;
+
+        HttpResponse<String> mockResp = mock(HttpResponse.class);
+        when(mockResp.statusCode()).thenReturn(200);
+        when(mockResp.body()).thenReturn(apiJson);
+        doReturn(mockResp).when(httpClient).send(any(HttpRequest.class), any());
+
+        boolean synced = sepayService.syncBankAccountsFromApi();
+
+        assertTrue(synced);
+        assertTrue(sepayConfig.isQrConfigured());
+        assertEquals("0987654321", sepayConfig.getBankAccount());
+        assertEquals("MBBank", sepayConfig.getBankCode());
+        assertEquals("NGUYEN TRI THANG", sepayConfig.getAccountHolder());
     }
 
     @Test

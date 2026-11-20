@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -104,5 +105,45 @@ class AdminOrderControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.status").value("SHIPPING"));
+    }
+
+    @Test
+    void whenCreateAdminOrder_thenReturn201Created() throws Exception {
+        OrderResponse created = OrderResponse.builder()
+                .id(10L)
+                .receiverName("Tran Van B")
+                .phoneNumber("0987654321")
+                .shippingAddress("789 Pho Hue, Ha Noi")
+                .status(OrderStatus.PENDING)
+                .paymentMethod(PaymentMethod.COD)
+                .totalAmount(BigDecimal.valueOf(250000))
+                .build();
+
+        when(orderService.adminCreateOrder(any()))
+                .thenReturn(ApiResponse.created("Đặt hàng thành công", created));
+
+        String body = """
+                {
+                    "receiverName": "Tran Van B",
+                    "phoneNumber": "0987654321",
+                    "shippingAddress": "789 Pho Hue, Ha Noi",
+                    "paymentMethod": "COD",
+                    "items": [
+                        {
+                            "productId": 1,
+                            "quantity": 1
+                        }
+                    ]
+                }
+                """;
+
+        mockMvc.perform(post("/api/admin/orders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(10))
+                .andExpect(jsonPath("$.data.receiverName").value("Tran Van B"))
+                .andExpect(jsonPath("$.data.status").value("PENDING"));
     }
 }

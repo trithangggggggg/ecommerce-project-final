@@ -30,5 +30,15 @@ public class AiChatResponse {
      */
     private OrderResponse createdOrder;
 
+    /**
+     * Phiếu xác nhận thông tin đơn hàng dự thảo (chờ khách bấm Xác nhận hoặc Hủy)
+     */
+    private OrderPreviewDto orderPreview;
+
+    /**
+     * Danh sách các nút hành động nhanh trên giao diện chat (ví dụ: ["Xác nhận đặt hàng", "Hủy"])
+     */
+    private List<String> quickActions;
+
     private String provider;
 }

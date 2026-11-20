@@ -11,6 +11,7 @@ import {
   AlertCircle,
   Eye,
   QrCode,
+  Clock,
 } from 'lucide-react';
 import { aiService, type ChatMessage } from '../../../api/services/ai.service';
 import { formatPrice } from '../../../utils/format';
@@ -137,6 +138,8 @@ export function AiChatbot() {
         suggestedProducts: products,
         recommendedProducts: products,
         createdOrder: orderToAttach,
+        orderPreview: response.orderPreview,
+        quickActions: response.quickActions,
         timestamp: new Date(),
       };
 
@@ -157,6 +160,82 @@ export function AiChatbot() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleConfirmDraft = async (draftId?: string) => {
+    if (!draftId || isLoading) {
+      handleSendMessage('Xác nhận đặt hàng');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const createdOrder = await aiService.confirmDraftOrder(draftId);
+      if (createdOrder) {
+        try {
+          localStorage.setItem('nexor_ai_last_order', JSON.stringify(createdOrder));
+        } catch {}
+
+        const isSepay = createdOrder.paymentMethod === 'SEPAY';
+        let reply = `🎉 **Tạo đơn hàng thành công! Mã đơn: #NXR-${createdOrder.id}**\n\n` +
+          `- **Sản phẩm:** ${createdOrder.items?.[0]?.productName || 'Sản phẩm đã chọn'} (SL: ${createdOrder.items?.[0]?.quantity || 1})\n` +
+          `- **Người nhận:** ${createdOrder.receiverName} (${createdOrder.phoneNumber})\n` +
+          `- **Địa chỉ giao:** ${createdOrder.shippingAddress}\n` +
+          `- **Tổng thanh toán:** ${formatPrice(createdOrder.totalAmount || 0)}\n\n`;
+
+        if (isSepay) {
+          reply += `💳 **THÔNG TIN THANH TOÁN VIETQR ONLINE (SEPAY):**\n` +
+            `- **Mã thanh toán (Nội dung CK):** \`${createdOrder.sepayInvoiceNumber || `DH${createdOrder.id}`}\`\n` +
+            `- Quý khách vui lòng quét mã QR thanh toán hoặc bấm nút **Xem mã QR thanh toán** bên dưới nhé ạ!`;
+        } else {
+          reply += `📦 Đơn hàng sẽ được nhân viên NEXOR đóng gói và giao hỏa tốc đến địa chỉ của anh/chị sớm nhất. Cảm ơn quý khách đã tin tưởng lựa chọn NEXOR! ✨`;
+        }
+
+        const confirmMsg: ChatMessage = {
+          id: `bot-${Date.now()}`,
+          role: 'assistant',
+          content: reply,
+          createdOrder,
+          timestamp: new Date(),
+        };
+
+        setMessages((prev) =>
+          prev.map((m) => (m.orderPreview?.draftId === draftId ? { ...m, orderPreview: undefined } : m)).concat(confirmMsg)
+        );
+      }
+    } catch (err: any) {
+      const errText = err?.response?.data?.message || 'Không thể xác nhận đơn hàng lúc này. Vui lòng thử lại!';
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `bot-err-${Date.now()}`,
+          role: 'assistant',
+          content: `⚠️ ${errText}`,
+          timestamp: new Date(),
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCancelDraft = async (draftId?: string) => {
+    if (draftId) {
+      try {
+        await aiService.cancelDraftOrder(draftId);
+      } catch {}
+    }
+
+    const cancelMsg: ChatMessage = {
+      id: `bot-${Date.now()}`,
+      role: 'assistant',
+      content: 'Dạ em đã hủy phiếu xác nhận đơn hàng theo yêu cầu rồi ạ! Khi nào anh/chị cần đặt lại hoặc muốn tham khảo thêm sản phẩm nào khác thì cứ nhắn em nhé! 😊',
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) =>
+      prev.map((m) => (m.orderPreview?.draftId === draftId ? { ...m, orderPreview: undefined } : m)).concat(cancelMsg)
+    );
   };
 
   const handleResetChat = () => {
@@ -424,6 +503,100 @@ export function AiChatbot() {
                       )}
                     </div>
                   </div>
+
+                  {/* Hiển thị Phiếu xác nhận đặt hàng (Order Preview) với 2 nút: Xác nhận & Hủy */}
+                  {msg.orderPreview && (
+                    <div className="mt-2.5 ml-9 p-3.5 rounded-2xl w-[calc(100%-2.25rem)] text-xs shadow-md border border-amber-200/90 bg-gradient-to-br from-amber-50/90 via-orange-50/40 to-white animate-in fade-in slide-in-from-bottom-2 duration-300">
+                      <div className="flex items-center justify-between font-extrabold text-amber-950 mb-2 border-b border-amber-200/70 pb-2">
+                        <span className="flex items-center gap-1.5 text-xs">
+                          <Clock size={15} className="text-amber-600 animate-pulse" />
+                          <span>Phiếu xác nhận thông tin đặt hàng</span>
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-200/80 text-amber-900">
+                          Chờ bạn duyệt
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5 text-[11px] text-gray-700">
+                        <div className="flex items-start gap-2">
+                          <span className="text-gray-500 font-semibold w-20 shrink-0">Sản phẩm:</span>
+                          <span className="font-bold text-gray-950 flex-1">
+                            {msg.orderPreview.productName} (SL: {msg.orderPreview.quantity})
+                          </span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-gray-500 font-semibold w-20 shrink-0">Người nhận:</span>
+                          <span className="text-gray-900 font-semibold">
+                            {msg.orderPreview.receiverName} ({msg.orderPreview.phoneNumber})
+                          </span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-gray-500 font-semibold w-20 shrink-0">Địa chỉ:</span>
+                          <span className="text-gray-900 flex-1">{msg.orderPreview.shippingAddress}</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-gray-500 font-semibold w-20 shrink-0">Thanh toán:</span>
+                          <span className="font-semibold text-indigo-700">
+                            {msg.orderPreview.paymentMethod === 'SEPAY'
+                              ? 'Chuyển khoản VietQR Online (SePay)'
+                              : 'Thanh toán khi nhận hàng (COD)'}
+                          </span>
+                        </div>
+                        {msg.orderPreview.note && msg.orderPreview.note !== 'Không có' && (
+                          <div className="flex items-start gap-2">
+                            <span className="text-gray-500 font-semibold w-20 shrink-0">Ghi chú:</span>
+                            <span className="text-gray-800 italic">{msg.orderPreview.note}</span>
+                          </div>
+                        )}
+                        <div className="flex items-start gap-2 pt-1 border-t border-amber-200/50">
+                          <span className="text-gray-500 font-semibold w-20 shrink-0">Tổng tiền:</span>
+                          <span className="font-extrabold text-blue-600 text-xs">
+                            {formatPrice(msg.orderPreview.totalAmount)}
+                          </span>
+                          <span className="text-[10px] text-emerald-600 font-medium">(Freeship toàn quốc)</span>
+                        </div>
+                      </div>
+
+                      {/* 2 Nút hành động: Xác nhận & Hủy */}
+                      <div className="mt-3 pt-2.5 border-t border-amber-200/70 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmDraft(msg.orderPreview?.draftId)}
+                          disabled={isLoading}
+                          className="flex-1 py-1.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-[11px] shadow-sm flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer disabled:opacity-50"
+                        >
+                          <CheckCircle2 size={13} />
+                          <span>Xác nhận</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCancelDraft(msg.orderPreview?.draftId)}
+                          disabled={isLoading}
+                          className="py-1.5 px-3 rounded-xl bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 font-bold text-[11px] border border-rose-200 shadow-2xs flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer disabled:opacity-50"
+                        >
+                          <X size={13} />
+                          <span>Hủy</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Hiển thị các nút thao tác nhanh (Quick Actions) nếu có */}
+                  {msg.quickActions && msg.quickActions.length > 0 && !msg.orderPreview && (
+                    <div className="mt-2 ml-9 flex flex-wrap gap-1.5">
+                      {msg.quickActions.map((action, aIdx) => (
+                        <button
+                          key={aIdx}
+                          type="button"
+                          onClick={() => handleSendMessage(action)}
+                          disabled={isLoading}
+                          className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[11px] border border-indigo-200/70 transition shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50"
+                        >
+                          {action}
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Hiển thị thẻ xác nhận Đơn hàng tự động nếu vừa tạo đơn qua AI */}
                   {msg.createdOrder && (

@@ -45,7 +45,7 @@ interface FeedbackBanner {
 }
 
 const POLL_INTERVAL_MS = 3000;
-const DEFAULT_TIMEOUT_SECONDS = 15 * 60;
+const DEFAULT_TIMEOUT_SECONDS = 5 * 60; // 5 phút giữ đơn QR
 
 const formatCountdown = (seconds: number): string => {
   const safe = Math.max(0, seconds);
@@ -251,7 +251,6 @@ export const SepayQrPaymentPage: React.FC = () => {
   const [checkFeedback, setCheckFeedback] = useState<FeedbackBanner | null>(null);
 
   const [isManualChecking, setIsManualChecking] = useState(false);
-  const [isRefreshingQr, setIsRefreshingQr] = useState(false);
   const [qrImageLoaded, setQrImageLoaded] = useState(false);
   const [qrImageError, setQrImageError] = useState(false);
   const [qrCacheKey, setQrCacheKey] = useState<number>(() => Date.now());
@@ -489,35 +488,6 @@ export const SepayQrPaymentPage: React.FC = () => {
       window.removeEventListener('focus', handleResume);
     };
   }, [orderId, loading, errorMsg, isPaid, isCancelled, isExpired, checkStatusOnce]);
-
-  const handleRefreshQr = async () => {
-    if (!orderId || isRefreshingQr) return;
-    setIsRefreshingQr(true);
-    setErrorMsg(null);
-    setCheckFeedback(null);
-    try {
-      const currentStatus = await paymentService.getPaymentStatus(orderId);
-      setStatusData(currentStatus);
-      if (
-        currentStatus.success ||
-        currentStatus.paymentStatus === 'PAID' ||
-        currentStatus.cancelled ||
-        currentStatus.orderStatus === 'CANCELLED'
-      ) {
-        return;
-      }
-      const fresh = await paymentService.createPayment({
-        orderId,
-        description: `Thanh toan don hang ${orderId}`,
-      });
-      applyNewPaymentData(fresh);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Không thể làm mới mã VietQR.';
-      setErrorMsg(msg);
-    } finally {
-      setIsRefreshingQr(false);
-    }
-  };
 
   const handleCancelOrder = async () => {
     if (!orderId || isCancellingOrder) return;
@@ -821,18 +791,24 @@ export const SepayQrPaymentPage: React.FC = () => {
                   )}
 
                   {isExpired && (
-                    <div className="absolute inset-0 bg-white/85 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-center space-y-3">
-                      <p className="text-xs font-bold text-slate-800">
-                        Phiên QR tạm hết thời gian hiển thị
-                      </p>
+                    <div className="absolute inset-0 bg-white/95 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-center space-y-3 z-10 animate-fade-in">
+                      <div className="w-10 h-10 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+                        <AlertTriangle className="w-5 h-5" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-bold text-slate-900">
+                          Đã hết thời gian giữ đơn hàng (5 phút)
+                        </p>
+                        <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+                          Đơn hàng đã được tự động hủy để hoàn lại tồn kho cho hệ thống.
+                        </p>
+                      </div>
                       <button
                         type="button"
-                        onClick={handleRefreshQr}
-                        disabled={isRefreshingQr}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition cursor-pointer disabled:opacity-60"
+                        onClick={() => navigate(ROUTES.MY_ORDERS)}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-sm transition cursor-pointer"
                       >
-                        <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingQr ? 'animate-spin' : ''}`} />
-                        <span>Tạo lại mã QR mới</span>
+                        <span>Xem đơn hàng của tôi</span>
                       </button>
                     </div>
                   )}

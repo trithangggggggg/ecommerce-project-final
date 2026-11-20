@@ -39,4 +39,6 @@ public interface OrderService {
     ApiResponse<OrderResponse> cancelMyOrder(Long orderId);
 
     ApiResponse<OrderResponse> cancelMyOrder(Long orderId, String reason);
+
+    int cancelExpiredUnpaidQrOrders();
 }

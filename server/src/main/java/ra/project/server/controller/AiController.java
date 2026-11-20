@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 import ra.project.server.common.response.ApiResponse;
 import ra.project.server.model.dto.request.AiChatRequest;
 import ra.project.server.model.dto.response.AiChatResponse;
+import ra.project.server.model.dto.response.OrderResponse;
 import ra.project.server.model.dto.response.VisualSearchResponse;
 import ra.project.server.service.AiService;
 import ra.project.server.service.RateLimiterService;
@@ -53,6 +54,24 @@ public class AiController {
         log.info("Khách hàng [{}] gửi câu hỏi tư vấn AI: {}", clientIp, request.getMessage());
         AiChatResponse response = aiService.chatWithCustomer(request);
         return ResponseEntity.ok(ApiResponse.success("Phản hồi từ NEXOR AI Assistant", response));
+    }
+
+    @PostMapping("/orders/{draftId}/confirm")
+    public ResponseEntity<ApiResponse<OrderResponse>> confirmDraftOrder(
+            @PathVariable("draftId") String draftId
+    ) {
+        log.info("Khách hàng xác nhận tạo đơn hàng từ draftId: {}", draftId);
+        OrderResponse orderResponse = aiService.confirmDraftOrder(draftId);
+        return ResponseEntity.ok(ApiResponse.success("Tạo đơn hàng thành công!", orderResponse));
+    }
+
+    @PostMapping("/orders/{draftId}/cancel")
+    public ResponseEntity<ApiResponse<Void>> cancelDraftOrder(
+            @PathVariable("draftId") String draftId
+    ) {
+        log.info("Khách hàng hủy đơn hàng draftId: {}", draftId);
+        aiService.cancelDraftOrder(draftId);
+        return ResponseEntity.ok(ApiResponse.success("Đã hủy bản thảo đơn hàng thành công!", null));
     }
 
     @PostMapping(value = "/visual-search", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

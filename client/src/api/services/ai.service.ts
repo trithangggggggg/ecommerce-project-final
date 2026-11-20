@@ -3,6 +3,23 @@ import { ENDPOINTS } from '../endpoints';
 import { MOCK_PRODUCTS } from '../mockData';
 import type { Product } from '../../models/product.model';
 
+export interface OrderPreview {
+  draftId?: string;
+  productId: number;
+  productName: string;
+  productImageUrl?: string;
+  quantity: number;
+  unitPrice: number;
+  totalAmount: number;
+  receiverName: string;
+  phoneNumber: string;
+  shippingAddress: string;
+  note?: string;
+  paymentMethod: 'COD' | 'SEPAY' | string;
+  paymentMethodName: string;
+  awaitingConfirmation?: boolean;
+}
+
 export interface ChatMessage {
   id?: string;
   role: 'user' | 'assistant';
@@ -11,6 +28,8 @@ export interface ChatMessage {
   recommendedProducts?: Product[];
   suggestedProducts?: Product[];
   createdOrder?: any;
+  orderPreview?: OrderPreview;
+  quickActions?: string[];
   isError?: boolean;
   failedText?: string;
 }
@@ -23,6 +42,8 @@ export interface AiChatApiResponse {
     suggestedProducts?: any[];
     recommendedProducts?: any[];
     createdOrder?: any;
+    orderPreview?: OrderPreview;
+    quickActions?: string[];
     provider?: string;
   };
 }
@@ -37,6 +58,8 @@ export interface AiChatResult {
   recommendedProducts: Product[];
   suggestedProducts?: Product[];
   createdOrder?: any;
+  orderPreview?: OrderPreview;
+  quickActions?: string[];
   provider: string;
 }
 
@@ -309,12 +332,29 @@ export const aiService = {
         recommendedProducts: formattedProducts,
         suggestedProducts: formattedProducts,
         createdOrder: data?.createdOrder || undefined,
+        orderPreview: data?.orderPreview || undefined,
+        quickActions: data?.quickActions || undefined,
         provider: data?.provider || 'NEXOR AI Assistant',
       };
     } catch {
       // Khi backend chưa phản hồi hoặc mạng chập chờn, tự động kích hoạt bộ xử lý thông minh cục bộ
       return generateSmartClientFallback(cleanMessage);
     }
+  },
+
+  /**
+   * Xác nhận đặt hàng từ bản thảo đơn nháp (POST /api/ai/orders/{draftId}/confirm)
+   */
+  async confirmDraftOrder(draftId: string): Promise<any> {
+    const response = await axiosClient.post(`/ai/orders/${draftId}/confirm`);
+    return response.data?.data || response.data;
+  },
+
+  /**
+   * Hủy bản thảo đơn hàng nháp (POST /api/ai/orders/{draftId}/cancel)
+   */
+  async cancelDraftOrder(draftId: string): Promise<void> {
+    await axiosClient.post(`/ai/orders/${draftId}/cancel`);
   },
 
   /**
