@@ -15,5 +15,9 @@ public interface AiService {
 
     AiChatResponse chatWithCustomer(AiChatRequest request);
 
+    ra.project.server.model.dto.response.OrderResponse confirmDraftOrder(String draftId);
+
+    void cancelDraftOrder(String draftId);
+
     VisualSearchResponse visualSearch(MultipartFile image);
 }

@@ -13,6 +13,7 @@ import ra.project.server.exception.ForbiddenException;
 import ra.project.server.exception.ResourceNotFoundException;
 import ra.project.server.exception.UnauthorizedException;
 import ra.project.server.mapper.OrderMapper;
+import ra.project.server.config.SepayConfig;
 import ra.project.server.model.dto.request.AdminCreateOrderRequest;
 import ra.project.server.model.dto.request.AdminOrderUpdateRequest;
 import ra.project.server.model.dto.request.CheckoutRequest;
@@ -60,6 +61,9 @@ public class OrderServiceImpl implements OrderService {
 
     @Autowired(required = false)
     private SystemSettingService systemSettingService;
+
+    @Autowired(required = false)
+    private SepayConfig sepayConfig;
 
     private User getCurrentAuthenticatedUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -136,10 +140,23 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public ApiResponse<OrderResponse> adminCreateOrder(AdminCreateOrderRequest request) {
-        User user = request.getUserId() != null
-                ? userRepository.findById(request.getUserId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Khách hàng", "id", request.getUserId()))
-                : getCurrentAuthenticatedUser();
+        User user = null;
+        if (request.getUserId() != null) {
+            user = userRepository.findById(request.getUserId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Khách hàng", "id", request.getUserId()));
+        } else if (StringUtils.hasText(request.getPhoneNumber())) {
+            String cleanPhone = request.getPhoneNumber().replaceAll("[^0-9]", "");
+            List<User> matchedUsers = userRepository.findAll().stream()
+                    .filter(u -> cleanPhone.equals(u.getPhoneNumber() != null ? u.getPhoneNumber().replaceAll("[^0-9]", "") : ""))
+                    .toList();
+            if (!matchedUsers.isEmpty()) {
+                user = matchedUsers.get(0);
+            }
+        }
+
+        if (user == null) {
+            user = getCurrentAuthenticatedUser();
+        }
 
         CheckoutRequest checkoutReq = CheckoutRequest.builder()
                 .receiverName(request.getReceiverName())
@@ -697,6 +714,34 @@ public class OrderServiceImpl implements OrderService {
         log.info("Khách hàng '{}' đã hủy thành công đơn hàng #{} (Lý do: {})", user.getUsername(), orderId, order.getCancelReason());
 
         return ApiResponse.success("Đã hủy đơn hàng #" + orderId + " thành công", orderMapper.toResponse(cancelledOrder));
+    }
+
+    @Override
+    @Transactional
+    public int cancelExpiredUnpaidQrOrders() {
+        int timeoutMinutes = sepayConfig != null && sepayConfig.getQrTimeoutMinutes() > 0
+                ? sepayConfig.getQrTimeoutMinutes()
+                : 5;
+
+        LocalDateTime threshold = LocalDateTime.now().minusMinutes(timeoutMinutes);
+
+        List<Order> pendingUnpaidQrOrders = orderRepository.findByStatusAndPaymentMethodAndPaymentStatus(
+                OrderStatus.PENDING, PaymentMethod.SEPAY, PaymentStatus.UNPAID);
+
+        int cancelledCount = 0;
+        for (Order order : pendingUnpaidQrOrders) {
+            if (order.getCreatedAt() != null && order.getCreatedAt().isBefore(threshold)) {
+                log.info("Hệ thống tự động hủy đơn hàng #{} do quá {} phút chưa thanh toán VietQR",
+                        order.getId(), timeoutMinutes);
+                restoreStockForOrder(order);
+                restorePromotionUsage(order);
+                order.setStatus(OrderStatus.CANCELLED);
+                order.setCancelReason(String.format("Hệ thống tự động hủy do quá thời gian thanh toán VietQR (%d phút)", timeoutMinutes));
+                orderRepository.save(order);
+                cancelledCount++;
+            }
+        }
+        return cancelledCount;
     }
 
     private void restorePromotionUsage(Order order) {

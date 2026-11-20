@@ -99,6 +99,7 @@ export const AdminOrdersPage: React.FC = () => {
     shippingAddress: string;
     paymentMethod: PaymentMethod;
     carrierId?: number | '';
+    couponCode?: string;
     productName: string;
     quantity: number;
     price: number;
@@ -109,6 +110,7 @@ export const AdminOrdersPage: React.FC = () => {
     shippingAddress: '',
     paymentMethod: 'COD',
     carrierId: '',
+    couponCode: '',
     productName: '',
     quantity: 1,
     price: 0,
@@ -556,6 +558,7 @@ export const AdminOrdersPage: React.FC = () => {
       shippingAddress: '',
       paymentMethod: 'COD',
       carrierId: '',
+      couponCode: '',
       productName: '',
       quantity: 1,
       price: 0,
@@ -611,6 +614,7 @@ export const AdminOrdersPage: React.FC = () => {
         shippingAddress: newOrderForm.shippingAddress.trim(),
         paymentMethod: newOrderForm.paymentMethod,
         carrierId: newOrderForm.carrierId ? Number(newOrderForm.carrierId) : undefined,
+        couponCode: newOrderForm.couponCode?.trim() || undefined,
         note: newOrderForm.note?.trim() || undefined,
         items: [
           {
@@ -1565,15 +1569,27 @@ export const AdminOrdersPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Ghi chú giao hàng</label>
-                  <textarea
-                    rows={2}
-                    placeholder="Giao giờ hành chính, gọi trước khi đến..."
-                    value={newOrderForm.note}
-                    onChange={(e) => setNewOrderForm({ ...newOrderForm, note: e.target.value })}
-                    className="w-full px-3 py-1.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none resize-none"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Mã giảm giá (tuỳ chọn)</label>
+                    <input
+                      type="text"
+                      placeholder="VD: GIAM50K, FREESHIP..."
+                      value={newOrderForm.couponCode || ''}
+                      onChange={(e) => setNewOrderForm({ ...newOrderForm, couponCode: e.target.value.toUpperCase() })}
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-xl font-mono text-xs uppercase focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Ghi chú giao hàng</label>
+                    <input
+                      type="text"
+                      placeholder="Giao giờ hành chính, gọi trước..."
+                      value={newOrderForm.note}
+                      onChange={(e) => setNewOrderForm({ ...newOrderForm, note: e.target.value })}
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
                 </div>
 
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center font-bold">

@@ -60,10 +60,25 @@ public class SepayConfig {
     private String bankName;
     private String accountHolder;
     private String webhookApiKey;
+    private String apiToken;
+    private String userApiUrl = "https://my.sepay.vn/userapi";
     private String paymentPrefix = "DH";
     private String qrBaseUrl = "https://qr.sepay.vn/img";
     private String qrTemplate = "qronly";
-    private int qrTimeoutMinutes = 15;
+    private int qrTimeoutMinutes = 5;
+
+    /**
+     * Lấy token khả dụng để gọi SePay User API (ưu tiên apiToken, fallback webhookApiKey hoặc secretKey).
+     */
+    public String getEffectiveApiToken() {
+        if (isNotBlank(apiToken)) {
+            return apiToken.trim();
+        }
+        if (isNotBlank(webhookApiKey)) {
+            return webhookApiKey.trim();
+        }
+        return isNotBlank(secretKey) ? secretKey.trim() : null;
+    }
 
     /**
      * Kiểm tra đã cấu hình đủ thông tin tài khoản ngân hàng tạo VietQR trực tiếp hay chưa.

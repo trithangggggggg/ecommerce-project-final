@@ -10,6 +10,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import ra.project.server.model.entity.Order;
 import ra.project.server.model.enums.OrderStatus;
+import ra.project.server.model.enums.PaymentMethod;
+import ra.project.server.model.enums.PaymentStatus;
 
 import java.util.List;
 import java.util.Optional;
@@ -29,6 +31,11 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     java.util.Optional<Order> findFirstByCompensationCoupon(String compensationCoupon);
 
     Optional<Order> findBySepayInvoiceNumber(String sepayInvoiceNumber);
+
+    List<Order> findByStatusAndPaymentMethodAndPaymentStatus(
+            OrderStatus status,
+            PaymentMethod paymentMethod,
+            PaymentStatus paymentStatus);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT o FROM Order o WHERE o.id = :id")

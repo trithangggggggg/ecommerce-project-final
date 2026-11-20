@@ -35,6 +35,12 @@ public interface SepayService {
     SepayReturnResponse getPaymentStatus(Long orderId);
 
     /**
+     * Tự động gọi SePay API (User API) để lấy danh sách tài khoản ngân hàng đã liên kết trên my.sepay.vn.
+     * Tự động nạp số tài khoản, mã ngân hàng và tên chủ tài khoản mà không cần nhập thủ công.
+     */
+    boolean syncBankAccountsFromApi();
+
+    /**
      * Đọc trạng thái thanh toán trả về cho Frontend hiển thị (read-only, không tự ý ghi DB).
      */
     SepayReturnResponse handlePaymentReturn(Map<String, String> params);
