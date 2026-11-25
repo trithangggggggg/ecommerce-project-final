@@ -63,6 +63,9 @@ public class SepayServiceImpl implements SepayService {
     private final HttpClient httpClient;
     private final AtomicReference<CachedPrefixPattern> cachedPrefixPattern = new AtomicReference<>();
 
+    @Autowired(required = false)
+    private ra.project.server.service.OrderService orderService;
+
     @Autowired
     public SepayServiceImpl(
             SepayConfig sepayConfig,
@@ -90,12 +93,96 @@ public class SepayServiceImpl implements SepayService {
         this.httpClient = httpClient;
     }
 
+    @jakarta.annotation.PostConstruct
+    public void init() {
+        if (!sepayConfig.isQrConfigured() && sepayConfig.getEffectiveApiToken() != null) {
+            java.util.concurrent.CompletableFuture.runAsync(this::syncBankAccountsFromApi);
+        }
+    }
+
+    @Override
+    public synchronized boolean syncBankAccountsFromApi() {
+        if (sepayConfig.isQrConfigured()) {
+            return true;
+        }
+
+        String token = sepayConfig.getEffectiveApiToken();
+        if (token == null || token.isBlank()) {
+            log.warn("[SePay Sync] Chưa cấu hình SePay API Token để tự động lấy tài khoản ngân hàng.");
+            return false;
+        }
+
+        try {
+            String baseUrl = (sepayConfig.getUserApiUrl() != null && !sepayConfig.getUserApiUrl().isBlank())
+                    ? sepayConfig.getUserApiUrl().trim()
+                    : "https://my.sepay.vn/userapi";
+            String url = baseUrl + "/bankaccounts/list?limit=10";
+
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Authorization", "Bearer " + token)
+                    .header("Accept", "application/json")
+                    .timeout(Duration.ofSeconds(6))
+                    .GET()
+                    .build();
+
+            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (resp.statusCode() == 200 && resp.body() != null && !resp.body().isBlank()) {
+                JsonNode root = objectMapper.readTree(resp.body());
+                JsonNode accounts = root.has("bankaccounts") ? root.get("bankaccounts") : root.get("data");
+                if (accounts != null && accounts.isArray() && accounts.size() > 0) {
+                    JsonNode chosen = null;
+                    for (JsonNode acc : accounts) {
+                        String active = acc.hasNonNull("active") ? acc.get("active").asText() : "1";
+                        if ("1".equals(active) || "true".equalsIgnoreCase(active)) {
+                            chosen = acc;
+                            break;
+                        }
+                    }
+                    if (chosen == null) {
+                        chosen = accounts.get(0);
+                    }
+
+                    String accNumber = chosen.hasNonNull("account_number") ? chosen.get("account_number").asText().trim() : null;
+                    String bankShortName = chosen.hasNonNull("bank_short_name")
+                            ? chosen.get("bank_short_name").asText().trim()
+                            : (chosen.hasNonNull("bank_code") ? chosen.get("bank_code").asText().trim() : null);
+                    String bankFullName = chosen.hasNonNull("bank_full_name") ? chosen.get("bank_full_name").asText().trim() : null;
+                    String holder = chosen.hasNonNull("account_holder_name") ? chosen.get("account_holder_name").asText().trim() : null;
+
+                    if (accNumber != null && !accNumber.isBlank() && bankShortName != null && !bankShortName.isBlank()) {
+                        sepayConfig.setBankAccount(accNumber);
+                        sepayConfig.setBankCode(bankShortName);
+                        if (bankFullName != null && !bankFullName.isBlank()) {
+                            sepayConfig.setBankName(bankFullName);
+                        }
+                        if (holder != null && !holder.isBlank()) {
+                            sepayConfig.setAccountHolder(holder);
+                        }
+                        log.info(">>> [SePay Sync] Đã tự động đồng bộ tài khoản ngân hàng từ SePay API thành công: Ngân hàng={}, STK={}, Chủ TK={}",
+                                bankShortName, accNumber, holder);
+                        return true;
+                    }
+                }
+            } else {
+                log.warn("[SePay Sync] SePay API trả về status: {}, body: {}", resp.statusCode(), resp.body());
+            }
+        } catch (Exception ex) {
+            log.warn("[SePay Sync] Không thể tự động lấy danh sách tài khoản từ SePay API: {}", ex.getMessage());
+        }
+        return false;
+    }
+
     @Override
     @Transactional
     public SepayPaymentResponse createPaymentCheckout(CreatePaymentRequest request) {
         if (!sepayConfig.isQrConfigured()) {
+            syncBankAccountsFromApi();
+        }
+
+        if (!sepayConfig.isQrConfigured()) {
             throw new BadRequestException(
-                    "Chưa cấu hình tài khoản ngân hàng nhận VietQR (SEPAY_BANK_ACCOUNT, SEPAY_BANK_CODE)");
+                    "Chưa thể tạo mã VietQR lúc này. Chưa cấu hình tài khoản ngân hàng hoặc SePay API Token.");
         }
 
         User currentUser = getCurrentAuthenticatedUser();
@@ -118,7 +205,7 @@ public class SepayServiceImpl implements SepayService {
         String qrImageUrl = buildQrImageUrl(bankAccount, bankCode, amount, paymentCode, qrTemplate, false);
         String qrDownloadUrl = buildQrImageUrl(bankAccount, bankCode, amount, paymentCode, "compact", true);
 
-        int timeoutMinutes = sepayConfig.getQrTimeoutMinutes() > 0 ? sepayConfig.getQrTimeoutMinutes() : 15;
+        int timeoutMinutes = sepayConfig.getQrTimeoutMinutes() > 0 ? sepayConfig.getQrTimeoutMinutes() : 5;
         LocalDateTime expiresAt = LocalDateTime.now(VN_ZONE).plusMinutes(timeoutMinutes);
 
         order.setSepayInvoiceNumber(paymentCode);
@@ -261,12 +348,35 @@ public class SepayServiceImpl implements SepayService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public SepayReturnResponse getPaymentStatus(Long orderId) {
         User currentUser = getCurrentAuthenticatedUser();
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với ID: " + orderId));
         validateOrderOwnership(order, currentUser);
+
+        // Tự động kiểm tra quá hạn giữ đơn QR (5 phút) -> Tự động hủy nếu đã quá hạn
+        if (order.getStatus() == OrderStatus.PENDING
+                && order.getPaymentStatus() == PaymentStatus.UNPAID
+                && order.getPaymentMethod() == PaymentMethod.SEPAY) {
+            int timeoutMinutes = sepayConfig != null && sepayConfig.getQrTimeoutMinutes() > 0
+                    ? sepayConfig.getQrTimeoutMinutes()
+                    : 5;
+            LocalDateTime threshold = LocalDateTime.now().minusMinutes(timeoutMinutes);
+            if (order.getCreatedAt() != null && order.getCreatedAt().isBefore(threshold)) {
+                log.info("Đơn hàng #{} đã quá thời hạn giữ đơn thanh toán QR ({} phút). Tiến hành hủy đơn...",
+                        order.getId(), timeoutMinutes);
+                String cancelMsg = String.format("Hệ thống tự động hủy do quá thời gian giữ đơn thanh toán QR (%d phút)", timeoutMinutes);
+                if (orderService != null) {
+                    orderService.updateOrderStatus(order.getId(), OrderStatus.CANCELLED, null, null, cancelMsg);
+                } else {
+                    order.setStatus(OrderStatus.CANCELLED);
+                    order.setCancelReason(cancelMsg);
+                    orderRepository.save(order);
+                }
+                order = orderRepository.findById(orderId).orElse(order);
+            }
+        }
 
         boolean isPaid = order.getPaymentStatus() == PaymentStatus.PAID;
         boolean isCancelled = order.getStatus() == OrderStatus.CANCELLED;
@@ -279,7 +389,7 @@ public class SepayServiceImpl implements SepayService {
             message = "Thanh toán chuyển khoản VietQR thành công";
         } else if (isCancelled) {
             statusText = "CANCELLED";
-            message = "Đơn hàng đã được hủy";
+            message = order.getCancelReason() != null ? order.getCancelReason() : "Đơn hàng đã được hủy";
         } else if (isFailed) {
             statusText = "FAILED";
             message = "Giao dịch thanh toán chưa hoàn tất";

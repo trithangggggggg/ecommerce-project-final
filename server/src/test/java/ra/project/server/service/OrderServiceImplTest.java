@@ -17,12 +17,14 @@ import ra.project.server.exception.BadRequestException;
 import ra.project.server.exception.ResourceNotFoundException;
 import ra.project.server.exception.UnauthorizedException;
 import ra.project.server.mapper.OrderMapper;
+import ra.project.server.model.dto.request.AdminCreateOrderRequest;
 import ra.project.server.model.dto.request.CheckoutRequest;
 import ra.project.server.model.dto.request.OrderItemRequest;
 import ra.project.server.model.dto.response.OrderResponse;
 import ra.project.server.model.entity.*;
 import ra.project.server.model.enums.OrderStatus;
 import ra.project.server.model.enums.PaymentMethod;
+import ra.project.server.model.enums.PaymentStatus;
 import ra.project.server.model.enums.Role;
 import ra.project.server.repository.OrderRepository;
 import ra.project.server.repository.ProductRepository;
@@ -737,5 +739,130 @@ class OrderServiceImplTest {
 
                 assertEquals(OrderStatus.CANCELLED, order.getStatus());
                 assertEquals("Đặt nhầm màu sản phẩm", order.getCancelReason());
+        }
+
+        @Test
+        void whenAdminCreateOrder_withUserId_thenSuccess() {
+                when(userRepository.findById(1L)).thenReturn(Optional.of(customer));
+                when(productVariantRepository.findById(101L)).thenReturn(Optional.of(variant1));
+                when(productVariantRepository.deductStock(101L, 1)).thenReturn(1);
+                when(orderRepository.save(any(Order.class))).thenAnswer(i -> {
+                        Order saved = i.getArgument(0);
+                        saved.setId(201L);
+                        return saved;
+                });
+                OrderResponse mockResp = OrderResponse.builder()
+                                .id(201L)
+                                .userId(1L)
+                                .receiverName("Nguyen Van A")
+                                .status(OrderStatus.PENDING)
+                                .paymentMethod(PaymentMethod.COD)
+                                .build();
+                when(orderMapper.toResponse(any(Order.class))).thenReturn(mockResp);
+
+                AdminCreateOrderRequest request = AdminCreateOrderRequest.builder()
+                                .userId(1L)
+                                .receiverName("Nguyen Van A")
+                                .phoneNumber("0912345678")
+                                .shippingAddress("123 Ha Noi")
+                                .paymentMethod(PaymentMethod.COD)
+                                .items(List.of(OrderItemRequest.builder().variantId(101L).quantity(1).build()))
+                                .build();
+
+                ApiResponse<OrderResponse> result = orderService.adminCreateOrder(request);
+
+                assertNotNull(result);
+                assertTrue(result.isSuccess());
+                assertEquals(201, result.getData().getId());
+                verify(productVariantRepository, times(1)).deductStock(101L, 1);
+                verify(productRepository, times(1)).syncProductTotalStock(10L);
+                verify(orderRepository, times(1)).save(any(Order.class));
+        }
+
+        @Test
+        void whenAdminCreateOrder_withPhoneNumberMatch_thenLinksToCustomer() {
+                customer.setPhoneNumber("0912345678");
+                when(userRepository.findAll()).thenReturn(List.of(customer));
+                when(productVariantRepository.findById(101L)).thenReturn(Optional.of(variant1));
+                when(productVariantRepository.deductStock(101L, 1)).thenReturn(1);
+                when(orderRepository.save(any(Order.class))).thenAnswer(i -> {
+                        Order saved = i.getArgument(0);
+                        saved.setId(202L);
+                        assertEquals(customer.getId(), saved.getUser().getId());
+                        return saved;
+                });
+                OrderResponse mockResp = OrderResponse.builder()
+                                .id(202L)
+                                .userId(customer.getId())
+                                .status(OrderStatus.PENDING)
+                                .build();
+                when(orderMapper.toResponse(any(Order.class))).thenReturn(mockResp);
+
+                AdminCreateOrderRequest request = AdminCreateOrderRequest.builder()
+                                .userId(null)
+                                .receiverName("Khach Hang Cu")
+                                .phoneNumber("0912345678")
+                                .shippingAddress("456 Da Nang")
+                                .paymentMethod(PaymentMethod.COD)
+                                .items(List.of(OrderItemRequest.builder().variantId(101L).quantity(1).build()))
+                                .build();
+
+                ApiResponse<OrderResponse> result = orderService.adminCreateOrder(request);
+
+                assertNotNull(result);
+                assertTrue(result.isSuccess());
+                assertEquals(202L, result.getData().getId());
+        }
+
+        @Test
+        void whenAdminCreateOrder_outOfStock_thenThrowBadRequestException() {
+                when(userRepository.findById(1L)).thenReturn(Optional.of(customer));
+                when(productVariantRepository.findById(101L)).thenReturn(Optional.of(variant1));
+                when(productVariantRepository.deductStock(101L, 5)).thenReturn(0); // Kho không đủ
+
+                AdminCreateOrderRequest request = AdminCreateOrderRequest.builder()
+                                .userId(1L)
+                                .receiverName("Nguyen Van A")
+                                .phoneNumber("0912345678")
+                                .shippingAddress("123 Ha Noi")
+                                .items(List.of(OrderItemRequest.builder().variantId(101L).quantity(5).build()))
+                                .build();
+
+                BadRequestException ex = assertThrows(BadRequestException.class,
+                                () -> orderService.adminCreateOrder(request));
+                assertTrue(ex.getMessage().contains("không đủ số lượng tồn kho"));
+        }
+
+        @Test
+        void whenCancelExpiredUnpaidQrOrders_thenRestoresStockAndCancels() {
+                Order expiredQrOrder = Order.builder()
+                                .id(555L)
+                                .user(customer)
+                                .status(OrderStatus.PENDING)
+                                .paymentMethod(PaymentMethod.SEPAY)
+                                .paymentStatus(PaymentStatus.UNPAID)
+                                .build();
+                expiredQrOrder.setCreatedAt(java.time.LocalDateTime.now().minusMinutes(10)); // Đã tạo 10 phút trước (> 5p)
+
+                OrderItem item = OrderItem.builder()
+                                .variant(variant1)
+                                .product(product1)
+                                .quantity(2)
+                                .build();
+                expiredQrOrder.setOrderItems(new java.util.ArrayList<>(List.of(item)));
+
+                when(orderRepository.findByStatusAndPaymentMethodAndPaymentStatus(
+                                OrderStatus.PENDING, PaymentMethod.SEPAY, PaymentStatus.UNPAID))
+                                .thenReturn(List.of(expiredQrOrder));
+                when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+
+                int count = orderService.cancelExpiredUnpaidQrOrders();
+
+                assertEquals(1, count);
+                assertEquals(OrderStatus.CANCELLED, expiredQrOrder.getStatus());
+                assertTrue(expiredQrOrder.getCancelReason().contains("5 phút"));
+                verify(productVariantRepository, times(1)).restoreStock(101L, 2);
+                verify(productRepository, times(1)).syncProductTotalStock(10L);
+                verify(orderRepository, times(1)).save(expiredQrOrder);
         }
 }

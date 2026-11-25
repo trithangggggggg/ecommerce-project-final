@@ -79,4 +79,16 @@ public class PaymentController {
         SepayReturnResponse result = sepayService.handlePaymentReturn(params);
         return ResponseEntity.ok(ApiResponse.success(result.getMessage(), result));
     }
+
+    /**
+     * Endpoint đồng bộ danh sách tài khoản ngân hàng từ SePay API.
+     */
+    @PostMapping("/sync-accounts")
+    public ResponseEntity<ApiResponse<Boolean>> syncBankAccounts() {
+        boolean synced = sepayService.syncBankAccountsFromApi();
+        String msg = synced
+                ? "Đồng bộ tài khoản ngân hàng từ SePay thành công!"
+                : "Không thể đồng bộ tài khoản từ SePay (vui lòng kiểm tra lại SePay API Token).";
+        return ResponseEntity.ok(ApiResponse.success(msg, synced));
+    }
 }

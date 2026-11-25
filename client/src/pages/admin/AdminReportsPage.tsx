@@ -211,13 +211,30 @@ export const AdminReportsPage: React.FC = () => {
   }, [rawOrders, productCategoryMap, costMaps, estimatedMarginPct]);
 
   const filteredTransactions = useMemo(() => {
-    const now = Date.now();
+    const now = new Date();
     return transactions.filter((item) => {
       // Bộ lọc thời gian thực tế
-      if (dateRange === 'today' && now - item.rawDate > 24 * 60 * 60 * 1000) return false;
-      if (dateRange === '7days' && now - item.rawDate > 7 * 24 * 60 * 60 * 1000) return false;
-      if (dateRange === 'month' && now - item.rawDate > 30 * 24 * 60 * 60 * 1000) return false;
-      if (dateRange === 'quarter' && now - item.rawDate > 90 * 24 * 60 * 60 * 1000) return false;
+      if (item.rawDate) {
+        const itemDate = new Date(item.rawDate);
+        if (dateRange === 'today') {
+          const isToday =
+            itemDate.getFullYear() === now.getFullYear() &&
+            itemDate.getMonth() === now.getMonth() &&
+            itemDate.getDate() === now.getDate();
+          if (!isToday) return false;
+        } else if (dateRange === '7days') {
+          const startOf7Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7, 0, 0, 0);
+          if (itemDate < startOf7Days) return false;
+        } else if (dateRange === 'month') {
+          const isCurrentMonth =
+            itemDate.getFullYear() === now.getFullYear() &&
+            itemDate.getMonth() === now.getMonth();
+          if (!isCurrentMonth) return false;
+        } else if (dateRange === 'quarter') {
+          const startOfQuarter = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate(), 0, 0, 0);
+          if (itemDate < startOfQuarter) return false;
+        }
+      }
 
       // Bộ lọc kênh thanh toán
       if (channelFilter !== 'ALL' && item.channel !== channelFilter) return false;

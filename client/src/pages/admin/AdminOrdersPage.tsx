@@ -99,6 +99,7 @@ export const AdminOrdersPage: React.FC = () => {
     shippingAddress: string;
     paymentMethod: PaymentMethod;
     carrierId?: number | '';
+    couponCode?: string;
     productName: string;
     quantity: number;
     price: number;
@@ -109,6 +110,7 @@ export const AdminOrdersPage: React.FC = () => {
     shippingAddress: '',
     paymentMethod: 'COD',
     carrierId: '',
+    couponCode: '',
     productName: '',
     quantity: 1,
     price: 0,
@@ -556,6 +558,7 @@ export const AdminOrdersPage: React.FC = () => {
       shippingAddress: '',
       paymentMethod: 'COD',
       carrierId: '',
+      couponCode: '',
       productName: '',
       quantity: 1,
       price: 0,
@@ -611,6 +614,7 @@ export const AdminOrdersPage: React.FC = () => {
         shippingAddress: newOrderForm.shippingAddress.trim(),
         paymentMethod: newOrderForm.paymentMethod,
         carrierId: newOrderForm.carrierId ? Number(newOrderForm.carrierId) : undefined,
+        couponCode: newOrderForm.couponCode?.trim() || undefined,
         note: newOrderForm.note?.trim() || undefined,
         items: [
           {
@@ -715,12 +719,31 @@ export const AdminOrdersPage: React.FC = () => {
 
         // Date filter
         if (dateFilter !== 'all') {
-          const orderDate = new Date(order.createdAt).getTime();
-          const now = Date.now();
-          const oneDay = 24 * 60 * 60 * 1000;
-          if (dateFilter === 'today' && now - orderDate > oneDay) return false;
-          if (dateFilter === '7days' && now - orderDate > 7 * oneDay) return false;
-          if (dateFilter === 'month' && now - orderDate > 30 * oneDay) return false;
+          const dateStr = String(order.createdAt || '');
+          const normalized = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
+          const orderDate = new Date(normalized);
+          if (!isNaN(orderDate.getTime())) {
+            const now = new Date();
+
+            if (dateFilter === 'today') {
+              // Cùng ngày, tháng, năm với hôm nay (theo lịch thực tế)
+              const isToday =
+                orderDate.getFullYear() === now.getFullYear() &&
+                orderDate.getMonth() === now.getMonth() &&
+                orderDate.getDate() === now.getDate();
+              if (!isToday) return false;
+            } else if (dateFilter === '7days') {
+              // Trong vòng 7 ngày gần nhất (tính từ 00:00:00 của 7 ngày trước)
+              const startOf7Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7, 0, 0, 0);
+              if (orderDate < startOf7Days) return false;
+            } else if (dateFilter === 'month') {
+              // Trong tháng hiện tại (tính từ ngày 1 đầu tháng)
+              const isCurrentMonth =
+                orderDate.getFullYear() === now.getFullYear() &&
+                orderDate.getMonth() === now.getMonth();
+              if (!isCurrentMonth) return false;
+            }
+          }
         }
 
         // Search Query
@@ -1546,15 +1569,27 @@ export const AdminOrdersPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Ghi chú giao hàng</label>
-                  <textarea
-                    rows={2}
-                    placeholder="Giao giờ hành chính, gọi trước khi đến..."
-                    value={newOrderForm.note}
-                    onChange={(e) => setNewOrderForm({ ...newOrderForm, note: e.target.value })}
-                    className="w-full px-3 py-1.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none resize-none"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Mã giảm giá (tuỳ chọn)</label>
+                    <input
+                      type="text"
+                      placeholder="VD: GIAM50K, FREESHIP..."
+                      value={newOrderForm.couponCode || ''}
+                      onChange={(e) => setNewOrderForm({ ...newOrderForm, couponCode: e.target.value.toUpperCase() })}
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-xl font-mono text-xs uppercase focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Ghi chú giao hàng</label>
+                    <input
+                      type="text"
+                      placeholder="Giao giờ hành chính, gọi trước..."
+                      value={newOrderForm.note}
+                      onChange={(e) => setNewOrderForm({ ...newOrderForm, note: e.target.value })}
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
                 </div>
 
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center font-bold">

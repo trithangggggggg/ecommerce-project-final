@@ -15,10 +15,12 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import ra.project.server.exception.GlobalExceptionHandler;
 import ra.project.server.model.dto.request.AiChatRequest;
 import ra.project.server.model.dto.response.AiChatResponse;
+import ra.project.server.model.dto.response.OrderResponse;
 import ra.project.server.model.dto.response.ProductResponse;
 import ra.project.server.model.dto.response.VisualSearchAttributes;
 import ra.project.server.model.dto.response.VisualSearchProductItem;
 import ra.project.server.model.dto.response.VisualSearchResponse;
+import ra.project.server.service.AiConfigService;
 import ra.project.server.service.AiService;
 import ra.project.server.service.RateLimiterService;
 
@@ -44,6 +46,9 @@ class AiControllerTest {
 
     @Mock
     private RateLimiterService rateLimiterService;
+
+    @Mock
+    private AiConfigService aiConfigService;
 
     @InjectMocks
     private AiController aiController;
@@ -183,6 +188,39 @@ class AiControllerTest {
                 .andExpect(jsonPath("$.data.detectedAttributes.category").value("Laptop"));
 
         verify(aiService, times(1)).visualSearch(any());
+    }
+
+    @Test
+    @DisplayName("Khách hàng xác nhận tạo đơn hàng từ draftId thành công")
+    void testConfirmDraftOrder_Success() throws Exception {
+        OrderResponse mockOrder = OrderResponse.builder()
+                .id(999L)
+                .receiverName("Khach Hang AI")
+                .totalAmount(BigDecimal.valueOf(15000000))
+                .status(ra.project.server.model.enums.OrderStatus.PENDING)
+                .build();
+
+        when(aiService.confirmDraftOrder("DRAFT-12345678")).thenReturn(mockOrder);
+
+        mockMvc.perform(post("/api/ai/orders/DRAFT-12345678/confirm"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(999))
+                .andExpect(jsonPath("$.data.receiverName").value("Khach Hang AI"));
+
+        verify(aiService, times(1)).confirmDraftOrder("DRAFT-12345678");
+    }
+
+    @Test
+    @DisplayName("Khách hàng hủy bản thảo đơn hàng nháp thành công")
+    void testCancelDraftOrder_Success() throws Exception {
+        doNothing().when(aiService).cancelDraftOrder("DRAFT-12345678");
+
+        mockMvc.perform(post("/api/ai/orders/DRAFT-12345678/cancel"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(aiService, times(1)).cancelDraftOrder("DRAFT-12345678");
     }
 }
 

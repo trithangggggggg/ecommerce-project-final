@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import AdminPagination from '../../components/admin/AdminPagination';
 import { promotionService } from '../../api/services/promotion.service';
+import { userService, type AdminUser } from '../../api/services/user.service';
 
 export interface PromoItem {
   id: number;
@@ -30,8 +31,230 @@ const isPromoExpired = (p: PromoItem, today = getTodayIso()) =>
 const isPromoNotStarted = (p: PromoItem, today = getTodayIso()) =>
   Boolean(p.startDate && p.startDate > today);
 
+interface CustomerPickerProps {
+  value: string;
+  onChange: (userId: string) => void;
+  users: AdminUser[];
+  isLoading?: boolean;
+}
+
+const CustomerPicker: React.FC<CustomerPickerProps> = ({
+  value,
+  onChange,
+  users,
+  isLoading = false,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedUser = users.find((u) => String(u.id) === String(value));
+
+  const filteredUsers = users.filter((u) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      String(u.id).includes(q) ||
+      (u.fullName && u.fullName.toLowerCase().includes(q)) ||
+      (u.username && u.username.toLowerCase().includes(q)) ||
+      (u.email && u.email.toLowerCase().includes(q)) ||
+      (u.phoneNumber && u.phoneNumber.toLowerCase().includes(q))
+    );
+  });
+
+  return (
+    <div ref={containerRef} className="space-y-1.5 relative">
+      <div className="flex items-center justify-between">
+        <label className="block text-slate-700 font-semibold text-[11px]">
+          Khách hàng được chỉ định (Chọn tài khoản) *
+        </label>
+        {value && !isOpen && (
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(true);
+              setSearchQuery('');
+            }}
+            className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold hover:underline cursor-pointer"
+          >
+            Đổi tài khoản
+          </button>
+        )}
+      </div>
+
+      {/* Khi đã chọn và dropdown đóng */}
+      {value && !isOpen ? (
+        <div className="flex items-center justify-between p-2 rounded-xl bg-blue-50/70 border border-blue-200">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+              {selectedUser ? (selectedUser.fullName || selectedUser.username).charAt(0).toUpperCase() : `#`}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-bold text-xs text-slate-900 truncate">
+                  {selectedUser ? (selectedUser.fullName || selectedUser.username) : `Tài khoản #${value}`}
+                </span>
+                <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-blue-100 text-blue-800">
+                  ID #{value}
+                </span>
+                {selectedUser?.role === 'ADMIN' && (
+                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 text-purple-700">
+                    Admin
+                  </span>
+                )}
+              </div>
+              <div className="text-[10px] text-slate-500 truncate">
+                {selectedUser?.phoneNumber && <span>📞 {selectedUser.phoneNumber}</span>}
+                {selectedUser?.phoneNumber && selectedUser?.email && <span> • </span>}
+                {selectedUser?.email && <span>✉️ {selectedUser.email}</span>}
+                {!selectedUser && <span>Tài khoản ID #{value}</span>}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              onChange('');
+              setIsOpen(true);
+              setSearchQuery('');
+            }}
+            className="text-xs text-slate-400 hover:text-red-600 p-1 rounded-md hover:bg-white transition cursor-pointer shrink-0 ml-1"
+            title="Bỏ chọn"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      ) : (
+        /* Hộp tìm kiếm và chọn khách hàng */
+        <div className="relative">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder={isLoading ? "Đang tải danh sách người dùng..." : "🔍 Bấm để chọn hoặc tìm tên, SĐT, email, ID..."}
+              value={searchQuery}
+              onFocus={() => setIsOpen(true)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setIsOpen(true);
+              }}
+              className="w-full pl-8 pr-8 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs bg-white text-slate-800 shadow-2xs"
+            />
+            <svg className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <button
+              type="button"
+              onClick={() => setIsOpen((prev) => !prev)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+            >
+              <svg className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+          </div>
+
+          {/* Dropdown danh sách khách hàng */}
+          {isOpen && (
+            <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-xl shadow-xl border border-slate-200 p-1.5 z-50 animate-fade-in max-h-56 overflow-y-auto divide-y divide-slate-50">
+              {isLoading ? (
+                <div className="p-3 text-center text-xs text-slate-400">
+                  Đang tải danh sách người dùng...
+                </div>
+              ) : filteredUsers.length === 0 ? (
+                <div className="p-3 text-center text-xs text-slate-400">
+                  Không tìm thấy khách hàng nào khớp với "{searchQuery}"
+                </div>
+              ) : (
+                filteredUsers.map((u) => {
+                  const isSelected = String(u.id) === String(value);
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => {
+                        onChange(String(u.id));
+                        setIsOpen(false);
+                        setSearchQuery('');
+                      }}
+                      className={`w-full text-left p-2 rounded-lg flex items-center justify-between gap-2 transition-colors cursor-pointer ${
+                        isSelected ? 'bg-blue-50 border border-blue-200' : 'hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 font-bold text-[10px] flex items-center justify-center shrink-0">
+                          {(u.fullName || u.username).charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-xs text-slate-900 truncate">
+                              {u.fullName || u.username}
+                            </span>
+                            {u.role === 'ADMIN' && (
+                              <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-purple-100 text-purple-700">
+                                Admin
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-500 truncate">
+                            {u.phoneNumber ? `📞 ${u.phoneNumber}` : ''}
+                            {u.phoneNumber && u.email ? ' • ' : ''}
+                            {u.email || ''}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 text-slate-700">
+                        ID #{u.id}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+
+              {/* Tùy chọn chỉ định ID thủ công nếu người dùng gõ số không có trong list */}
+              {searchQuery.trim() && !isNaN(Number(searchQuery.trim())) && !filteredUsers.some(u => String(u.id) === searchQuery.trim()) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange(searchQuery.trim());
+                    setIsOpen(false);
+                    setSearchQuery('');
+                  }}
+                  className="w-full text-left p-2 text-blue-600 hover:bg-blue-50 font-medium text-xs border-t border-slate-100 flex items-center justify-between cursor-pointer"
+                >
+                  <span>Chỉ định cho User ID <strong>#{searchQuery.trim()}</strong></span>
+                  <span className="text-[10px] bg-blue-100 px-1.5 py-0.5 rounded text-blue-700">Chọn</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      <p className="text-[10px] text-amber-700">
+        Chỉ duy nhất tài khoản này mới thấy mã trong giỏ hàng và có quyền áp dụng mã khi đặt hàng.
+      </p>
+    </div>
+  );
+};
+
 export const AdminPromotionsPage: React.FC = () => {
   const [promos, setPromos] = useState<PromoItem[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -53,9 +276,28 @@ export const AdminPromotionsPage: React.FC = () => {
     }
   };
 
+  const fetchUsers = async () => {
+    setIsLoadingUsers(true);
+    try {
+      const data = await userService.getAdminUsers();
+      setUsers(data);
+    } catch (err: unknown) {
+      console.error('Không thể tải danh sách khách hàng:', err);
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
   useEffect(() => {
     fetchPromotions();
+    fetchUsers();
   }, []);
+
+  const getUserNameById = (userId?: number | null) => {
+    if (!userId) return null;
+    const user = users.find((u) => u.id === userId);
+    return user ? (user.fullName || user.username) : null;
+  };
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -115,6 +357,10 @@ export const AdminPromotionsPage: React.FC = () => {
     e.preventDefault();
     if (!addForm.code.trim() || !addForm.discount.trim()) {
       showToast('Vui lòng nhập mã voucher và mức giảm!');
+      return;
+    }
+    if (addForm.isPrivate && !addForm.userId.trim()) {
+      showToast('Vui lòng chọn khách hàng được chỉ định nhận mã riêng tư!');
       return;
     }
 
@@ -183,6 +429,10 @@ export const AdminPromotionsPage: React.FC = () => {
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPromo) return;
+    if (editForm.isPrivate && !editForm.userId.trim()) {
+      showToast('Vui lòng chọn khách hàng được chỉ định nhận mã riêng tư!');
+      return;
+    }
 
     try {
       const targetUserId = editForm.isPrivate && editForm.userId.trim() ? Number(editForm.userId.trim()) : null;
@@ -493,13 +743,13 @@ export const AdminPromotionsPage: React.FC = () => {
                           {p.userId != null || p.code.toUpperCase().startsWith('DENBU') || p.code.toUpperCase().startsWith('WHEEL') ? (
                             <span
                               className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 shrink-0 inline-flex items-center gap-1"
-                              title={p.userId ? `Mã riêng tư chỉ định cho User ID #${p.userId}` : 'Mã riêng tư chỉ định riêng'}
+                              title={p.userId ? `Mã riêng tư chỉ định cho ${getUserNameById(p.userId) || `User ID #${p.userId}`}` : 'Mã riêng tư chỉ định riêng'}
                             >
                               <svg className="w-2.5 h-2.5 shrink-0 text-amber-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                 <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
                                 <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                               </svg>
-                              <span>Riêng tư {p.userId ? `(#${p.userId})` : ''}</span>
+                              <span>Riêng tư {p.userId ? `(#${p.userId}${getUserNameById(p.userId) ? ` - ${getUserNameById(p.userId)}` : ''})` : ''}</span>
                             </span>
                           ) : (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 inline-flex items-center gap-1">
@@ -640,7 +890,7 @@ export const AdminPromotionsPage: React.FC = () => {
       {/* ======================================================== */}
       {isAddOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4 font-sans">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4 font-sans max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900">
                 Tạo mã khuyến mãi / Voucher mới
@@ -808,20 +1058,12 @@ export const AdminPromotionsPage: React.FC = () => {
                 </div>
                 {addForm.isPrivate && (
                   <div className="pt-1.5">
-                    <label className="block text-slate-600 font-medium mb-1 text-[11px]">
-                      ID Khách hàng được chỉ định (User ID) *
-                    </label>
-                    <input
-                      type="number"
-                      required={addForm.isPrivate}
-                      placeholder="VD: 1, 2, 5 (User ID tài khoản được cấp mã)"
+                    <CustomerPicker
                       value={addForm.userId}
-                      onChange={(e) => setAddForm({ ...addForm, userId: e.target.value })}
-                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs bg-white"
+                      onChange={(userId) => setAddForm({ ...addForm, userId })}
+                      users={users}
+                      isLoading={isLoadingUsers}
                     />
-                    <p className="text-[10px] text-amber-700 mt-1">
-                      Chỉ duy nhất tài khoản này mới thấy mã trong giỏ hàng và có quyền áp dụng mã khi đặt hàng.
-                    </p>
                   </div>
                 )}
               </div>
@@ -844,7 +1086,7 @@ export const AdminPromotionsPage: React.FC = () => {
       {/* ======================================================== */}
       {editingPromo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4 font-sans">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4 font-sans max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900">
                 Chỉnh sửa Voucher {editingPromo.code}
@@ -1008,20 +1250,12 @@ export const AdminPromotionsPage: React.FC = () => {
                 </div>
                 {editForm.isPrivate && (
                   <div className="pt-1.5">
-                    <label className="block text-slate-600 font-medium mb-1 text-[11px]">
-                      ID Khách hàng được chỉ định (User ID) *
-                    </label>
-                    <input
-                      type="number"
-                      required={editForm.isPrivate}
-                      placeholder="VD: 1, 2, 5 (User ID tài khoản được cấp mã)"
+                    <CustomerPicker
                       value={editForm.userId}
-                      onChange={(e) => setEditForm({ ...editForm, userId: e.target.value })}
-                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs bg-white"
+                      onChange={(userId) => setEditForm({ ...editForm, userId })}
+                      users={users}
+                      isLoading={isLoadingUsers}
                     />
-                    <p className="text-[10px] text-amber-700 mt-1">
-                      Chỉ duy nhất tài khoản này mới thấy mã trong giỏ hàng và có quyền áp dụng mã khi đặt hàng.
-                    </p>
                   </div>
                 )}
               </div>
@@ -1123,9 +1357,9 @@ export const AdminPromotionsPage: React.FC = () => {
                     </span>
                     <span className="text-xs text-slate-700">
                       {detailPromo.userId ? (
-                        <>Chỉ định cho khách hàng: <strong className="font-mono text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">User ID #{detailPromo.userId}</strong></>
+                        <>Chỉ định cho khách hàng: <strong className="font-mono text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">{getUserNameById(detailPromo.userId) ? `${getUserNameById(detailPromo.userId)} (User ID #${detailPromo.userId})` : `User ID #${detailPromo.userId}`}</strong></>
                       ) : (
-                        <>Mã đền bù / thưởng quay may mắn chỉ dành riêng cho tài khoản được cấp</>
+                        <>Mã cá nhân / thưởng quay may mắn chỉ dành riêng cho tài khoản được cấp</>
                       )}
                     </span>
                   </div>

@@ -16,6 +16,11 @@ export const axiosClient: AxiosInstance = axios.create({
 axiosClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     try {
+      // Khi gửi FormData (upload file/ảnh), xóa Content-Type để trình duyệt tự động sinh multipart boundary chuẩn
+      if (config.data instanceof FormData && config.headers) {
+        delete config.headers['Content-Type'];
+      }
+
       const isAuthEndpoint = config.url && config.url.includes('/auth/');
 
       if (isAuthEndpoint) {
@@ -102,7 +107,7 @@ axiosClient.interceptors.response.use(
         } else if (status === 405) {
           message = message || 'Phương thức yêu cầu không hợp lệ. Vui lòng thử lại!';
         } else if (status >= 500) {
-          message = 'Máy chủ Backend (Port 8080) đang gặp sự cố hoặc chưa khởi động. Vui lòng kiểm tra lại server!';
+          message = 'Máy chủ Backend đang gặp sự cố hoặc chưa khởi động. Vui lòng kiểm tra lại server!';
         } else if (!message || message.includes('status code')) {
           message = `Thao tác không thành công (Mã lỗi ${status || 'Unknown'}). Vui lòng kiểm tra lại!`;
         }

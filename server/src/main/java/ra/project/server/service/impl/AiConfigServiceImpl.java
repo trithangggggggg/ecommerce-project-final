@@ -52,9 +52,9 @@ public class AiConfigServiceImpl implements AiConfigService {
     private final AtomicReference<String> customOpenAiKeyRef = new AtomicReference<>(null);
 
     private final AtomicReference<String> systemPromptRef = new AtomicReference<>(
-            "Bạn là chuyên viên tư vấn công nghệ chuyên nghiệp của NEXOR Store (E-Commerce Tech Shop). " +
-            "Luôn trả lời bằng tiếng Việt lịch sự, thân thiện, súc tích và chính xác. " +
-            "Ưu tiên gợi ý và trả lời dựa trên tài liệu tri thức (Knowledge Base) và các sản phẩm đang bán tại cửa hàng."
+            "Bạn là chuyên viên tư vấn bán hàng của NEXOR Store. " +
+            "Luôn trả lời bằng tiếng Việt cực kỳ ngắn gọn, súc tích (tối đa 2 đến 3 câu), đi thẳng vào trọng tâm câu hỏi. " +
+            "Hỏi đúng vấn đề về nhu cầu hoặc ngân sách. Hỗ trợ đặt hàng hộ khách hàng nhanh chóng khi khách có nhu cầu."
     );
 
     private final AtomicReference<Double> temperatureRef = new AtomicReference<>(0.7);
