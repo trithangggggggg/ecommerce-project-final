@@ -8,6 +8,12 @@ export interface Category {
   slug: string;
   description?: string;
   imageUrl?: string;
+  displayOrder?: number;
+  showOnHome?: boolean;
+  status?: boolean;
+  productCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ProductOptionValue {
@@ -32,7 +38,9 @@ export interface ProductVariant {
   discountPercent?: number | null;
   stock: number;
   imageUrl?: string | null;
-  status?: boolean;
+  warehouse?: string | null;
+  shelfLocation?: string | null;
+  status?: ProductStatus | string | boolean;
   title?: string;
   optionValues?: Record<string, string>; // e.g. {"Dung lượng": "256GB", "Màu sắc": "Titan Đen"}
 }
@@ -51,6 +59,8 @@ export interface ProductImage {
   url: string;
   position?: number;
 }
+
+export type ProductStatus = 'ACTIVE' | 'INACTIVE' | 'COMING_SOON';
 
 export interface Product {
   id: number;
@@ -75,7 +85,8 @@ export interface Product {
   specs?: ProductSpec[];
   options?: ProductOption[];
   variants?: ProductVariant[];
-  status?: boolean;
+  status?: ProductStatus | string | boolean;
+  isDeleted?: boolean;
   isFeatured?: boolean;
   isNew?: boolean;
   isFlashSale?: boolean;
@@ -122,7 +133,9 @@ export interface VariantPayload {
   originalPrice?: number | null;
   stock: number;
   imageUrl?: string | null;
-  status?: boolean;
+  warehouse?: string | null;
+  shelfLocation?: string | null;
+  status?: ProductStatus | string | boolean;
 }
 
 export interface SpecPayload {
@@ -148,7 +161,7 @@ export interface ProductPayload {
   stock?: number;
   imageUrl?: string;
   categoryId: number;
-  status?: boolean;
+  status?: ProductStatus | string | boolean;
   options?: OptionPayload[];
   variants?: VariantPayload[];
   specs?: SpecPayload[];

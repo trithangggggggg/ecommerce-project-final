@@ -8,6 +8,7 @@ import ra.project.server.model.entity.OrderItem;
 import ra.project.server.model.entity.Product;
 import ra.project.server.model.entity.ProductVariant;
 
+import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
 
@@ -34,11 +35,23 @@ public class OrderMapper {
                 .totalAmount(order.getTotalAmount())
                 .status(order.getStatus())
                 .paymentMethod(order.getPaymentMethod())
+                .paymentStatus(order.getPaymentStatus())
+                .sepayInvoiceNumber(order.getSepayInvoiceNumber())
+                .sepayOrderId(order.getSepayOrderId())
+                .paymentReference(order.getPaymentReference())
+                .paidAt(order.getPaidAt())
                 .note(order.getNote())
                 .cancelReason(order.getCancelReason())
                 .compensationCoupon(order.getCompensationCoupon())
                 .couponCode(order.getCouponCode())
                 .discountAmount(order.getDiscountAmount())
+                .shippingCouponCode(order.getShippingCouponCode())
+                .shippingDiscount(order.getShippingDiscount() != null ? order.getShippingDiscount() : BigDecimal.ZERO)
+                .shippingFee(order.getShippingFee() != null ? order.getShippingFee() : BigDecimal.ZERO)
+                .carrierId(order.getShippingCarrier() != null ? order.getShippingCarrier().getId() : null)
+                .carrierName(order.getShippingCarrier() != null ? order.getShippingCarrier().getName() : null)
+                .carrierCode(order.getShippingCarrier() != null ? order.getShippingCarrier().getCode() : null)
+                .trackingCode(order.getTrackingCode())
                 .orderItems(itemResponses)
                 .createdAt(order.getCreatedAt())
                 .updatedAt(order.getUpdatedAt())
@@ -51,6 +64,16 @@ public class OrderMapper {
         }
         Product product = item.getProduct();
         ProductVariant variant = item.getVariant();
+        if (product == null && variant != null) {
+            product = variant.getProduct();
+        }
+
+        Long catId = null;
+        String catName = null;
+        if (product != null && product.getCategory() != null) {
+            catId = product.getCategory().getId();
+            catName = product.getCategory().getName();
+        }
 
         String pName = item.getProductName() != null ? item.getProductName() : (product != null ? product.getName() : null);
         String vName = item.getVariantName();
@@ -73,6 +96,8 @@ public class OrderMapper {
                 .quantity(item.getQuantity())
                 .price(item.getPrice())
                 .totalPrice(item.getTotalPrice())
+                .categoryId(catId)
+                .categoryName(catName)
                 .build();
     }
 }

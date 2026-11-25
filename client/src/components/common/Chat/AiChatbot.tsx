@@ -8,34 +8,65 @@ import {
   Bot,
   ArrowRight,
   CheckCircle2,
+  AlertCircle,
+  Eye,
+  QrCode,
+  Clock,
 } from 'lucide-react';
 import { aiService, type ChatMessage } from '../../../api/services/ai.service';
 import { formatPrice } from '../../../utils/format';
+import OrderDetailModal from '../../../pages/order/OrderDetailModal';
 
 const QUICK_PROMPTS = [
+  '📦 Đặt hàng hộ tôi',
   '💻 Laptop sinh viên giá tốt',
   '🔥 iPhone 16 Pro Max',
   '🎧 Tai nghe chống ồn',
   '🚚 Chính sách bảo hành',
 ];
 
-export default function AiChatbot() {
+const INITIAL_MESSAGE: ChatMessage = {
+  id: 'welcome',
+  role: 'assistant',
+  content:
+    'Dạ em chào bạn! 👋 Mình là **Trợ lý AI của NEXOR**.\n\nBạn đang cần tìm thiết bị nào hoặc cần đặt hàng hộ cứ nhắn mình hỗ trợ ngay nhé!',
+  timestamp: new Date(),
+};
+
+export function AiChatbot() {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content:
-        'Dạ xin chào bạn! 👋 Mình là **Trợ lý AI của NEXOR**.\n\nMình có thể giúp bạn tìm kiếm thiết bị công nghệ phù hợp với ngân sách, so sánh cấu hình hoặc giải đáp chính sách bảo hành. Bạn đang quan tâm đến sản phẩm nào ạ?',
-      timestamp: new Date(),
-    },
-  ]);
+
+  // 1. Lưu lịch sử hội thoại trong phiên (State + Session Storage)
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const saved = sessionStorage.getItem('nexor_ai_chat_session');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((m: any) => ({
+            ...m,
+            timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
+          }));
+        }
+      }
+    } catch {}
+    return [INITIAL_MESSAGE];
+  });
+
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
+  const [viewingOrder, setViewingOrder] = useState<any | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Đồng bộ lịch sử chat vào Session Storage
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('nexor_ai_chat_session', JSON.stringify(messages));
+    } catch {}
+  }, [messages]);
 
   // Tự động cuộn xuống tin nhắn mới nhất
   const scrollToBottom = () => {
@@ -75,22 +106,54 @@ export default function AiChatbot() {
       const history = messages.map((m) => ({ role: m.role, content: m.content }));
       const response = await aiService.chat(text, history);
 
+      let orderToAttach = response.createdOrder;
+      // Fallback: nếu câu hỏi là tra cứu/xem đơn nhưng backend chưa trả order,
+      // tìm đơn gần nhất trong phiên chat để hiển thị thẻ chi tiết
+      if (
+        !orderToAttach &&
+        /xem\s+đơn|kiem\s+tra\s+don|tra\s+cuu\s+don|don\s+hang|don\s+cua\s+toi/i.test(text)
+      ) {
+        for (let i = messages.length - 1; i >= 0; i--) {
+          if (messages[i].createdOrder) {
+            orderToAttach = messages[i].createdOrder;
+            break;
+          }
+        }
+      }
+
+      if (orderToAttach) {
+        try {
+          localStorage.setItem('nexor_ai_last_order', JSON.stringify(orderToAttach));
+        } catch {}
+      }
+
+      const products = orderToAttach
+        ? []
+        : response.suggestedProducts || response.recommendedProducts;
+
       const botMsg: ChatMessage = {
         id: `bot-${Date.now()}`,
         role: 'assistant',
         content: response.reply,
-        recommendedProducts: response.recommendedProducts,
+        suggestedProducts: products,
+        recommendedProducts: products,
+        createdOrder: orderToAttach,
+        orderPreview: response.orderPreview,
+        quickActions: response.quickActions,
         timestamp: new Date(),
       };
 
       setMessages((prev) => [...prev, botMsg]);
     } catch {
+      // Xử lý lỗi kết nối thân thiện kèm nút gửi lại (Retry)
       setMessages((prev) => [
         ...prev,
         {
           id: `bot-err-${Date.now()}`,
           role: 'assistant',
-          content: 'Xin lỗi bạn, kết nối máy chủ AI tạm thời gián đoạn. Bạn thử lại giúp mình nhé! 🙏',
+          content: 'Xin lỗi bạn, kết nối máy chủ AI tạm thời gián đoạn. Bạn vui lòng thử lại nhé! 🙏',
+          isError: true,
+          failedText: text,
           timestamp: new Date(),
         },
       ]);
@@ -99,25 +162,113 @@ export default function AiChatbot() {
     }
   };
 
-  const handleResetChat = () => {
-    setMessages([
-      {
-        id: 'welcome-reset',
-        role: 'assistant',
-        content:
-          'Đoạn hội thoại đã được làm mới! ✨ Bạn cần mình hỗ trợ tìm kiếm hay tư vấn thông số sản phẩm nào không ạ?',
-        timestamp: new Date(),
-      },
-    ]);
+  const handleConfirmDraft = async (draftId?: string) => {
+    if (!draftId || isLoading) {
+      handleSendMessage('Xác nhận đặt hàng');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const createdOrder = await aiService.confirmDraftOrder(draftId);
+      if (createdOrder) {
+        try {
+          localStorage.setItem('nexor_ai_last_order', JSON.stringify(createdOrder));
+        } catch {}
+
+        const isSepay = createdOrder.paymentMethod === 'SEPAY';
+        let reply = `🎉 **Tạo đơn hàng thành công! Mã đơn: #NXR-${createdOrder.id}**\n\n` +
+          `- **Sản phẩm:** ${createdOrder.items?.[0]?.productName || 'Sản phẩm đã chọn'} (SL: ${createdOrder.items?.[0]?.quantity || 1})\n` +
+          `- **Người nhận:** ${createdOrder.receiverName} (${createdOrder.phoneNumber})\n` +
+          `- **Địa chỉ giao:** ${createdOrder.shippingAddress}\n` +
+          `- **Tổng thanh toán:** ${formatPrice(createdOrder.totalAmount || 0)}\n\n`;
+
+        if (isSepay) {
+          reply += `💳 **THÔNG TIN THANH TOÁN VIETQR ONLINE (SEPAY):**\n` +
+            `- **Mã thanh toán (Nội dung CK):** \`${createdOrder.sepayInvoiceNumber || `DH${createdOrder.id}`}\`\n` +
+            `- Quý khách vui lòng quét mã QR thanh toán hoặc bấm nút **Xem mã QR thanh toán** bên dưới nhé ạ!`;
+        } else {
+          reply += `📦 Đơn hàng sẽ được nhân viên NEXOR đóng gói và giao hỏa tốc đến địa chỉ của anh/chị sớm nhất. Cảm ơn quý khách đã tin tưởng lựa chọn NEXOR! ✨`;
+        }
+
+        const confirmMsg: ChatMessage = {
+          id: `bot-${Date.now()}`,
+          role: 'assistant',
+          content: reply,
+          createdOrder,
+          timestamp: new Date(),
+        };
+
+        setMessages((prev) =>
+          prev.map((m) => (m.orderPreview?.draftId === draftId ? { ...m, orderPreview: undefined } : m)).concat(confirmMsg)
+        );
+      }
+    } catch (err: any) {
+      const errText = err?.response?.data?.message || 'Không thể xác nhận đơn hàng lúc này. Vui lòng thử lại!';
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `bot-err-${Date.now()}`,
+          role: 'assistant',
+          content: `⚠️ ${errText}`,
+          timestamp: new Date(),
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Helper format Markdown đơn giản (bold, bullet points, line breaks)
+  const handleCancelDraft = async (draftId?: string) => {
+    if (draftId) {
+      try {
+        await aiService.cancelDraftOrder(draftId);
+      } catch {}
+    }
+
+    const cancelMsg: ChatMessage = {
+      id: `bot-${Date.now()}`,
+      role: 'assistant',
+      content: 'Dạ em đã hủy phiếu xác nhận đơn hàng theo yêu cầu rồi ạ! Khi nào anh/chị cần đặt lại hoặc muốn tham khảo thêm sản phẩm nào khác thì cứ nhắn em nhé! 😊',
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) =>
+      prev.map((m) => (m.orderPreview?.draftId === draftId ? { ...m, orderPreview: undefined } : m)).concat(cancelMsg)
+    );
+  };
+
+  const handleResetChat = () => {
+    const resetMsg: ChatMessage = {
+      id: `welcome-${Date.now()}`,
+      role: 'assistant',
+      content:
+        'Đoạn hội thoại đã được làm mới! ✨ Bạn cần mình hỗ trợ tìm kiếm hay tư vấn thông số sản phẩm nào không ạ?',
+      timestamp: new Date(),
+    };
+    setMessages([resetMsg]);
+    try {
+      sessionStorage.removeItem('nexor_ai_chat_session');
+    } catch {}
+  };
+
+  // Helper format Markdown sạch sẽ (Bold, Headings, Bullets, Inline Code)
   const renderFormattedText = (content: string, isUser: boolean = false) => {
     const lines = content.split('\n');
     return lines.map((line, idx) => {
-      // In đậm cú pháp **text**
-      const parts = line.split(/(\*\*.*?\*\*)/g);
-      const formattedParts = parts.map((part, pIdx) => {
+      // Tiêu đề Markdown ###
+      if (line.trim().startsWith('### ') || line.trim().startsWith('#### ')) {
+        const titleText = line.replace(/^#{3,4}\s+/, '');
+        return (
+          <h4 key={idx} className="font-extrabold text-gray-900 mt-2 mb-1 text-xs tracking-tight">
+            {titleText}
+          </h4>
+        );
+      }
+
+      // Xử lý các token inline (In đậm **text**, Code `text`, Links [text](url))
+      const parts = line.split(/(\*\*.*?\*\*|`.*?`|\[.*?\]\(.*?\))/g);
+      const parseToken = (part: string, pIdx: number) => {
         if (part.startsWith('**') && part.endsWith('**')) {
           return (
             <strong
@@ -128,25 +279,76 @@ export default function AiChatbot() {
             </strong>
           );
         }
+        if (part.startsWith('`') && part.endsWith('`')) {
+          return (
+            <code
+              key={pIdx}
+              className="bg-gray-100 text-blue-700 font-mono text-[11px] px-1 py-0.5 rounded border border-gray-200"
+            >
+              {part.slice(1, -1)}
+            </code>
+          );
+        }
+        const linkMatch = part.match(/^\[(.*?)\]\((.*?)\)$/);
+        if (linkMatch) {
+          const [, label, url] = linkMatch;
+          if (url.startsWith('/')) {
+            return (
+              <Link
+                key={pIdx}
+                to={url}
+                onClick={() => setIsOpen(false)}
+                className="font-bold text-blue-600 hover:text-blue-800 underline inline-flex items-center gap-0.5"
+              >
+                {label}
+              </Link>
+            );
+          }
+          return (
+            <a
+              key={pIdx}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-blue-600 hover:text-blue-800 underline"
+            >
+              {label}
+            </a>
+          );
+        }
         return part;
-      });
+      };
 
-      if (line.trim().startsWith('- ') || line.trim().startsWith('* ') || line.trim().startsWith('• ')) {
+      const formattedParts = parts.map((part, pIdx) => parseToken(part, pIdx));
+
+      // Danh sách gạch đầu dòng (- / * / • / 🔹)
+      const trimmed = line.trim();
+      if (
+        trimmed.startsWith('- ') ||
+        trimmed.startsWith('* ') ||
+        trimmed.startsWith('• ') ||
+        trimmed.startsWith('🔹 ')
+      ) {
+        const bulletIcon = trimmed.startsWith('🔹 ') ? '🔹' : '•';
+        const cleanLine = trimmed.replace(/^[-*•🔹]\s+/, '');
+        const cleanParts = cleanLine.split(/(\*\*.*?\*\*|`.*?`|\[.*?\]\(.*?\))/g).map((part, pIdx) => parseToken(part, pIdx));
+
         return (
           <div
             key={idx}
-            className={`flex items-start gap-1.5 my-1 ml-1 ${isUser ? 'text-white' : 'text-gray-800'}`}
+            className={`flex items-start gap-1.5 my-1 ml-0.5 ${isUser ? 'text-white' : 'text-gray-800'}`}
           >
-            <span className={`${isUser ? 'text-white font-bold' : 'text-blue-600 font-bold'} leading-5`}>
-              •
+            <span className={`${isUser ? 'text-white font-bold' : 'text-blue-600 font-bold'} leading-5 shrink-0`}>
+              {bulletIcon}
             </span>
-            <span className="flex-1">{formattedParts}</span>
+            <span className="flex-1">{cleanParts}</span>
           </div>
         );
       }
 
-      if (!line.trim()) {
-        return <div key={idx} className="h-2" />;
+      // Dòng trống cách đoạn
+      if (!trimmed) {
+        return <div key={idx} className="h-1.5" />;
       }
 
       return (
@@ -161,10 +363,10 @@ export default function AiChatbot() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 select-none">
+    <div className="fixed bottom-4 right-3 sm:bottom-6 sm:right-6 z-50 select-none max-w-[calc(100vw-24px)]">
       {/* 1. Tooltip chào mời (hiển thị khi chưa mở chat) */}
       {!isOpen && showTooltip && (
-        <div className="absolute bottom-16 right-0 mb-2 w-64 bg-white/95 backdrop-blur-md p-3 rounded-2xl shadow-xl border border-gray-100 flex items-start gap-2.5 animate-bounce-subtle">
+        <div className="absolute bottom-16 right-0 mb-2 w-64 max-w-[calc(100vw-32px)] bg-white/95 backdrop-blur-md p-3 rounded-2xl shadow-xl border border-gray-100 flex items-start gap-2.5 animate-bounce-subtle">
           <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center shrink-0 shadow-sm p-1">
             <img src="/images/nexor_logo.png" alt="NEXOR AI" className="w-6 h-6 object-contain" />
           </div>
@@ -179,7 +381,7 @@ export default function AiChatbot() {
               e.stopPropagation();
               setShowTooltip(false);
             }}
-            className="text-gray-400 hover:text-gray-600 p-0.5"
+            className="text-gray-400 hover:text-gray-600 p-0.5 cursor-pointer"
             aria-label="Đóng gợi ý"
           >
             <X size={13} />
@@ -187,27 +389,27 @@ export default function AiChatbot() {
         </div>
       )}
 
-      {/* 2. Nút tròn bong bóng Chat nổi */}
+      {/* 2. AiAssistantWidget: Nút bong bóng chat tròn nổi góc phải dưới */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="relative group p-4 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 flex items-center justify-center cursor-pointer border border-white/20"
+          className="relative group p-3.5 sm:p-4 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 flex items-center justify-center cursor-pointer border border-white/20"
           title="Mở NEXOR AI Chatbot"
           aria-label="Mở NEXOR AI Chatbot"
         >
-          {/* Vòng sáng radar ping */}
+          {/* Radar ping animation */}
           <span className="absolute -top-1 -right-1 flex h-4 w-4">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-4 w-4 bg-amber-500 border-2 border-white"></span>
           </span>
 
-          <Bot size={28} className="group-hover:rotate-12 transition-transform duration-300" />
+          <Bot size={26} className="sm:w-7 sm:h-7 group-hover:rotate-12 transition-transform duration-300" />
         </button>
       )}
 
       {/* 3. Cửa sổ hộp thoại Chat (Chat Window) */}
       {isOpen && (
-        <div className="w-[375px] sm:w-[420px] h-[580px] max-h-[85vh] bg-white rounded-3xl shadow-2xl border border-gray-200/80 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-300">
+        <div className="w-[calc(100vw-24px)] sm:w-[420px] max-w-[420px] h-[520px] sm:h-[580px] max-h-[85vh] bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-gray-200/80 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-300">
           
           {/* Header */}
           <div className="bg-gradient-to-r from-[#161820] via-[#1f232e] to-[#161820] text-white p-4 flex items-center justify-between border-b border-gray-800">
@@ -256,6 +458,8 @@ export default function AiChatbot() {
           <div className="flex-1 p-4 overflow-y-auto space-y-3.5 bg-[#f8fafc] text-xs">
             {messages.map((msg) => {
               const isUser = msg.role === 'user';
+              const displayProducts = msg.suggestedProducts || msg.recommendedProducts;
+
               return (
                 <div
                   key={msg.id}
@@ -271,22 +475,240 @@ export default function AiChatbot() {
                       className={`p-3.5 rounded-2xl shadow-xs ${
                         isUser
                           ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-br-xs shadow-md shadow-blue-500/20'
+                          : msg.isError
+                          ? 'bg-rose-50 border border-rose-200 text-rose-900 rounded-bl-xs'
                           : 'bg-white border border-gray-200/80 text-gray-800 rounded-bl-xs'
                       }`}
                     >
+                      {msg.isError && (
+                        <div className="flex items-center gap-1.5 font-bold text-rose-700 mb-1">
+                          <AlertCircle size={14} />
+                          <span>Lỗi kết nối</span>
+                        </div>
+                      )}
+
                       {renderFormattedText(msg.content, isUser)}
+
+                      {/* Nút gửi lại (Retry) khi có lỗi */}
+                      {msg.isError && msg.failedText && (
+                        <button
+                          type="button"
+                          onClick={() => handleSendMessage(msg.failedText)}
+                          disabled={isLoading}
+                          className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold transition cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+                        >
+                          <RotateCcw size={12} />
+                          <span>Thử lại câu này</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Hiển thị thẻ sản phẩm đề xuất (nếu có) */}
-                  {msg.recommendedProducts && msg.recommendedProducts.length > 0 && (
+                  {/* Hiển thị Phiếu xác nhận đặt hàng (Order Preview) với 2 nút: Xác nhận & Hủy */}
+                  {msg.orderPreview && (
+                    <div className="mt-2.5 ml-9 p-3.5 rounded-2xl w-[calc(100%-2.25rem)] text-xs shadow-md border border-amber-200/90 bg-gradient-to-br from-amber-50/90 via-orange-50/40 to-white animate-in fade-in slide-in-from-bottom-2 duration-300">
+                      <div className="flex items-center justify-between font-extrabold text-amber-950 mb-2 border-b border-amber-200/70 pb-2">
+                        <span className="flex items-center gap-1.5 text-xs">
+                          <Clock size={15} className="text-amber-600 animate-pulse" />
+                          <span>Phiếu xác nhận thông tin đặt hàng</span>
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-200/80 text-amber-900">
+                          Chờ bạn duyệt
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5 text-[11px] text-gray-700">
+                        <div className="flex items-start gap-2">
+                          <span className="text-gray-500 font-semibold w-20 shrink-0">Sản phẩm:</span>
+                          <span className="font-bold text-gray-950 flex-1">
+                            {msg.orderPreview.productName} (SL: {msg.orderPreview.quantity})
+                          </span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-gray-500 font-semibold w-20 shrink-0">Người nhận:</span>
+                          <span className="text-gray-900 font-semibold">
+                            {msg.orderPreview.receiverName} ({msg.orderPreview.phoneNumber})
+                          </span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-gray-500 font-semibold w-20 shrink-0">Địa chỉ:</span>
+                          <span className="text-gray-900 flex-1">{msg.orderPreview.shippingAddress}</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-gray-500 font-semibold w-20 shrink-0">Thanh toán:</span>
+                          <span className="font-semibold text-indigo-700">
+                            {msg.orderPreview.paymentMethod === 'SEPAY'
+                              ? 'Chuyển khoản VietQR Online (SePay)'
+                              : 'Thanh toán khi nhận hàng (COD)'}
+                          </span>
+                        </div>
+                        {msg.orderPreview.note && msg.orderPreview.note !== 'Không có' && (
+                          <div className="flex items-start gap-2">
+                            <span className="text-gray-500 font-semibold w-20 shrink-0">Ghi chú:</span>
+                            <span className="text-gray-800 italic">{msg.orderPreview.note}</span>
+                          </div>
+                        )}
+                        <div className="flex items-start gap-2 pt-1 border-t border-amber-200/50">
+                          <span className="text-gray-500 font-semibold w-20 shrink-0">Tổng tiền:</span>
+                          <span className="font-extrabold text-blue-600 text-xs">
+                            {formatPrice(msg.orderPreview.totalAmount)}
+                          </span>
+                          <span className="text-[10px] text-emerald-600 font-medium">(Freeship toàn quốc)</span>
+                        </div>
+                      </div>
+
+                      {/* 2 Nút hành động: Xác nhận & Hủy */}
+                      <div className="mt-3 pt-2.5 border-t border-amber-200/70 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmDraft(msg.orderPreview?.draftId)}
+                          disabled={isLoading}
+                          className="flex-1 py-1.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-[11px] shadow-sm flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer disabled:opacity-50"
+                        >
+                          <CheckCircle2 size={13} />
+                          <span>Xác nhận</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCancelDraft(msg.orderPreview?.draftId)}
+                          disabled={isLoading}
+                          className="py-1.5 px-3 rounded-xl bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 font-bold text-[11px] border border-rose-200 shadow-2xs flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer disabled:opacity-50"
+                        >
+                          <X size={13} />
+                          <span>Hủy</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Hiển thị các nút thao tác nhanh (Quick Actions) nếu có */}
+                  {msg.quickActions && msg.quickActions.length > 0 && !msg.orderPreview && (
+                    <div className="mt-2 ml-9 flex flex-wrap gap-1.5">
+                      {msg.quickActions.map((action, aIdx) => (
+                        <button
+                          key={aIdx}
+                          type="button"
+                          onClick={() => handleSendMessage(action)}
+                          disabled={isLoading}
+                          className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[11px] border border-indigo-200/70 transition shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50"
+                        >
+                          {action}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Hiển thị thẻ xác nhận Đơn hàng tự động nếu vừa tạo đơn qua AI */}
+                  {msg.createdOrder && (
+                    <div className={`mt-2.5 ml-9 p-3 rounded-xl w-[calc(100%-2.25rem)] text-xs shadow-xs ${
+                      msg.createdOrder.paymentMethod === 'SEPAY'
+                        ? 'bg-blue-50/90 border border-blue-200 text-blue-950'
+                        : 'bg-emerald-50/90 border border-emerald-200 text-emerald-950'
+                    }`}>
+                      <div className="flex items-center justify-between font-bold mb-1">
+                        <span className={`flex items-center gap-1.5 ${
+                          msg.createdOrder.paymentMethod === 'SEPAY' ? 'text-blue-800' : 'text-emerald-800'
+                        }`}>
+                          <CheckCircle2 size={14} className={
+                            msg.createdOrder.paymentMethod === 'SEPAY' ? 'text-blue-600' : 'text-emerald-600'
+                          } />
+                          Đơn hàng #{msg.createdOrder.id}
+                        </span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                          msg.createdOrder.status === 'COMPLETED'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : msg.createdOrder.status === 'SHIPPING'
+                            ? 'bg-blue-100 text-blue-800'
+                            : msg.createdOrder.status === 'CANCELLED'
+                            ? 'bg-red-100 text-red-800'
+                            : msg.createdOrder.paymentMethod === 'SEPAY'
+                            ? 'bg-amber-100 text-amber-800 font-bold'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}>
+                          {msg.createdOrder.status === 'COMPLETED'
+                            ? 'Hoàn thành'
+                            : msg.createdOrder.status === 'SHIPPING'
+                            ? 'Đang giao'
+                            : msg.createdOrder.status === 'CANCELLED'
+                            ? 'Đã hủy'
+                            : msg.createdOrder.paymentMethod === 'SEPAY'
+                            ? 'Chờ thanh toán (VietQR)'
+                            : 'Chờ xác nhận (COD)'}
+                        </span>
+                      </div>
+                      <div className={`text-[11px] text-gray-700 space-y-0.5 mt-1.5 border-t pt-1.5 ${
+                        msg.createdOrder.paymentMethod === 'SEPAY' ? 'border-blue-100' : 'border-emerald-100'
+                      }`}>
+                        <div>
+                          <strong className="text-gray-900">Người nhận:</strong> {msg.createdOrder.receiverName} ({msg.createdOrder.phoneNumber})
+                        </div>
+                        <div className="truncate">
+                          <strong className="text-gray-900">Địa chỉ:</strong> {msg.createdOrder.shippingAddress}
+                        </div>
+                        {msg.createdOrder.note && (
+                          <div className="truncate">
+                            <strong className="text-gray-900">Ghi chú:</strong> {msg.createdOrder.note}
+                          </div>
+                        )}
+                        <div>
+                          <strong className="text-gray-900">Hình thức:</strong>{' '}
+                          <span className="font-semibold text-gray-900">
+                            {msg.createdOrder.paymentMethod === 'SEPAY' ? 'Chuyển khoản VietQR Online (SePay)' : 'Thanh toán khi nhận hàng (COD)'}
+                          </span>
+                        </div>
+                        <div>
+                          <strong className="text-gray-900">Tổng thanh toán:</strong>{' '}
+                          <span className="font-bold text-blue-600">
+                            {formatPrice(msg.createdOrder.totalAmount)}
+                          </span>{' '}
+                          (Freeship)
+                        </div>
+                      </div>
+                      <div className={`mt-2.5 pt-2 border-t flex flex-wrap items-center justify-between gap-2 ${
+                        msg.createdOrder.paymentMethod === 'SEPAY' ? 'border-blue-200/60' : 'border-emerald-200/60'
+                      }`}>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => setViewingOrder(msg.createdOrder)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition shadow-xs cursor-pointer active:scale-95"
+                          >
+                            <Eye size={12} />
+                            <span>Chi tiết</span>
+                          </button>
+                          {msg.createdOrder.paymentMethod === 'SEPAY' && (
+                            <Link
+                              to={`/payment/qr/${msg.createdOrder.id}`}
+                              onClick={() => setIsOpen(false)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] transition shadow-xs cursor-pointer active:scale-95"
+                            >
+                              <QrCode size={12} />
+                              <span>Quét mã VietQR</span>
+                            </Link>
+                          )}
+                        </div>
+                        <Link
+                          to="/my-orders"
+                          state={{ newOrderId: msg.createdOrder?.id }}
+                          onClick={() => setIsOpen(false)}
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-gray-700 hover:text-gray-900 hover:underline"
+                        >
+                          <span>Lịch sử đơn hàng</span>
+                          <ArrowRight size={12} />
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Hiển thị thẻ sản phẩm đề xuất (click mở /products/{id}) */}
+                  {displayProducts && displayProducts.length > 0 && (
                     <div className="mt-2.5 ml-9 space-y-2 w-[calc(100%-2.25rem)]">
                       <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
                         <Sparkles size={12} className="text-blue-600" />
                         <span>Sản phẩm gợi ý cho bạn:</span>
                       </div>
                       <div className="grid grid-cols-1 gap-2">
-                        {msg.recommendedProducts.map((p) => (
+                        {displayProducts.map((p) => (
                           <Link
                             key={p.id}
                             to={`/products/${p.id}`}
@@ -347,7 +769,7 @@ export default function AiChatbot() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Quick Prompts */}
+          {/* Quick Prompts (Câu hỏi mẫu) */}
           <div className="px-3 py-2 bg-slate-50/90 border-t border-gray-100 flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {QUICK_PROMPTS.map((prompt) => (
               <button
@@ -376,6 +798,7 @@ export default function AiChatbot() {
               onChange={(e) => setInput(e.target.value)}
               placeholder="Nhập câu hỏi tìm kiếm sản phẩm..."
               disabled={isLoading}
+              maxLength={500}
               className="flex-1 bg-gray-50 border border-gray-200 focus:border-blue-500 focus:bg-white text-xs rounded-xl px-3.5 py-2.5 text-gray-900 outline-none transition-all"
             />
             <button
@@ -390,6 +813,19 @@ export default function AiChatbot() {
 
         </div>
       )}
+
+      {/* Modal hiển thị chi tiết đơn hàng trực tiếp ngay trong Chatbot */}
+      {viewingOrder && (
+        <OrderDetailModal
+          isOpen={!!viewingOrder}
+          order={viewingOrder}
+          onClose={() => setViewingOrder(null)}
+        />
+      )}
     </div>
   );
 }
+
+// Export cả AiAssistantWidget và AiChatbot để tương thích với mọi quy ước đặt tên
+export const AiAssistantWidget = AiChatbot;
+export default AiChatbot;

@@ -1,13 +1,16 @@
 import axiosClient from '../axiosClient';
 import { ENDPOINTS } from '../endpoints';
 import { ROLES } from '../../constants/roles';
+import { STORAGE_KEYS } from '../../constants/storageKeys';
 import type {
   AuthResponse,
   ChangePasswordPayload,
   LoginPayload,
   RegisterPayload,
+  ResendOtpPayload,
   UpdateProfilePayload,
   User,
+  VerifyOtpPayload,
 } from '../../models/auth.model';
 import type { ApiResponse } from '../../models/api.model';
 
@@ -17,7 +20,6 @@ export const authService = {
    */
   async login(payload: LoginPayload): Promise<AuthResponse> {
     try {
-      // Backend LoginRequest chấp nhận: usernameOrEmail, username, hoặc email
       const cleanIdentifier = (payload.email || '').trim();
       const cleanPassword = (payload.password || '').trim();
       const backendPayload = {
@@ -62,11 +64,10 @@ export const authService = {
   },
 
   /**
-   * Đăng ký tài khoản mới (Khớp chuẩn RegisterRequest backend)
+   * Đăng ký tài khoản mới (status = false, sinh mã OTP 6 số và gửi qua email)
    */
   async register(payload: RegisterPayload): Promise<AuthResponse> {
     try {
-      // Backend RegisterRequest yêu cầu: username, email, password, fullName, phoneNumber, address
       const backendPayload = {
         username: payload.username || payload.email.split('@')[0],
         email: payload.email.trim(),
@@ -86,6 +87,7 @@ export const authService = {
         return {
           ...authData,
           token: authData.token || authData.accessToken || '',
+          message: ('message' in data ? (data as ApiResponse<AuthResponse>).message : undefined) || 'Đăng ký thành công! Vui lòng kiểm tra email để lấy mã OTP.',
         };
       }
       return data as AuthResponse;
@@ -104,9 +106,105 @@ export const authService = {
           createdAt: new Date().toISOString(),
         };
         return {
-          token: `mock-jwt-token-${Date.now()}`,
+          token: '',
           user: mockUser,
-          message: 'Đăng ký tài khoản thành công (Mock Mode)',
+          message: 'Đăng ký tài khoản thành công! Mã OTP đã được gửi đến email (Mock Mode: 123456)',
+        };
+      }
+      throw error;
+    }
+  },
+
+  /**
+   * Xác thực mã OTP 6 chữ số để kích hoạt tài khoản và nhận JWT Token
+   */
+  async verifyOtp(payload: VerifyOtpPayload): Promise<AuthResponse> {
+    try {
+      const response = await axiosClient.post<ApiResponse<AuthResponse> | AuthResponse>(
+        ENDPOINTS.AUTH.VERIFY_OTP,
+        {
+          email: payload.email.trim(),
+          otp: payload.otp.trim(),
+        }
+      );
+
+      const data = response.data;
+      let authData: AuthResponse;
+
+      if ('data' in data && data.data && typeof data.data === 'object') {
+        authData = data.data as AuthResponse;
+      } else {
+        authData = data as AuthResponse;
+      }
+
+      const token = authData.token || authData.accessToken || '';
+      const user = authData.user;
+      if (user && !user.phone && user.phoneNumber) {
+        user.phone = user.phoneNumber;
+      }
+
+      // Lưu token vào localStorage để axios interceptor tự động dùng
+      try {
+        if (token) {
+          localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+        }
+        if (user) {
+          localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+        }
+      } catch {
+        // Bỏ qua lỗi localStorage nếu có
+      }
+
+      return {
+        ...authData,
+        token,
+        user,
+      };
+    } catch (error) {
+      if (import.meta.env.VITE_ENABLE_MOCK_API === 'true') {
+        const mockUser: User = {
+          id: Date.now(),
+          username: payload.email.split('@')[0],
+          email: payload.email,
+          fullName: 'Người dùng NEXOR',
+          role: ROLES.CUSTOMER,
+          phone: '0912345678',
+          phoneNumber: '0912345678',
+          address: 'Hà Nội',
+        };
+        const token = `mock-jwt-token-verified-${Date.now()}`;
+        return {
+          token,
+          accessToken: token,
+          user: mockUser,
+          message: 'Xác thực OTP thành công! Tài khoản đã được kích hoạt (Mock Mode)',
+        };
+      }
+      throw error;
+    }
+  },
+
+  /**
+   * Yêu cầu gửi lại mã OTP (tối đa 1 lần / phút)
+   */
+  async resendOtp(payload: ResendOtpPayload): Promise<{ message: string }> {
+    try {
+      const response = await axiosClient.post<ApiResponse<string>>(
+        ENDPOINTS.AUTH.RESEND_OTP,
+        {
+          email: payload.email.trim(),
+        }
+      );
+
+      const data = response.data;
+      const message =
+        ('message' in data && data.message) ||
+        'Mã OTP mới đã được gửi tới email của bạn. Vui lòng kiểm tra hộp thư!';
+      return { message };
+    } catch (error) {
+      if (import.meta.env.VITE_ENABLE_MOCK_API === 'true') {
+        return {
+          message: 'Mã OTP mới đã được gửi tới email của bạn (Mock Mode: 123456)!',
         };
       }
       throw error;
@@ -119,7 +217,7 @@ export const authService = {
   async getProfile(): Promise<User> {
     const response = await axiosClient.get<ApiResponse<User> | User>(ENDPOINTS.USERS.PROFILE);
     const data = response.data;
-    const user = ('data' in data && data.data ? (data.data as User) : (data as User));
+    const user = 'data' in data && data.data ? (data.data as User) : (data as User);
     if (user && !user.phone && user.phoneNumber) {
       user.phone = user.phoneNumber;
     }
@@ -143,7 +241,7 @@ export const authService = {
         backendPayload
       );
       const data = response.data;
-      const user = ('data' in data && data.data ? (data.data as User) : (data as User));
+      const user = 'data' in data && data.data ? (data.data as User) : (data as User);
       if (user && !user.phone && user.phoneNumber) {
         user.phone = user.phoneNumber;
       }

@@ -2,15 +2,27 @@ package ra.project.server.config;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import javax.sql.DataSource;
+import ra.project.server.model.entity.Article;
 import ra.project.server.model.entity.Category;
+import ra.project.server.model.entity.Supplier;
 import ra.project.server.model.entity.User;
 import ra.project.server.model.enums.Role;
+import ra.project.server.repository.ArticleRepository;
 import ra.project.server.repository.CategoryRepository;
+import ra.project.server.repository.SupplierRepository;
 import ra.project.server.repository.UserRepository;
+
+import java.util.List;
 
 @Slf4j
 @Component
@@ -20,104 +32,115 @@ public class DataInitializer implements CommandLineRunner {
 
         private final UserRepository userRepository;
         private final CategoryRepository categoryRepository;
+        private final SupplierRepository supplierRepository;
+        private final ArticleRepository articleRepository;
         private final PasswordEncoder passwordEncoder;
+        private final DataSource dataSource;
+
+        @Value("${app.seed.enabled:true}")
+        private boolean seedEnabled;
+
+        @Value("${app.seed.admin-email:admin@nexor.vn}")
+        private String adminEmail;
+        @Value("${app.seed.admin-username:admin}")
+        private String adminUsername;
+        @Value("${app.seed.admin-password:}")
+        private String adminInitialSecret;
+
+        @Value("${app.seed.customer-email:customer@nexor.vn}")
+        private String customerEmail;
+        @Value("${app.seed.customer-username:customer}")
+        private String customerUsername;
+        @Value("${app.seed.customer-password:}")
+        private String customerInitialSecret;
 
         @Override
         @Transactional
         public void run(String... args) {
+                if (!seedEnabled) {
+                        log.info(">>> [DataInitializer] Bỏ qua Seeding dữ liệu (app.seed.enabled=false)");
+                        return;
+                }
                 initAdminUser();
                 initCustomerUser();
-                initCategoriesOnly();
+                initSeedDataFromSql();
         }
 
         private void initCustomerUser() {
-                String custEmail = "customer@nexor.vn";
-                String custUsername = "customer";
-                String custPassword = "123123123";
-
-                log.info(">>> [DataInitializer] Kiểm tra và khởi tạo tài khoản Khách hàng: email='{}', username='{}'",
-                                custEmail, custUsername);
-
-                User customer = userRepository.findByEmailIgnoreCase(custEmail)
-                                .or(() -> userRepository.findByUsernameIgnoreCase(custUsername))
-                                .orElseGet(() -> {
-                                        log.info(">>> [DataInitializer] Không tìm thấy tài khoản Khách hàng, tiến hành tạo mới...");
-                                        return User.builder()
-                                                        .fullName("Khách hàng Mẫu")
-                                                        .phoneNumber("0912345678")
-                                                        .address("Tòa nhà NEXOR Flagship, Hà Nội")
-                                                        .avatarUrl("https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150")
-                                                        .build();
-                                });
-
-                customer.setUsername(custUsername);
-                customer.setEmail(custEmail);
-                customer.setRole(Role.CUSTOMER);
-                customer.setStatus(true);
-
-                if (customer.getPassword() == null || !passwordEncoder.matches(custPassword, customer.getPassword())) {
-                        customer.setPassword(passwordEncoder.encode(custPassword));
-                        log.info(">>> [DataInitializer] Đã mã hóa và cập nhật mật khẩu cho Khách hàng (123123123)");
+                boolean exists = userRepository.findByEmailIgnoreCase(customerEmail)
+                                .or(() -> userRepository.findByUsernameIgnoreCase(customerUsername))
+                                .isPresent();
+                if (exists) {
+                        log.info(">>> [DataInitializer] Tài khoản Khách hàng ('{}') đã tồn tại trong CSDL. Bỏ qua khởi tạo.", customerUsername);
+                        return;
                 }
 
+                if (!StringUtils.hasText(customerInitialSecret)) {
+                        log.info(">>> [DataInitializer] Chưa cấu hình biến môi trường CUSTOMER_PASSWORD. Bỏ qua khởi tạo tài khoản Khách hàng.");
+                        return;
+                }
+
+                log.info(">>> [DataInitializer] Khởi tạo tài khoản Khách hàng từ biến môi trường...");
+                User customer = User.builder()
+                                .username(customerUsername)
+                                .email(customerEmail)
+                                .password(passwordEncoder.encode(customerInitialSecret))
+                                .fullName("Khách hàng Mẫu")
+                                .phoneNumber("0912345678")
+                                .address("Tòa nhà NEXOR Flagship, Hà Nội")
+                                .avatarUrl("https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150")
+                                .role(Role.CUSTOMER)
+                                .status(true)
+                                .build();
+
                 User saved = userRepository.save(customer);
-                log.info(">>> [DataInitializer] Hoàn tất Seeder Khách hàng: ID={}, username='{}', email='{}', role={}, status={}",
-                                saved.getId(), saved.getUsername(), saved.getEmail(), saved.getRole(), saved.getStatus());
+                log.info(">>> [DataInitializer] Hoàn tất tạo tài khoản Khách hàng: ID={}, username='{}', email='{}'",
+                                saved.getId(), saved.getUsername(), saved.getEmail());
         }
 
         private void initAdminUser() {
-                String adminEmail = "admin@nexor.vn";
-                String adminUsername = "admin";
-                String adminPassword = "123123123";
-
-                log.info(">>> [DataInitializer] Kiểm tra và khởi tạo tài khoản Quản trị viên (ADMIN): email='{}', username='{}'",
-                                adminEmail, adminUsername);
-
-                User admin = userRepository.findByEmailIgnoreCase(adminEmail)
+                boolean exists = userRepository.findByEmailIgnoreCase(adminEmail)
                                 .or(() -> userRepository.findByUsernameIgnoreCase(adminUsername))
-                                .or(() -> userRepository.findByUsernameIgnoreCase("admin"))
-                                .or(() -> userRepository.findByEmailIgnoreCase("admin@nexor.vn"))
-                                .orElseGet(() -> {
-                                        log.info(">>> [DataInitializer] Không tìm thấy tài khoản Admin, tiến hành tạo mới...");
-                                        return User.builder()
-                                                        .fullName("Quản trị viên Hệ thống")
-                                                        .phoneNumber("0988888888")
-                                                        .address("Tòa nhà NEXOR Flagship, Hà Nội")
-                                                        .avatarUrl("https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150")
-                                                        .build();
-                                });
-
-                admin.setUsername(adminUsername);
-                admin.setEmail(adminEmail);
-                admin.setRole(Role.ADMIN);
-                admin.setStatus(true);
-
-                if (admin.getPassword() == null || !passwordEncoder.matches(adminPassword, admin.getPassword())) {
-                        admin.setPassword(passwordEncoder.encode(adminPassword));
-                        log.info(">>> [DataInitializer] Đã mã hóa và cập nhật mật khẩu mới cho Quản trị viên (123123123)");
+                                .isPresent();
+                if (exists) {
+                        log.info(">>> [DataInitializer] Tài khoản Quản trị viên ('{}') đã tồn tại trong CSDL. Bỏ qua khởi tạo.", adminUsername);
+                        return;
                 }
 
+                if (!StringUtils.hasText(adminInitialSecret)) {
+                        log.info(">>> [DataInitializer] Chưa cấu hình biến môi trường ADMIN_PASSWORD. Bỏ qua khởi tạo tài khoản Quản trị viên.");
+                        return;
+                }
+
+                log.info(">>> [DataInitializer] Khởi tạo tài khoản Quản trị viên từ biến môi trường...");
+                User admin = User.builder()
+                                .username(adminUsername)
+                                .email(adminEmail)
+                                .password(passwordEncoder.encode(adminInitialSecret))
+                                .fullName("Quản trị viên Hệ thống")
+                                .phoneNumber("0988888888")
+                                .address("Tòa nhà NEXOR Flagship, Hà Nội")
+                                .avatarUrl("https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150")
+                                .role(Role.ADMIN)
+                                .status(true)
+                                .build();
+
                 User saved = userRepository.save(admin);
-                log.info(">>> [DataInitializer] Hoàn tất Seeder Quản trị viên: ID={}, username='{}', email='{}', role={}, status={}",
-                                saved.getId(), saved.getUsername(), saved.getEmail(), saved.getRole(), saved.getStatus());
+                log.info(">>> [DataInitializer] Hoàn tất tạo tài khoản Quản trị viên: ID={}, username='{}', email='{}'",
+                                saved.getId(), saved.getUsername(), saved.getEmail());
         }
 
-        private void initCategoriesOnly() {
-                getOrCreateCategory("Điện thoại", "Các dòng điện thoại thông minh chính hãng mới nhất");
-                getOrCreateCategory("Laptop", "Máy tính xách tay văn phòng và gaming hiệu năng cao");
-                getOrCreateCategory("Máy tính bảng", "Thiết bị giải trí, học tập và làm việc đồ họa linh hoạt");
-                getOrCreateCategory("Thiết bị âm thanh", "Tai nghe True Wireless, tai nghe chụp tai và loa Bluetooth");
-                getOrCreateCategory("Đồng hồ & Phụ kiện", "Đồng hồ thông minh thể thao và phụ kiện chính hãng");
-        }
-
-        private Category getOrCreateCategory(String name, String description) {
-                return categoryRepository.findByName(name).orElseGet(() -> {
-                        Category category = Category.builder()
-                                        .name(name)
-                                        .description(description)
-                                        .status(true)
-                                        .build();
-                        return categoryRepository.save(category);
-                });
+        private void initSeedDataFromSql() {
+                if (categoryRepository.count() == 0 || supplierRepository.count() == 0 || articleRepository.count() == 0) {
+                        try {
+                                ResourceDatabasePopulator populator = new ResourceDatabasePopulator(
+                                                new ClassPathResource("data-seed.sql"));
+                                populator.setContinueOnError(true);
+                                populator.execute(dataSource);
+                                log.info(">>> [DataInitializer] Đã nạp thành công dữ liệu mẫu từ data-seed.sql!");
+                        } catch (Exception e) {
+                                log.warn(">>> [DataInitializer] Không thể nạp data-seed.sql: {}", e.getMessage());
+                        }
+                }
         }
 }

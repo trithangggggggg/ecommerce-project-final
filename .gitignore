@@ -1,0 +1,29 @@
+# =============================================================================
+#  Root .gitignore - E-Commerce Nexor
+# =============================================================================
+
+# Environment variables (Personal & Secret files)
+.env
+.env.local
+*.env.local
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.iml
+*.swp
+*.DS_Store
+Thumbs.db
+
+# Logs & Temporary files
+*.log
+logs/
+temp/
+tmp/
+
+# Build caches & Node modules (keep repo clean)
+.gradle/
+build/
+dist/
+node_modules/
+

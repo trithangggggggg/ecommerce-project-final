@@ -13,12 +13,16 @@ import ra.project.server.exception.ForbiddenException;
 import ra.project.server.exception.ResourceNotFoundException;
 import ra.project.server.exception.UnauthorizedException;
 import ra.project.server.mapper.OrderMapper;
+import ra.project.server.config.SepayConfig;
+import ra.project.server.model.dto.request.AdminCreateOrderRequest;
+import ra.project.server.model.dto.request.AdminOrderUpdateRequest;
 import ra.project.server.model.dto.request.CheckoutRequest;
 import ra.project.server.model.dto.request.OrderItemRequest;
 import ra.project.server.model.dto.response.OrderResponse;
 import ra.project.server.model.entity.*;
 import ra.project.server.model.enums.OrderStatus;
 import ra.project.server.model.enums.PaymentMethod;
+import ra.project.server.model.enums.PaymentStatus;
 import ra.project.server.model.enums.Role;
 import ra.project.server.repository.OrderRepository;
 import ra.project.server.repository.ProductRepository;
@@ -31,10 +35,16 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import ra.project.server.model.entity.ShippingCarrier;
+import ra.project.server.repository.ShippingCarrierRepository;
+import ra.project.server.service.SystemSettingService;
 
 @Slf4j
 @Service
@@ -47,6 +57,13 @@ public class OrderServiceImpl implements OrderService {
     private final PromotionRepository promotionRepository;
     private final UserRepository userRepository;
     private final OrderMapper orderMapper;
+    private final ShippingCarrierRepository shippingCarrierRepository;
+
+    @Autowired(required = false)
+    private SystemSettingService systemSettingService;
+
+    @Autowired(required = false)
+    private SepayConfig sepayConfig;
 
     private User getCurrentAuthenticatedUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -55,14 +72,108 @@ public class OrderServiceImpl implements OrderService {
         }
 
         String username = authentication.getName();
-        return userRepository.findByUsername(username)
+        User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng", "tên tài khoản", username));
+
+        if (Boolean.FALSE.equals(user.getStatus())) {
+            throw new ForbiddenException("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên!");
+        }
+
+        return user;
     }
 
     @Override
     @Transactional
     public ApiResponse<OrderResponse> checkout(CheckoutRequest request) {
         User user = getCurrentAuthenticatedUser();
+        return createOrderForUser(user, request, true);
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<OrderResponse> createOrderForAiAssistant(CheckoutRequest request) {
+        if (request == null) {
+            throw new BadRequestException("Thông tin đặt hàng không hợp lệ");
+        }
+        if (!StringUtils.hasText(request.getReceiverName())) {
+            throw new BadRequestException("Vui lòng cung cấp họ tên người nhận hàng");
+        }
+        if (!StringUtils.hasText(request.getPhoneNumber())) {
+            throw new BadRequestException("Vui lòng cung cấp số điện thoại nhận hàng");
+        }
+        if (!StringUtils.hasText(request.getShippingAddress())) {
+            throw new BadRequestException("Vui lòng cung cấp địa chỉ nhận hàng");
+        }
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            throw new BadRequestException("Chưa xác định được sản phẩm cần đặt mua");
+        }
+
+        User user = null;
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated() && !"anonymousUser".equals(authentication.getPrincipal())) {
+            String username = authentication.getName();
+            user = userRepository.findByUsername(username).orElse(null);
+            if (user != null && Boolean.FALSE.equals(user.getStatus())) {
+                throw new ForbiddenException("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên!");
+            }
+        }
+
+        if (user == null && StringUtils.hasText(request.getPhoneNumber())) {
+            String cleanPhone = request.getPhoneNumber().replaceAll("[^0-9]", "");
+            List<User> matchedUsers = userRepository.findAll().stream()
+                    .filter(u -> cleanPhone.equals(u.getPhoneNumber()))
+                    .toList();
+            if (!matchedUsers.isEmpty()) {
+                user = matchedUsers.get(0);
+            }
+        }
+
+        if (user == null) {
+            user = userRepository.findByUsername("customer")
+                    .or(() -> userRepository.findById(2L))
+                    .orElseGet(() -> userRepository.findAll().stream().findFirst().orElseThrow());
+        }
+
+        return createOrderForUser(user, request, false);
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<OrderResponse> adminCreateOrder(AdminCreateOrderRequest request) {
+        User user = null;
+        if (request.getUserId() != null) {
+            user = userRepository.findById(request.getUserId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Khách hàng", "id", request.getUserId()));
+        } else if (StringUtils.hasText(request.getPhoneNumber())) {
+            String cleanPhone = request.getPhoneNumber().replaceAll("[^0-9]", "");
+            List<User> matchedUsers = userRepository.findAll().stream()
+                    .filter(u -> cleanPhone.equals(u.getPhoneNumber() != null ? u.getPhoneNumber().replaceAll("[^0-9]", "") : ""))
+                    .toList();
+            if (!matchedUsers.isEmpty()) {
+                user = matchedUsers.get(0);
+            }
+        }
+
+        if (user == null) {
+            user = getCurrentAuthenticatedUser();
+        }
+
+        CheckoutRequest checkoutReq = CheckoutRequest.builder()
+                .receiverName(request.getReceiverName())
+                .phoneNumber(request.getPhoneNumber())
+                .shippingAddress(request.getShippingAddress())
+                .note(request.getNote())
+                .couponCode(request.getCouponCode())
+                .shippingCouponCode(request.getShippingCouponCode())
+                .carrierId(request.getCarrierId())
+                .paymentMethod(request.getPaymentMethod())
+                .items(request.getItems())
+                .build();
+
+        return createOrderForUser(user, checkoutReq, false);
+    }
+
+    private ApiResponse<OrderResponse> createOrderForUser(User user, CheckoutRequest request, boolean enforcePublicPaymentSettings) {
 
         if (request.getItems() == null || request.getItems().isEmpty()) {
             throw new BadRequestException("Danh sách sản phẩm đặt hàng không được để trống");
@@ -95,7 +206,7 @@ public class OrderServiceImpl implements OrderService {
                 throw new BadRequestException("Vui lòng chọn biến thể sản phẩm (variantId) hoặc sản phẩm (productId)");
             }
 
-            if (Boolean.FALSE.equals(product.getStatus()) || Boolean.FALSE.equals(variant.getStatus())) {
+            if ("INACTIVE".equalsIgnoreCase(product.getStatus()) || "COMING_SOON".equalsIgnoreCase(product.getStatus()) || Boolean.FALSE.equals(variant.getStatus())) {
                 throw new BadRequestException("Sản phẩm '" + product.getName() + "' (" + variant.getSku() + ") hiện đang ngừng kinh doanh");
             }
 
@@ -146,67 +257,117 @@ public class OrderServiceImpl implements OrderService {
         PaymentMethod paymentMethod = request.getPaymentMethod() != null ? request.getPaymentMethod() : PaymentMethod.COD;
 
         BigDecimal discountAmount = BigDecimal.ZERO;
-        String appliedCoupon = null;
+        String appliedOrderCoupon = null;
+        String appliedShippingCoupon = null;
+        BigDecimal shippingDiscount = BigDecimal.ZERO;
 
-        if (StringUtils.hasText(request.getCouponCode())) {
-            String code = request.getCouponCode().trim();
-            Promotion promo = promotionRepository.findByCodeIgnoreCase(code)
-                    .orElseThrow(() -> new BadRequestException("Mã giảm giá '" + code + "' không tồn tại trên hệ thống"));
+        String rawCouponCode = request.getCouponCode() != null ? request.getCouponCode().trim() : null;
+        String rawShippingCouponCode = request.getShippingCouponCode() != null ? request.getShippingCouponCode().trim() : null;
 
-            if (!"ACTIVE".equalsIgnoreCase(promo.getStatus())) {
-                throw new BadRequestException("Mã giảm giá '" + code + "' hiện không còn hiệu lực");
+        // Nếu khách hàng chỉ nhập 1 mã vào ô couponCode nhưng mã đó là mã Freeship/vận chuyển
+        if (StringUtils.hasText(rawCouponCode) && !StringUtils.hasText(rawShippingCouponCode)) {
+            Promotion checkPromo = promotionRepository.findByCodeIgnoreCase(rawCouponCode).orElse(null);
+            if (checkPromo != null && checkPromo.isShippingDiscount()) {
+                rawShippingCouponCode = rawCouponCode;
+                rawCouponCode = null;
             }
-            if (promo.getMaxUsage() != null && promo.getUsedCount() != null && promo.getUsedCount() >= promo.getMaxUsage()) {
-                throw new BadRequestException("Mã giảm giá '" + code + "' đã hết số lượt sử dụng");
-            }
+        }
 
-            // Kiểm tra quyền sở hữu đối với mã giảm giá đền bù / riêng tư
-            Long ownerUserId = promo.getUserId();
-            if (ownerUserId == null && (promo.getCode().toUpperCase().startsWith("DENBU") || orderRepository.findFirstByCompensationCoupon(promo.getCode()).isPresent())) {
-                ownerUserId = orderRepository.findFirstByCompensationCoupon(promo.getCode())
-                        .map(o -> o.getUser() != null ? o.getUser().getId() : null)
-                        .orElse(null);
-            }
-
-            if (ownerUserId != null && !ownerUserId.equals(user.getId())) {
-                throw new BadRequestException("Mã giảm giá này là mã đền bù dành riêng cho tài khoản được bồi thường đơn hàng. Bạn không thể sử dụng mã này.");
+        // 1. Áp dụng mã giảm giá tiền hàng
+        if (StringUtils.hasText(rawCouponCode)) {
+            Promotion promo = validatePromotion(rawCouponCode, user, totalAmount);
+            if (promo.isShippingDiscount()) {
+                throw new BadRequestException("Mã '" + promo.getCode() + "' là mã ưu đãi vận chuyển. Vui lòng nhập vào ô Mã giảm giá vận chuyển.");
             }
 
-            // Kiểm tra hạn sử dụng nếu có
-            if (StringUtils.hasText(promo.getExpiry())) {
-                try {
-                    LocalDate expiryDate = LocalDate.parse(promo.getExpiry().trim());
-                    if (expiryDate.isBefore(LocalDate.now())) {
-                        throw new BadRequestException("Mã giảm giá '" + code + "' đã hết hạn vào ngày " + promo.getExpiry());
-                    }
-                } catch (DateTimeParseException ignored) {
-                }
-            }
+            discountAmount = calculateDiscountAmount(totalAmount, promo.getDiscount(), promo.getMaxDiscountAmount());
+            appliedOrderCoupon = promo.getCode();
 
-            // Tính tiền giảm giá
-            discountAmount = calculateDiscountAmount(totalAmount, promo.getDiscount());
-            appliedCoupon = promo.getCode();
-
-            // Tăng số lượt sử dụng
             promo.setUsedCount((promo.getUsedCount() != null ? promo.getUsedCount() : 0) + 1);
             promotionRepository.save(promo);
         }
 
-        BigDecimal finalTotal = totalAmount.subtract(discountAmount);
-        if (finalTotal.compareTo(BigDecimal.ZERO) < 0) {
-            finalTotal = BigDecimal.ZERO;
+        BigDecimal subtotalAfterDiscount = totalAmount.subtract(discountAmount);
+        if (subtotalAfterDiscount.compareTo(BigDecimal.ZERO) < 0) {
+            subtotalAfterDiscount = BigDecimal.ZERO;
         }
+
+        ShippingCarrier selectedCarrier = null;
+        if (request.getCarrierId() != null) {
+            selectedCarrier = shippingCarrierRepository.findById(request.getCarrierId()).orElse(null);
+        }
+
+        PaymentMethod chosenPayment = request.getPaymentMethod() != null ? request.getPaymentMethod() : PaymentMethod.COD;
+        if (enforcePublicPaymentSettings && systemSettingService != null) {
+            if (chosenPayment == PaymentMethod.COD && !systemSettingService.getBoolean("payment.codEnabled", true)) {
+                throw new BadRequestException("Phương thức thanh toán khi nhận hàng (COD) hiện đang tạm ngưng bởi quản trị viên.");
+            }
+            if (chosenPayment == PaymentMethod.SEPAY && !systemSettingService.getBoolean("payment.sepayEnabled", true)) {
+                throw new BadRequestException("Phương thức thanh toán chuyển khoản VietQR / SePay hiện đang tạm ngưng bởi quản trị viên.");
+            }
+        }
+
+        // Tính cước vận chuyển theo cấu hình hệ thống (SystemSetting DB) & chính sách ưu đãi tự động:
+        BigDecimal defaultFeeConfig = systemSettingService != null
+                ? systemSettingService.getDecimal("shipping.defaultFee", BigDecimal.valueOf(30000))
+                : BigDecimal.valueOf(30000);
+        BigDecimal baseShippingFee = defaultFeeConfig;
+        if (selectedCarrier != null && selectedCarrier.getShippingFee() != null) {
+            baseShippingFee = selectedCarrier.getShippingFee();
+        }
+
+        BigDecimal freeshipThreshold = systemSettingService != null
+                ? systemSettingService.getDecimal("shipping.freeshipThreshold", BigDecimal.valueOf(20_000_000))
+                : BigDecimal.valueOf(20_000_000);
+        BigDecimal halfShipThreshold = systemSettingService != null
+                ? systemSettingService.getDecimal("shipping.halfShipThreshold", BigDecimal.valueOf(10_000_000))
+                : BigDecimal.valueOf(10_000_000);
+
+        BigDecimal actualShippingFee;
+        if (freeshipThreshold.compareTo(BigDecimal.ZERO) > 0 && subtotalAfterDiscount.compareTo(freeshipThreshold) >= 0) {
+            actualShippingFee = BigDecimal.ZERO;
+        } else if (halfShipThreshold.compareTo(BigDecimal.ZERO) > 0 && subtotalAfterDiscount.compareTo(halfShipThreshold) >= 0) {
+            actualShippingFee = baseShippingFee.divide(BigDecimal.valueOf(2), 0, RoundingMode.HALF_UP);
+        } else {
+            actualShippingFee = baseShippingFee;
+        }
+
+        // 2. Áp dụng mã giảm giá vận chuyển (Voucher Freeship)
+        if (StringUtils.hasText(rawShippingCouponCode)) {
+            Promotion shippingPromo = validatePromotion(rawShippingCouponCode, user, subtotalAfterDiscount);
+            if (!shippingPromo.isShippingDiscount()) {
+                throw new BadRequestException("Mã '" + shippingPromo.getCode() + "' là mã giảm giá đơn hàng, không áp dụng cho phí vận chuyển.");
+            }
+
+            if (actualShippingFee.compareTo(BigDecimal.ZERO) > 0) {
+                shippingDiscount = calculateDiscountAmount(actualShippingFee, shippingPromo.getDiscount(), shippingPromo.getMaxDiscountAmount());
+                actualShippingFee = actualShippingFee.subtract(shippingDiscount);
+                if (actualShippingFee.compareTo(BigDecimal.ZERO) < 0) {
+                    actualShippingFee = BigDecimal.ZERO;
+                }
+            }
+            appliedShippingCoupon = shippingPromo.getCode();
+
+            shippingPromo.setUsedCount((shippingPromo.getUsedCount() != null ? shippingPromo.getUsedCount() : 0) + 1);
+            promotionRepository.save(shippingPromo);
+        }
+
+        BigDecimal finalTotal = subtotalAfterDiscount.add(actualShippingFee);
 
         Order order = Order.builder()
                 .user(user)
                 .receiverName(request.getReceiverName().trim())
                 .phoneNumber(request.getPhoneNumber().trim())
                 .shippingAddress(request.getShippingAddress().trim())
+                .shippingFee(actualShippingFee)
+                .shippingDiscount(shippingDiscount)
+                .shippingCouponCode(appliedShippingCoupon)
                 .totalAmount(finalTotal)
-                .couponCode(appliedCoupon)
+                .couponCode(appliedOrderCoupon)
                 .discountAmount(discountAmount)
                 .status(OrderStatus.PENDING)
                 .paymentMethod(paymentMethod)
+                .shippingCarrier(selectedCarrier)
                 .note(request.getNote() != null ? request.getNote().trim() : null)
                 .build();
 
@@ -221,37 +382,79 @@ public class OrderServiceImpl implements OrderService {
         return ApiResponse.created("Đặt hàng thành công", orderMapper.toResponse(savedOrder));
     }
 
-    private BigDecimal calculateDiscountAmount(BigDecimal subtotal, String discountStr) {
+    private BigDecimal calculateDiscountAmount(BigDecimal subtotal, String discountStr, BigDecimal maxDiscountAmount) {
         if (!StringUtils.hasText(discountStr) || subtotal == null || subtotal.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
+        BigDecimal calculatedDiscount = BigDecimal.ZERO;
         String clean = discountStr.trim().replace(".", "").replace(",", "");
         if (clean.endsWith("%")) {
             String percentStr = clean.replace("%", "").trim();
             try {
                 BigDecimal percent = new BigDecimal(percentStr);
-                return subtotal.multiply(percent).divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP);
+                calculatedDiscount = subtotal.multiply(percent).divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP);
             } catch (Exception e) {
-                return BigDecimal.ZERO;
+                calculatedDiscount = BigDecimal.ZERO;
+            }
+        } else {
+            String numOnly = clean.replaceAll("[^0-9]", "");
+            if (!numOnly.isBlank()) {
+                try {
+                    BigDecimal fixed = new BigDecimal(numOnly);
+                    calculatedDiscount = fixed.min(subtotal);
+                } catch (Exception e) {
+                    calculatedDiscount = BigDecimal.ZERO;
+                }
             }
         }
-        String numOnly = clean.replaceAll("[^0-9]", "");
-        if (!numOnly.isBlank()) {
-            try {
-                BigDecimal fixed = new BigDecimal(numOnly);
-                return fixed.min(subtotal);
-            } catch (Exception e) {
-                return BigDecimal.ZERO;
+
+        if (maxDiscountAmount != null && maxDiscountAmount.compareTo(BigDecimal.ZERO) > 0) {
+            if (calculatedDiscount.compareTo(maxDiscountAmount) > 0) {
+                calculatedDiscount = maxDiscountAmount;
             }
         }
-        return BigDecimal.ZERO;
+        return calculatedDiscount;
+    }
+
+    private BigDecimal parseMinOrderAmount(String minOrderStr) {
+        if (!StringUtils.hasText(minOrderStr) || minOrderStr.toLowerCase().contains("mọi đơn")) {
+            return BigDecimal.ZERO;
+        }
+        String clean = minOrderStr.replaceAll("[^0-9]", "");
+        if (clean.isBlank()) {
+            return BigDecimal.ZERO;
+        }
+        try {
+            return new BigDecimal(clean);
+        } catch (Exception e) {
+            return BigDecimal.ZERO;
+        }
     }
 
     @Override
     @Transactional(readOnly = true)
     public ApiResponse<List<OrderResponse>> getMyOrders() {
         User user = getCurrentAuthenticatedUser();
-        List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
+        List<Order> orders;
+        if (user.getRole() == Role.ADMIN) {
+            orders = orderRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
+        } else {
+            orders = orderRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
+            if (StringUtils.hasText(user.getPhoneNumber())) {
+                String cleanPhone = user.getPhoneNumber().replaceAll("[^0-9]", "");
+                List<Order> phoneOrders = orderRepository.findAll().stream()
+                        .filter(o -> StringUtils.hasText(o.getPhoneNumber())
+                                && cleanPhone.equals(o.getPhoneNumber().replaceAll("[^0-9]", ""))
+                                && (o.getUser() == null || !o.getUser().getId().equals(user.getId())))
+                        .toList();
+                if (!phoneOrders.isEmpty()) {
+                    List<Order> combined = new ArrayList<>(orders);
+                    combined.addAll(phoneOrders);
+                    combined.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+                    orders = combined;
+                }
+            }
+        }
         List<OrderResponse> responses = orders.stream()
                 .map(orderMapper::toResponse)
                 .toList();
@@ -266,7 +469,12 @@ public class OrderServiceImpl implements OrderService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Đơn hàng", "id", orderId));
 
-        if (!order.getUser().getId().equals(user.getId()) && user.getRole() != Role.ADMIN) {
+        boolean canView = (order.getUser() != null && order.getUser().getId().equals(user.getId()))
+                || user.getRole() == Role.ADMIN
+                || (StringUtils.hasText(user.getPhoneNumber()) && StringUtils.hasText(order.getPhoneNumber())
+                        && user.getPhoneNumber().replaceAll("[^0-9]", "").equals(order.getPhoneNumber().replaceAll("[^0-9]", "")));
+
+        if (!canView) {
             throw new ForbiddenException("Bạn không có quyền xem đơn hàng này");
         }
 
@@ -276,11 +484,36 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public ApiResponse<List<OrderResponse>> getAllOrders(OrderStatus status) {
+        return getAllOrders(status, null, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ApiResponse<List<OrderResponse>> getAllOrders(OrderStatus status, String keyword, PaymentMethod paymentMethod) {
         List<Order> orders;
         if (status != null) {
             orders = orderRepository.findByStatusOrderByCreatedAtDesc(status);
         } else {
             orders = orderRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
+        }
+
+        if (paymentMethod != null) {
+            orders = orders.stream()
+                    .filter(o -> paymentMethod == o.getPaymentMethod())
+                    .toList();
+        }
+
+        if (StringUtils.hasText(keyword)) {
+            String kw = keyword.trim().toLowerCase();
+            orders = orders.stream()
+                    .filter(o -> String.valueOf(o.getId()).contains(kw)
+                            || (o.getReceiverName() != null && o.getReceiverName().toLowerCase().contains(kw))
+                            || (o.getPhoneNumber() != null && o.getPhoneNumber().toLowerCase().contains(kw))
+                            || (o.getShippingAddress() != null && o.getShippingAddress().toLowerCase().contains(kw))
+                            || (o.getTrackingCode() != null && o.getTrackingCode().toLowerCase().contains(kw))
+                            || (o.getUser() != null && o.getUser().getUsername() != null && o.getUser().getUsername().toLowerCase().contains(kw))
+                            || (o.getUser() != null && o.getUser().getFullName() != null && o.getUser().getFullName().toLowerCase().contains(kw)))
+                    .toList();
         }
 
         List<OrderResponse> responses = orders.stream()
@@ -301,26 +534,103 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
+    public ApiResponse<OrderResponse> updateOrderInfo(Long orderId, AdminOrderUpdateRequest request) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Đơn hàng", "id", orderId));
+
+        if (request == null) {
+            throw new BadRequestException("Dữ liệu cập nhật đơn hàng không được để trống");
+        }
+
+        if (request.getReceiverName() != null) {
+            if (request.getReceiverName().isBlank()) {
+                throw new BadRequestException("Tên người nhận không được để trống");
+            }
+            order.setReceiverName(request.getReceiverName().trim());
+        }
+        if (request.getPhoneNumber() != null) {
+            if (request.getPhoneNumber().isBlank()) {
+                throw new BadRequestException("Số điện thoại không được để trống");
+            }
+            order.setPhoneNumber(request.getPhoneNumber().trim());
+        }
+        if (request.getShippingAddress() != null) {
+            if (request.getShippingAddress().isBlank()) {
+                throw new BadRequestException("Địa chỉ nhận hàng không được để trống");
+            }
+            order.setShippingAddress(request.getShippingAddress().trim());
+        }
+        if (request.getNote() != null) {
+            order.setNote(request.getNote().trim().isEmpty() ? null : request.getNote().trim());
+        }
+        if (request.getCarrierId() != null) {
+            if (request.getCarrierId() <= 0) {
+                order.setShippingCarrier(null);
+            } else {
+                ShippingCarrier carrier = shippingCarrierRepository.findById(request.getCarrierId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Đơn vị vận chuyển", "id", request.getCarrierId()));
+                order.setShippingCarrier(carrier);
+            }
+        }
+        if (request.getTrackingCode() != null) {
+            order.setTrackingCode(request.getTrackingCode().trim().isEmpty() ? null : request.getTrackingCode().trim().toUpperCase());
+        }
+        if (request.getPaymentMethod() != null) {
+            order.setPaymentMethod(request.getPaymentMethod());
+        }
+        if (request.getPaymentStatus() != null) {
+            order.setPaymentStatus(request.getPaymentStatus());
+            if (request.getPaymentStatus() == PaymentStatus.PAID && order.getPaidAt() == null) {
+                order.setPaidAt(LocalDateTime.now());
+            }
+        }
+        if (request.getCancelReason() != null) {
+            order.setCancelReason(request.getCancelReason().trim().isEmpty() ? null : request.getCancelReason().trim());
+        }
+
+        Order updated = orderRepository.save(order);
+        return ApiResponse.success("Cập nhật thông tin đơn hàng thành công", orderMapper.toResponse(updated));
+    }
+
+    @Override
+    @Transactional
     public ApiResponse<OrderResponse> updateOrderStatus(Long orderId, OrderStatus newStatus) {
+        return updateOrderStatus(orderId, newStatus, null, null, null);
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<OrderResponse> updateOrderStatus(Long orderId, OrderStatus newStatus, Long carrierId, String trackingCode) {
+        return updateOrderStatus(orderId, newStatus, carrierId, trackingCode, null);
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<OrderResponse> updateOrderStatus(Long orderId, OrderStatus newStatus, Long carrierId, String trackingCode, String cancelReason) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Đơn hàng", "id", orderId));
 
         OrderStatus currentStatus = order.getStatus();
 
-        if (currentStatus == newStatus) {
+        if (currentStatus == newStatus
+                && carrierId == null
+                && (trackingCode == null || trackingCode.trim().isEmpty())
+                && !StringUtils.hasText(cancelReason)) {
             return ApiResponse.success("Trạng thái đơn hàng không thay đổi", orderMapper.toResponse(order));
         }
 
         boolean isValidTransition = switch (currentStatus) {
-            case PENDING -> newStatus == OrderStatus.PROCESSING 
-                    || newStatus == OrderStatus.SHIPPING 
-                    || newStatus == OrderStatus.COMPLETED 
+            case PENDING -> newStatus == OrderStatus.PROCESSING
+                    || newStatus == OrderStatus.SHIPPING
+                    || newStatus == OrderStatus.COMPLETED
                     || newStatus == OrderStatus.CANCELLED;
-            case PROCESSING -> newStatus == OrderStatus.SHIPPING 
-                    || newStatus == OrderStatus.COMPLETED 
-                    || newStatus == OrderStatus.CANCELLED;
-            case SHIPPING -> newStatus == OrderStatus.COMPLETED 
-                    || newStatus == OrderStatus.CANCELLED;
+            case PROCESSING -> newStatus == OrderStatus.SHIPPING
+                    || newStatus == OrderStatus.COMPLETED
+                    || newStatus == OrderStatus.CANCELLED
+                    || newStatus == OrderStatus.PROCESSING;
+            case SHIPPING -> newStatus == OrderStatus.COMPLETED
+                    || newStatus == OrderStatus.CANCELLED
+                    || newStatus == OrderStatus.SHIPPING;
             case COMPLETED, CANCELLED -> false;
         };
 
@@ -336,9 +646,29 @@ public class OrderServiceImpl implements OrderService {
                     currentStatus, newStatus));
         }
 
-        // Khi hủy đơn hàng, hoàn trả lại số lượng tồn kho (stock) cho biến thể
-        if (newStatus == OrderStatus.CANCELLED) {
+        // Khi hủy đơn hàng, hoàn trả lại số lượng tồn kho (stock) cho biến thể và hoàn voucher
+        if (newStatus == OrderStatus.CANCELLED && currentStatus != OrderStatus.CANCELLED) {
             restoreStockForOrder(order);
+            restorePromotionUsage(order);
+            if (StringUtils.hasText(cancelReason)) {
+                order.setCancelReason(cancelReason.trim());
+            } else if (!StringUtils.hasText(order.getCancelReason())) {
+                order.setCancelReason("Hủy bởi quản trị viên");
+            }
+        }
+
+        // Cập nhật đơn vị vận chuyển và mã vận đơn (cho phép khi PROCESSING hoặc SHIPPING)
+        if (carrierId != null && shippingCarrierRepository != null) {
+            ShippingCarrier carrier = shippingCarrierRepository.findById(carrierId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Đơn vị vận chuyển", "id", carrierId));
+            order.setShippingCarrier(carrier);
+        }
+        if (StringUtils.hasText(trackingCode)) {
+            order.setTrackingCode(trackingCode.trim().toUpperCase());
+        } else if (newStatus == OrderStatus.SHIPPING
+                && order.getShippingCarrier() != null
+                && !StringUtils.hasText(order.getTrackingCode())) {
+            order.setTrackingCode(order.getShippingCarrier().getCode() + "-" + (System.currentTimeMillis() % 100000000));
         }
 
         order.setStatus(newStatus);
@@ -351,6 +681,12 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public ApiResponse<OrderResponse> cancelMyOrder(Long orderId) {
+        return cancelMyOrder(orderId, null);
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<OrderResponse> cancelMyOrder(Long orderId, String reason) {
         User user = getCurrentAuthenticatedUser();
 
         Order order = orderRepository.findById(orderId)
@@ -364,14 +700,77 @@ public class OrderServiceImpl implements OrderService {
             throw new BadRequestException("Chỉ có thể hủy đơn hàng khi đơn còn ở trạng thái 'Chờ xử lý' (PENDING). Trạng thái hiện tại: " + order.getStatus().name());
         }
 
-        // Hoàn trả tồn kho cho biến thể sản phẩm
+        // Hoàn trả tồn kho cho biến thể sản phẩm và hoàn lại voucher
         restoreStockForOrder(order);
+        restorePromotionUsage(order);
 
         order.setStatus(OrderStatus.CANCELLED);
+        if (StringUtils.hasText(reason)) {
+            order.setCancelReason(reason.trim());
+        } else if (!StringUtils.hasText(order.getCancelReason())) {
+            order.setCancelReason("Khách hàng chủ động hủy đơn");
+        }
         Order cancelledOrder = orderRepository.save(order);
-        log.info("Khách hàng '{}' đã hủy thành công đơn hàng #{}", user.getUsername(), orderId);
+        log.info("Khách hàng '{}' đã hủy thành công đơn hàng #{} (Lý do: {})", user.getUsername(), orderId, order.getCancelReason());
 
         return ApiResponse.success("Đã hủy đơn hàng #" + orderId + " thành công", orderMapper.toResponse(cancelledOrder));
+    }
+
+    @Override
+    @Transactional
+    public int cancelExpiredUnpaidQrOrders() {
+        int timeoutMinutes = sepayConfig != null && sepayConfig.getQrTimeoutMinutes() > 0
+                ? sepayConfig.getQrTimeoutMinutes()
+                : 5;
+
+        LocalDateTime threshold = LocalDateTime.now().minusMinutes(timeoutMinutes);
+
+        List<Order> pendingUnpaidQrOrders = orderRepository.findByStatusAndPaymentMethodAndPaymentStatus(
+                OrderStatus.PENDING, PaymentMethod.SEPAY, PaymentStatus.UNPAID);
+
+        int cancelledCount = 0;
+        for (Order order : pendingUnpaidQrOrders) {
+            if (order.getCreatedAt() != null && order.getCreatedAt().isBefore(threshold)) {
+                log.info("Hệ thống tự động hủy đơn hàng #{} do quá {} phút chưa thanh toán VietQR",
+                        order.getId(), timeoutMinutes);
+                restoreStockForOrder(order);
+                restorePromotionUsage(order);
+                order.setStatus(OrderStatus.CANCELLED);
+                order.setCancelReason(String.format("Hệ thống tự động hủy do quá thời gian thanh toán VietQR (%d phút)", timeoutMinutes));
+                orderRepository.save(order);
+                cancelledCount++;
+            }
+        }
+        return cancelledCount;
+    }
+
+    private void restorePromotionUsage(Order order) {
+        decrementPromotionUsedCount(order.getCouponCode(), "mã giảm giá", order.getId());
+        decrementPromotionUsedCount(order.getShippingCouponCode(), "mã freeship", order.getId());
+    }
+
+    private void restorePromotionsForOrder(Order order) {
+        restorePromotionUsage(order);
+    }
+
+    private void decrementPromotionUsedCount(String code, String promoType, Long orderId) {
+        if (!StringUtils.hasText(code) || promotionRepository == null) {
+            return;
+        }
+        promotionRepository.findByCodeIgnoreCase(code.trim()).ifPresent(promo -> {
+            int used = promo.getUsedCount() != null ? promo.getUsedCount() : 0;
+            if (used > 0) {
+                promo.setUsedCount(used - 1);
+                promotionRepository.save(promo);
+                if (orderId != null) {
+                    log.info("Đã hoàn lại lượt sử dụng cho {} '{}' sau khi hủy đơn hàng #{}", promoType, promo.getCode(), orderId);
+                }
+            }
+        });
+    }
+
+    private void decrementPromotionUsedCount(String code) {
+        decrementPromotionUsedCount(code, "mã khuyến mãi", null);
     }
 
     private void restoreStockForOrder(Order order) {
@@ -390,5 +789,70 @@ public class OrderServiceImpl implements OrderService {
                 }
             }
         }
+    }
+
+    private Promotion validatePromotion(String code, User user, BigDecimal subtotal) {
+        String trimmedCode = code.trim();
+        Promotion promo = promotionRepository.findByCodeIgnoreCase(trimmedCode)
+                .orElseThrow(() -> new BadRequestException("Mã giảm giá '" + trimmedCode + "' không tồn tại trên hệ thống"));
+
+        if (!"ACTIVE".equalsIgnoreCase(promo.getStatus())) {
+            throw new BadRequestException("Mã giảm giá '" + trimmedCode + "' hiện không còn hiệu lực");
+        }
+        if (promo.getMaxUsage() != null && promo.getUsedCount() != null && promo.getUsedCount() >= promo.getMaxUsage()) {
+            throw new BadRequestException("Mã giảm giá '" + trimmedCode + "' đã hết số lượt sử dụng");
+        }
+
+        // Kiểm tra quyền sở hữu đối với mã giảm giá đền bù / riêng tư
+        Long ownerUserId = promo.getUserId();
+        if (ownerUserId == null && (promo.getCode().toUpperCase().startsWith("DENBU") || orderRepository.findFirstByCompensationCoupon(promo.getCode()).isPresent())) {
+            ownerUserId = orderRepository.findFirstByCompensationCoupon(promo.getCode())
+                    .map(o -> o.getUser() != null ? o.getUser().getId() : null)
+                    .orElse(null);
+        }
+
+        if (ownerUserId != null) {
+            if (user == null) {
+                throw new BadRequestException("Mã giảm giá này là mã ưu đãi riêng tư. Vui lòng đăng nhập tài khoản để sử dụng.");
+            }
+            if (!ownerUserId.equals(user.getId())) {
+                if (promo.getCode().toUpperCase().startsWith("DENBU")) {
+                    throw new BadRequestException("Mã giảm giá này là mã đền bù dành riêng cho tài khoản được bồi thường đơn hàng. Bạn không thể sử dụng mã này.");
+                } else if (promo.getCode().toUpperCase().startsWith("WHEEL")) {
+                    throw new BadRequestException("Mã giảm giá này là phần thưởng Vòng quay may mắn dành riêng cho tài khoản trúng thưởng. Bạn không thể sử dụng mã này.");
+                } else {
+                    throw new BadRequestException("Mã giảm giá này là mã ưu đãi riêng tư dành riêng cho tài khoản được chỉ định. Bạn không thể sử dụng mã này.");
+                }
+            }
+        }
+
+        if (StringUtils.hasText(promo.getStartDate())) {
+            try {
+                LocalDate startDate = LocalDate.parse(promo.getStartDate().trim());
+                if (startDate.isAfter(LocalDate.now())) {
+                    throw new BadRequestException("Mã giảm giá '" + trimmedCode + "' chưa tới ngày áp dụng (bắt đầu từ ngày " + promo.getStartDate() + ")");
+                }
+            } catch (DateTimeParseException ignored) {
+            }
+        }
+
+        if (StringUtils.hasText(promo.getExpiry())) {
+            try {
+                LocalDate expiryDate = LocalDate.parse(promo.getExpiry().trim());
+                if (expiryDate.isBefore(LocalDate.now())) {
+                    throw new BadRequestException("Mã giảm giá '" + trimmedCode + "' đã hết hạn vào ngày " + promo.getExpiry());
+                }
+            } catch (DateTimeParseException ignored) {
+            }
+        }
+
+        if (subtotal != null && StringUtils.hasText(promo.getMinOrder())) {
+            BigDecimal minOrderRequired = parseMinOrderAmount(promo.getMinOrder());
+            if (minOrderRequired.compareTo(BigDecimal.ZERO) > 0 && subtotal.compareTo(minOrderRequired) < 0) {
+                throw new BadRequestException("Đơn hàng chưa đạt giá trị tối thiểu " + promo.getMinOrder() + " để áp dụng mã giảm giá này");
+            }
+        }
+
+        return promo;
     }
 }

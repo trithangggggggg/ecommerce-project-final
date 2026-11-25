@@ -45,6 +45,13 @@ public class ProductVariant extends BaseEntity {
     @Column(name = "image_url", length = 500)
     private String imageUrl;
 
+    @Column(name = "warehouse", length = 100)
+    @Builder.Default
+    private String warehouse = "Kho Trung Tâm HCM";
+
+    @Column(name = "shelf_location", length = 100)
+    private String shelfLocation;
+
     @Column(name = "status", nullable = false)
     @Builder.Default
     private Boolean status = true;

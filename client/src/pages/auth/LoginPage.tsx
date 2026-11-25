@@ -1,113 +1,128 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, ArrowRight, Eye, EyeOff, Lock, Mail, X } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  Lock,
+  Mail,
+  SquarePen,
+  User,
+  X,
+} from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { ROLES } from '../../constants/roles';
 import { ROUTES } from '../../constants/routes';
 import Button from '../../components/common/Button/Button';
-import Input from '../../components/common/Input/Input';
+import nexorLogo from '../../assets/images/nexor_logo.png';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { login, isLoading, error, clearError } = useAuthStore();
 
-  const [email, setEmail] = useState('');
+  const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
+
+  // Field-level Validation & Touched state
+  const [touched, setTouched] = useState<{ emailOrUsername?: boolean; password?: boolean }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ emailOrUsername?: string; password?: string }>({});
   const [formError, setFormError] = useState<string | null>(null);
 
   const searchParams = new URLSearchParams(location.search);
   const isExpired = searchParams.get('expired') === 'true';
   const redirectParam = searchParams.get('redirect');
 
-  const fromState = (location.state as { from?: string | { pathname: string } })?.from;
-  const fromLocation = redirectParam || (typeof fromState === 'string' ? fromState : fromState?.pathname);
+  const locationState = location.state as {
+    from?: string | { pathname: string };
+    successMessage?: string;
+  } | null;
+  const fromState = locationState?.from;
+  const fromLocation =
+    redirectParam || (typeof fromState === 'string' ? fromState : fromState?.pathname);
+  const successStateMessage = locationState?.successMessage;
 
-  // Xóa sạch lỗi cũ khi mở modal
   useEffect(() => {
     clearError();
     setFormError(null);
   }, [clearError]);
 
-  // Hiển thị thông báo khi phiên làm việc hết hạn
   useEffect(() => {
     if (isExpired) {
-      setFormError('Phiên làm việc của bạn đã hết hạn hoặc không đủ quyền truy cập. Vui lòng đăng nhập lại!');
+      setFormError('Phiên làm việc của bạn đã hết hạn. Vui lòng đăng nhập lại để tiếp tục!');
     }
   }, [isExpired]);
 
-  const handleClose = () => {
-    if (fromLocation) {
-      navigate(fromLocation, { replace: true });
-    } else {
-      navigate(ROUTES.HOME, { replace: true });
-    }
-  };
-
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
-      handleClose();
-    }
-  };
-
-  // Hỗ trợ phím Escape để đóng modal
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        handleClose();
+  const validateField = (field: 'emailOrUsername' | 'password', value: string) => {
+    const errs = { ...fieldErrors };
+    if (field === 'emailOrUsername') {
+      if (!value.trim()) {
+        errs.emailOrUsername = 'Vui lòng nhập Email hoặc Tên đăng nhập';
+      } else {
+        delete errs.emailOrUsername;
       }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+    }
+
+    if (field === 'password') {
+      if (!value) {
+        errs.password = 'Vui lòng nhập mật khẩu';
+      } else if (value.length < 6) {
+        errs.password = 'Mật khẩu phải có ít nhất 6 ký tự';
+      } else {
+        delete errs.password;
+      }
+    }
+    setFieldErrors(errs);
+  };
+
+  const handleBlur = (field: 'emailOrUsername' | 'password') => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    validateField(field, field === 'emailOrUsername' ? emailOrUsername : password);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
     clearError();
 
-    if (!email.trim()) {
-      setFormError('Vui lòng nhập địa chỉ Email hoặc Tên đăng nhập');
-      return;
+    setTouched({ emailOrUsername: true, password: true });
+
+    const errs: { emailOrUsername?: string; password?: string } = {};
+    if (!emailOrUsername.trim()) {
+      errs.emailOrUsername = 'Vui lòng nhập Email hoặc Tên đăng nhập';
     }
     if (!password) {
-      setFormError('Vui lòng nhập mật khẩu');
+      errs.password = 'Vui lòng nhập mật khẩu';
+    } else if (password.length < 6) {
+      errs.password = 'Mật khẩu phải có ít nhất 6 ký tự';
+    }
+
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
       return;
     }
 
-    try {
-      const user = await login({ email: email.trim(), password });
-
-      // Chuyển hướng theo đúng phân quyền
-      if (user.role === ROLES.ADMIN) {
-        navigate(fromLocation && fromLocation.includes('/admin') ? fromLocation : ROUTES.ADMIN, { replace: true });
-      } else if (fromLocation && !fromLocation.includes('/admin')) {
-        navigate(fromLocation, { replace: true });
-      } else {
-        navigate(ROUTES.HOME, { replace: true });
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Đăng nhập không thành công';
-      setFormError(message);
-    }
-  };
-
-  const handleQuickLogin = async (userEmail: string, userPass: string) => {
-    setEmail(userEmail);
-    setPassword(userPass);
-    setFormError(null);
-    clearError();
+    if (isLoading) return;
 
     try {
-      const user = await login({ email: userEmail, password: userPass });
-      if (user.role === ROLES.ADMIN) {
-        navigate(fromLocation && fromLocation.includes('/admin') ? fromLocation : ROUTES.ADMIN, { replace: true });
-      } else if (fromLocation && !fromLocation.includes('/admin')) {
-        navigate(fromLocation, { replace: true });
+      const user = await login({ email: emailOrUsername.trim(), password });
+
+      const userRole = (user.role || '').toUpperCase();
+      const isAdmin = userRole === ROLES.ADMIN || userRole === 'ROLE_ADMIN';
+
+      if (isAdmin) {
+        navigate(
+          fromLocation && fromLocation.includes('/admin') ? fromLocation : ROUTES.ADMIN,
+          { replace: true }
+        );
       } else {
-        navigate(ROUTES.HOME, { replace: true });
+        navigate(
+          fromLocation && !fromLocation.includes('/admin') ? fromLocation : ROUTES.HOME,
+          { replace: true }
+        );
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Đăng nhập không thành công';
@@ -116,173 +131,193 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md transition-all duration-300 animate-in fade-in"
-      onClick={handleBackdropClick}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="login-modal-title"
-    >
-      {/* Modal White Card */}
-      <div
-        className="bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 sm:p-8 w-full max-w-md relative z-10 transition-all transform animate-in zoom-in-95 duration-200"
-        onClick={(e) => e.stopPropagation()}
+    <div className="w-full max-w-[460px] sm:max-w-[480px] bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.22)] border border-gray-100 p-5 sm:p-7 font-sans my-auto relative">
+      {/* Nút thoát / Về trang chủ (Top-right X button) */}
+      <Link
+        to={ROUTES.HOME}
+        className="absolute top-4 right-4 sm:top-5 sm:right-5 p-2 rounded-full text-gray-400 hover:text-gray-800 hover:bg-gray-100 transition-colors cursor-pointer group z-10"
+        title="Thoát về trang chủ"
+        aria-label="Thoát về trang chủ"
       >
-        {/* Close Button */}
+        <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-200" />
+      </Link>
+
+      {/* Nút điều hướng quay lại trang chủ */}
+      <div className="mb-2">
+        <Link
+          to={ROUTES.HOME}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-blue-600 transition-colors group"
+        >
+          <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform duration-200" />
+          <span>Quay lại trang chủ</span>
+        </Link>
+      </div>
+
+      {/* 1. Header: Logo & Title (Căn chỉnh pixel hoàn toàn đồng bộ với trang Đăng ký) */}
+      <div className="text-center mb-4">
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <img
+            src={nexorLogo}
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = '/images/nexor_logo.png';
+            }}
+            alt="Nexor"
+            className="h-8 w-auto object-contain"
+          />
+          <span className="text-2xl font-black text-gray-900 tracking-tight">Nexor</span>
+        </div>
+        <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
+          Chào mừng trở lại!
+        </h1>
+        <p className="text-xs text-gray-500 mt-1 leading-relaxed max-w-xs mx-auto min-h-[36px] flex items-center justify-center">
+          Đăng nhập để tiếp tục mua sắm và khám phá thêm nhiều ưu đãi hấp dẫn
+        </p>
+      </div>
+
+      {/* 2. Navigation Tabs (Đăng nhập [Active] | Đăng ký) */}
+      <div className="flex border-b border-gray-200 mb-4">
         <button
           type="button"
-          onClick={handleClose}
-          className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition cursor-pointer"
-          title="Đóng (Esc)"
-          aria-label="Đóng modal"
+          className="flex-1 pb-2.5 text-xs sm:text-sm font-bold text-gray-950 border-b-2 border-gray-950 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
         >
-          <X className="w-5 h-5" />
+          <User className="w-4 h-4" />
+          <span>Đăng nhập</span>
         </button>
+        <Link
+          to={ROUTES.REGISTER}
+          className="flex-1 pb-2.5 text-xs sm:text-sm font-medium text-gray-400 hover:text-gray-700 flex items-center justify-center gap-1.5 transition-colors border-b-2 border-transparent"
+        >
+          <SquarePen className="w-4 h-4" />
+          <span>Đăng ký</span>
+        </Link>
+      </div>
 
-        {/* Modal Brand Logo & Title */}
-        <div className="text-center mb-6">
-          <div className="w-14 h-14 mx-auto mb-3 flex items-center justify-center">
-            <img
-              src="/images/nexor_logo.png"
-              alt="NEXOR Logo"
-              className="w-14 h-14 object-contain drop-shadow-md"
+      {/* Thông báo điều hướng thành công */}
+      {successStateMessage && (
+        <div className="mb-3 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2 text-emerald-800 text-xs">
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
+          <span className="flex-1 leading-snug">{successStateMessage}</span>
+        </div>
+      )}
+
+      {/* Thông báo lỗi */}
+      {(formError || error) && (
+        <div className="mb-3 p-2.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2 text-red-700 text-xs animate-shake">
+          <AlertCircle className="w-4 h-4 shrink-0 text-red-500 mt-0.5" />
+          <div className="flex-1 leading-snug">
+            <span className="font-medium">{formError || error}</span>
+            {(formError?.toLowerCase().includes('kích hoạt') ||
+              error?.toLowerCase().includes('kích hoạt')) && (
+                <div className="mt-1.5 pt-1.5 border-t border-red-200/80">
+                  <Link
+                    to={`${ROUTES.REGISTER}?step=otp&email=${encodeURIComponent(
+                      emailOrUsername.includes('@') ? emailOrUsername.trim() : ''
+                    )}`}
+                    className="font-bold underline text-red-800 hover:text-red-950 inline-flex items-center gap-1"
+                  >
+                    Nhấp vào đây để xác thực mã OTP ngay →
+                  </Link>
+                </div>
+              )}
+          </div>
+        </div>
+      )}
+
+      {/* 3. Form Đăng nhập */}
+      <form onSubmit={handleSubmit} className="space-y-3.5" noValidate>
+        {/* Email hoặc số điện thoại */}
+        <div>
+          <label className="block text-xs font-bold text-gray-800 mb-1.5">
+            Email hoặc số điện thoại
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+              <Mail className="w-4 h-4" />
+            </div>
+            <input
+              type="text"
+              value={emailOrUsername}
+              onChange={(e) => {
+                setEmailOrUsername(e.target.value);
+                if (touched.emailOrUsername) validateField('emailOrUsername', e.target.value);
+              }}
+              onBlur={() => handleBlur('emailOrUsername')}
+              placeholder="Nhập email hoặc số điện thoại"
+              className={`w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-white rounded-xl border transition-all outline-none ${touched.emailOrUsername && fieldErrors.emailOrUsername
+                  ? 'border-red-400 focus:ring-2 focus:ring-red-100'
+                  : 'border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5'
+                }`}
             />
           </div>
-          <h1 id="login-modal-title" className="text-xl font-bold text-gray-900 tracking-tight">
-            Đăng Nhập Tài Khoản
-          </h1>
-          <p className="text-xs text-gray-500 mt-1">
-            Chào mừng bạn quay lại với NEXOR Flagship Tech Store
-          </p>
+          {touched.emailOrUsername && fieldErrors.emailOrUsername && (
+            <p className="text-[11px] text-red-600 font-medium mt-1">
+              {fieldErrors.emailOrUsername}
+            </p>
+          )}
         </div>
 
-        {/* Error Alert */}
-        {(formError || error) && (
-          <div className="mb-5 p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-red-700 text-xs animate-shake">
-            <AlertCircle className="w-4 h-4 shrink-0 text-red-500 mt-0.5" />
-            <div className="flex-1">
-              <span className="font-bold block mb-0.5">Đăng nhập thất bại</span>
-              <span>{formError || error}</span>
+        {/* Mật khẩu */}
+        <div>
+          <label className="block text-xs font-bold text-gray-800 mb-1.5">
+            Mật khẩu
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+              <Lock className="w-4 h-4" />
             </div>
-          </div>
-        )}
-
-        {/* Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Email or Username Input */}
-          <Input
-            label="Email hoặc Tên đăng nhập"
-            type="text"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="name@example.com hoặc username"
-            leftIcon={<Mail className="w-4 h-4" />}
-            required
-            autoFocus
-          />
-
-          {/* Password Input */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
-                Mật khẩu
-              </label>
-              <a
-                href="#forgot-password"
-                onClick={(e) => {
-                  e.preventDefault();
-                  alert(
-                    'Vui lòng liên hệ quản trị viên qua email cskh@nexor.vn để được hỗ trợ cấp lại mật khẩu!'
-                  );
-                }}
-                className="text-xs text-blue-600 hover:text-blue-700 font-semibold hover:underline"
-              >
-                Quên mật khẩu?
-              </a>
-            </div>
-
-            <Input
+            <input
               type={showPassword ? 'text' : 'password'}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              leftIcon={<Lock className="w-4 h-4" />}
-              rightIcon={
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="text-gray-400 hover:text-gray-600 cursor-pointer focus:outline-none"
-                  tabIndex={-1}
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              }
-              required
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (touched.password) validateField('password', e.target.value);
+              }}
+              onBlur={() => handleBlur('password')}
+              placeholder="Nhập mật khẩu"
+              className={`w-full pl-9 pr-9 py-2 text-xs sm:text-sm bg-white rounded-xl border transition-all outline-none ${touched.password && fieldErrors.password
+                  ? 'border-red-400 focus:ring-2 focus:ring-red-100'
+                  : 'border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5'
+                }`}
             />
-          </div>
-
-          {/* Remember me Checkbox */}
-          <div className="flex items-center justify-between pt-1">
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
-              />
-              <span className="text-xs text-gray-600">Ghi nhớ đăng nhập</span>
-            </label>
-          </div>
-
-          {/* Submit CTA Button */}
-          <div className="pt-2">
-            <Button
-              type="submit"
-              variant="dark"
-              size="md"
-              fullWidth
-              isLoading={isLoading}
-              rightIcon={<ArrowRight className="w-4 h-4" />}
-            >
-              Đăng nhập ngay
-            </Button>
-          </div>
-
-          {/* Quick 1-Click Login Buttons */}
-          <div className="pt-3 border-t border-gray-100 flex gap-2">
             <button
               type="button"
-              disabled={isLoading}
-              onClick={() => handleQuickLogin('admin@nexor.vn', '123123123')}
-              className="flex-1 py-2 px-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 transition flex items-center justify-center gap-1.5 text-xs font-bold cursor-pointer shadow-xs disabled:opacity-50"
-              title="1-Click Đăng nhập trực tiếp tài khoản Quản trị viên"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-700 cursor-pointer"
+              tabIndex={-1}
             >
-              <span>🔑 1-Click Admin</span>
-            </button>
-            <button
-              type="button"
-              disabled={isLoading}
-              onClick={() => handleQuickLogin('customer@nexor.vn', '123123123')}
-              className="flex-1 py-2 px-2 rounded-xl border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-900 transition flex items-center justify-center gap-1.5 text-xs font-bold cursor-pointer shadow-xs disabled:opacity-50"
-              title="1-Click Đăng nhập trực tiếp tài khoản Khách hàng"
-            >
-              <span>👤 1-Click Khách hàng</span>
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
-        </form>
-
-        {/* Switch to Register */}
-        <div className="mt-6 pt-5 border-t border-gray-100 text-center">
-          <p className="text-xs text-gray-600">
-            Chưa có tài khoản NEXOR?{' '}
-            <Link
-              to={ROUTES.REGISTER}
-              className="font-bold text-blue-600 hover:text-blue-700 hover:underline"
-            >
-              Đăng ký tài khoản mới
-            </Link>
-          </p>
+          {touched.password && fieldErrors.password && (
+            <p className="text-[11px] text-red-600 font-medium mt-1">{fieldErrors.password}</p>
+          )}
         </div>
+
+        {/* Nút bấm Đăng nhập */}
+        <div className="pt-2">
+          <Button
+            type="submit"
+            fullWidth
+            isLoading={isLoading}
+            disabled={isLoading}
+            className="bg-[#111827] hover:bg-black text-white font-bold py-2.5 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer w-full border-0"
+          >
+            Đăng nhập
+          </Button>
+        </div>
+      </form>
+
+      {/* Footer Link */}
+      <div className="mt-5 pt-4 border-t border-gray-100 text-center">
+        <p className="text-xs text-gray-500">
+          Chưa có tài khoản?{' '}
+          <Link
+            to={ROUTES.REGISTER}
+            className="font-bold text-gray-950 hover:underline inline-block"
+          >
+            Đăng ký ngay
+          </Link>
+        </p>
       </div>
     </div>
   );

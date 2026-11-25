@@ -43,6 +43,7 @@ services:
     image: ${APP_IMAGE:-ecommerce-app}:${APP_TAG:-latest}
     restart: unless-stopped
     environment:
+      SERVER_PORT: "8080"
       DB_HOST: mysql
       DB_PORT: "3306"
       DB_NAME: ${MYSQL_DATABASE:-ecommerce_db}
@@ -53,10 +54,39 @@ services:
       ADMIN_USERNAME: ${ADMIN_USERNAME:-${ADMIN_EMAIL:-admin}}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-${ADMIN_USERNAME:-admin@nexor.vn}}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-123123123}
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-trithang2006vn@gmail.com}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      SEPAY_API_TOKEN: ${SEPAY_API_TOKEN:-}
+      SEPAY_USER_API_URL: ${SEPAY_USER_API_URL:-https://my.sepay.vn/userapi}
+      SEPAY_BANK_ACCOUNT: ${SEPAY_BANK_ACCOUNT:-}
+      SEPAY_BANK_CODE: ${SEPAY_BANK_CODE:-}
+      SEPAY_BANK_NAME: ${SEPAY_BANK_NAME:-}
+      SEPAY_ACCOUNT_HOLDER: ${SEPAY_ACCOUNT_HOLDER:-}
+      SEPAY_WEBHOOK_API_KEY: ${SEPAY_WEBHOOK_API_KEY:-}
+      SEPAY_PAYMENT_PREFIX: ${SEPAY_PAYMENT_PREFIX:-DH}
+      SEPAY_QR_BASE_URL: ${SEPAY_QR_BASE_URL:-https://qr.sepay.vn/img}
+      SEPAY_QR_TEMPLATE: ${SEPAY_QR_TEMPLATE:-qronly}
+      SEPAY_QR_TIMEOUT_MINUTES: ${SEPAY_QR_TIMEOUT_MINUTES:-15}
+      SEPAY_MERCHANT_ID: ${SEPAY_MERCHANT_ID:-}
+      SEPAY_SECRET_KEY: ${SEPAY_SECRET_KEY:-}
+      SEPAY_IPN_SECRET_KEY: ${SEPAY_IPN_SECRET_KEY:-}
+      SEPAY_CHECKOUT_URL: ${SEPAY_CHECKOUT_URL:-https://pay-sandbox.sepay.vn/v1/checkout/init}
+      SEPAY_API_URL: ${SEPAY_API_URL:-https://pgapi-sandbox.sepay.vn}
+      SEPAY_SUCCESS_URL: ${SEPAY_SUCCESS_URL:-https://nexortech.io.vn/payment/result}
+      SEPAY_ERROR_URL: ${SEPAY_ERROR_URL:-https://nexortech.io.vn/payment/result}
+      SEPAY_CANCEL_URL: ${SEPAY_CANCEL_URL:-https://nexortech.io.vn/payment/result}
       TZ: Asia/Ho_Chi_Minh
     depends_on:
       mysql:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/api/settings/public >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
     networks:
       - db-net
       - proxy-net
@@ -72,7 +102,8 @@ services:
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     networks:
       - proxy-net
 

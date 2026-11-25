@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   Search,
@@ -13,6 +13,7 @@ import {
   ChevronRight,
   X,
   LogOut,
+  LogIn,
   Laptop,
   Smartphone,
   Tablet,
@@ -22,11 +23,31 @@ import {
   Flame,
   Grid,
   Package,
+  Camera,
 } from 'lucide-react';
 import { useCartStore } from '../../../store/useCartStore';
 import { useAuthStore } from '../../../store/useAuthStore';
+import { useWishlistStore } from '../../../store/useWishlistStore';
+import { useSiteConfigStore } from '../../../store/useSiteConfigStore';
+import { categoryApiService } from '../../../api/services/category.service';
+import type { Category } from '../../../models/product.model';
 import { ROUTES } from '../../../constants/routes';
 import { PetMascot } from '../Mascot/PetMascot';
+import { LogoutConfirmModal } from '../LogoutConfirmModal';
+import { VisualSearchModal } from '../VisualSearchModal';
+
+function getCategoryIcon(slug = '', name = '') {
+  const s = `${slug} ${name}`.toLowerCase();
+  if (s.includes('laptop') || s.includes('macbook')) return Laptop;
+  if (s.includes('dien-thoai') || s.includes('phone') || s.includes('iphone')) return Smartphone;
+  if (s.includes('may-tinh-bang') || s.includes('tablet') || s.includes('ipad')) return Tablet;
+  if (s.includes('tai-nghe') || s.includes('am-thanh') || s.includes('loa')) return Headphones;
+  if (s.includes('dong-ho') || s.includes('watch')) return Watch;
+  if (s.includes('gaming') || s.includes('game')) return Gamepad2;
+  if (s.includes('man-hinh') || s.includes('thiet-bi') || s.includes('pc')) return Monitor;
+  if (s.includes('khuyen-mai') || s.includes('deal') || s.includes('flash')) return Flame;
+  return Package;
+}
 
 export const Header: React.FC = () => {
   const navigate = useNavigate();
@@ -34,17 +55,148 @@ export const Header: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { totalItems } = useCartStore();
   const { user, isAuthenticated, logout } = useAuthStore();
+  const wishlistCount = useWishlistStore((s) => s.productIds.length);
+  const fetchWishlistIds = useWishlistStore((s) => s.fetchWishlistIds);
+  const clearWishlist = useWishlistStore((s) => s.clear);
+  const { config } = useSiteConfigStore();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchWishlistIds();
+    } else {
+      clearWishlist();
+    }
+  }, [isAuthenticated, fetchWishlistIds, clearWishlist]);
 
   const [keyword, setKeyword] = useState('');
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
+  const [dynamicCategories, setDynamicCategories] = useState<Category[]>([]);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [visualSearchOpen, setVisualSearchOpen] = useState(false);
+
+  // Scroll detection for Smart Topbar (hide on scroll down, show on scroll up)
+  const [showPromoTicker, setShowPromoTicker] = useState(true);
+  const [activeTickerIndex, setActiveTickerIndex] = useState(0);
+  const lastScrollYRef = useRef(0);
+  const accumulatedDeltaRef = useRef(0);
+  const scrollDirectionRef = useRef<'up' | 'down' | null>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerHeight, setHeaderHeight] = useState<number>(134);
+
+  // Measure initial full header height to keep spacer static and prevent layout shifts
+  useEffect(() => {
+    const updateHeaderHeight = () => {
+      if (headerRef.current) {
+        const h = headerRef.current.offsetHeight;
+        if (h > 90) {
+          setHeaderHeight(h);
+        }
+      }
+    };
+
+    updateHeaderHeight();
+    window.addEventListener('resize', updateHeaderHeight);
+    return () => window.removeEventListener('resize', updateHeaderHeight);
+  }, []);
+
+  const tickerMessages = useMemo(() => {
+    return [
+      config.general.promoTickerText ||
+        'Giao hàng miễn phí cho đơn từ 20 triệu • Bảo hành 1 đổi 1 30 ngày • Trả góp 0% qua VietQR',
+      'Chính hãng 100% • Giá tốt mỗi ngày • Hỗ trợ kỹ thuật tận tâm',
+    ];
+  }, [config.general.promoTickerText]);
+
+  // Rotate ticker messages smoothly every 4.5 seconds when in view
+  useEffect(() => {
+    if (!showPromoTicker) return;
+    const interval = setInterval(() => {
+      setActiveTickerIndex((prev) => (prev + 1) % tickerMessages.length);
+    }, 4500);
+    return () => clearInterval(interval);
+  }, [showPromoTicker, tickerMessages.length]);
+
+  useEffect(() => {
+    lastScrollYRef.current = window.scrollY;
+
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      const lastScrollY = lastScrollYRef.current;
+      const delta = currentScrollY - lastScrollY;
+
+      // 1. Ở sát đỉnh trang (trong khoảng 60px đầu): Luôn mở rộng toàn bộ thanh điều hướng
+      if (currentScrollY <= 60) {
+        setShowPromoTicker(true);
+        setActiveTickerIndex(0);
+        accumulatedDeltaRef.current = 0;
+        scrollDirectionRef.current = null;
+        lastScrollYRef.current = currentScrollY;
+        return;
+      }
+
+      // Bỏ qua các micro-scroll dao động nhỏ hơn 1px
+      if (Math.abs(delta) < 1) {
+        return;
+      }
+
+      const direction = delta > 0 ? 'down' : 'up';
+
+      // Nếu đảo chiều cuộn, thiết lập lại quãng đường tích lũy theo hướng mới
+      if (direction !== scrollDirectionRef.current) {
+        scrollDirectionRef.current = direction;
+        accumulatedDeltaRef.current = Math.abs(delta);
+      } else {
+        accumulatedDeltaRef.current += Math.abs(delta);
+      }
+
+      // Ngưỡng tích lũy quãng đường chủ đích (Cumulative Intent Thresholds):
+      // Giúp nhận diện chính xác kể cả khi lăn chuột rất nhẹ, đồng thời lọc sạch rung chấn (jitter)
+      const SCROLL_DOWN_THRESHOLD = 24; // Cuộn xuống liên tục tối thiểu 24px
+      const SCROLL_UP_THRESHOLD = 18;   // Kéo lên liên tục tối thiểu 18px
+
+      if (direction === 'down' && accumulatedDeltaRef.current >= SCROLL_DOWN_THRESHOLD) {
+        setShowPromoTicker(false);
+        setCategoryMenuOpen(false);
+      } else if (direction === 'up' && accumulatedDeltaRef.current >= SCROLL_UP_THRESHOLD) {
+        setShowPromoTicker(true);
+        setActiveTickerIndex(1); // "Chính hãng 100% • Giá tốt mỗi ngày • Hỗ trợ kỹ thuật tận tâm"
+      }
+
+      lastScrollYRef.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const handleOpenVisualSearch = () => setVisualSearchOpen(true);
+    window.addEventListener('open-visual-search', handleOpenVisualSearch);
+    return () => window.removeEventListener('open-visual-search', handleOpenVisualSearch);
+  }, []);
 
   const userMenuRef = useRef<HTMLDivElement>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const userAvatar = user?.avatarUrl || (user as any)?.avatar;
+
+  useEffect(() => {
+    categoryApiService
+      .getPublicCategories()
+      .then((cats) => {
+        if (Array.isArray(cats)) {
+          setDynamicCategories(
+            cats.sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
+          );
+        }
+      })
+      .catch(() => {
+        setDynamicCategories([]);
+      });
+  }, []);
 
   useEffect(() => {
     setAvatarError(false);
@@ -94,116 +246,105 @@ export const Header: React.FC = () => {
     }
   };
 
-  const navCategories = [
-    { name: 'Trang chủ', slug: '', isHome: true },
-    { name: 'Laptop', slug: 'laptop' },
-    { name: 'Điện thoại', slug: 'dien-thoai' },
-    { name: 'Máy tính bảng', slug: 'may-tinh-bang' },
-    { name: 'Phụ kiện', slug: 'phu-kien' },
-    { name: 'Thiết bị điện tử', slug: 'thiet-bi-dien-tu' },
-    { name: 'Gaming', slug: 'gaming' },
-    { name: 'Khuyến mãi', slug: 'khuyen-mai' },
-  ];
-
-  const dropdownCategories = [
-    {
-      name: 'Laptop & Máy tính xách tay',
-      slug: 'laptop',
-      icon: Laptop,
-      desc: 'Gaming, Văn phòng, Đồ họa',
-      badge: 'Hot',
-      badgeColor: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
-    },
-    {
-      name: 'Điện thoại di động',
-      slug: 'dien-thoai',
-      icon: Smartphone,
-      desc: 'iPhone, Samsung, Xiaomi...',
-      badge: 'Bán chạy',
-      badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
-    },
-    {
-      name: 'Máy tính bảng (Tablet)',
-      slug: 'may-tinh-bang',
-      icon: Tablet,
-      desc: 'iPad, Galaxy Tab, màn hình lớn',
-    },
-    {
-      name: 'Tai nghe & Âm thanh',
-      slug: 'tai-nghe',
-      icon: Headphones,
-      desc: 'True Wireless, loa Bluetooth',
-    },
-    {
-      name: 'Đồng hồ thông minh',
-      slug: 'dong-ho-thong-minh',
-      icon: Watch,
-      desc: 'Theo dõi sức khỏe, thể thao',
-    },
-    {
-      name: 'Phụ kiện công nghệ',
-      slug: 'phu-kien',
-      icon: Package,
-      desc: 'Củ sạc, cáp, sạc dự phòng, chuột',
-    },
-    {
-      name: 'Thiết bị điện tử & Màn hình',
-      slug: 'thiet-bi-dien-tu',
-      icon: Monitor,
-      desc: 'Màn hình máy tính, Smart Home',
-    },
-    {
-      name: 'Gaming & Phụ kiện chơi game',
-      slug: 'gaming',
-      icon: Gamepad2,
-      desc: 'Bàn phím cơ, tay cầm, chuột gaming',
-    },
-    {
-      name: 'Khuyến mãi & Flash Sale',
-      slug: 'khuyen-mai',
-      icon: Flame,
-      desc: 'Ưu đãi sốc, Flash Sale',
-      badge: 'Giảm đến 50%',
-      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-    },
-  ];
-
-  const isCategoryActive = (item: { name: string; slug: string; isHome?: boolean }) => {
-    if (item.isHome) {
-      return location.pathname === '/' && !currentCategory;
+  const handleLogoClick = (e: React.MouseEvent) => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setShowPromoTicker(true);
+    setActiveTickerIndex(0);
+    if (location.pathname === '/' && !location.search) {
+      e.preventDefault();
     }
-    if (location.pathname.startsWith('/products')) {
-      if (!currentCategory) return false;
-      const targetSlug = item.slug.toLowerCase().trim();
+  };
+
+  const navItems = [
+    { name: 'Trang chủ', path: ROUTES.HOME, isHome: true },
+    { name: 'Tất cả sản phẩm', path: ROUTES.PRODUCTS },
+    { name: 'Hot Deals', path: '/products?category=khuyen-mai', isHot: true },
+    { name: 'Vòng quay may mắn', path: '/wheel', isWheel: true },
+    { name: 'Tin tức công nghệ', path: ROUTES.ARTICLES },
+    { name: 'Chính sách & Bảo hành', path: ROUTES.POLICIES },
+    { name: 'Hệ thống Showroom', path: ROUTES.STORES },
+  ];
+
+  const isNavItemActive = (item: (typeof navItems)[0]) => {
+    if (item.isHome) {
       return (
-        currentCategory === targetSlug ||
-        currentCategory.replace(/-/g, '') === targetSlug.replace(/-/g, '') ||
-        currentCategory.includes(targetSlug) ||
-        targetSlug.includes(currentCategory)
+        location.pathname === ROUTES.HOME &&
+        !searchParams.get('category') &&
+        !searchParams.get('keyword')
       );
     }
-    return false;
+    if (item.isHot) {
+      return (
+        location.pathname === ROUTES.PRODUCTS &&
+        (currentCategory === 'khuyen-mai' || searchParams.get('hot') === 'true')
+      );
+    }
+    if (item.isWheel) {
+      return (
+        location.pathname === '/wheel' ||
+        location.pathname === '/vong-quay' ||
+        location.search.includes('wheel') ||
+        location.hash === '#wheel'
+      );
+    }
+    if (item.path === ROUTES.PRODUCTS) {
+      return (
+        location.pathname === ROUTES.PRODUCTS &&
+        currentCategory !== 'khuyen-mai' &&
+        searchParams.get('hot') !== 'true'
+      );
+    }
+    return (
+      location.pathname === item.path ||
+      location.pathname.startsWith(`${item.path}/`)
+    );
   };
 
   return (
-    <header className="bg-[#181a20] text-white sticky top-0 z-50 shadow-sm font-sans">
+    <>
+      <header
+        ref={headerRef}
+        className="fixed top-0 left-0 right-0 z-50 bg-[#181a20] text-white shadow-md font-sans"
+      >
+      {/* Smart Promo Ticker Bar (Thụt khi lướt xuống, hiện khi kéo lên) */}
+      <div
+        className={`bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white text-[11px] font-semibold text-center transition-all duration-300 ease-in-out overflow-hidden ${
+          showPromoTicker
+            ? 'max-h-12 opacity-100 py-1.5 px-4 translate-y-0'
+            : 'max-h-0 opacity-0 py-0 px-4 -translate-y-full pointer-events-none'
+        }`}
+      >
+        <div className="flex items-center justify-center gap-2 h-4 overflow-hidden">
+          <span
+            key={activeTickerIndex}
+            className="inline-flex items-center gap-1.5 animate-fade-in truncate"
+          >
+            {tickerMessages[activeTickerIndex]}
+          </span>
+        </div>
+      </div>
       {/* 1. Main Top Header */}
-      <div className="max-w-[1360px] mx-auto px-4 py-3 flex items-center justify-between gap-4 relative z-40">
+      <div className="max-w-[1360px] mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-4 relative z-40">
         {/* Left: Brand Logo (NEXOR Emblem) */}
-        <Link to="/" className="flex items-center gap-3 shrink-0 group">
-          <div className="w-10 h-10 flex items-center justify-center shrink-0">
+        <Link
+          to="/"
+          onClick={handleLogoClick}
+          className="flex items-center gap-2 sm:gap-3 shrink-0 group cursor-pointer"
+          title="Về đầu trang NEXOR"
+        >
+          <div className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center shrink-0">
             <img
               src="/images/nexor_logo.png"
-              alt="NEXOR Logo"
-              className="w-10 h-10 object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-200"
+              alt={`${config.store.shortName || 'NEXOR'} Logo`}
+              className="w-9 h-9 sm:w-10 sm:h-10 object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-200"
             />
           </div>
           <div className="flex flex-col">
-            <span className="text-xl font-black tracking-tight text-white leading-none">
-              NEXOR<span className="text-indigo-400">.</span>
+            <span className="text-lg sm:text-xl font-black tracking-tight text-white leading-none">
+              {config.store.shortName || 'NEXOR'}<span className="text-indigo-400">.</span>
             </span>
-            <span className="text-[10px] text-gray-400 tracking-wider font-normal mt-0.5">
-              Tech for a better life
+            <span className="hidden sm:block text-[10px] text-gray-400 tracking-wider font-normal mt-0.5 line-clamp-1 max-w-[170px]">
+              {config.store.tagline || 'Tech for a better life'}
             </span>
           </div>
         </Link>
@@ -211,17 +352,26 @@ export const Header: React.FC = () => {
         {/* Center: Search Bar (Pill shape) */}
         <form
           onSubmit={handleSearch}
-          className="flex-1 max-w-xl mx-2 sm:mx-6 relative"
+          className="flex-1 max-w-xl mx-1 sm:mx-6 relative min-w-0"
         >
           <div className="relative flex items-center">
-            <Search className="w-4 h-4 text-gray-400 absolute left-4 pointer-events-none" />
+            <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 absolute left-3 sm:left-4 pointer-events-none" />
             <input
               type="text"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="Tìm kiếm sản phẩm, thương hiệu..."
-              className="w-full bg-[#232731] hover:bg-[#282d38] focus:bg-[#282d38] text-white text-xs pl-10 pr-4 py-2 rounded-full border border-gray-700/50 focus:border-blue-500 focus:outline-none transition placeholder-gray-400"
+              placeholder="Tìm kiếm sản phẩm..."
+              className="w-full bg-[#232731] hover:bg-[#282d38] focus:bg-[#282d38] text-white text-xs pl-8 sm:pl-10 pr-8 sm:pr-10 py-1.5 sm:py-2 rounded-full border border-gray-700/50 focus:border-blue-500 focus:outline-none transition placeholder-gray-400"
             />
+            {/* Visual Search Camera Button */}
+            <button
+              type="button"
+              onClick={() => setVisualSearchOpen(true)}
+              className="absolute right-2.5 sm:right-3 p-1 rounded-full text-gray-400 hover:text-white hover:bg-gray-700/60 transition cursor-pointer flex items-center justify-center group"
+              title="Tìm kiếm bằng hình ảnh"
+            >
+              <Camera className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:scale-110 transition-transform" />
+            </button>
           </div>
         </form>
 
@@ -253,7 +403,7 @@ export const Header: React.FC = () => {
         </div>
 
         {/* Right 2: User Action Icons & Interactive Mascot */}
-        <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-4 shrink-0">
           {/* Pet Fox Mascot Companion */}
           <div className="flex items-center justify-center">
             <PetMascot size={40} className="hidden sm:inline-flex" />
@@ -296,10 +446,13 @@ export const Header: React.FC = () => {
             ) : (
               <Link
                 to={ROUTES.LOGIN}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-gray-300 hover:text-white hover:bg-gray-800 transition cursor-pointer"
-                title="Đăng nhập / Tài khoản"
+                className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-full bg-gray-800/80 hover:bg-blue-600 border border-gray-700/70 hover:border-blue-500 text-gray-200 hover:text-white transition-all cursor-pointer group shadow-xs"
+                title="Đăng nhập / Đăng ký"
               >
-                <User className="w-4.5 h-4.5" />
+                <User className="w-4 h-4 text-blue-400 group-hover:text-white transition-colors" />
+                <span className="hidden sm:inline text-xs font-semibold text-gray-200 group-hover:text-white">
+                  Đăng nhập
+                </span>
               </Link>
             )}
 
@@ -373,7 +526,7 @@ export const Header: React.FC = () => {
                     onClick={() => {
                       if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
                       setUserDropdownOpen(false);
-                      logout();
+                      setShowLogoutModal(true);
                     }}
                     className="w-full text-left px-3.5 py-2 text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2.5 cursor-pointer transition font-medium"
                   >
@@ -387,11 +540,16 @@ export const Header: React.FC = () => {
 
           {/* Wishlist */}
           <Link
-            to="/products"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-gray-300 hover:text-white hover:bg-gray-800 transition cursor-pointer"
+            to={isAuthenticated ? `${ROUTES.PROFILE}?tab=wishlist` : `${ROUTES.LOGIN}?redirect=${encodeURIComponent(`${ROUTES.PROFILE}?tab=wishlist`)}`}
+            className="relative w-8 h-8 rounded-full flex items-center justify-center text-gray-300 hover:text-white hover:bg-gray-800 transition cursor-pointer"
             title="Sản phẩm yêu thích"
           >
             <Heart className="w-4.5 h-4.5" />
+            {isAuthenticated && wishlistCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border-2 border-[#181a20]">
+                {wishlistCount > 99 ? '99+' : wishlistCount}
+              </span>
+            )}
           </Link>
 
           {/* Shopping Cart */}
@@ -401,7 +559,7 @@ export const Header: React.FC = () => {
             title="Giỏ hàng"
           >
             <ShoppingCart className="w-4.5 h-4.5" />
-            {totalItems > 0 && (
+            {isAuthenticated && totalItems > 0 && (
               <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border-2 border-[#181a20]">
                 {totalItems > 99 ? '99+' : totalItems}
               </span>
@@ -419,8 +577,14 @@ export const Header: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Sub-Navbar Bar */}
-      <div className="bg-[#1f222b] border-t border-gray-800/80 relative z-20">
+      {/* 2. Sub-Navbar Bar (Thụt khi lướt xuống, hiện khi kéo lên) */}
+      <div
+        className={`bg-[#1f222b] border-t border-gray-800/80 relative z-20 transition-all duration-300 ease-in-out ${
+          showPromoTicker
+            ? `max-h-16 opacity-100 translate-y-0 ${categoryMenuOpen ? 'overflow-visible' : 'overflow-hidden'}`
+            : 'max-h-0 opacity-0 -translate-y-full pointer-events-none overflow-hidden'
+        }`}
+      >
         <div className="max-w-[1360px] mx-auto px-4 flex items-center gap-6 text-xs font-medium">
           {/* Left: Category Dropdown button */}
           <div className="relative shrink-0">
@@ -456,60 +620,62 @@ export const Header: React.FC = () => {
                   </div>
 
                   <div className="py-1 max-h-[420px] overflow-y-auto no-scrollbar">
-                    {dropdownCategories.map((cat) => {
-                      const IconComponent = cat.icon;
-                      const isCatActive =
-                        currentCategory === cat.slug ||
-                        currentCategory.includes(cat.slug);
+                    {dynamicCategories.length === 0 ? (
+                      <div className="px-3.5 py-4 text-center text-gray-400 text-[11px]">
+                        Chưa có danh mục hiển thị
+                      </div>
+                    ) : (
+                      dynamicCategories.map((cat) => {
+                        const IconComponent = getCategoryIcon(cat.slug, cat.name);
+                        const isCatActive =
+                          currentCategory === cat.slug ||
+                          currentCategory.includes(cat.slug);
 
-                      return (
-                        <Link
-                          key={cat.slug}
-                          to={`/products?category=${cat.slug}`}
-                          onClick={() => setCategoryMenuOpen(false)}
-                          className={`flex items-center justify-between px-3.5 py-2 hover:bg-[#242933] transition group ${
-                            isCatActive
-                              ? 'bg-blue-600/15 text-white font-semibold border-l-2 border-blue-500'
-                              : 'text-gray-300 hover:text-white'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div
-                              className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition ${
-                                isCatActive
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-[#232731] text-gray-400 group-hover:bg-[#2c323e] group-hover:text-blue-400'
-                              }`}
-                            >
-                              <IconComponent className="w-3.5 h-3.5" />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-xs truncate font-medium group-hover:text-white">
-                                {cat.name}
-                              </p>
-                              {cat.desc && (
-                                <p className="text-[10px] text-gray-400 truncate">
-                                  {cat.desc}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                            {cat.badge && (
-                              <span
-                                className={`text-[9px] px-1.5 py-0.2 rounded border font-semibold ${
-                                  cat.badgeColor || 'bg-gray-700 text-gray-300'
+                        return (
+                          <Link
+                            key={cat.id}
+                            to={`/products?category=${cat.slug}`}
+                            onClick={() => setCategoryMenuOpen(false)}
+                            className={`flex items-center justify-between px-3.5 py-2 hover:bg-[#242933] transition group ${
+                              isCatActive
+                                ? 'bg-blue-600/15 text-white font-semibold border-l-2 border-blue-500'
+                                : 'text-gray-300 hover:text-white'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div
+                                className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition ${
+                                  isCatActive
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-[#232731] text-gray-400 group-hover:bg-[#2c323e] group-hover:text-blue-400'
                                 }`}
                               >
-                                {cat.badge}
-                              </span>
-                            )}
-                            <ChevronRight className="w-3 h-3 text-gray-500 group-hover:text-gray-300 group-hover:translate-x-0.5 transition" />
-                          </div>
-                        </Link>
-                      );
-                    })}
+                                <IconComponent className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs truncate font-medium group-hover:text-white">
+                                  {cat.name}
+                                </p>
+                                {cat.description && (
+                                  <p className="text-[10px] text-gray-400 truncate">
+                                    {cat.description}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                              {cat.productCount != null && cat.productCount > 0 && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#232731] text-gray-400 font-medium tabular-nums">
+                                  {cat.productCount}
+                                </span>
+                              )}
+                              <ChevronRight className="w-3 h-3 text-gray-500 group-hover:text-gray-300 group-hover:translate-x-0.5 transition" />
+                            </div>
+                          </Link>
+                        );
+                      })
+                    )}
                   </div>
 
                   <div className="pt-1.5 border-t border-gray-800 px-2 mt-1">
@@ -528,14 +694,23 @@ export const Header: React.FC = () => {
           </div>
 
           {/* Center: Category Nav Links (Dynamic active underline) */}
-          <nav className="hidden md:flex items-center gap-6 overflow-x-auto py-2">
-            {navCategories.map((item) => {
-              const active = isCategoryActive(item);
+          <nav className="hidden md:flex items-center gap-6 overflow-x-auto py-2 no-scrollbar">
+            {navItems.map((item) => {
+              const active = isNavItemActive(item);
+
               return (
                 <Link
                   key={item.name}
-                  to={item.isHome ? '/' : `/products?category=${item.slug}`}
-                  className={`text-xs font-semibold py-1 transition-all relative border-b-2 ${
+                  to={item.path}
+                  onClick={(e) => {
+                    if (item.isHome) {
+                      handleLogoClick(e);
+                    }
+                    if (item.isWheel) {
+                      window.dispatchEvent(new CustomEvent('open-lucky-wheel'));
+                    }
+                  }}
+                  className={`text-xs font-semibold py-1 transition-all relative border-b-2 whitespace-nowrap ${
                     active
                       ? 'text-white font-bold border-white'
                       : 'text-gray-300 hover:text-white border-transparent'
@@ -551,30 +726,161 @@ export const Header: React.FC = () => {
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-[#1e222a] border-t border-gray-800 px-4 py-4 space-y-2">
-          <p className="text-[11px] font-bold uppercase text-gray-400 pb-1 border-b border-gray-800">
-            Danh mục & Trang
-          </p>
-          {navCategories.map((item) => {
-            const active = isCategoryActive(item);
-            return (
+        <div className="md:hidden bg-[#1e222a] border-t border-gray-800 px-4 py-4 space-y-4 max-h-[calc(100vh-120px)] overflow-y-auto">
+          {/* User Account / Auth Section for Mobile */}
+          {isAuthenticated ? (
+            <div className="p-3 bg-gray-800/70 border border-gray-700/80 rounded-xl space-y-3 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full overflow-hidden border border-blue-500/40 bg-gray-700 flex items-center justify-center shrink-0">
+                  {userAvatar && !avatarError ? (
+                    <img
+                      src={userAvatar}
+                      alt={user?.fullName || 'Avatar'}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-sm font-bold text-white">
+                      {user?.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}
+                    </span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-bold text-white truncate text-xs">
+                      {user?.fullName || 'Người dùng'}
+                    </p>
+                    {user?.role === 'ADMIN' && (
+                      <span className="px-1.5 py-0.5 text-[9px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded">
+                        Admin
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-gray-400 truncate">{user?.email}</p>
+                </div>
+              </div>
+
+              {/* Quick actions for logged in user */}
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-700/60 text-xs">
+                <Link
+                  to={ROUTES.PROFILE}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 py-1.5 px-2.5 rounded-lg bg-gray-700/50 text-gray-200 hover:bg-gray-700 hover:text-white transition"
+                >
+                  <User className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Tài khoản</span>
+                </Link>
+                <Link
+                  to={ROUTES.MY_ORDERS}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 py-1.5 px-2.5 rounded-lg bg-gray-700/50 text-gray-200 hover:bg-gray-700 hover:text-white transition"
+                >
+                  <Package className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Đơn hàng</span>
+                </Link>
+                {user?.role === 'ADMIN' && (
+                  <Link
+                    to={ROUTES.ADMIN}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="col-span-2 flex items-center gap-2 py-1.5 px-2.5 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 transition font-medium"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Quản trị hệ thống (Admin)</span>
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setShowLogoutModal(true);
+                  }}
+                  className="col-span-2 flex items-center justify-center gap-2 py-1.5 px-2.5 rounded-lg text-red-400 bg-red-500/10 hover:bg-red-500/20 transition font-medium cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Đăng xuất</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="p-3 bg-gradient-to-r from-blue-900/30 via-indigo-950/40 to-gray-800/60 border border-blue-500/30 rounded-xl flex items-center justify-between gap-3 shadow-sm">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-blue-600/20 border border-blue-400/30 flex items-center justify-center text-blue-400 shrink-0">
+                  <User className="w-4.5 h-4.5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-white leading-tight">Chào mừng quý khách!</p>
+                  <p className="text-[10px] text-gray-400 leading-tight truncate">Đăng nhập để nhận ưu đãi</p>
+                </div>
+              </div>
               <Link
-                key={item.name}
-                to={item.isHome ? '/' : `/products?category=${item.slug}`}
+                to={ROUTES.LOGIN}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`block py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${
-                  active
-                    ? 'text-white bg-blue-600/20 font-bold border-l-2 border-white pl-3'
-                    : 'text-gray-300 hover:text-white hover:bg-gray-800/40'
-                }`}
+                className="shrink-0 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
               >
-                {item.name}
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Đăng nhập</span>
               </Link>
-            );
-          })}
+            </div>
+          )}
+
+          <div>
+            <p className="text-[11px] font-bold uppercase text-gray-400 pb-1 border-b border-gray-800">
+              Danh mục & Trang
+            </p>
+            <div className="mt-2 space-y-1">
+              {navItems.map((item) => {
+                const active = isNavItemActive(item);
+
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.path}
+                    onClick={(e) => {
+                      setMobileMenuOpen(false);
+                      if (item.isHome) {
+                        handleLogoClick(e);
+                      }
+                      if (item.isWheel) {
+                        window.dispatchEvent(new CustomEvent('open-lucky-wheel'));
+                      }
+                    }}
+                    className={`block py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${
+                      active
+                        ? 'text-white bg-blue-600/20 font-bold border-l-2 border-white pl-3'
+                        : 'text-gray-300 hover:text-white hover:bg-gray-800/40'
+                    }`}
+                  >
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
+
+      {/* Modal Tìm kiếm bằng hình ảnh (Visual Search AI) */}
+      <VisualSearchModal
+        isOpen={visualSearchOpen}
+        onClose={() => setVisualSearchOpen(false)}
+      />
+
+      {/* Modal xác nhận đăng xuất */}
+      <LogoutConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={() => {
+          logout();
+          navigate(ROUTES.HOME, { replace: true });
+        }}
+      />
     </header>
+    {/* Static Spacer giữ nguyên chiều cao layout document flow, triệt tiêu 100% hiện tượng giật trang */}
+    <div
+      style={{ height: `${headerHeight}px` }}
+      className="w-full shrink-0 pointer-events-none"
+      aria-hidden="true"
+    />
+  </>
   );
 };
 

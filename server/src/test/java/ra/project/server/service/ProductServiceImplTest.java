@@ -7,7 +7,15 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.junit.jupiter.api.DisplayName;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import ra.project.server.common.response.PageResponse;
 import ra.project.server.exception.BadRequestException;
+import ra.project.server.exception.ResourceNotFoundException;
 import ra.project.server.mapper.ProductMapper;
 import ra.project.server.model.dto.request.*;
 import ra.project.server.model.dto.response.ProductResponse;
@@ -65,7 +73,7 @@ class ProductServiceImplTest {
                 .stock(25)
                 .imageUrl("https://example.com/ipad.jpg")
                 .category(testCategory)
-                .status(true)
+                .status("ACTIVE")
                 .options(new ArrayList<>())
                 .variants(new ArrayList<>())
                 .specs(new ArrayList<>())
@@ -339,5 +347,162 @@ class ProductServiceImplTest {
         Optional<ProductVariant> foundOld = testProduct.getVariants().stream().filter(v -> "OLD-SKU".equals(v.getSku())).findFirst();
         assertTrue(foundOld.isPresent());
         assertFalse(foundOld.get().getStatus());
+    }
+
+    // ==========================================
+    // NHIỆM VỤ TEST_01: PHÂN TRANG, TÌM KIẾM, LỌC KẾT HỢP, DETAIL KHÔNG TỒN TẠI (404)
+    // ==========================================
+
+    @Test
+    @DisplayName("TC_PROD_01: Lấy chi tiết sản phẩm không tồn tại -> Ném ResourceNotFoundException (404)")
+    void whenGetProductById_notFound_thenThrowsResourceNotFoundException() {
+        when(productRepository.findById(999L)).thenReturn(Optional.empty());
+
+        ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class,
+                () -> productService.getProductById(999L));
+
+        assertTrue(ex.getMessage().contains("Không tìm thấy sản phẩm với ID: 999"));
+        verify(productRepository).findById(999L);
+    }
+
+    @Test
+    @DisplayName("TC_PROD_02: Phân trang danh sách sản phẩm (Pagination) thành công")
+    void whenGetAllProducts_withPagination_thenReturnPageResponse() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Product> mockPage = new PageImpl<>(List.of(testProduct), pageable, 1);
+
+        when(productRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(mockPage);
+
+        PageResponse<ProductResponse> response = productService.getAllProducts(null, null, null, true, pageable);
+
+        assertNotNull(response);
+        assertEquals(1, response.getContent().size());
+        assertEquals(1, response.getTotalElements());
+        assertEquals(0, response.getPageNumber());
+        assertEquals(10, response.getPageSize());
+        assertEquals("iPad Pro 11 inch M4", response.getContent().get(0).getName());
+    }
+
+    @Test
+    @DisplayName("TC_PROD_03: Tìm kiếm sản phẩm theo từ khóa (Keyword search) thành công")
+    void whenSearchProducts_withKeyword_thenReturnMatchingProducts() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Product> mockPage = new PageImpl<>(List.of(testProduct), pageable, 1);
+
+        when(productRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(mockPage);
+
+        PageResponse<ProductResponse> response = productService.searchProducts("iPad", null, null, null, null, true, pageable);
+
+        assertNotNull(response);
+        assertEquals(1, response.getContent().size());
+        assertEquals("iPad Pro 11 inch M4", response.getContent().get(0).getName());
+    }
+
+    @Test
+    @DisplayName("TC_PROD_04: Lọc kết hợp nhiều tiêu chí (Keyword, Category, Brand, Price Range, Status)")
+    void whenSearchProducts_withCombinedFilter_thenReturnFilteredPage() {
+        Pageable pageable = PageRequest.of(0, 5);
+        Page<Product> mockPage = new PageImpl<>(List.of(testProduct), pageable, 1);
+
+        when(productRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(mockPage);
+
+        PageResponse<ProductResponse> response = productService.searchProducts(
+                "iPad",
+                1L,
+                "Apple",
+                new BigDecimal("20000000"),
+                new BigDecimal("35000000"),
+                true,
+                pageable
+        );
+
+        assertNotNull(response);
+        assertEquals(1, response.getContent().size());
+        assertEquals("iPad Pro 11 inch M4", response.getContent().get(0).getName());
+        verify(productRepository).findAll(any(Specification.class), eq(pageable));
+    }
+
+    @Test
+    @DisplayName("TC_PROD_05: Lọc với khoảng giá không hợp lệ (minPrice > maxPrice) -> Ném BadRequestException")
+    void whenSearchProducts_withMinPriceGreaterThanMaxPrice_thenThrowsBadRequestException() {
+        Pageable pageable = PageRequest.of(0, 10);
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                productService.searchProducts(
+                        null,
+                        null,
+                        null,
+                        new BigDecimal("50000000"),
+                        new BigDecimal("20000000"),
+                        true,
+                        pageable
+                )
+        );
+
+        assertTrue(ex.getMessage().contains("Giá tối thiểu (minPrice) không được lớn hơn giá tối đa (maxPrice)"));
+        verify(productRepository, never()).findAll(any(Specification.class), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("TC_PROD_06: getProductById khi sản phẩm đã bị xóa mềm (isDeleted=true) -> Ném ResourceNotFoundException (Ẩn khỏi public)")
+    void whenGetProductById_whenSoftDeleted_thenThrowsResourceNotFoundException() {
+        testProduct.setIsDeleted(true);
+        when(productRepository.findById(10L)).thenReturn(Optional.of(testProduct));
+
+        ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class,
+                () -> productService.getProductById(10L));
+
+        assertTrue(ex.getMessage().contains("ngừng kinh doanh") || ex.getMessage().contains("đã bị xóa"));
+    }
+
+    @Test
+    @DisplayName("TC_PROD_07: toggleProductStatus cập nhật bật/tắt trạng thái kinh doanh của sản phẩm và biến thể")
+    void whenToggleProductStatus_success() {
+        when(productRepository.findById(10L)).thenReturn(Optional.of(testProduct));
+        when(productRepository.save(any(Product.class))).thenAnswer(i -> i.getArgument(0));
+
+        ProductResponse response = productService.toggleProductStatus(10L, false);
+
+        assertNotNull(response);
+        assertEquals("INACTIVE", testProduct.getStatus());
+    }
+
+    @Test
+    @DisplayName("TC_PROD_08: getAllAdminProducts phân trang danh sách cho Admin hỗ trợ hiện cả sản phẩm tạm ngừng")
+    void whenGetAllAdminProducts_thenReturnsPage() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Product> mockPage = new PageImpl<>(List.of(testProduct), pageable, 1);
+
+        when(productRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(mockPage);
+
+        PageResponse<ProductResponse> response = productService.getAllAdminProducts(
+                "iPad", 1L, "Apple", (String) null, false, pageable
+        );
+
+        assertNotNull(response);
+        assertEquals(1, response.getContent().size());
+        assertEquals("iPad Pro 11 inch M4", response.getContent().get(0).getName());
+    }
+
+    @Test
+    @DisplayName("TC_PROD_09: createProduct với stock biến thể âm -> Ném BadRequestException")
+    void whenCreateProduct_withNegativeVariantStock_thenThrowsBadRequestException() {
+        ProductRequest request = ProductRequest.builder()
+                .name("MacBook Pro M3 Max")
+                .categoryId(1L)
+                .variants(List.of(
+                        VariantRequest.builder()
+                                .sku("MBP-M3-MAX")
+                                .price(new BigDecimal("79990000"))
+                                .stock(-5)
+                                .build()
+                ))
+                .build();
+
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(testCategory));
+        when(productRepository.existsByNameIgnoreCase("MacBook Pro M3 Max")).thenReturn(false);
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () -> productService.createProduct(request));
+        assertTrue(ex.getMessage().contains("không được âm") || ex.getMessage().contains("không được để trống"));
     }
 }

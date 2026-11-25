@@ -3,3 +3,6 @@ export * from './auth.model';
 export * from './product.model';
 export * from './order.model';
 export * from './banner.model';
+export * from './store.model';
+export * from './article.model';
+export * from './wheel.model';

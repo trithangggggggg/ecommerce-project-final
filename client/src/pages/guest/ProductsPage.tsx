@@ -7,25 +7,11 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { productService, categoryService } from '../../api/services/product.service';
+import { brandService } from '../../api/services/brand.service';
 import type { Category, FilterParams, Product } from '../../models/product.model';
 import ProductCard from '../../components/common/Card/ProductCard';
 import ProductCardSkeleton from '../../components/common/Card/ProductCardSkeleton';
 import { useDebounce } from '../../hooks/useDebounce';
-
-const BRAND_FILTERS = [
-  'Tất cả',
-  'Apple',
-  'Samsung',
-  'Xiaomi',
-  'Sony',
-  'ASUS',
-  'Dell',
-  'Lenovo',
-  'Logitech',
-  'Anker',
-  'JBL',
-  'SanDisk',
-];
 
 const PRICE_RANGES = [
   { label: 'Tất cả giá', min: 0, max: Infinity },
@@ -50,30 +36,40 @@ export default function ProductsPage() {
 
   const urlKeyword = searchParams.get('keyword') ?? '';
   const urlCategory = searchParams.get('category') ?? '';
+  const urlBrand = searchParams.get('brand') ?? 'Tất cả';
   const urlSort = (searchParams.get('sortBy') ?? '') as FilterParams['sortBy'] | '';
   const urlPage = Number(searchParams.get('page') ?? '1');
 
   const [keyword, setKeyword] = useState(urlKeyword);
   const [selectedCategory, setSelectedCategory] = useState(urlCategory);
-  const [selectedBrand, setSelectedBrand] = useState('Tất cả');
+  const [selectedBrand, setSelectedBrand] = useState(urlBrand);
   const [selectedPriceIndex, setSelectedPriceIndex] = useState(0);
   const [sortBy, setSortBy] = useState(urlSort);
   const [page, setPage] = useState(urlPage);
 
   const [rawProducts, setRawProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [brandNames, setBrandNames] = useState<string[]>(['Tất cả']);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const debouncedKeyword = useDebounce(keyword, 400);
 
   useEffect(() => {
-    categoryService.getCategories().then(setCategories).catch(() => {});
+    categoryService.getCategories().then(setCategories).catch(() => setCategories([]));
+    brandService
+      .getPublicBrands()
+      .then((brands) => {
+        const names = brands.filter((b) => b.name?.trim()).map((b) => b.name.trim());
+        setBrandNames(['Tất cả', ...Array.from(new Set(names))]);
+      })
+      .catch(() => setBrandNames(['Tất cả']));
   }, []);
 
   useEffect(() => {
     setKeyword(searchParams.get('keyword') ?? '');
     setSelectedCategory(searchParams.get('category') ?? '');
+    setSelectedBrand(searchParams.get('brand') ?? 'Tất cả');
     setSortBy((searchParams.get('sortBy') ?? '') as FilterParams['sortBy'] | '');
     setPage(Number(searchParams.get('page') ?? '1'));
   }, [searchParams]);
@@ -111,7 +107,7 @@ export default function ProductsPage() {
   }, [fetchProducts]);
 
   const filteredProducts = useMemo(() => {
-    return rawProducts.filter((product) => {
+    const filtered = rawProducts.filter((product) => {
       // 1. Lọc theo danh mục đã chọn
       if (selectedCategory) {
         const matchedCategory = categories.find(
@@ -144,7 +140,21 @@ export default function ProductsPage() {
       }
       return true;
     });
-  }, [rawProducts, selectedCategory, categories, selectedBrand, selectedPriceIndex]);
+
+    if (sortBy === 'price_asc') {
+      return [...filtered].sort((a, b) => a.price - b.price);
+    }
+    if (sortBy === 'price_desc') {
+      return [...filtered].sort((a, b) => b.price - a.price);
+    }
+    if (sortBy === 'name_asc') {
+      return [...filtered].sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+    }
+    if (sortBy === 'newest') {
+      return [...filtered].sort((a, b) => Number(b.id) - Number(a.id));
+    }
+    return filtered;
+  }, [rawProducts, selectedCategory, categories, selectedBrand, selectedPriceIndex, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
   const paginatedProducts = useMemo(() => {
@@ -158,6 +168,26 @@ export default function ProductsPage() {
     const newParams = new URLSearchParams(searchParams);
     if (slug) newParams.set('category', slug);
     else newParams.delete('category');
+    newParams.set('page', '1');
+    setSearchParams(newParams);
+  };
+
+  const handleBrandSelect = (brand: string) => {
+    setSelectedBrand(brand);
+    setPage(1);
+    const newParams = new URLSearchParams(searchParams);
+    if (brand && brand !== 'Tất cả') newParams.set('brand', brand);
+    else newParams.delete('brand');
+    newParams.set('page', '1');
+    setSearchParams(newParams);
+  };
+
+  const handleSortChange = (nextSort: FilterParams['sortBy'] | '') => {
+    setSortBy(nextSort);
+    setPage(1);
+    const newParams = new URLSearchParams(searchParams);
+    if (nextSort) newParams.set('sortBy', nextSort);
+    else newParams.delete('sortBy');
     newParams.set('page', '1');
     setSearchParams(newParams);
   };
@@ -210,10 +240,7 @@ export default function ProductsPage() {
           <select
             id="sort-select"
             value={sortBy}
-            onChange={(e) => {
-              setSortBy(e.target.value as FilterParams['sortBy'] | '');
-              setPage(1);
-            }}
+            onChange={(e) => handleSortChange(e.target.value as FilterParams['sortBy'] | '')}
             className="text-xs bg-white border border-gray-300 rounded-lg px-3 py-2 text-gray-700 font-medium focus:outline-none focus:border-blue-600"
           >
             {SORT_OPTIONS.map((o) => (
@@ -231,10 +258,10 @@ export default function ProductsPage() {
             Thương hiệu
           </div>
           <div className="flex flex-wrap gap-2">
-            {BRAND_FILTERS.map((brand) => (
+            {brandNames.map((brand) => (
               <button
                 key={brand}
-                onClick={() => { setSelectedBrand(brand); setPage(1); }}
+                onClick={() => handleBrandSelect(brand)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
                   selectedBrand === brand
                     ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
@@ -371,7 +398,7 @@ export default function ProductsPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2.5 sm:gap-4">
             {paginatedProducts.map((p) => (
               <ProductCard key={p.id} product={p} />
             ))}
@@ -379,11 +406,11 @@ export default function ProductsPage() {
 
           {/* Pagination Controls */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-8" role="navigation">
+            <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 mt-8" role="navigation">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="w-9 h-9 rounded-lg border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label="Trang trước"
               >
                 <ChevronLeft size={16} />
@@ -393,7 +420,7 @@ export default function ProductsPage() {
                 <button
                   key={p}
                   onClick={() => setPage(p)}
-                  className={`w-9 h-9 rounded-lg text-sm font-semibold transition-all ${
+                  className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
                     page === p
                       ? 'bg-blue-600 text-white shadow-sm'
                       : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
@@ -406,7 +433,7 @@ export default function ProductsPage() {
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="w-9 h-9 rounded-lg border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label="Trang sau"
               >
                 <ChevronRight size={16} />

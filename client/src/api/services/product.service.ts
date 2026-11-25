@@ -10,8 +10,10 @@ import type {
 } from '../../models/product.model';
 import type { OrderResponse } from '../../models/order.model';
 
+export type BackendProduct = Record<string, any>;
+
 // Helper map backend product response to frontend Product
-function mapBackendProduct(item: any): Product {
+export function mapBackendProduct(item: BackendProduct): Product {
   const price = typeof item.price === 'number' ? item.price : parseFloat(item.price || '0');
   const minPrice = typeof item.minPrice === 'number' ? item.minPrice : price;
   const maxPrice = typeof item.maxPrice === 'number' ? item.maxPrice : price;
@@ -74,10 +76,12 @@ function mapBackendProduct(item: any): Product {
     specs: item.specs,
     options: item.options,
     variants: item.variants,
-    status: item.status !== false,
+    status: typeof item.status === 'string' ? item.status : item.status === false ? 'INACTIVE' : 'ACTIVE',
+    isDeleted: Boolean(item.isDeleted),
     isFeatured: item.isFeatured ?? true,
     isNew: item.isNew ?? true,
     createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
   };
 }
 
@@ -106,6 +110,16 @@ export const productService = {
 
       if (params.brand && params.brand !== 'Tất cả') {
         queryParams.brand = params.brand;
+      }
+
+      if (params.sortBy) {
+        const sortMap: Record<string, string> = {
+          newest: 'createdAt,desc',
+          price_asc: 'price,asc',
+          price_desc: 'price,desc',
+          name_asc: 'name,asc',
+        };
+        queryParams.sort = sortMap[params.sortBy] || params.sortBy;
       }
 
       const res = await axiosClient.get(url, { params: queryParams });
@@ -169,6 +183,10 @@ export const productService = {
           slug: c.slug || toSlug(c.name),
           description: c.description,
           imageUrl: c.imageUrl,
+          displayOrder: c.displayOrder ?? 0,
+          showOnHome: c.showOnHome ?? true,
+          status: c.status ?? true,
+          productCount: c.productCount ?? 0,
         }));
       }
     } catch {
@@ -224,10 +242,91 @@ export const productService = {
   /**
    * [Admin] Cập nhật số lượng tồn kho sản phẩm (PUT /api/admin/products/{id}/stock)
    */
-  async updateProductStock(id: number | string, stock: number): Promise<Product> {
-    const res = await axiosClient.put(ENDPOINTS.ADMIN_PRODUCT_STOCK(id), { stock });
+  async updateProductStock(id: number | string, stock: number, price?: number): Promise<Product> {
+    const payload: any = { stock };
+    if (price !== undefined) payload.price = price;
+    const res = await axiosClient.put(ENDPOINTS.ADMIN_PRODUCT_STOCK(id), payload);
     const raw = res.data?.data || res.data;
     return mapBackendProduct(raw);
+  },
+
+  /**
+   * [Admin] Lấy danh sách sản phẩm đầy đủ từ /api/admin/products
+   */
+  async getAdminProducts(params: {
+    keyword?: string;
+    categoryId?: number;
+    brand?: string;
+    status?: string;
+    includeDeleted?: boolean;
+    page?: number;
+    limit?: number;
+    sort?: string;
+  } = {}): Promise<ProductListResponse> {
+    const page = params.page ? params.page - 1 : 0;
+    const size = params.limit || 20;
+    const queryParams: any = { page, size, sort: params.sort || 'id,desc' };
+    if (params.keyword) queryParams.keyword = params.keyword;
+    if (params.categoryId) queryParams.categoryId = params.categoryId;
+    if (params.brand) queryParams.brand = params.brand;
+    if (params.status) queryParams.status = params.status;
+    if (params.includeDeleted !== undefined) queryParams.includeDeleted = params.includeDeleted;
+
+    const res = await axiosClient.get(ENDPOINTS.ADMIN_PRODUCTS, { params: queryParams });
+    const rawData = res.data?.data;
+    if (rawData && Array.isArray(rawData.content)) {
+      const products = rawData.content.map(mapBackendProduct);
+      return {
+        data: products,
+        total: rawData.totalElements || products.length,
+        page: (rawData.pageNumber || 0) + 1,
+        limit: rawData.pageSize || size,
+        totalPages: rawData.totalPages || 1,
+      };
+    }
+    return { data: [], total: 0, page: 1, limit: size, totalPages: 0 };
+  },
+
+  /**
+   * [Admin] Cập nhật vị trí kho & mã kệ của biến thể (PUT /api/admin/products/variants/{variantId}/location)
+   */
+  async updateVariantLocation(
+    variantId: number | string,
+    warehouse?: string,
+    shelfLocation?: string
+  ): Promise<any> {
+    const res = await axiosClient.put(ENDPOINTS.ADMIN_VARIANT_LOCATION(variantId), {
+      warehouse,
+      shelfLocation,
+    });
+    return res.data?.data || res.data;
+  },
+
+  /**
+   * [Admin] Cập nhật số lượng tồn kho biến thể sản phẩm (PUT /api/admin/products/variants/{variantId}/stock)
+   */
+  async updateVariantStock(
+    variantId: number | string,
+    quantity: number,
+    isDelta = false,
+    price?: number,
+    warehouse?: string,
+    shelfLocation?: string
+  ): Promise<any> {
+    const payload: any = { quantity, isDelta };
+    if (price !== undefined) payload.price = price;
+    if (warehouse !== undefined) payload.warehouse = warehouse;
+    if (shelfLocation !== undefined) payload.shelfLocation = shelfLocation;
+    const res = await axiosClient.put(ENDPOINTS.ADMIN_VARIANT_STOCK(variantId), payload);
+    return res.data?.data || res.data;
+  },
+
+  /**
+   * [Admin] Tạo biến thể mới cho sản phẩm (POST /api/admin/products/{productId}/variants)
+   */
+  async createVariant(productId: number | string, data: any): Promise<any> {
+    const res = await axiosClient.post(ENDPOINTS.ADMIN_CREATE_VARIANT(productId), data);
+    return res.data?.data || res.data;
   },
 
   /**

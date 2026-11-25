@@ -5,5 +5,6 @@ public enum PaymentMethod {
     ONLINE,
     BANK_TRANSFER,
     VNPAY,
-    MOMO
+    MOMO,
+    SEPAY
 }

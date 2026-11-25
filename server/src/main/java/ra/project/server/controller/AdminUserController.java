@@ -30,7 +30,14 @@ public class AdminUserController {
         return ResponseEntity.ok(response);
     }
 
-    @PutMapping("/{id}/status")
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<AdminUserResponse>> getUserById(@PathVariable Long id) {
+        ApiResponse<AdminUserResponse> response = userService.getAdminUserById(id);
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping(value = {"/{id}/status", "/{id}/toggle-status"})
+    @PutMapping(value = {"/{id}/status", "/{id}/toggle-status"})
     public ResponseEntity<ApiResponse<AdminUserResponse>> updateUserStatus(
             @PathVariable Long id,
             @RequestBody(required = false) Map<String, Object> body,
@@ -46,10 +53,6 @@ public class AdminUserController {
             }
         } else if (statusParam != null) {
             targetStatus = statusParam;
-        }
-
-        if (targetStatus == null) {
-            throw new BadRequestException("Trạng thái người dùng (status: true/false hoặc 'ACTIVE'/'BLOCKED') không được để trống");
         }
 
         ApiResponse<AdminUserResponse> response = userService.updateUserStatus(id, targetStatus);
@@ -74,8 +77,8 @@ public class AdminUserController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteAdminUser(@PathVariable Long id) {
-        ApiResponse<Void> response = userService.deleteAdminUser(id);
+    public ResponseEntity<ApiResponse<Map<String, Object>>> deleteAdminUser(@PathVariable Long id) {
+        ApiResponse<Map<String, Object>> response = userService.deleteAdminUser(id);
         return ResponseEntity.ok(response);
     }
 }

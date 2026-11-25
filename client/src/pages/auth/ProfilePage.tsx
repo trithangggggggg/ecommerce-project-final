@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
   Camera,
   CheckCircle2,
+  Eye,
+  EyeOff,
+  Heart,
+  Info,
   KeyRound,
   Lock,
   LogOut,
@@ -12,90 +16,214 @@ import {
   Phone,
   Save,
   ShieldCheck,
+  ShoppingCart,
+  Sparkles,
+  Trash2,
   User as UserIcon,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useCartStore } from '../../store/useCartStore';
+import { useWishlistStore } from '../../store/useWishlistStore';
 import { ROLES } from '../../constants/roles';
 import { ROUTES } from '../../constants/routes';
+import { formatPrice } from '../../utils/format';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
+import LogoutConfirmModal from '../../components/common/LogoutConfirmModal';
+
+// Regex chuẩn số điện thoại di động Việt Nam (10 số, đầu số 03, 05, 07, 08, 09 hoặc +84)
+const VN_PHONE_REGEX = /^(0|\+84)(3[2-9]|5[25689]|7[06-9]|8[1-9]|9[0-9])[0-9]{7}$/;
 
 export const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated, updateProfile, changePassword, logout, isLoading } =
-    useAuthStore();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const {
+    user,
+    isAuthenticated,
+    fetchProfile,
+    updateProfile,
+    changePassword,
+    logout,
+    isLoading,
+  } = useAuthStore();
+  const { addItem } = useCartStore();
+  const {
+    items: wishlistItems,
+    isLoading: wishlistLoading,
+    fetchWishlistItems,
+    removeItem: removeWishlistItem,
+  } = useWishlistStore();
 
-  const [activeTab, setActiveTab] = useState<'info' | 'password'>('info');
+  const initialTabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<'info' | 'password' | 'wishlist'>(
+    initialTabParam === 'password'
+      ? 'password'
+      : initialTabParam === 'wishlist'
+        ? 'wishlist'
+        : 'info'
+  );
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Form State: Thông tin cá nhân
   const [fullName, setFullName] = useState(user?.fullName || '');
   const [phone, setPhone] = useState(user?.phone || user?.phoneNumber || '');
   const [address, setAddress] = useState(user?.address || '');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
+  const [profileErrors, setProfileErrors] = useState<{
+    fullName?: string;
+    phone?: string;
+    address?: string;
+    avatarUrl?: string;
+  }>({});
 
   // Form State: Đổi mật khẩu
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordErrors, setPasswordErrors] = useState<{
+    currentPassword?: string;
+    newPassword?: string;
+    confirmPassword?: string;
+  }>({});
 
   // Notification State
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(
     null
   );
+  const [avatarPreviewError, setAvatarPreviewError] = useState(false);
 
+  // Kiểm tra đăng nhập
   useEffect(() => {
     if (!isAuthenticated) {
       navigate(ROUTES.LOGIN, { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
+  // Tải dữ liệu hồ sơ mới nhất & danh sách yêu thích từ backend khi vào trang
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchProfile().catch(() => {
+        // Nếu fetch thất bại thì dùng dữ liệu sẵn có trong store
+      });
+      fetchWishlistItems().catch(() => {});
+    }
+  }, [isAuthenticated, fetchProfile, fetchWishlistItems]);
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'wishlist' || tabParam === 'password' || tabParam === 'info') {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
+  // Đồng bộ state form khi user trong store cập nhật
   useEffect(() => {
     if (user) {
       setFullName(user.fullName || '');
       setPhone(user.phone || user.phoneNumber || '');
       setAddress(user.address || '');
       setAvatarUrl(user.avatarUrl || '');
+      setAvatarPreviewError(false);
     }
   }, [user]);
 
+  // Validate form Thông tin cá nhân
+  const validateProfileForm = (): boolean => {
+    const errors: { fullName?: string; phone?: string; address?: string; avatarUrl?: string } = {};
+
+    if (!fullName.trim()) {
+      errors.fullName = 'Họ và tên không được để trống';
+    } else if (fullName.trim().length > 100) {
+      errors.fullName = 'Họ và tên không được vượt quá 100 ký tự';
+    }
+
+    const cleanPhone = phone.trim().replace(/\s+/g, '');
+    if (cleanPhone) {
+      if (!VN_PHONE_REGEX.test(cleanPhone)) {
+        errors.phone = 'Số điện thoại không đúng định dạng Việt Nam (VD: 0912345678 hoặc +84912345678)';
+      }
+    }
+
+    if (address.trim().length > 255) {
+      errors.address = 'Địa chỉ giao hàng không được vượt quá 255 ký tự';
+    }
+
+    if (avatarUrl.trim().length > 500) {
+      errors.avatarUrl = 'Đường dẫn ảnh đại diện không được vượt quá 500 ký tự';
+    }
+
+    setProfileErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Xử lý Cập nhật thông tin cá nhân
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
 
-    if (!fullName.trim()) {
-      setFeedback({ type: 'error', message: 'Họ và tên không được để trống' });
+    if (!validateProfileForm()) {
       return;
     }
 
     try {
-      await updateProfile({
+      const cleanPhone = phone.trim().replace(/\s+/g, '');
+      const updatedUser = await updateProfile({
         fullName: fullName.trim(),
-        phone: phone.trim(),
-        phoneNumber: phone.trim(),
+        phone: cleanPhone,
+        phoneNumber: cleanPhone,
         address: address.trim(),
         avatarUrl: avatarUrl.trim(),
       });
-      setFeedback({ type: 'success', message: 'Cập nhật thông tin cá nhân thành công!' });
+
+      if (updatedUser?.avatarUrl) {
+        setAvatarUrl(updatedUser.avatarUrl);
+      }
+      setProfileErrors({});
+      setFeedback({
+        type: 'success',
+        message: 'Cập nhật thông tin cá nhân thành công! Dữ liệu đã được đồng bộ toàn hệ thống.',
+      });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Lỗi khi cập nhật thông tin';
+      const message = err instanceof Error ? err.message : 'Lỗi khi cập nhật thông tin cá nhân';
       setFeedback({ type: 'error', message });
     }
   };
 
+  // Validate form Đổi mật khẩu
+  const validatePasswordForm = (): boolean => {
+    const errors: { currentPassword?: string; newPassword?: string; confirmPassword?: string } = {};
+
+    if (!currentPassword) {
+      errors.currentPassword = 'Vui lòng nhập mật khẩu hiện tại';
+    }
+
+    if (!newPassword) {
+      errors.newPassword = 'Vui lòng nhập mật khẩu mới';
+    } else if (newPassword.length < 6) {
+      errors.newPassword = 'Mật khẩu mới phải có tối thiểu 6 ký tự';
+    } else if (currentPassword && newPassword === currentPassword) {
+      errors.newPassword = 'Mật khẩu mới không được trùng với mật khẩu hiện tại';
+    }
+
+    if (!confirmPassword) {
+      errors.confirmPassword = 'Vui lòng xác nhận mật khẩu mới';
+    } else if (newPassword && confirmPassword !== newPassword) {
+      errors.confirmPassword = 'Mật khẩu xác nhận không trùng khớp với mật khẩu mới';
+    }
+
+    setPasswordErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Xử lý Đổi mật khẩu (Nghiệm thu: Đổi mật khẩu thành công phải tự động đăng xuất và chuyển về trang đăng nhập)
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
 
-    if (!currentPassword) {
-      setFeedback({ type: 'error', message: 'Vui lòng nhập mật khẩu hiện tại' });
-      return;
-    }
-    if (newPassword.length < 6) {
-      setFeedback({ type: 'error', message: 'Mật khẩu mới phải có tối thiểu 6 ký tự' });
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setFeedback({ type: 'error', message: 'Mật khẩu xác nhận không khớp' });
+    if (!validatePasswordForm()) {
       return;
     }
 
@@ -105,28 +233,46 @@ export const ProfilePage: React.FC = () => {
         newPassword,
         confirmPassword,
       });
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setFeedback({ type: 'success', message: 'Đổi mật khẩu thành công!' });
+
+      // Sau khi đổi mật khẩu thành công:
+      // 1. Tự động đăng xuất theo cơ chế hệ thống (xóa token, user)
+      logout();
+
+      // 2. Chuyển người dùng về trang đăng nhập kèm thông báo yêu cầu đăng nhập lại
+      navigate(ROUTES.LOGIN, {
+        replace: true,
+        state: {
+          successMessage: 'Đổi mật khẩu thành công! Vui lòng đăng nhập lại bằng mật khẩu mới của bạn.',
+        },
+      });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Lỗi khi đổi mật khẩu';
+      const message = err instanceof Error ? err.message : 'Lỗi khi đổi mật khẩu tài khoản';
       setFeedback({ type: 'error', message });
     }
   };
 
   const handleLogout = () => {
-    if (window.confirm('Bạn có chắc chắn muốn đăng xuất khỏi hệ thống NEXOR?')) {
-      logout();
-      navigate(ROUTES.LOGIN);
-    }
+    setShowLogoutModal(true);
   };
 
   if (!user) {
     return null;
   }
 
-  const isAdmin = user.role === ROLES.ADMIN;
+  const isAdmin = user.role === ROLES.ADMIN || (user.role as any) === 'ROLE_ADMIN';
+  const defaultFallbackAvatar = isAdmin
+    ? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150'
+    : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
+
+  const isPinterestLink =
+    avatarUrl.trim().includes('pinterest.com/pin/') || avatarUrl.trim().includes('pin.it/');
+
+  // Ảnh hiển thị preview: ưu tiên avatarUrl nhập vào, rồi đến user.avatarUrl, cuối cùng là default
+  const activeDisplayAvatar =
+    (avatarUrl.trim() && !avatarPreviewError ? avatarUrl.trim() : null) ||
+    user.avatarUrl ||
+    (user as any).avatar ||
+    defaultFallbackAvatar;
 
   return (
     <div className="min-h-screen bg-[#f5f6fa] py-8 px-4 sm:px-6 lg:px-8 font-sans">
@@ -136,16 +282,16 @@ export const ProfilePage: React.FC = () => {
           {/* Top banner: Dark Charcoal matching Header */}
           <div className="h-28 bg-[#181a20] relative border-b border-gray-800" />
 
-          <div className="px-6 pb-6 relative flex flex-col sm:flex-row items-center sm:items-end justify-between gap-4 -mt-12">
+          <div className="px-4 sm:px-6 pb-5 sm:pb-6 relative flex flex-col sm:flex-row items-center sm:items-end justify-between gap-4 -mt-12">
             <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
               <div className="relative group">
                 <img
-                  src={
-                    user.avatarUrl ||
-                    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'
-                  }
+                  src={activeDisplayAvatar}
                   alt={user.fullName}
                   className="w-22 h-22 rounded-2xl object-cover border-4 border-white shadow-md bg-white"
+                  onError={() => {
+                    setAvatarPreviewError(true);
+                  }}
                 />
                 <button
                   type="button"
@@ -171,10 +317,22 @@ export const ProfilePage: React.FC = () => {
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-gray-500 mt-1 flex items-center justify-center sm:justify-start gap-1">
-                  <Mail className="w-3.5 h-3.5 text-gray-400" />
-                  {user.email}
-                </p>
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-1 text-xs text-gray-500 mt-1">
+                  <span className="flex items-center gap-1">
+                    <UserIcon className="w-3.5 h-3.5 text-gray-400" />
+                    @{user.username || user.email.split('@')[0]}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Mail className="w-3.5 h-3.5 text-gray-400" />
+                    {user.email}
+                  </span>
+                  {(user.phone || user.phoneNumber) && (
+                    <span className="flex items-center gap-1">
+                      <Phone className="w-3.5 h-3.5 text-gray-400" />
+                      {user.phone || user.phoneNumber}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -204,14 +362,15 @@ export const ProfilePage: React.FC = () => {
           </div>
 
           {/* Navigation Tabs */}
-          <div className="border-t border-gray-100 px-6 flex gap-6 text-xs">
+          <div className="border-t border-gray-100 px-4 sm:px-6 flex gap-3 sm:gap-6 text-xs overflow-x-auto no-scrollbar scrollbar-none">
             <button
               type="button"
               onClick={() => {
                 setActiveTab('info');
+                setSearchParams({});
                 setFeedback(null);
               }}
-              className={`py-3 font-bold border-b-2 transition flex items-center gap-2 cursor-pointer ${
+              className={`py-3 font-bold border-b-2 transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
                 activeTab === 'info'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-800'
@@ -223,10 +382,28 @@ export const ProfilePage: React.FC = () => {
             <button
               type="button"
               onClick={() => {
+                setActiveTab('wishlist');
+                setSearchParams({ tab: 'wishlist' });
+                setFeedback(null);
+                fetchWishlistItems();
+              }}
+              className={`py-3 font-bold border-b-2 transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                activeTab === 'wishlist'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              <Heart className="w-4 h-4" />
+              Sản phẩm yêu thích ({wishlistItems.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
                 setActiveTab('password');
+                setSearchParams({ tab: 'password' });
                 setFeedback(null);
               }}
-              className={`py-3 font-bold border-b-2 transition flex items-center gap-2 cursor-pointer ${
+              className={`py-3 font-bold border-b-2 transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
                 activeTab === 'password'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-800'
@@ -264,24 +441,45 @@ export const ProfilePage: React.FC = () => {
         {/* Tab 1: Profile Information */}
         {activeTab === 'info' && (
           <div className="bg-white rounded-2xl shadow-xs border border-gray-200 p-6 sm:p-8">
-            <h2 className="text-base font-bold text-gray-900 mb-1">Cập nhật hồ sơ cá nhân</h2>
-            <p className="text-xs text-gray-500 mb-6">
-              Quản lý thông tin liên lạc và địa chỉ giao hàng của bạn
-            </p>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-base font-bold text-gray-900">Cập nhật hồ sơ cá nhân</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Quản lý thông tin liên lạc và địa chỉ giao hàng của bạn
+                </p>
+              </div>
+            </div>
 
-            <form onSubmit={handleUpdateProfile} className="space-y-4">
+            <form onSubmit={handleUpdateProfile} className="space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Full Name */}
                 <Input
                   label="Họ và tên"
                   type="text"
                   value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  onChange={(e) => {
+                    setFullName(e.target.value);
+                    if (profileErrors.fullName) {
+                      setProfileErrors((prev) => ({ ...prev, fullName: undefined }));
+                    }
+                  }}
+                  error={profileErrors.fullName}
+                  placeholder="Nhập họ và tên đầy đủ"
                   leftIcon={<UserIcon className="w-4 h-4" />}
                   required
                 />
 
-                {/* Email (Read only) */}
+                {/* Username (Read-only) */}
+                <Input
+                  label="Tên đăng nhập (Username)"
+                  type="text"
+                  value={user.username || user.email.split('@')[0]}
+                  leftIcon={<UserIcon className="w-4 h-4" />}
+                  disabled
+                  className="bg-gray-100 text-gray-500 cursor-not-allowed"
+                />
+
+                {/* Email (Read-only) */}
                 <Input
                   label="Email tài khoản (không thể đổi)"
                   type="email"
@@ -296,20 +494,59 @@ export const ProfilePage: React.FC = () => {
                   label="Số điện thoại"
                   type="tel"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="0912 345 678"
+                  onChange={(e) => {
+                    setPhone(e.target.value);
+                    if (profileErrors.phone) {
+                      setProfileErrors((prev) => ({ ...prev, phone: undefined }));
+                    }
+                  }}
+                  error={profileErrors.phone}
+                  placeholder="VD: 0912345678"
                   leftIcon={<Phone className="w-4 h-4" />}
                 />
 
                 {/* Avatar URL */}
-                <Input
-                  label="Ảnh đại diện (URL)"
-                  type="url"
-                  value={avatarUrl}
-                  onChange={(e) => setAvatarUrl(e.target.value)}
-                  placeholder="https://example.com/avatar.jpg"
-                  leftIcon={<Camera className="w-4 h-4" />}
-                />
+                <div className="sm:col-span-2 space-y-1.5">
+                  <Input
+                    label="Ảnh đại diện (URL)"
+                    type="url"
+                    value={avatarUrl}
+                    onChange={(e) => {
+                      setAvatarUrl(e.target.value);
+                      setAvatarPreviewError(false);
+                      if (profileErrors.avatarUrl) {
+                        setProfileErrors((prev) => ({ ...prev, avatarUrl: undefined }));
+                      }
+                    }}
+                    error={profileErrors.avatarUrl}
+                    placeholder="https://example.com/avatar.jpg"
+                    leftIcon={<Camera className="w-4 h-4" />}
+                  />
+
+                  {/* Pinterest Pin URL Detection Banner */}
+                  {isPinterestLink && (
+                    <div className="p-2.5 bg-blue-50/90 border border-blue-200/90 rounded-xl flex items-start gap-2.5 text-xs text-blue-900 animate-fade-in">
+                      <Sparkles className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <span className="font-bold text-blue-800 block">
+                          Đã phát hiện liên kết bài viết Pinterest
+                        </span>
+                        <p className="text-blue-700 text-[11px] mt-0.5 leading-relaxed">
+                          Hệ thống sẽ <strong>tự động chuyển đổi</strong> liên kết bài viết này sang ảnh trực tiếp chất lượng cao (<code className="bg-blue-100 px-1 py-0.5 rounded text-blue-950 font-mono">i.pinimg.com/...jpg</code>) khi bạn bấm <strong>"Lưu thay đổi"</strong>.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {!isPinterestLink && (
+                    <p className="text-[11px] text-gray-500 flex items-center gap-1.5 pt-0.5">
+                      <Info className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      <span>
+                        Hỗ trợ link ảnh trực tiếp (.jpg, .png, i.pinimg.com, unsplash.com) hoặc link Pinterest pin.
+                      </span>
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Address */}
@@ -324,14 +561,29 @@ export const ProfilePage: React.FC = () => {
                   <textarea
                     rows={3}
                     value={address}
-                    onChange={(e) => setAddress(e.target.value)}
+                    onChange={(e) => {
+                      setAddress(e.target.value);
+                      if (profileErrors.address) {
+                        setProfileErrors((prev) => ({ ...prev, address: undefined }));
+                      }
+                    }}
                     placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành phố..."
-                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 hover:border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/15 focus:border-blue-600 transition resize-none"
+                    className={`w-full pl-10 pr-4 py-2.5 bg-white border ${
+                      profileErrors.address
+                        ? 'border-red-400 focus:border-red-600 focus:ring-red-500/15'
+                        : 'border-gray-200 hover:border-gray-300 focus:border-blue-600 focus:ring-blue-500/15'
+                    } rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 transition resize-none`}
                   />
                 </div>
+                {profileErrors.address && (
+                  <p className="mt-1 text-xs text-red-600 font-medium">{profileErrors.address}</p>
+                )}
               </div>
 
-              <div className="pt-2 flex justify-end">
+              <div className="pt-2 flex items-center justify-between border-t border-gray-100">
+                <span className="text-xs text-gray-400">
+                  * Thông tin hồ sơ mới sẽ được đồng bộ ngay lập tức lên Header và toàn bộ hệ thống
+                </span>
                 <Button
                   type="submit"
                   variant="dark"
@@ -351,39 +603,100 @@ export const ProfilePage: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-xs border border-gray-200 p-6 sm:p-8">
             <h2 className="text-base font-bold text-gray-900 mb-1">Đổi mật khẩu tài khoản</h2>
             <p className="text-xs text-gray-500 mb-6">
-              Để bảo mật tài khoản, vui lòng không chia sẻ mật khẩu của bạn với bất kỳ ai
+              Để bảo mật tài khoản, vui lòng không chia sẻ mật khẩu của bạn với bất kỳ ai. Sau khi đổi mật khẩu thành công, hệ thống sẽ tự động đăng xuất để bạn đăng nhập lại.
             </p>
 
             <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
+              {/* Mật khẩu hiện tại */}
               <Input
                 label="Mật khẩu hiện tại"
-                type="password"
+                type={showCurrentPassword ? 'text' : 'password'}
                 value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="••••••••"
+                onChange={(e) => {
+                  setCurrentPassword(e.target.value);
+                  if (passwordErrors.currentPassword) {
+                    setPasswordErrors((prev) => ({ ...prev, currentPassword: undefined }));
+                  }
+                }}
+                error={passwordErrors.currentPassword}
+                placeholder="Nhập mật khẩu hiện tại"
                 leftIcon={<Lock className="w-4 h-4" />}
+                rightIcon={
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    className="text-gray-400 hover:text-gray-600 cursor-pointer p-0.5 focus:outline-none"
+                    title={showCurrentPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  >
+                    {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                }
                 required
               />
 
+              {/* Mật khẩu mới */}
               <Input
                 label="Mật khẩu mới"
-                type="password"
+                type={showNewPassword ? 'text' : 'password'}
                 value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
+                onChange={(e) => {
+                  setNewPassword(e.target.value);
+                  if (passwordErrors.newPassword) {
+                    setPasswordErrors((prev) => ({ ...prev, newPassword: undefined }));
+                  }
+                }}
+                error={passwordErrors.newPassword}
                 placeholder="Tối thiểu 6 ký tự"
                 leftIcon={<Lock className="w-4 h-4" />}
+                rightIcon={
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="text-gray-400 hover:text-gray-600 cursor-pointer p-0.5 focus:outline-none"
+                    title={showNewPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  >
+                    {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                }
                 required
               />
 
+              {/* Xác nhận mật khẩu mới */}
               <Input
                 label="Xác nhận mật khẩu mới"
-                type="password"
+                type={showConfirmPassword ? 'text' : 'password'}
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  if (passwordErrors.confirmPassword) {
+                    setPasswordErrors((prev) => ({ ...prev, confirmPassword: undefined }));
+                  }
+                }}
+                error={passwordErrors.confirmPassword}
                 placeholder="Nhập lại mật khẩu mới"
                 leftIcon={<Lock className="w-4 h-4" />}
+                rightIcon={
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="text-gray-400 hover:text-gray-600 cursor-pointer p-0.5 focus:outline-none"
+                    title={showConfirmPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                }
                 required
               />
+
+              <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl text-[11px] text-amber-800 flex items-start gap-2">
+                <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Lưu ý bảo mật:</strong> Sau khi đổi mật khẩu thành công, tài khoản sẽ được tự động đăng xuất và bạn cần đăng nhập lại với mật khẩu mới.
+                </span>
+              </div>
 
               <div className="pt-2">
                 <Button
@@ -392,14 +705,154 @@ export const ProfilePage: React.FC = () => {
                   size="md"
                   isLoading={isLoading}
                   leftIcon={<KeyRound className="w-4 h-4" />}
+                  className="w-full"
                 >
-                  Cập nhật mật khẩu
+                  Xác nhận đổi mật khẩu
                 </Button>
               </div>
             </form>
           </div>
         )}
+
+        {/* Tab 3: Wishlist */}
+        {activeTab === 'wishlist' && (
+          <div className="bg-white rounded-2xl shadow-xs border border-gray-200 p-6 sm:p-8 space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-bold text-gray-900">
+                  Sản phẩm yêu thích ({wishlistItems.length})
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Danh sách được lưu đồng bộ theo tài khoản của bạn trên hệ thống
+                </p>
+              </div>
+              <Link
+                to={ROUTES.PRODUCTS}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+              >
+                Khám phá thêm sản phẩm →
+              </Link>
+            </div>
+
+            {wishlistLoading ? (
+              <div className="py-12 text-center text-xs text-gray-500">
+                Đang tải danh sách yêu thích...
+              </div>
+            ) : wishlistItems.length === 0 ? (
+              <div className="py-12 text-center border border-dashed border-gray-200 rounded-2xl space-y-3">
+                <Heart className="w-10 h-10 text-gray-300 mx-auto" />
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">
+                    Bạn chưa lưu sản phẩm yêu thích nào
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Nhấn biểu tượng trái tim trên sản phẩm bất kỳ để lưu vào đây.
+                  </p>
+                </div>
+                <Link
+                  to={ROUTES.PRODUCTS}
+                  className="inline-flex items-center px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition"
+                >
+                  Xem sản phẩm ngay
+                </Link>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {wishlistItems.map((item) => {
+                  const defaultVariant =
+                    item.variants && item.variants.length > 0 ? item.variants[0] : undefined;
+                  const outOfStock = (item.stock ?? 0) <= 0;
+                  return (
+                    <div
+                      key={item.id}
+                      className="border border-gray-200 rounded-xl p-3.5 flex flex-col justify-between gap-3 hover:border-blue-200 hover:shadow-xs transition"
+                    >
+                      <Link
+                        to={`/products/${item.id}`}
+                        className="flex gap-3 items-start group"
+                      >
+                        <img
+                          src={item.imageUrl || '/images/tech-future-banner.jpg'}
+                          alt={item.name}
+                          className="w-20 h-20 rounded-lg object-contain bg-gray-50 border border-gray-100 p-1 shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-600">
+                            {item.category?.name || 'Công nghệ'}
+                          </span>
+                          <h3 className="text-xs font-bold text-gray-900 group-hover:text-blue-600 transition line-clamp-2 mt-0.5">
+                            {item.name}
+                          </h3>
+                          <p className="text-sm font-extrabold text-red-600 mt-1.5">
+                            {formatPrice(item.price)}
+                          </p>
+                        </div>
+                      </Link>
+
+                      <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                        <button
+                          type="button"
+                          disabled={outOfStock}
+                          onClick={() => {
+                            if (item.variants && item.variants.length > 1) {
+                              navigate(`/products/${item.id}`);
+                              return;
+                            }
+                            addItem(item, defaultVariant, 1);
+                            setFeedback({
+                              type: 'success',
+                              message: `Đã thêm "${item.name}" vào giỏ hàng!`,
+                            });
+                          }}
+                          className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+                            outOfStock
+                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              : 'bg-slate-900 text-white hover:bg-slate-800'
+                          }`}
+                        >
+                          <ShoppingCart className="w-3.5 h-3.5" />
+                          {outOfStock ? 'Hết hàng' : 'Thêm giỏ'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await removeWishlistItem(item.id);
+                              setFeedback({
+                                type: 'success',
+                                message: `Đã bỏ "${item.name}" khỏi danh sách yêu thích.`,
+                              });
+                            } catch {
+                              setFeedback({
+                                type: 'error',
+                                message: 'Không thể cập nhật danh sách yêu thích.',
+                              });
+                            }
+                          }}
+                          className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition cursor-pointer"
+                          title="Xóa khỏi yêu thích"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Modal xác nhận đăng xuất */}
+      <LogoutConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={() => {
+          logout();
+          navigate(ROUTES.HOME, { replace: true });
+        }}
+      />
     </div>
   );
 };

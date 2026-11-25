@@ -26,8 +26,19 @@ public class Category extends BaseEntity {
     @Column(name = "name", nullable = false, unique = true, length = 100)
     private String name;
 
+    @Column(name = "slug", length = 120)
+    private String slug;
+
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
+
+    @Column(name = "display_order")
+    @Builder.Default
+    private Integer displayOrder = 0;
+
+    @Column(name = "show_on_home", nullable = false)
+    @Builder.Default
+    private Boolean showOnHome = true;
 
     @Column(name = "status", nullable = false)
     @Builder.Default

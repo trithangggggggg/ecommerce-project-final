@@ -51,9 +51,9 @@ public class User extends BaseEntity {
 
     @Column(name = "status", nullable = false)
     @Builder.Default
-    private Boolean status = true;
+    private Boolean status = false;
 
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "user", cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.LAZY)
     @JsonIgnore
     @Builder.Default
     private List<Order> orders = new ArrayList<>();

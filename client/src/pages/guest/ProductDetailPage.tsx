@@ -14,10 +14,17 @@ import {
   ShoppingCart,
   Layers,
   Sparkles,
+  Plus,
+  Minus,
+  Zap,
 } from 'lucide-react';
 import { productService } from '../../api/services/product.service';
 import type { Product, ProductVariant } from '../../models/product.model';
 import { useCartStore } from '../../store/useCartStore';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useWishlistStore } from '../../store/useWishlistStore';
+import { useSiteConfigStore } from '../../store/useSiteConfigStore';
+import { ROUTES } from '../../constants/routes';
 import ProductCard from '../../components/common/Card/ProductCard';
 import { formatPrice } from '../../utils/format';
 
@@ -25,17 +32,25 @@ export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { addItem } = useCartStore();
+  const { isAuthenticated } = useAuthStore();
+  const isProductLiked = useWishlistStore((s) => s.isLiked);
+  const toggleWishlistItem = useWishlistStore((s) => s.toggleItem);
+  const { config } = useSiteConfigStore();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string>('');
-  const [liked, setLiked] = useState(false);
+  const liked = isProductLiked(product?.id);
+
+  // Toast state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<'success' | 'warning' | 'error'>('success');
 
   // Dynamic selected options map: e.g. { "Dung lượng": "256GB", "Màu sắc": "Titan Trắng" }
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
+  const [quantity, setQuantity] = useState(1);
 
   useEffect(() => {
     if (!id) return;
@@ -107,9 +122,13 @@ export default function ProductDetailPage() {
     }
   }, [matchedVariant]);
 
-  function triggerToast(msg: string) {
+  // ----------------------------------------------------------------
+  // Toast helpers
+  // ----------------------------------------------------------------
+  function triggerToast(msg: string, type: 'success' | 'warning' | 'error' = 'success') {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+    setToastType(type);
+    setTimeout(() => setToastMessage(null), 3500);
   }
 
   // Current display values derived from matched variant or product fallback
@@ -128,17 +147,73 @@ export default function ProductDetailPage() {
       : (product?.discountPercent ?? 0)
   );
 
+  // ----------------------------------------------------------------
+  // Add to cart & Buy Now handlers
+  // ----------------------------------------------------------------
+  // Tự động điều chỉnh số lượng mua không vượt quá tồn kho
+  useEffect(() => {
+    if (currentStock > 0 && quantity > currentStock) {
+      setQuantity(currentStock);
+    }
+  }, [currentStock, quantity]);
+
   function handleBuyNow() {
     if (!product || isOutOfStock) return;
-    addItem(product, matchedVariant || undefined, 1);
-    navigate('/cart');
+    if (!isAuthenticated) {
+      triggerToast('Vui lòng đăng nhập để tiến hành mua hàng!', 'warning');
+      setTimeout(() => {
+        navigate(`/login?redirect=${encodeURIComponent(`/products/${product.id}`)}`);
+      }, 700);
+      return;
+    }
+
+    // Mua ngay trực tiếp: Chuyển thẳng sang trang thanh toán riêng sản phẩm này, không đưa vào giỏ hàng chung
+    navigate(ROUTES.CHECKOUT, {
+      state: {
+        buyNowItem: {
+          product,
+          variant: matchedVariant || undefined,
+          variantId: matchedVariant?.id,
+          quantity: Math.max(1, quantity),
+        },
+      },
+    });
   }
 
   function handleAddToCart() {
     if (!product || isOutOfStock) return;
-    addItem(product, matchedVariant || undefined, 1);
+    if (!isAuthenticated) {
+      triggerToast('Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng!', 'warning');
+      setTimeout(() => {
+        navigate(`/login?redirect=${encodeURIComponent(`/products/${product.id}`)}`);
+      }, 700);
+      return;
+    }
+    const result = addItem(product, matchedVariant || undefined, quantity);
     const variantLabel = matchedVariant?.title ? ` - ${matchedVariant.title}` : '';
-    triggerToast(`Đã thêm "${product.name}${variantLabel}" vào giỏ hàng thành công!`);
+
+    if (result.maxStockReached && result.addedQty === 0) {
+      // Đã đạt tồn kho tối đa, không thêm được
+      triggerToast(
+        `"${product.name}${variantLabel}" đã đạt số lượng tối đa trong giỏ hàng (${result.maxStock} sản phẩm).`,
+        'warning'
+      );
+    } else if (result.success) {
+      if (result.maxStockReached) {
+        // Thêm được nhưng đã đạt giới hạn
+        triggerToast(
+          `Đã thêm ${result.addedQty} "${product.name}${variantLabel}" vào giỏ hàng. Đã đạt tối đa tồn kho (${result.maxStock}).`,
+          'warning'
+        );
+      } else {
+        triggerToast(
+          `Đã thêm ${result.addedQty} "${product.name}${variantLabel}" vào giỏ hàng thành công!`,
+          'success'
+        );
+      }
+    } else {
+      triggerToast('Không thể thêm sản phẩm vào giỏ hàng.', 'error');
+    }
   }
 
   // Handle option value selection
@@ -206,9 +281,21 @@ export default function ProductDetailPage() {
     <div className="pb-16 font-sans">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-20 right-6 z-50 bg-gray-900 text-white text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 animate-bounce border border-gray-700">
-          <Check size={18} className="text-emerald-400" />
-          <span>{toastMessage}</span>
+        <div
+          className={`fixed top-20 right-6 z-50 text-white text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 border max-w-sm ${
+            toastType === 'success'
+              ? 'bg-gray-900 border-gray-700'
+              : toastType === 'warning'
+              ? 'bg-amber-700 border-amber-600'
+              : 'bg-red-700 border-red-600'
+          }`}
+        >
+          {toastType === 'success' ? (
+            <Check size={18} className="text-emerald-400 shrink-0" />
+          ) : (
+            <AlertCircle size={18} className="text-white shrink-0" />
+          )}
+          <span className="text-xs leading-snug">{toastMessage}</span>
         </div>
       )}
 
@@ -249,7 +336,25 @@ export default function ProductDetailPage() {
                 )}
                 <button
                   type="button"
-                  onClick={() => setLiked(!liked)}
+                  onClick={async () => {
+                    if (!product) return;
+                    if (!isAuthenticated) {
+                      triggerToast('Vui lòng đăng nhập để lưu sản phẩm yêu thích!', 'warning');
+                      setTimeout(() => {
+                        navigate(`/login?redirect=${encodeURIComponent(`/products/${product.id}`)}`);
+                      }, 700);
+                      return;
+                    }
+                    try {
+                      const nextLiked = await toggleWishlistItem(product.id);
+                      triggerToast(
+                        nextLiked ? 'Đã thêm vào danh sách yêu thích!' : 'Đã bỏ khỏi danh sách yêu thích.',
+                        'success'
+                      );
+                    } catch {
+                      triggerToast('Không thể cập nhật danh sách yêu thích.', 'error');
+                    }
+                  }}
                   className={`absolute top-0 right-0 w-9 h-9 rounded-full flex items-center justify-center border transition-all cursor-pointer ${
                     liked
                       ? 'bg-red-50 text-red-500 border-red-200'
@@ -293,7 +398,11 @@ export default function ProductDetailPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Truck size={16} className="text-blue-600 shrink-0" />
-                  <span>Miễn phí giao hàng toàn quốc</span>
+                  <span>
+                    {config.shipping.freeshipThreshold > 0
+                      ? `Freeship từ ${formatPrice(config.shipping.freeshipThreshold)} (${config.shipping.estimatedLeadTime || '2 - 3 ngày làm việc'})`
+                      : `Miễn phí giao hàng toàn quốc (${config.shipping.estimatedLeadTime || '2 - 3 ngày làm việc'})`}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Package size={16} className="text-blue-600 shrink-0" />
@@ -309,8 +418,8 @@ export default function ProductDetailPage() {
               {product.name}
             </h1>
 
-            {/* Product Meta / Stock status - NO mock reviews */}
-            <div className="flex items-center gap-3 text-xs text-gray-500 mb-4 pb-4 border-b border-gray-200">
+            {/* Product Meta / Stock status */}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-gray-500 mb-4 pb-4 border-b border-gray-200">
               {product.brand && (
                 <>
                   <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
@@ -326,7 +435,7 @@ export default function ProductDetailPage() {
               {matchedVariant && (
                 <span className="font-mono text-slate-400">SKU: {matchedVariant.sku}</span>
               )}
-              <span className="ml-auto">
+              <span className="w-full sm:w-auto sm:ml-auto">
                 {!isOutOfStock ? (
                   <span className="text-emerald-600 font-semibold flex items-center gap-1">
                     <Check size={14} /> Còn hàng ({currentStock} sản phẩm)
@@ -401,22 +510,98 @@ export default function ProductDetailPage() {
             {/* Special Promo Box */}
             <div className="border border-blue-200 rounded-xl overflow-hidden mb-6 bg-blue-50/50">
               <div className="bg-blue-600 text-white px-3.5 py-2 text-xs font-bold flex items-center gap-2">
-                <Gift size={16} /> ƯU ĐÃI ĐẶC QUYỀN NEXOR
+                <Gift size={16} /> QUYỀN LỢI MUA HÀNG TẠI {config.store.shortName || 'NEXOR'}
               </div>
               <div className="p-3.5 space-y-2 text-xs text-gray-700">
                 <div className="flex items-start gap-2">
                   <span className="font-bold text-blue-600">•</span>
-                  <span><strong>Giảm thêm 500.000₫</strong> khi thanh toán qua ví VNPAY hoặc QR Ngân Hàng.</span>
+                  <span>
+                    <strong>Chính sách giao hàng:</strong>{' '}
+                    {config.shipping.freeshipThreshold > 0
+                      ? `Miễn phí vận chuyển cho đơn từ ${formatPrice(config.shipping.freeshipThreshold)}${
+                          config.shipping.halfShipThreshold > 0 &&
+                          config.shipping.halfShipThreshold < config.shipping.freeshipThreshold
+                            ? ` (giảm 50% từ ${formatPrice(config.shipping.halfShipThreshold)})`
+                            : ''
+                        }.`
+                      : 'Miễn phí vận chuyển toàn quốc.'}{' '}
+                    Thời gian dự kiến: {config.shipping.estimatedLeadTime || '2 - 3 ngày làm việc'}.
+                  </span>
                 </div>
                 <div className="flex items-start gap-2">
                   <span className="font-bold text-blue-600">•</span>
-                  <span><strong>Thu cũ đổi mới:</strong> Trợ giá lên tới 2.000.000₫ khi lên đời máy mới.</span>
+                  <span>
+                    <strong>Phương thức thanh toán hỗ trợ:</strong>{' '}
+                    {[
+                      config.payment.codEnabled ? 'Thanh toán khi nhận hàng (COD)' : null,
+                      config.payment.sepayEnabled ? 'Chuyển khoản QR Ngân hàng (SePay)' : null,
+                      config.payment.vnpayEnabled ? 'VNPAY' : null,
+                    ]
+                      .filter(Boolean)
+                      .join(', ') || 'Theo cấu hình cửa hàng'}
+                    .
+                  </span>
                 </div>
                 <div className="flex items-start gap-2">
                   <span className="font-bold text-blue-600">•</span>
-                  <span><strong>Tặng gói bảo hành VIP:</strong> 12 tháng 1 đổi 1 tận nơi.</span>
+                  <span>
+                    <strong>Hỗ trợ & Bảo hành:</strong> Hotline {config.store.hotlineLabel || config.store.hotline} ·{' '}
+                    <Link to={ROUTES.POLICIES} className="text-blue-600 font-semibold hover:underline">
+                      Xem chính sách bảo hành & đổi trả
+                    </Link>
+                  </span>
                 </div>
               </div>
+            </div>
+
+            {/* Quantity Selector */}
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-5 p-3 sm:p-3.5 bg-gray-50 border border-gray-200 rounded-xl">
+              <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                Số lượng:
+              </span>
+              <div className="flex items-center border border-gray-300 rounded-lg bg-white overflow-hidden shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
+                  disabled={quantity <= 1 || isOutOfStock}
+                  className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-black transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Giảm số lượng"
+                >
+                  <Minus size={14} />
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  max={currentStock || 1}
+                  value={quantity}
+                  disabled={isOutOfStock}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (!isNaN(val)) {
+                      if (val < 1) setQuantity(1);
+                      else if (currentStock > 0 && val > currentStock) setQuantity(currentStock);
+                      else setQuantity(val);
+                    }
+                  }}
+                  className="w-12 h-8 text-center text-xs font-bold text-gray-900 border-x border-gray-200 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setQuantity((prev) => Math.min(currentStock || 1, prev + 1))}
+                  disabled={quantity >= currentStock || isOutOfStock}
+                  className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-black transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Tăng số lượng"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+              {!isOutOfStock ? (
+                <span className="text-xs text-gray-500">
+                  (Còn <strong className="text-gray-800">{currentStock}</strong> sản phẩm trong kho)
+                </span>
+              ) : (
+                <span className="text-xs text-red-500 font-semibold">Tạm hết hàng</span>
+              )}
             </div>
 
             {/* CTA Buttons */}
@@ -425,13 +610,16 @@ export default function ProductDetailPage() {
                 type="button"
                 onClick={handleBuyNow}
                 disabled={isOutOfStock}
-                className="flex-1 py-3.5 px-6 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-extrabold rounded-xl transition-all shadow-md hover:shadow-lg text-center cursor-pointer"
+                className="flex-1 py-3.5 px-6 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-extrabold rounded-xl transition-all shadow-md hover:shadow-lg text-center cursor-pointer flex items-center justify-center gap-2"
               >
-                <div className="text-sm">
-                  {!isOutOfStock ? 'MUA NGAY' : 'TẠM HẾT HÀNG'}
-                </div>
-                <div className="text-[11px] font-normal opacity-90">
-                  {!isOutOfStock ? 'Giao hàng tận nơi miễn phí' : 'Liên hệ đặt trước'}
+                <Zap size={18} className="fill-white shrink-0" />
+                <div className="text-left">
+                  <div className="text-sm">
+                    {!isOutOfStock ? 'MUA NGAY' : 'TẠM HẾT HÀNG'}
+                  </div>
+                  <div className="text-[11px] font-normal opacity-90">
+                    {!isOutOfStock ? 'Thanh toán ngay sản phẩm này' : 'Liên hệ đặt trước'}
+                  </div>
                 </div>
               </button>
 
@@ -452,14 +640,19 @@ export default function ProductDetailPage() {
             </div>
 
             {/* Store availability */}
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center justify-between text-xs text-gray-600">
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-600">
               <div className="flex items-center gap-2">
                 <MapPin size={16} className="text-blue-600 shrink-0" />
-                <span>Có sẵn tại <strong>48 showroom</strong> NEXOR trên toàn quốc</span>
+                <span>Có sẵn tại <strong>hệ thống showroom</strong> NEXOR trên toàn quốc</span>
               </div>
-              <span className="text-blue-600 font-semibold cursor-pointer hover:underline">
-                Tìm chi nhánh gần nhất
-              </span>
+              <Link
+                to={ROUTES.STORES}
+                className="text-blue-600 font-semibold hover:text-blue-700 hover:underline flex items-center gap-1 cursor-pointer transition"
+                title="Xem danh sách chi nhánh và bản đồ showroom"
+              >
+                <span>Tìm chi nhánh gần nhất</span>
+                <ChevronRight size={14} />
+              </Link>
             </div>
           </div>
         </div>
@@ -472,7 +665,7 @@ export default function ProductDetailPage() {
               <Sparkles className="w-5 h-5 text-indigo-600" />
               <span>Mô tả & Đặc điểm nổi bật</span>
             </h2>
-            <div className="text-sm leading-relaxed text-gray-700 whitespace-pre-line font-mono">
+            <div className="text-sm leading-relaxed text-gray-700 whitespace-pre-line font-mono break-words overflow-x-hidden">
               {product.description ||
                 'Sản phẩm công nghệ chính hãng cao cấp từ NEXOR. Thiết kế tinh xảo, hiệu năng vượt trội và chế độ bảo hành uy tín.'}
             </div>

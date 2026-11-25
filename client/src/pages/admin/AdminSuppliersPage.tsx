@@ -1,18 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Building2,
-  Plus,
-  Search,
-  Phone,
-  Mail,
-  MapPin,
-  Edit,
-  Trash2,
-  X,
-  CheckCircle2,
-  Tag,
-  RefreshCw,
-} from 'lucide-react';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import AdminPagination from '../../components/admin/AdminPagination';
@@ -31,20 +17,30 @@ export interface SupplierItem {
 
 const ITEMS_PER_PAGE = 10;
 
+function truncateText(text?: string | null, maxChars = 18): string {
+  if (!text) return '—';
+  const trimmed = text.trim();
+  if (trimmed.length <= maxChars) return trimmed;
+  return `${trimmed.slice(0, maxChars)}...`;
+}
+
 export const AdminSuppliersPage: React.FC = () => {
   const [suppliers, setSuppliers] = useState<SupplierItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const fetchSuppliers = async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const data = await supplierService.getSuppliers();
-      setSuppliers(data);
-    } catch {
+      setSuppliers(Array.isArray(data) ? data : []);
+    } catch (err: unknown) {
       setSuppliers([]);
+      setLoadError(err instanceof Error ? err.message : 'Không thể tải danh sách nhà cung cấp từ máy chủ');
     } finally {
       setIsLoading(false);
     }
@@ -60,6 +56,8 @@ export const AdminSuppliersPage: React.FC = () => {
   // Modals state
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<SupplierItem | null>(null);
+  const [detailSupplier, setDetailSupplier] = useState<SupplierItem | null>(null);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<SupplierItem | null>(null);
 
   // Forms
@@ -118,10 +116,9 @@ export const AdminSuppliersPage: React.FC = () => {
         address: '',
         status: 'ACTIVE',
       });
-      showToast(`Đã thêm nhà cung cấp "${newSupplier.name}" vào Database!`);
+      showToast(`Đã thêm nhà cung cấp "${newSupplier.name}" vào Database thành công!`);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Lỗi khi tạo nhà cung cấp';
-      showToast(msg);
+      showToast(err instanceof Error ? err.message : 'Lỗi khi thêm nhà cung cấp');
     }
   };
 
@@ -162,8 +159,31 @@ export const AdminSuppliersPage: React.FC = () => {
       showToast(`Đã cập nhật nhà cung cấp "${updated.name}" thành công!`);
       setEditingSupplier(null);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Lỗi khi cập nhật nhà cung cấp';
-      showToast(msg);
+      showToast(err instanceof Error ? err.message : 'Lỗi khi cập nhật nhà cung cấp');
+    }
+  };
+
+  const handleOpenDetail = async (s: SupplierItem) => {
+    setDetailSupplier(s);
+    setIsDetailLoading(true);
+    try {
+      const fresh = await supplierService.getSupplierById(s.id);
+      setDetailSupplier(fresh);
+    } catch {
+      // Giữ nguyên dữ liệu hiện có
+    } finally {
+      setIsDetailLoading(false);
+    }
+  };
+
+  const handleToggleStatus = async (s: SupplierItem) => {
+    const nextStatus = s.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    try {
+      const updated = await supplierService.toggleSupplierStatus(s.id, nextStatus);
+      setSuppliers((prev) => prev.map((item) => (item.id === s.id ? updated : item)));
+      showToast(`Đã chuyển "${updated.name}" sang ${updated.status === 'ACTIVE' ? 'Đang hợp tác' : 'Tạm dừng'}`);
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Không thể đổi trạng thái nhà cung cấp');
     }
   };
 
@@ -175,8 +195,7 @@ export const AdminSuppliersPage: React.FC = () => {
       setSuppliers((prev) => prev.filter((s) => s.id !== deleteTarget.id));
       showToast(`Đã xóa nhà cung cấp "${deleteTarget.name}" khỏi Database!`);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Lỗi khi xóa nhà cung cấp';
-      showToast(msg);
+      showToast(err instanceof Error ? err.message : 'Lỗi khi xóa nhà cung cấp');
     } finally {
       setDeleteTarget(null);
     }
@@ -199,20 +218,32 @@ export const AdminSuppliersPage: React.FC = () => {
 
   const activeCount = suppliers.filter((s) => s.status === 'ACTIVE').length;
   const inactiveCount = suppliers.filter((s) => s.status === 'INACTIVE').length;
+  const uniqueBrandCount = React.useMemo(() => {
+    const brandSet = new Set<string>();
+    suppliers.forEach((s) => {
+      (s.brand || '')
+        .split(/[,/|;]/)
+        .map((b) => b.trim().toLowerCase())
+        .filter((b) => b && b !== 'đa thương hiệu')
+        .forEach((b) => brandSet.add(b));
+    });
+    return brandSet.size;
+  }, [suppliers]);
 
   // Pagination calculation
   const totalPages = Math.ceil(filteredSuppliers.length / ITEMS_PER_PAGE) || 1;
+  const safePage = Math.min(currentPage, totalPages);
   const paginatedSuppliers = filteredSuppliers.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    (safePage - 1) * ITEMS_PER_PAGE,
+    safePage * ITEMS_PER_PAGE
   );
 
   return (
-    <div className="h-full flex flex-col min-h-0 space-y-2.5 font-sans select-none overflow-hidden">
+    <div className="h-full flex flex-col min-h-0 space-y-4 font-sans select-none overflow-hidden">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-6 right-6 z-[9999] bg-slate-900/95 border border-slate-700 backdrop-blur-md text-white text-xs px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2 animate-bounce">
-          <CheckCircle2 size={16} className="text-emerald-400" />
+        <div className="fixed top-6 right-6 z-[9999] bg-slate-900/95 border border-slate-700 backdrop-blur-md text-white text-xs font-medium px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
@@ -220,30 +251,33 @@ export const AdminSuppliersPage: React.FC = () => {
       {/* Header & Actions */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <Building2 className="w-6 h-6 text-blue-600" />
-            <span>Đối tác & Nhà cung cấp thiết bị</span>
-            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              Đối tác & Nhà cung cấp thiết bị
+            </h1>
+            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 tabular-nums">
               {suppliers.length} nhà cung cấp
             </span>
-          </h1>
+            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 tabular-nums">
+              {uniqueBrandCount} hãng
+            </span>
+          </div>
           <p className="text-xs text-slate-500 mt-0.5">
             Danh sách các nhà phân phối ủy quyền, hãng công nghệ chính hãng cung cấp linh kiện và sản phẩm
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <Button
             variant="outline"
             size="md"
-            leftIcon={<RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
             onClick={fetchSuppliers}
+            disabled={isLoading}
           >
-            Làm mới
+            {isLoading ? 'Đang tải...' : 'Làm mới'}
           </Button>
           <Button
             variant="primary"
             size="md"
-            leftIcon={<Plus className="w-4 h-4" />}
             onClick={() => setIsAddOpen(true)}
           >
             Thêm nhà cung cấp
@@ -251,32 +285,12 @@ export const AdminSuppliersPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 shrink-0">
-        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Tổng nhà cung cấp</span>
-          <span className="text-lg font-bold text-slate-900">{suppliers.length}</span>
-        </div>
-        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Đang hợp tác</span>
-          <span className="text-lg font-bold text-emerald-600">{activeCount}</span>
-        </div>
-        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Hãng đại diện</span>
-          <span className="text-lg font-bold text-blue-600">25+ hãng</span>
-        </div>
-        <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Tạm dừng giao dịch</span>
-          <span className="text-lg font-bold text-slate-500">{inactiveCount}</span>
-        </div>
-      </div>
-
       {/* Main Table Card (Dạng bảng gọn gàng) */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden flex-1 min-h-0 flex flex-col">
+      <div className="bg-white rounded-xl border border-slate-200/80 shadow-2xs flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Search & Filter Bar */}
-        <div className="p-3 sm:p-3.5 border-b border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
-          <div className="flex flex-col sm:flex-row items-center gap-2.5 flex-1 max-w-xl">
-            <div className="w-full sm:w-64">
+        <div className="p-3.5 border-b border-slate-100 bg-slate-50/40 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 shrink-0">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1 max-w-2xl">
+            <div className="w-full sm:w-72">
               <Input
                 type="text"
                 placeholder="Tìm tên đối tác, mã NCC..."
@@ -285,18 +299,17 @@ export const AdminSuppliersPage: React.FC = () => {
                   setSearchQuery(e.target.value);
                   setCurrentPage(1);
                 }}
-                leftIcon={<Search className="w-3.5 h-3.5 text-slate-400" />}
               />
             </div>
 
-            <div className="flex items-center gap-1 bg-slate-100/80 p-0.5 rounded-lg self-start sm:self-auto text-xs font-semibold">
+            <div className="flex flex-wrap items-center gap-1 bg-slate-100/90 p-1 rounded-lg self-start sm:self-auto text-xs font-semibold">
               <button
                 type="button"
                 onClick={() => {
                   setStatusFilter('ALL');
                   setCurrentPage(1);
                 }}
-                className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md transition cursor-pointer tabular-nums ${
                   statusFilter === 'ALL'
                     ? 'bg-white text-slate-900 shadow-2xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
@@ -310,7 +323,7 @@ export const AdminSuppliersPage: React.FC = () => {
                   setStatusFilter('ACTIVE');
                   setCurrentPage(1);
                 }}
-                className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md transition cursor-pointer tabular-nums ${
                   statusFilter === 'ACTIVE'
                     ? 'bg-white text-emerald-600 shadow-2xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
@@ -324,7 +337,7 @@ export const AdminSuppliersPage: React.FC = () => {
                   setStatusFilter('INACTIVE');
                   setCurrentPage(1);
                 }}
-                className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md transition cursor-pointer tabular-nums ${
                   statusFilter === 'INACTIVE'
                     ? 'bg-white text-rose-600 shadow-2xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
@@ -335,89 +348,101 @@ export const AdminSuppliersPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="text-xs text-slate-500 font-medium self-end sm:self-center">
-            Hiển thị <strong>{filteredSuppliers.length}</strong> / {suppliers.length} nhà cung cấp
+          <div className="text-xs text-slate-500 font-medium self-end lg:self-center tabular-nums">
+            Hiển thị <strong className="text-slate-800">{filteredSuppliers.length}</strong> / {suppliers.length} nhà cung cấp
           </div>
         </div>
 
+        {loadError && (
+          <div className="mx-3.5 mt-3 p-3 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-between gap-3 text-xs text-rose-700 shrink-0">
+            <span className="font-medium">{loadError}</span>
+            <Button type="button" variant="outline" size="sm" onClick={fetchSuppliers}>
+              Thử lại
+            </Button>
+          </div>
+        )}
+
         {/* Table View */}
-        <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto no-scrollbar">
+        <div className="flex-1 min-h-0 overflow-auto no-scrollbar">
           <table className="w-full text-left text-xs text-slate-600 border-collapse">
-            <thead>
-              <tr className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 backdrop-blur-xs text-[11px] font-bold text-slate-500 uppercase tracking-wider shadow-2xs">
-                <th className="py-2.5 px-3 bg-slate-50/95">Mã NCC</th>
-                <th className="py-2.5 px-3 bg-slate-50/95">Nhà cung cấp / Doanh nghiệp</th>
-                <th className="py-2.5 px-3 bg-slate-50/95">Thương hiệu</th>
-                <th className="py-2.5 px-3 bg-slate-50/95">Thông tin liên hệ</th>
-                <th className="py-2.5 px-3 bg-slate-50/95">Địa chỉ trụ sở</th>
-                <th className="py-2.5 px-3 bg-slate-50/95">Trạng thái</th>
-                <th className="py-2.5 px-3 bg-slate-50/95 text-right">Thao tác</th>
+            <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              <tr>
+                <th className="py-2.5 px-3 whitespace-nowrap">Mã NCC</th>
+                <th className="py-2.5 px-3">Nhà cung cấp / Doanh nghiệp</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">Thương hiệu</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">Thông tin liên hệ</th>
+                <th className="py-2.5 px-3">Địa chỉ trụ sở</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">Trạng thái</th>
+                <th className="py-2.5 px-3 text-right whitespace-nowrap">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredSuppliers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-400">
-                    Không tìm thấy nhà cung cấp nào phù hợp.
+                  <td colSpan={7} className="py-12 px-4 text-center">
+                    <p className="text-sm font-semibold text-slate-600">
+                      {isLoading
+                        ? 'Đang tải danh sách nhà cung cấp...'
+                        : 'Không tìm thấy nhà cung cấp nào phù hợp.'}
+                    </p>
+                    {!isLoading && (
+                      <p className="text-xs text-slate-400 mt-1">
+                        Thử thay đổi bộ lọc trạng thái hoặc từ khóa tìm kiếm, hoặc nhấn "Thêm nhà cung cấp".
+                      </p>
+                    )}
                   </td>
                 </tr>
               ) : (
                 paginatedSuppliers.map((s) => (
-                  <tr key={s.id} className="hover:bg-slate-50/60 transition group">
+                  <tr key={s.id} className="hover:bg-slate-50/70 transition group">
                     {/* Code */}
-                    <td className="py-2 px-3 whitespace-nowrap">
-                      <span className="font-mono font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 text-xs">
+                    <td className="py-2.5 px-3 whitespace-nowrap">
+                      <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-xs tabular-nums">
                         {s.code}
                       </span>
                     </td>
 
                     {/* Name */}
-                    <td className="py-2 px-3 max-w-[200px]">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded bg-blue-50 text-blue-600 flex items-center justify-center font-bold shrink-0">
-                          <Building2 className="w-3.5 h-3.5" />
-                        </div>
-                        <span className="font-bold text-slate-900 group-hover:text-blue-600 transition truncate block" title={s.name}>
-                          {s.name}
-                        </span>
-                      </div>
+                    <td className="py-2.5 px-3 max-w-[230px]">
+                      <span
+                        className="font-bold text-slate-900 group-hover:text-blue-600 transition truncate block max-w-[230px]"
+                        title={s.name}
+                      >
+                        {s.name}
+                      </span>
                     </td>
 
                     {/* Brand */}
-                    <td className="py-2 px-3 whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 text-[10px]">
-                        <Tag className="w-2.5 h-2.5" />
-                        <span>{s.brand}</span>
+                    <td className="py-2.5 px-3 whitespace-nowrap">
+                      <span className="inline-flex items-center font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 text-[11px]">
+                        {s.brand}
                       </span>
                     </td>
 
                     {/* Contact (Phone + Email) */}
-                    <td className="py-2 px-3 whitespace-nowrap">
-                      <div className="flex items-center gap-1 text-slate-800 font-medium text-xs">
-                        <Phone className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span>{s.contact}</span>
+                    <td className="py-2.5 px-3 whitespace-nowrap">
+                      <div className="text-slate-800 font-medium text-xs tabular-nums">
+                        {s.contact}
                       </div>
-                      <div className="flex items-center gap-1 text-slate-500 text-[10px]">
-                        <Mail className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span className="truncate max-w-[140px]">{s.email}</span>
+                      <div className="text-slate-500 text-[11px] truncate max-w-[170px]" title={s.email}>
+                        {s.email}
                       </div>
                     </td>
 
                     {/* Address */}
-                    <td className="py-2 px-3 max-w-[180px] truncate" title={s.address}>
-                      <div className="flex items-center gap-1 text-slate-600 text-xs">
-                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span className="truncate">{s.address}</span>
-                      </div>
+                    <td className="py-2.5 px-3 max-w-[140px]" title={s.address}>
+                      <span className="text-slate-600 text-xs truncate block max-w-[140px]">
+                        {truncateText(s.address, 18)}
+                      </span>
                     </td>
 
                     {/* Status */}
-                    <td className="py-2 px-3 whitespace-nowrap">
+                    <td className="py-2.5 px-3 whitespace-nowrap">
                       <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
                           s.status === 'ACTIVE'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-slate-100 text-slate-500 border-slate-200'
+                            : 'bg-slate-100 text-slate-600 border-slate-200'
                         }`}
                       >
                         <span className="w-1.5 h-1.5 rounded-full bg-current" />
@@ -426,23 +451,43 @@ export const AdminSuppliersPage: React.FC = () => {
                     </td>
 
                     {/* Actions */}
-                    <td className="py-2 px-3 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1">
+                    <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                      <div className="inline-flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenDetail(s)}
+                          className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition cursor-pointer"
+                          title="Xem chi tiết nhà cung cấp"
+                        >
+                          Xem
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStatus(s)}
+                          className={`px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap border transition cursor-pointer ${
+                            s.status === 'ACTIVE'
+                              ? 'text-slate-700 bg-slate-100 hover:bg-slate-200 border-slate-200'
+                              : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200'
+                          }`}
+                          title={s.status === 'ACTIVE' ? 'Tạm dừng hợp tác' : 'Kích hoạt hợp tác'}
+                        >
+                          {s.status === 'ACTIVE' ? 'Tạm dừng' : 'Hợp tác'}
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleOpenEdit(s)}
-                          className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition cursor-pointer"
+                          className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition cursor-pointer"
                           title="Chỉnh sửa nhà cung cấp"
                         >
-                          <Edit className="w-3.5 h-3.5" />
+                          Sửa
                         </button>
                         <button
                           type="button"
                           onClick={() => setDeleteTarget(s)}
-                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                          className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer"
                           title="Xóa nhà cung cấp"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          Xóa
                         </button>
                       </div>
                     </td>
@@ -453,18 +498,16 @@ export const AdminSuppliersPage: React.FC = () => {
           </table>
         </div>
 
-        {/* Pagination Controls - 10 rows per page - Pinned to bottom */}
-        {filteredSuppliers.length > 0 && (
-          <div className="shrink-0 border-t border-slate-100 bg-white">
-            <AdminPagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={filteredSuppliers.length}
-              itemsPerPage={ITEMS_PER_PAGE}
-              onPageChange={setCurrentPage}
-            />
-          </div>
-        )}
+        {/* Pagination Controls - Always pinned to bottom */}
+        <div className="shrink-0 bg-white">
+          <AdminPagination
+            currentPage={safePage}
+            totalPages={totalPages}
+            totalItems={filteredSuppliers.length}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
+          />
+        </div>
       </div>
 
       {/* ======================================================== */}
@@ -472,105 +515,107 @@ export const AdminSuppliersPage: React.FC = () => {
       {/* ======================================================== */}
       {isAddOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4 font-sans">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-blue-600" />
-                <span>Thêm nhà cung cấp / đối tác mới</span>
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full shadow-2xl font-sans max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3 shrink-0 bg-white">
+              <h3 className="text-base font-bold text-slate-900">
+                Thêm nhà cung cấp / đối tác mới
               </h3>
               <button
                 type="button"
                 onClick={() => setIsAddOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                Đóng
               </button>
             </div>
 
-            <form onSubmit={handleAddSubmit} className="space-y-3.5 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <form onSubmit={handleAddSubmit} className="flex-1 min-h-0 flex flex-col text-xs">
+              <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Mã NCC (Code) *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="VD: NCC-ASUS-VN"
+                      value={addForm.code}
+                      onChange={(e) => setAddForm({ ...addForm, code: e.target.value.toUpperCase() })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl font-mono uppercase focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Thương hiệu phân phối</label>
+                    <input
+                      type="text"
+                      placeholder="VD: Apple, ASUS, Dell..."
+                      value={addForm.brand}
+                      onChange={(e) => setAddForm({ ...addForm, brand: e.target.value })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Mã NCC (Code) *</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Tên đơn vị / Doanh nghiệp *</label>
                   <input
                     type="text"
                     required
-                    placeholder="VD: NCC-ASUS-VN"
-                    value={addForm.code}
-                    onChange={(e) => setAddForm({ ...addForm, code: e.target.value.toUpperCase() })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono uppercase focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    placeholder="VD: Công ty TNHH Phân Phối Synnex FPT..."
+                    value={addForm.name}
+                    onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                    className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                   />
                 </div>
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Thương hiệu phân phối</label>
-                  <input
-                    type="text"
-                    placeholder="VD: Apple, ASUS, Dell..."
-                    value={addForm.brand}
-                    onChange={(e) => setAddForm({ ...addForm, brand: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                  />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Số điện thoại liên hệ</label>
+                    <input
+                      type="text"
+                      placeholder="024 1234 5678"
+                      value={addForm.contact}
+                      onChange={(e) => setAddForm({ ...addForm, contact: e.target.value })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl tabular-nums focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Email giao dịch</label>
+                    <input
+                      type="email"
+                      placeholder="partner@supplier.vn"
+                      value={addForm.email}
+                      onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Địa chỉ trụ sở / Kho chính</label>
+                    <input
+                      type="text"
+                      placeholder="Tòa nhà văn phòng, Đường, Quận, Thành phố..."
+                      value={addForm.address}
+                      onChange={(e) => setAddForm({ ...addForm, address: e.target.value })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Trạng thái hợp tác</label>
+                    <select
+                      value={addForm.status}
+                      onChange={(e) => setAddForm({ ...addForm, status: e.target.value as 'ACTIVE' | 'INACTIVE' })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-semibold"
+                    >
+                      <option value="ACTIVE">Đang hợp tác phân phối</option>
+                      <option value="INACTIVE">Tạm dừng giao dịch</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">Tên đơn vị / Doanh nghiệp *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="VD: Công ty TNHH Phân Phối Synnex FPT..."
-                  value={addForm.name}
-                  onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Số điện thoại liên hệ</label>
-                  <input
-                    type="text"
-                    placeholder="024 1234 5678"
-                    value={addForm.contact}
-                    onChange={(e) => setAddForm({ ...addForm, contact: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Email giao dịch</label>
-                  <input
-                    type="email"
-                    placeholder="partner@supplier.vn"
-                    value={addForm.email}
-                    onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">Địa chỉ trụ sở / Kho chính</label>
-                <input
-                  type="text"
-                  placeholder="Tòa nhà văn phòng, Đường, Quận, Thành phố..."
-                  value={addForm.address}
-                  onChange={(e) => setAddForm({ ...addForm, address: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">Trạng thái hợp tác</label>
-                <select
-                  value={addForm.status}
-                  onChange={(e) => setAddForm({ ...addForm, status: e.target.value as 'ACTIVE' | 'INACTIVE' })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-bold"
-                >
-                  <option value="ACTIVE">Đang hợp tác phân phối</option>
-                  <option value="INACTIVE">Tạm dừng giao dịch</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2 shrink-0">
                 <Button type="button" variant="outline" size="sm" onClick={() => setIsAddOpen(false)}>
                   Hủy
                 </Button>
@@ -588,99 +633,104 @@ export const AdminSuppliersPage: React.FC = () => {
       {/* ======================================================== */}
       {editingSupplier && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4 font-sans">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Edit className="w-5 h-5 text-amber-600" />
-                <span>Chỉnh sửa đối tác {editingSupplier.name}</span>
-              </h3>
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full shadow-2xl font-sans max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3 shrink-0 bg-white">
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-slate-900 truncate">
+                  Chỉnh sửa đối tác {editingSupplier.name}
+                </h3>
+                <p className="text-[11px] font-mono text-slate-500 mt-0.5">{editingSupplier.code}</p>
+              </div>
               <button
                 type="button"
                 onClick={() => setEditingSupplier(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition cursor-pointer shrink-0"
               >
-                <X className="w-5 h-5" />
+                Đóng
               </button>
             </div>
 
-            <form onSubmit={handleEditSubmit} className="space-y-3.5 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <form onSubmit={handleEditSubmit} className="flex-1 min-h-0 flex flex-col text-xs">
+              <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Mã NCC (Code) *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editForm.code}
+                      onChange={(e) => setEditForm({ ...editForm, code: e.target.value.toUpperCase() })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl font-mono uppercase focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Thương hiệu phân phối</label>
+                    <input
+                      type="text"
+                      value={editForm.brand}
+                      onChange={(e) => setEditForm({ ...editForm, brand: e.target.value })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Mã NCC (Code) *</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Tên đơn vị / Doanh nghiệp *</label>
                   <input
                     type="text"
                     required
-                    value={editForm.code}
-                    onChange={(e) => setEditForm({ ...editForm, code: e.target.value.toUpperCase() })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono uppercase focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                   />
                 </div>
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Thương hiệu phân phối</label>
-                  <input
-                    type="text"
-                    value={editForm.brand}
-                    onChange={(e) => setEditForm({ ...editForm, brand: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                  />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Số điện thoại liên hệ</label>
+                    <input
+                      type="text"
+                      value={editForm.contact}
+                      onChange={(e) => setEditForm({ ...editForm, contact: e.target.value })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl tabular-nums focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Email giao dịch</label>
+                    <input
+                      type="email"
+                      value={editForm.email}
+                      onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Địa chỉ trụ sở</label>
+                    <input
+                      type="text"
+                      value={editForm.address}
+                      onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Trạng thái hợp tác</label>
+                    <select
+                      value={editForm.status}
+                      onChange={(e) => setEditForm({ ...editForm, status: e.target.value as 'ACTIVE' | 'INACTIVE' })}
+                      className="w-full px-3.5 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-semibold"
+                    >
+                      <option value="ACTIVE">Đang hợp tác phân phối</option>
+                      <option value="INACTIVE">Tạm dừng giao dịch</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">Tên đơn vị / Doanh nghiệp *</label>
-                <input
-                  type="text"
-                  required
-                  value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Số điện thoại liên hệ</label>
-                  <input
-                    type="text"
-                    value={editForm.contact}
-                    onChange={(e) => setEditForm({ ...editForm, contact: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Email giao dịch</label>
-                  <input
-                    type="email"
-                    value={editForm.email}
-                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">Địa chỉ trụ sở</label>
-                <input
-                  type="text"
-                  value={editForm.address}
-                  onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">Trạng thái hợp tác</label>
-                <select
-                  value={editForm.status}
-                  onChange={(e) => setEditForm({ ...editForm, status: e.target.value as 'ACTIVE' | 'INACTIVE' })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-bold"
-                >
-                  <option value="ACTIVE">Đang hợp tác phân phối</option>
-                  <option value="INACTIVE">Tạm dừng giao dịch</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2 shrink-0">
                 <Button type="button" variant="outline" size="sm" onClick={() => setEditingSupplier(null)}>
                   Hủy
                 </Button>
@@ -694,28 +744,106 @@ export const AdminSuppliersPage: React.FC = () => {
       )}
 
       {/* ======================================================== */}
-      {/* MODAL 3: XÁC NHẬN XÓA NHÀ CUNG CẤP                        */}
+      {/* MODAL 3: CHI TIẾT NHÀ CUNG CẤP (XEM)                     */}
+      {/* ======================================================== */}
+      {detailSupplier && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full shadow-2xl font-sans overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3 bg-white">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Chi tiết Nhà cung cấp</h3>
+                {isDetailLoading && <p className="text-[11px] text-slate-400">Đang đồng bộ dữ liệu...</p>}
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailSupplier(null)}
+                className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+            <div className="p-6 grid grid-cols-2 gap-3 text-xs">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-slate-400 block">Mã NCC</span>
+                <span className="font-mono font-bold text-blue-700">{detailSupplier.code}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-slate-400 block">Trạng thái</span>
+                <span className="font-bold text-slate-900">
+                  {detailSupplier.status === 'ACTIVE' ? 'Đang hợp tác' : 'Tạm dừng'}
+                </span>
+              </div>
+              <div className="col-span-2 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-slate-400 block">Tên đối tác / Doanh nghiệp</span>
+                <span className="font-bold text-slate-900">{detailSupplier.name}</span>
+              </div>
+              <div className="col-span-2 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-slate-400 block">Thương hiệu đại diện</span>
+                <span className="font-semibold text-slate-800">{detailSupplier.brand || '—'}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-slate-400 block">Điện thoại / Hotline</span>
+                <span className="font-medium text-slate-800">{detailSupplier.contact || '—'}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-slate-400 block">Email liên hệ</span>
+                <span className="font-medium text-slate-800 break-all">{detailSupplier.email || '—'}</span>
+              </div>
+              <div className="col-span-2 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-slate-400 block">Địa chỉ trụ sở / kho</span>
+                <span className="font-medium text-slate-800">{detailSupplier.address || '—'}</span>
+              </div>
+            </div>
+            <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setDetailSupplier(null)}>
+                Đóng
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  const target = detailSupplier;
+                  setDetailSupplier(null);
+                  handleOpenEdit(target);
+                }}
+              >
+                Chỉnh sửa
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 4: XÁC NHẬN XÓA NHÀ CUNG CẤP                        */}
       {/* ======================================================== */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-sm w-full p-5 shadow-2xl space-y-4 font-sans text-center">
-            <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <div>
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-sm w-full shadow-2xl font-sans overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-2">
               <h3 className="text-base font-bold text-slate-900">Xóa đối tác này?</h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Bạn có chắc chắn muốn xóa đối tác <strong>{deleteTarget.name}</strong> ({deleteTarget.code})?
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+            <div className="p-5">
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Bạn có chắc chắn muốn xóa đối tác{' '}
+                <strong className="text-slate-900">{deleteTarget.name}</strong> ({deleteTarget.code}) khỏi hệ thống?
               </p>
             </div>
-            <div className="flex justify-center gap-2 pt-2">
+            <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2">
               <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)}>
                 Hủy bỏ
               </Button>
               <Button
-                variant="primary"
+                variant="danger"
                 size="sm"
-                className="bg-rose-600 hover:bg-rose-700 text-white border-transparent"
                 onClick={handleDeleteConfirm}
               >
                 Xác nhận xóa

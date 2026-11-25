@@ -23,4 +23,6 @@ public class OrderItemResponse {
     private Integer quantity;
     private BigDecimal price;
     private BigDecimal totalPrice;
+    private Long categoryId;
+    private String categoryName;
 }

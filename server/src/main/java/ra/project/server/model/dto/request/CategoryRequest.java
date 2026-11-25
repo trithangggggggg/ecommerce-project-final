@@ -17,7 +17,16 @@ public class CategoryRequest {
     @Size(max = 100, message = "Tên danh mục tối đa 100 ký tự")
     private String name;
 
+    @Size(max = 120, message = "Slug tối đa 120 ký tự")
+    private String slug;
+
     private String description;
+
+    @Builder.Default
+    private Integer displayOrder = 0;
+
+    @Builder.Default
+    private Boolean showOnHome = true;
 
     @Builder.Default
     private Boolean status = true;

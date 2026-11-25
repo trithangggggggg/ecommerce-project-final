@@ -24,7 +24,7 @@ public class ProductMapper {
                 .price(request.getPrice() != null ? request.getPrice() : BigDecimal.ZERO)
                 .stock(request.getStock() != null ? request.getStock() : 0)
                 .imageUrl(request.getImageUrl())
-                .status(request.getStatus() != null ? request.getStatus() : true)
+                .status(request.getStatus() != null ? request.getStatus() : "ACTIVE")
                 .category(category)
                 .build();
     }
@@ -62,10 +62,14 @@ public class ProductMapper {
                 .stock(totalStock != null ? totalStock : entity.getStock())
                 .imageUrl(entity.getImageUrl())
                 .status(entity.getStatus())
+                .isDeleted(entity.getIsDeleted())
                 .categoryId(entity.getCategory() != null ? entity.getCategory().getId() : null)
                 .categoryName(entity.getCategory() != null ? entity.getCategory().getName() : null)
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
+                .variants(entity.getVariants() != null && !entity.getVariants().isEmpty()
+                        ? entity.getVariants().stream().map(this::toVariantResponse).collect(Collectors.toList())
+                        : null)
                 .build();
     }
 
@@ -155,6 +159,8 @@ public class ProductMapper {
                 .discountPercent(discountPercent)
                 .stock(variant.getStock())
                 .imageUrl(variant.getImageUrl())
+                .warehouse(variant.getWarehouse())
+                .shelfLocation(variant.getShelfLocation())
                 .status(variant.getStatus())
                 .title(title)
                 .optionValues(optionMap)

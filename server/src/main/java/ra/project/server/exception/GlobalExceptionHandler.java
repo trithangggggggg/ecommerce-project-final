@@ -2,6 +2,7 @@ package ra.project.server.exception;
 
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -136,6 +137,20 @@ public class GlobalExceptionHandler {
         log.error("Từ chối truy cập: {}", ex.getMessage());
         ApiResponse<Object> response = ApiResponse.error(HttpStatus.FORBIDDEN, "Từ chối truy cập: Bạn không có quyền thực hiện chức năng này");
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiResponse<Object>> handleIllegalArgumentException(IllegalArgumentException ex) {
+        log.error("Tham số không hợp lệ: {}", ex.getMessage());
+        ApiResponse<Object> response = ApiResponse.error(HttpStatus.BAD_REQUEST, ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        log.error("Lỗi toàn vẹn dữ liệu: {}", ex.getMessage());
+        ApiResponse<Object> response = ApiResponse.error(HttpStatus.CONFLICT, "Dữ liệu bị trùng lặp hoặc đang được tham chiếu, không thể thực hiện thao tác");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
     @ExceptionHandler(Exception.class)

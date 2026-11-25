@@ -22,7 +22,7 @@ export const Button: React.FC<ButtonProps> = ({
   ...props
 }) => {
   const baseStyles =
-    'inline-flex items-center justify-center font-semibold transition-all duration-150 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed select-none active:scale-[0.98]';
+    'inline-flex items-center justify-center whitespace-nowrap font-semibold transition-all duration-150 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed select-none active:scale-[0.98]';
 
   const sizeStyles = {
     sm: 'py-1.5 px-3 text-xs rounded-md gap-1.5',
@@ -61,9 +61,9 @@ export const Button: React.FC<ButtonProps> = ({
         </>
       ) : (
         <>
-          {leftIcon && <span className="shrink-0">{leftIcon}</span>}
-          <span>{children}</span>
-          {rightIcon && <span className="shrink-0">{rightIcon}</span>}
+          {leftIcon && <span className="inline-flex items-center shrink-0">{leftIcon}</span>}
+          {children && <span className="inline-flex items-center whitespace-nowrap">{children}</span>}
+          {rightIcon && <span className="inline-flex items-center shrink-0">{rightIcon}</span>}
         </>
       )}
     </button>

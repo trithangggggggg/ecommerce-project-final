@@ -3,12 +3,35 @@ import { ENDPOINTS } from '../endpoints';
 import { MOCK_PRODUCTS } from '../mockData';
 import type { Product } from '../../models/product.model';
 
+export interface OrderPreview {
+  draftId?: string;
+  productId: number;
+  productName: string;
+  productImageUrl?: string;
+  quantity: number;
+  unitPrice: number;
+  totalAmount: number;
+  receiverName: string;
+  phoneNumber: string;
+  shippingAddress: string;
+  note?: string;
+  paymentMethod: 'COD' | 'SEPAY' | string;
+  paymentMethodName: string;
+  awaitingConfirmation?: boolean;
+}
+
 export interface ChatMessage {
   id?: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp?: Date;
   recommendedProducts?: Product[];
+  suggestedProducts?: Product[];
+  createdOrder?: any;
+  orderPreview?: OrderPreview;
+  quickActions?: string[];
+  isError?: boolean;
+  failedText?: string;
 }
 
 export interface AiChatApiResponse {
@@ -16,7 +39,11 @@ export interface AiChatApiResponse {
   message: string;
   data: {
     reply: string;
+    suggestedProducts?: any[];
     recommendedProducts?: any[];
+    createdOrder?: any;
+    orderPreview?: OrderPreview;
+    quickActions?: string[];
     provider?: string;
   };
 }
@@ -26,11 +53,17 @@ export interface AiChatApiResponse {
  * Đảm bảo trợ lý AI luôn phản hồi linh hoạt, chuẩn xác theo từng câu hỏi của khách hàng
  * kể cả khi kết nối mạng chập chờn hoặc máy chủ đang khởi động.
  */
-function generateSmartClientFallback(userQuery: string): {
+export interface AiChatResult {
   reply: string;
   recommendedProducts: Product[];
+  suggestedProducts?: Product[];
+  createdOrder?: any;
+  orderPreview?: OrderPreview;
+  quickActions?: string[];
   provider: string;
-} {
+}
+
+function generateSmartClientFallback(userQuery: string): AiChatResult {
   const q = userQuery.toLowerCase().trim();
 
   // 1. Chào hỏi thân thiện
@@ -260,12 +293,13 @@ export const aiService = {
   async chat(
     message: string,
     history: { role: string; content: string }[] = []
-  ): Promise<{ reply: string; recommendedProducts: Product[]; provider: string }> {
+  ): Promise<AiChatResult> {
     const cleanMessage = message.trim();
     if (!cleanMessage) {
       return {
         reply: 'Dạ bạn cần em hỗ trợ tư vấn sản phẩm hay thông tin bảo hành nào ạ?',
         recommendedProducts: [],
+        suggestedProducts: [],
         provider: 'NEXOR AI Assistant',
       };
     }
@@ -277,7 +311,7 @@ export const aiService = {
       });
 
       const data = response.data?.data || (response.data as any);
-      const rawProducts = data?.recommendedProducts || [];
+      const rawProducts = data?.suggestedProducts || data?.recommendedProducts || [];
 
       const formattedProducts: Product[] = rawProducts.map((item: any) => ({
         id: item.id,
@@ -296,12 +330,31 @@ export const aiService = {
       return {
         reply: data?.reply || 'Dạ NEXOR luôn sẵn sàng hỗ trợ quý khách!',
         recommendedProducts: formattedProducts,
+        suggestedProducts: formattedProducts,
+        createdOrder: data?.createdOrder || undefined,
+        orderPreview: data?.orderPreview || undefined,
+        quickActions: data?.quickActions || undefined,
         provider: data?.provider || 'NEXOR AI Assistant',
       };
     } catch {
       // Khi backend chưa phản hồi hoặc mạng chập chờn, tự động kích hoạt bộ xử lý thông minh cục bộ
       return generateSmartClientFallback(cleanMessage);
     }
+  },
+
+  /**
+   * Xác nhận đặt hàng từ bản thảo đơn nháp (POST /api/ai/orders/{draftId}/confirm)
+   */
+  async confirmDraftOrder(draftId: string): Promise<any> {
+    const response = await axiosClient.post(`/ai/orders/${draftId}/confirm`);
+    return response.data?.data || response.data;
+  },
+
+  /**
+   * Hủy bản thảo đơn hàng nháp (POST /api/ai/orders/{draftId}/cancel)
+   */
+  async cancelDraftOrder(draftId: string): Promise<void> {
+    await axiosClient.post(`/ai/orders/${draftId}/cancel`);
   },
 
   /**
@@ -336,5 +389,375 @@ export const aiService = {
       `🛡️ **Chính sách cam kết**: 100% hàng New Seal chính hãng, bảo hành 12 tháng 1 đổi 1 và hỗ trợ giao hàng hỏa tốc toàn quốc.`
     );
   },
+
+  /**
+   * [Admin] Gọi AI tự động sinh bài viết công nghệ chuẩn SEO & định dạng HTML cho CKEditor 5
+   */
+  async generateArticleContent(
+    title: string,
+    category = 'Công nghệ',
+    summary?: string
+  ): Promise<{ content: string; summary: string }> {
+    try {
+      const response = await axiosClient.post(ENDPOINTS.AI.GENERATE_ARTICLE, {
+        title: title.trim(),
+        category: category.trim(),
+        summary: summary?.trim(),
+      });
+      const data = response.data?.data || response.data;
+      if (data?.content) {
+        return {
+          content: data.content,
+          summary: data.summary || '',
+        };
+      }
+    } catch {
+      // Backend AI Article API call fallback
+    }
+
+    // Smart Fallback nếu mạng chậm hoặc chưa nạp AI Key
+    const lower = `${title} ${category}`.toLowerCase();
+
+    let fallbackSummary = summary?.trim();
+    if (!fallbackSummary) {
+      if (lower.includes('so sánh') || lower.includes(' vs ') || lower.includes('đối đầu')) {
+        fallbackSummary = `Phân tích chi tiết cuộc đối đầu công nghệ trong bài viết '${title}'. Đâu là sự lựa chọn tối ưu cho nhu cầu thực tế và ngân sách của bạn?`;
+      } else if (lower.includes('mẹo') || lower.includes('thủ thuật') || lower.includes('hướng dẫn') || lower.includes('tối ưu')) {
+        fallbackSummary = `Tổng hợp các thủ thuật và hướng dẫn thiết thực nhất về ${title} giúp bạn làm chủ thiết bị, nâng cao hiệu suất và kéo dài tuổi thọ phần cứng.`;
+      } else if (lower.includes('macbook') || lower.includes('laptop') || lower.includes('gaming')) {
+        fallbackSummary = `Đánh giá chuyên sâu ${title} từ hiệu năng CPU/GPU, màn hình hiển thị đến khả năng tản nhiệt thực tế cho lập trình viên, designer và game thủ.`;
+      } else if (lower.includes('iphone') || lower.includes('samsung') || lower.includes('galaxy') || lower.includes('phone') || lower.includes('điện thoại')) {
+        fallbackSummary = `Trải nghiệm thực tế ${title} với những đánh giá khách quan về cụm camera, thời lượng pin, độ mượt mà của hệ điều hành và giá trị sở hữu.`;
+      } else {
+        fallbackSummary = `Khám phá bài viết chuyên sâu về ${title} thuộc chuyên mục ${category}. Đánh giá chi tiết ưu điểm, hiệu năng thực tế và tư vấn trải nghiệm tối ưu tại hệ thống NEXOR.`;
+      }
+    }
+
+    let fallbackContent = '';
+    if (lower.includes('so sánh') || lower.includes(' vs ') || lower.includes('đối đầu')) {
+      fallbackContent = `<h2>1. Đặt lên bàn cân: Cuộc đối đầu giữa hai biểu tượng công nghệ</h2>
+<p>Thị trường công nghệ cao cấp luôn chứng kiến sự cạnh tranh khốc liệt giữa các ông lớn. Trong bài viết <strong>${title}</strong> hôm nay, chúng ta cùng phân tích chi tiết từng khía cạnh để tìm ra đâu là sự lựa chọn chân ái cho nhu cầu thực tế của bạn.</p>
+
+<h2>2. Ngôn ngữ thiết kế & Trải nghiệm cầm nắm thực tế</h2>
+<p>Mỗi thiết bị đều theo đuổi một triết lý thẩm mỹ và vật liệu chế tác riêng biệt:</p>
+<ul>
+  <li><strong>Chất liệu và độ hoàn thiện:</strong> Sử dụng khung viền kim loại cao cấp kết hợp mặt kính cường lực chống trầy xước, mang lại cảm giác sang trọng và đầm tay.</li>
+  <li><strong>Màn hình hiển thị:</strong> Tần số quét cao thích ứng cùng độ sáng đỉnh vượt trội, đảm bảo hiển thị sắc nét ngay cả dưới ánh nắng gắt trực tiếp.</li>
+</ul>
+
+<h2>3. Đọ sức hiệu năng & Khả năng xử lý tác vụ nặng</h2>
+<p>Khi đặt cả hai vào các bài kiểm tra áp lực từ render video, chơi game 3D đồ họa cao đến đa nhiệm liên tục, sự khác biệt về kiến trúc chip và tối ưu hóa hệ điều hành bắt đầu bộc lộ rõ rệt.</p>
+<blockquote>
+  <p>Một thiết bị vượt trội về độ ổn định mượt mà lâu dài, trong khi đối thủ lại chiếm ưu thế về khả năng đa nhiệm linh hoạt và các tính năng thông minh.</p>
+</blockquote>
+
+<h2>4. Thời lượng pin, tốc độ sạc & Hệ sinh thái</h2>
+<p>Khả năng duy trì liên lạc suốt ngày dài và hệ sinh thái phụ kiện đồng bộ đi kèm là yếu tố quyết định sự gắn bó lâu dài của người dùng với sản phẩm.</p>
+
+<h2>5. Kết luận: Đâu là thiết bị xứng đáng xuống tiền?</h2>
+<p>Tùy thuộc vào thói quen sử dụng và hệ sinh thái sẵn có của bạn, cả hai đều là những cỗ máy xuất sắc nhất phân khúc. Hãy ghé ngay showroom <strong>NEXOR Flagship Store</strong> để trực tiếp cầm trên tay và đưa ra lựa chọn phù hợp nhất!</p>`;
+    } else if (lower.includes('mẹo') || lower.includes('thủ thuật') || lower.includes('hướng dẫn') || lower.includes('tối ưu')) {
+      fallbackContent = `<h2>1. Tầm quan trọng của việc tối ưu hóa thiết bị</h2>
+<p>Sau một thời gian sử dụng, hệ điều hành và các ứng dụng ngầm thường tích tụ dữ liệu rác, gây hao pin và làm giảm độ mượt mà. Với chủ đề <strong>${title}</strong>, bạn sẽ nắm trọn các bước thiết lập chuẩn chỉ từ chuyên gia kỹ thuật.</p>
+
+<h2>2. Các bước thiết lập quan trọng cần làm ngay</h2>
+<ul>
+  <li><strong>Bước 1 - Dọn dẹp ứng dụng chạy ngầm:</strong> Tắt các tiến trình không cần thiết và hạn chế quyền định vị nền của những app ít sử dụng.</li>
+  <li><strong>Bước 2 - Tùy chỉnh hiệu suất năng lượng:</strong> Kích hoạt các chế độ tiết kiệm điện thông minh hoặc điều chỉnh tần số quét thích ứng theo kịch bản sử dụng.</li>
+  <li><strong>Bước 3 - Cập nhật bản vá phần mềm mới nhất:</strong> Luôn đảm bảo máy chạy trên phiên bản firmware được nhà sản xuất tối ưu lỗi bảo mật và hiệu năng.</li>
+</ul>
+<blockquote>
+  <p>Chỉ với vài thao tác tinh chỉnh đơn giản trong phần cài đặt, thiết bị của bạn có thể kéo dài thêm từ 20% đến 30% thời lượng sử dụng mỗi ngày.</p>
+</blockquote>
+
+<h2>3. Những thói quen sử dụng sai lầm cần tránh</h2>
+<p>Hạn chế thói quen vừa cắm sạc vừa dùng các tác vụ nặng, tránh để máy ở nơi có nhiệt độ cao và nên khởi động lại thiết bị định kỳ một lần mỗi tuần để giải phóng hoàn toàn bộ nhớ RAM.</p>
+
+<h2>4. Lời khuyên từ kỹ thuật viên NEXOR</h2>
+<p>Nếu bạn gặp bất kỳ trở ngại nào trong quá trình thao tác, đừng ngần ngại mang máy đến chi nhánh <strong>NEXOR</strong> gần nhất để được kỹ thuật viên hỗ trợ kiểm tra và vệ sinh máy hoàn toàn miễn phí!</p>`;
+    } else if (lower.includes('macbook') || lower.includes('laptop') || lower.includes('gaming')) {
+      fallbackContent = `<h2>1. Đột phá về kiến trúc vi xử lý và hiệu suất tản nhiệt</h2>
+<p>Trong phân khúc máy tính xách tay cao cấp hiện nay, <strong>${title}</strong> được sinh ra để giải quyết bài toán cân bằng giữa tính di động cao và sức mạnh tính toán ấn tượng.</p>
+
+<h2>2. Màn hình chuẩn màu đồ họa & Bàn phím gõ êm ái</h2>
+<p>Trải nghiệm thị giác và xúc giác luôn là điểm cộng lớn của dòng máy này:</p>
+<ul>
+  <li><strong>Độ phủ màu chuyên nghiệp:</strong> Đạt 100% sRGB và chuẩn DCI-P3, độ sáng cao giúp làm việc ngoài trời hoặc phòng studio không lo sai lệch màu.</li>
+  <li><strong>Hành trình phím tối ưu:</strong> Độ nảy phản hồi xúc giác rõ ràng, khoảng cách phím hợp lý cùng trackpad kích thước lớn phủ kính mượt mà.</li>
+</ul>
+
+<h2>3. Benchmark thực tế: Làm việc, lập trình và giải trí</h2>
+<p>Thử nghiệm khả năng biên dịch mã nguồn lớn, dựng video 4K đa luồng và chơi các tựa game Esport mới nhất. Hệ thống tản nhiệt thông minh giữ cho bề mặt kê tay luôn mát mẻ và quạt hoạt động êm ái.</p>
+<blockquote>
+  <p>Hiệu năng trên mỗi watt điện năng tiêu thụ đạt mức ấn tượng, mang lại thời lượng pin đủ sức đồng hành trọn vẹn cả ngày làm việc.</p>
+</blockquote>
+
+<h2>4. Cổng kết nối và khả năng mở rộng linh hoạt</h2>
+<p>Trang bị các chuẩn kết nối hiện đại tốc độ cao như Thunderbolt, USB-C Power Delivery và khe cắm thẻ nhớ tiện lợi cho công việc sáng tạo nội dung.</p>
+
+<h2>5. Tổng kết: Ai là người nên sở hữu chiếc máy này?</h2>
+<p>Đây là sự đầu tư xứng đáng cho các lập trình viên, nhà sáng tạo nội dung số và chuyên gia cần một cỗ máy làm việc tin cậy. Sản phẩm đang được phân phối chính hãng tại <strong>NEXOR Flagship Store</strong> với chính sách bảo hành 1 đổi 1 chu đáo.</p>`;
+    } else if (lower.includes('iphone') || lower.includes('samsung') || lower.includes('galaxy') || lower.includes('phone') || lower.includes('điện thoại')) {
+      fallbackContent = `<h2>1. Tổng quan thiết kế & Sự tinh tế của dòng Flagship</h2>
+<p>Những chiếc smartphone đỉnh cao luôn là nơi hội tụ tinh hoa công nghệ chế tác. Với <strong>${title}</strong>, người dùng có cơ hội tiếp cận những công nghệ di động tiên phong nhất năm nay.</p>
+
+<h2>2. Camera đỉnh cao: Sáng tạo nội dung không giới hạn</h2>
+<p>Hệ thống quang học thế hệ mới mang lại sự bứt phá vượt bậc về khả năng thu sáng và xử lý ảnh điện toán:</p>
+<ul>
+  <li><strong>Cảm biến chính độ phân giải cao:</strong> Giữ trọn từng chi tiết dù trong điều kiện ngược sáng hay môi trường thiếu sáng phức tạp.</li>
+  <li><strong>Ống kính Tele Zoom quang học:</strong> Bắt trọn những khung hình từ khoảng cách xa với độ sắc nét tự nhiên không vỡ hạt.</li>
+  <li><strong>Thuật toán chân dung AI:</strong> Xóa phông mượt mà, tách bạch lọn tóc và tông màu da tự nhiên, rực rỡ.</li>
+</ul>
+
+<h2>3. Sức mạnh phần cứng & Trí tuệ nhân tạo trên thiết bị (On-device AI)</h2>
+<p>Trang bị con chip sản xuất trên tiến trình tối tân, hỗ trợ các tính năng AI dịch thuật trực tiếp, chỉnh sửa hình ảnh thông minh và tối ưu hóa hiệu năng chơi game 120 FPS không giật lag.</p>
+<blockquote>
+  <p>Sự kết hợp ăn ý giữa phần cứng siêu mạnh và phần mềm thông minh tạo nên trải nghiệm vuốt chạm mượt mà chuẩn flagship.</p>
+</blockquote>
+
+<h2>4. Thời lượng pin bền bỉ & Tốc độ sạc nhanh ấn tượng</h2>
+<p>Dung lượng pin lớn cùng công nghệ quản lý điện năng thông minh cho phép bạn tự tin sử dụng suốt cả ngày dài mà không cần lo lắng về việc sạc lại giữa chừng.</p>
+
+<h2>5. Kết luận</h2>
+<p>Chiếc điện thoại này hoàn toàn đáp ứng trọn vẹn mọi kỳ vọng từ công việc đến giải trí đỉnh cao. Đừng quên ghé ngay <strong>NEXOR</strong> để trải nghiệm máy thử nghiệm thực tế và nhận các phần quà ưu đãi độc quyền!</p>`;
+    } else {
+      fallbackContent = `<h2>1. Đặt vấn đề: Tại sao chủ đề này lại nhận được nhiều sự quan tâm?</h2>
+<p>Trong dòng chảy không ngừng của thế giới số, <strong>${title}</strong> đang thu hút đông đảo sự quan tâm của cộng đồng đam mê công nghệ. Thuộc nhóm nội dung <em>${category}</em>, bài viết này sẽ mang đến góc nhìn chân thực, khách quan và chi tiết nhất.</p>
+
+<h2>2. Những điểm sáng nổi bật và giá trị thực tế mang lại</h2>
+<p>Sau khi tổng hợp các bài thử nghiệm và phản hồi thực tế từ người dùng, đây là những ưu điểm đáng giá nhất:</p>
+<ul>
+  <li><strong>Tính ứng dụng cao:</strong> Giải quyết trực tiếp các nhu cầu cấp thiết trong học tập, làm việc và phong cách sống hiện đại.</li>
+  <li><strong>Độ hoàn thiện và tính ổn định:</strong> Vận hành tin cậy, tỉ mỉ trong từng trải nghiệm sử dụng hàng ngày.</li>
+  <li><strong>Tương thích linh hoạt:</strong> Dễ dàng phối ghép và đồng bộ cùng các thiết bị khác trong hệ sinh thái số.</li>
+</ul>
+<blockquote>
+  <p>Một bước tiến công nghệ đáng giá, dung hòa xuất sắc giữa mức chi phí đầu tư và giá trị thực tiễn đem lại cho người dùng.</p>
+</blockquote>
+
+<h2>3. Một số điểm người dùng cần lưu ý</h2>
+<p>Bên cạnh những điểm cộng sáng giá, bạn cũng nên cân nhắc kỹ về ngân sách và nhu cầu thực sự để chọn đúng phiên bản cấu hình phù hợp nhất với bản thân.</p>
+
+<h2>4. Đánh giá tổng quan & Tư vấn mua hàng</h2>
+<p>Nếu bạn muốn sở hữu và trải nghiệm sản phẩm chuẩn chính hãng với mức giá cạnh tranh nhất, hãy đến ngay hệ thống bán lẻ công nghệ <strong>NEXOR Flagship Store</strong> hoặc liên hệ hotline để được đội ngũ kỹ thuật viên tư vấn tận tâm!</p>`;
+    }
+
+    return {
+      content: fallbackContent,
+      summary: fallbackSummary,
+    };
+  },
+
+  // ========================================================
+  // [ADMIN] QUẢN LÝ TRI THỨC AI (AI KNOWLEDGE BASE MANAGEMENT)
+  // ========================================================
+
+  async getKnowledgeDocuments(params?: {
+    category?: string;
+    status?: string;
+    fileType?: string;
+    search?: string;
+  }): Promise<KnowledgeDocumentItem[]> {
+    const response = await axiosClient.get(ENDPOINTS.ADMIN_AI.KNOWLEDGE, { params });
+    const data = response.data?.data || response.data;
+    return Array.isArray(data) ? data : [];
+  },
+
+  async getKnowledgeStats(): Promise<KnowledgeStats> {
+    const response = await axiosClient.get(ENDPOINTS.ADMIN_AI.KNOWLEDGE_STATS);
+    return response.data?.data || response.data;
+  },
+
+  async uploadKnowledgeFile(file: File, category = 'GENERAL'): Promise<KnowledgeDocumentItem> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('category', category);
+
+    const response = await axiosClient.post(ENDPOINTS.ADMIN_AI.KNOWLEDGE_UPLOAD, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data?.data || response.data;
+  },
+
+  async createManualKnowledge(data: {
+    title: string;
+    content: string;
+    category?: string;
+  }): Promise<KnowledgeDocumentItem> {
+    const response = await axiosClient.post(ENDPOINTS.ADMIN_AI.KNOWLEDGE_MANUAL, data);
+    return response.data?.data || response.data;
+  },
+
+  async updateManualKnowledge(
+    id: number | string,
+    data: { title: string; content: string; category?: string }
+  ): Promise<KnowledgeDocumentItem> {
+    const response = await axiosClient.put(ENDPOINTS.ADMIN_AI.KNOWLEDGE_DETAIL(id), data);
+    return response.data?.data || response.data;
+  },
+
+  async deleteKnowledgeDocument(id: number | string): Promise<void> {
+    await axiosClient.delete(ENDPOINTS.ADMIN_AI.KNOWLEDGE_DETAIL(id));
+  },
+
+  async reindexKnowledgeDocument(id: number | string): Promise<KnowledgeDocumentItem> {
+    const response = await axiosClient.post(ENDPOINTS.ADMIN_AI.KNOWLEDGE_REINDEX(id));
+    return response.data?.data || response.data;
+  },
+
+  async getKnowledgeChunks(id: number | string): Promise<KnowledgeChunkItem[]> {
+    const response = await axiosClient.get(ENDPOINTS.ADMIN_AI.KNOWLEDGE_CHUNKS(id));
+    const data = response.data?.data || response.data;
+    return Array.isArray(data) ? data : [];
+  },
+
+  // ========================================================
+  // [ADMIN] CẤU HÌNH TRÍ TUỆ & GIỚI HẠN CỦA AI (AI INTELLIGENCE & LIMITS)
+  // ========================================================
+
+  async getAiConfig(): Promise<AiConfigData> {
+    const response = await axiosClient.get(ENDPOINTS.ADMIN_AI.CONFIG);
+    return response.data?.data || response.data;
+  },
+
+  async updateAiConfig(payload: AiConfigUpdatePayload): Promise<AiConfigData> {
+    const response = await axiosClient.put(ENDPOINTS.ADMIN_AI.CONFIG, payload);
+    return response.data?.data || response.data;
+  },
+
+  async testAiConnection(provider?: string, model?: string): Promise<AiConnectionTestResult> {
+    const response = await axiosClient.post(ENDPOINTS.ADMIN_AI.CONFIG_TEST, { provider, model });
+    return response.data?.data || response.data;
+  },
 };
 
+// ========================================================
+// MOCK DATA CHO KNOWLEDGE BASE FALLBACK
+// ========================================================
+
+export interface KnowledgeDocumentItem {
+  id: number;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  category: string;
+  status: 'PENDING' | 'PROCESSING' | 'INDEXED' | 'FAILED';
+  chunkCount: number;
+  errorMessage?: string;
+  rawContent?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KnowledgeStats {
+  totalFiles: number;
+  totalSize: number;
+  formattedTotalSize: string;
+  totalChunks: number;
+  fileTypeDistribution: Record<string, number>;
+  statusDistribution: Record<string, number>;
+  categoryDistribution: Record<string, number>;
+}
+
+export interface KnowledgeChunkItem {
+  id: number;
+  documentId: number;
+  chunkIndex: number;
+  content: string;
+  tokenCount: number;
+  createdAt: string;
+}
+
+export interface AiConfigData {
+  provider: string;
+  modelName: string;
+  systemPrompt: string;
+  temperature: number;
+  maxOutputTokens: number;
+  maxInputLength: number;
+  rateLimitPerMinute: number;
+  knowledgeBaseEnabled: boolean;
+  topKChunks: number;
+  relevanceThreshold: number;
+  suggestProductsEnabled: boolean;
+  maxSuggestedProducts: number;
+  geminiApiKeyMasked?: string;
+  openAiApiKeyMasked?: string;
+  status?: string;
+  activeEngine?: string;
+  updatedAt?: string;
+}
+
+export interface AiConfigUpdatePayload {
+  provider?: string;
+  modelName?: string;
+  systemPrompt?: string;
+  temperature?: number;
+  maxOutputTokens?: number;
+  maxInputLength?: number;
+  rateLimitPerMinute?: number;
+  knowledgeBaseEnabled?: boolean;
+  topKChunks?: number;
+  relevanceThreshold?: number;
+  suggestProductsEnabled?: boolean;
+  maxSuggestedProducts?: number;
+  geminiApiKey?: string;
+  openAiApiKey?: string;
+}
+
+export interface AiConnectionTestResult {
+  success: boolean;
+  provider: string;
+  status: string;
+  latencyMs: number;
+  message: string;
+}
+
+export const MOCK_KNOWLEDGE_DOCUMENTS: KnowledgeDocumentItem[] = [
+  {
+    id: 1,
+    fileName: 'Chinh_sach_bao_hanh_va_doi_tra_NEXOR_2026.pdf',
+    fileType: 'PDF',
+    fileSize: 18450,
+    category: 'STORE_POLICY',
+    status: 'INDEXED',
+    chunkCount: 8,
+    createdAt: '2026-11-04T08:00:00.000Z',
+    updatedAt: '2026-11-04T08:00:00.000Z',
+  },
+  {
+    id: 2,
+    fileName: 'Huong_dan_chon_mua_Laptop_Gaming_va_Do_hoa.docx',
+    fileType: 'DOCX',
+    fileSize: 14200,
+    category: 'USER_GUIDE',
+    status: 'INDEXED',
+    chunkCount: 6,
+    createdAt: '2026-11-04T08:10:00.000Z',
+    updatedAt: '2026-11-04T08:10:00.000Z',
+  },
+  {
+    id: 3,
+    fileName: 'Quy_dinh_giao_hang_hoa_toc_2H_va_Freeship.txt',
+    fileType: 'TXT',
+    fileSize: 6850,
+    category: 'STORE_POLICY',
+    status: 'INDEXED',
+    chunkCount: 4,
+    createdAt: '2026-11-04T08:20:00.000Z',
+    updatedAt: '2026-11-04T08:20:00.000Z',
+  },
+  {
+    id: 4,
+    fileName: 'Cau_hoi_thuong_gap_FAQ_va_Huong_dan_tra_gop_0_phan_tram.txt',
+    fileType: 'TXT',
+    fileSize: 6120,
+    category: 'FAQ',
+    status: 'INDEXED',
+    chunkCount: 3,
+    createdAt: '2026-11-04T08:30:00.000Z',
+    updatedAt: '2026-11-04T08:30:00.000Z',
+  },
+];

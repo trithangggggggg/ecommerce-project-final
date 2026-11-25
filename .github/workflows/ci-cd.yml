@@ -9,7 +9,9 @@ name: CI/CD
 
 on:
   push:
-    branches: [main, dev]
+    branches: [ dev ]
+  pull_request:
+    branches: [ dev ]
   workflow_dispatch:
 
 env:
@@ -86,7 +88,9 @@ jobs:
           ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME || secrets.ADMIN_EMAIL || 'admin' }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || secrets.ADMIN_USERNAME || 'admin@nexor.vn' }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || '123123123' }}
-        run: docker compose --env-file student.env up -d --build --wait --wait-timeout 300
+        run: |
+          sudo fuser -k 80/tcp 2>/dev/null || true
+          docker compose --env-file student.env up -d --build --wait --wait-timeout 300
 
       - name: Smoke test kiểm tra dịch vụ
         run: |
@@ -112,7 +116,7 @@ jobs:
         run: docker compose --env-file student.env logs --no-color
 
       - name: Đăng nhập GitHub Container Registry (GHCR)
-        if: success()
+        if: success() && github.event_name == 'push'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -120,7 +124,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push Images lên GHCR
-        if: success()
+        if: success() && github.event_name == 'push'
         env:
           IMAGE: ${{ steps.meta.outputs.image }}
           FRONTEND_IMAGE: ${{ steps.meta.outputs.frontend_image }}
@@ -142,7 +146,7 @@ jobs:
   deploy:
     name: Deploy lên Server
     needs: build
-    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') && github.event_name == 'push'
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -175,23 +179,47 @@ jobs:
           ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME || secrets.ADMIN_EMAIL || 'admin' }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || secrets.ADMIN_USERNAME || 'admin@nexor.vn' }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || '123123123' }}
+          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME || 'trithang2006vn@gmail.com' }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD || '' }}
+          SEPAY_BANK_ACCOUNT: ${{ secrets.SEPAY_BANK_ACCOUNT || '' }}
+          SEPAY_BANK_CODE: ${{ secrets.SEPAY_BANK_CODE || '' }}
+          SEPAY_BANK_NAME: ${{ secrets.SEPAY_BANK_NAME || '' }}
+          SEPAY_ACCOUNT_HOLDER: ${{ secrets.SEPAY_ACCOUNT_HOLDER || '' }}
+          SEPAY_WEBHOOK_API_KEY: ${{ secrets.SEPAY_WEBHOOK_API_KEY || '' }}
+          SEPAY_PAYMENT_PREFIX: ${{ secrets.SEPAY_PAYMENT_PREFIX || 'DH' }}
+          SEPAY_MERCHANT_ID: ${{ secrets.SEPAY_MERCHANT_ID || '' }}
+          SEPAY_SECRET_KEY: ${{ secrets.SEPAY_SECRET_KEY || '' }}
+          SEPAY_IPN_SECRET_KEY: ${{ secrets.SEPAY_IPN_SECRET_KEY || '' }}
+          SEPAY_CHECKOUT_URL: ${{ secrets.SEPAY_CHECKOUT_URL || 'https://pay-sandbox.sepay.vn/v1/checkout/init' }}
+          SEPAY_API_URL: ${{ secrets.SEPAY_API_URL || 'https://pgapi-sandbox.sepay.vn' }}
+          SEPAY_SUCCESS_URL: ${{ secrets.SEPAY_SUCCESS_URL || 'https://nexortech.io.vn/payment/result' }}
+          SEPAY_ERROR_URL: ${{ secrets.SEPAY_ERROR_URL || 'https://nexortech.io.vn/payment/result' }}
+          SEPAY_CANCEL_URL: ${{ secrets.SEPAY_CANCEL_URL || 'https://nexortech.io.vn/payment/result' }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           password: ${{ secrets.SERVER_PASSWORD }}
-          envs: APP_IMAGE,FRONTEND_IMAGE,APP_TAG,GHCR_USER,GHCR_TOKEN,REPO_URL,DEPLOY_DIR,BRANCH_NAME,GEMINI_API_KEY,GEMINI_MODEL,ADMIN_USERNAME,ADMIN_EMAIL,ADMIN_PASSWORD
+          envs: APP_IMAGE,FRONTEND_IMAGE,APP_TAG,GHCR_USER,GHCR_TOKEN,REPO_URL,DEPLOY_DIR,BRANCH_NAME,GEMINI_API_KEY,GEMINI_MODEL,ADMIN_USERNAME,ADMIN_EMAIL,ADMIN_PASSWORD,MAIL_USERNAME,MAIL_PASSWORD,SEPAY_BANK_ACCOUNT,SEPAY_BANK_CODE,SEPAY_BANK_NAME,SEPAY_ACCOUNT_HOLDER,SEPAY_WEBHOOK_API_KEY,SEPAY_PAYMENT_PREFIX,SEPAY_MERCHANT_ID,SEPAY_SECRET_KEY,SEPAY_IPN_SECRET_KEY,SEPAY_CHECKOUT_URL,SEPAY_API_URL,SEPAY_SUCCESS_URL,SEPAY_ERROR_URL,SEPAY_CANCEL_URL
           script: |
             set -e
+            echo ">>> [Cleanup] Giai phong dung luong o dia VPS truoc khi deploy..."
+            docker container prune -f || true
+            docker image prune -af || true
+            docker builder prune -af || true
+            df -h /
             if [ ! -d "$HOME/$DEPLOY_DIR/.git" ]; then
-              git clone "$REPO_URL" "$HOME/$DEPLOY_DIR"
+              git clone --depth 1 -b "$BRANCH_NAME" "$REPO_URL" "$HOME/$DEPLOY_DIR"
             fi
             cd "$HOME/$DEPLOY_DIR"
-            git fetch origin "$BRANCH_NAME"
+            git fetch --depth 1 origin "$BRANCH_NAME"
             git reset --hard "origin/$BRANCH_NAME"
+            if [ ! -f .env ]; then
+              cp .env.example .env 2>/dev/null || touch .env
+            fi
             if [ -n "$GEMINI_API_KEY" ]; then
-              sed -i "s|GEMINI_API_KEY=.*|GEMINI_API_KEY=\"$GEMINI_API_KEY\"|g" student.env
-              sed -i "s|GEMINI_API_KEY=.*|GEMINI_API_KEY=$GEMINI_API_KEY|g" .env
+              sed -i "s|GEMINI_API_KEY=.*|GEMINI_API_KEY=\"$GEMINI_API_KEY\"|g" student.env 2>/dev/null || true
+              sed -i "s|GEMINI_API_KEY=.*|GEMINI_API_KEY=$GEMINI_API_KEY|g" .env 2>/dev/null || true
             fi
             if [ -n "$ADMIN_USERNAME" ]; then
               sed -i "s|^ADMIN_USERNAME=.*|ADMIN_USERNAME=\"$ADMIN_USERNAME\"|g" student.env 2>/dev/null || echo "ADMIN_USERNAME=\"$ADMIN_USERNAME\"" >> student.env
@@ -206,9 +234,24 @@ jobs:
               sed -i "s|^ADMIN_PASSWORD=.*|ADMIN_PASSWORD=\"$ESC_PASS\"|g" student.env 2>/dev/null || echo "ADMIN_PASSWORD=\"$ADMIN_PASSWORD\"" >> student.env
               sed -i "s|^ADMIN_PASSWORD=.*|ADMIN_PASSWORD=$ESC_PASS|g" .env 2>/dev/null || echo "ADMIN_PASSWORD=$ADMIN_PASSWORD" >> .env
             fi
+            if [ -n "$MAIL_PASSWORD" ]; then
+              sed -i "s|^MAIL_PASSWORD=.*|MAIL_PASSWORD=\"$MAIL_PASSWORD\"|g" student.env 2>/dev/null || echo "MAIL_PASSWORD=\"$MAIL_PASSWORD\"" >> student.env
+              sed -i "s|^MAIL_PASSWORD=.*|MAIL_PASSWORD=$MAIL_PASSWORD|g" .env 2>/dev/null || echo "MAIL_PASSWORD=$MAIL_PASSWORD" >> .env
+            fi
+            for KEY in SEPAY_BANK_ACCOUNT SEPAY_BANK_CODE SEPAY_BANK_NAME SEPAY_ACCOUNT_HOLDER SEPAY_WEBHOOK_API_KEY SEPAY_PAYMENT_PREFIX SEPAY_MERCHANT_ID SEPAY_SECRET_KEY SEPAY_IPN_SECRET_KEY SEPAY_CHECKOUT_URL SEPAY_API_URL SEPAY_SUCCESS_URL SEPAY_ERROR_URL SEPAY_CANCEL_URL; do
+              VAL=$(eval "printf '%s' \"\$$KEY\"")
+              if [ -n "$VAL" ]; then
+                ESC_VAL=$(printf '%s' "$VAL" | sed -e 's/[&|\\]/\\&/g')
+                for ENVF in student.env .env; do
+                  [ -f "$ENVF" ] || touch "$ENVF"
+                  grep -q "^${KEY}=" "$ENVF" && sed -i "s|^${KEY}=.*|${KEY}=\"${ESC_VAL}\"|g" "$ENVF" || echo "${KEY}=\"${VAL}\"" >> "$ENVF"
+                done
+              fi
+            done
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            export APP_IMAGE FRONTEND_IMAGE APP_TAG GEMINI_API_KEY GEMINI_MODEL ADMIN_USERNAME ADMIN_EMAIL ADMIN_PASSWORD
+            export APP_IMAGE FRONTEND_IMAGE APP_TAG GEMINI_API_KEY GEMINI_MODEL ADMIN_USERNAME ADMIN_EMAIL ADMIN_PASSWORD MAIL_USERNAME MAIL_PASSWORD SEPAY_BANK_ACCOUNT SEPAY_BANK_CODE SEPAY_BANK_NAME SEPAY_ACCOUNT_HOLDER SEPAY_WEBHOOK_API_KEY SEPAY_PAYMENT_PREFIX SEPAY_MERCHANT_ID SEPAY_SECRET_KEY SEPAY_IPN_SECRET_KEY SEPAY_CHECKOUT_URL SEPAY_API_URL SEPAY_SUCCESS_URL SEPAY_ERROR_URL SEPAY_CANCEL_URL
             docker compose --env-file student.env pull app nginx
             docker compose --env-file student.env up -d --no-build --wait --wait-timeout 300
             docker logout ghcr.io
+            docker image prune -f || true
             docker compose --env-file student.env ps

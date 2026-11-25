@@ -1,12 +1,15 @@
 package ra.project.server.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ra.project.server.common.response.PageResponse;
+import ra.project.server.config.CacheConfig;
 import ra.project.server.exception.BadRequestException;
 import ra.project.server.exception.ResourceNotFoundException;
 import ra.project.server.mapper.OrderMapper;
@@ -54,9 +57,56 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional(readOnly = true)
+    public PageResponse<ProductResponse> getAllProducts(String keyword, Long categoryId, String status, Pageable pageable) {
+        return getAllProducts(keyword, categoryId, null, status, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ProductResponse> getAllProducts(String keyword, Long categoryId, String brand, String status, Pageable pageable) {
+        Specification<Product> spec = ProductSpecification.filter(keyword, categoryId, brand, null, null, status);
+        Page<Product> productPage = productRepository.findAll(spec, pageable);
+        return PageResponse.from(productPage.map(productMapper::toResponse));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ProductResponse> getAllAdminProducts(
+            String keyword,
+            Long categoryId,
+            String brand,
+            String status,
+            Boolean includeDeleted,
+            Pageable pageable
+    ) {
+        Specification<Product> spec = ProductSpecification.filter(keyword, categoryId, brand, null, null, status, includeDeleted);
+        Page<Product> productPage = productRepository.findAll(spec, pageable);
+        return PageResponse.from(productPage.map(productMapper::toResponse));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ProductResponse> getAllAdminProducts(
+            String keyword,
+            Long categoryId,
+            String brand,
+            Boolean status,
+            Boolean includeDeleted,
+            Pageable pageable
+    ) {
+        String statusStr = status == null ? null : (status ? "ACTIVE" : "INACTIVE");
+        return getAllAdminProducts(keyword, categoryId, brand, statusStr, includeDeleted, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = CacheConfig.CACHE_PRODUCTS, key = "#id")
     public ProductResponse getProductById(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + id));
+        if (Boolean.TRUE.equals(product.getIsDeleted())) {
+            throw new ResourceNotFoundException("Sản phẩm không tồn tại hoặc đã ngừng kinh doanh!");
+        }
         return productMapper.toDetailResponse(product);
     }
 
@@ -67,7 +117,8 @@ public class ProductServiceImpl implements ProductService {
             throw new ResourceNotFoundException("Không tìm thấy danh mục với ID: " + categoryId);
         }
 
-        Page<Product> productPage = productRepository.findByCategoryId(categoryId, pageable);
+        Specification<Product> spec = ProductSpecification.filter(null, categoryId, null, null, null, (String) null, false);
+        Page<Product> productPage = productRepository.findAll(spec, pageable);
         return PageResponse.from(productPage.map(productMapper::toResponse));
     }
 
@@ -105,6 +156,8 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(value = CacheConfig.CACHE_PRODUCTS, allEntries = true)
     public ProductResponse createProduct(ProductRequest request) {
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy danh mục với ID: " + request.getCategoryId()));
@@ -128,6 +181,8 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(value = CacheConfig.CACHE_PRODUCTS, allEntries = true)
     public ProductResponse updateProduct(Long id, ProductRequest request) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + id));
@@ -152,6 +207,31 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(value = CacheConfig.CACHE_PRODUCTS, allEntries = true)
+    public ProductResponse toggleProductStatus(Long id, Boolean status) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + id));
+        if (Boolean.TRUE.equals(product.getIsDeleted())) {
+            throw new BadRequestException("Không thể thay đổi trạng thái sản phẩm đã bị xóa mềm!");
+        }
+        boolean active;
+        if (status != null) {
+            active = status;
+        } else {
+            active = !"ACTIVE".equalsIgnoreCase(product.getStatus());
+        }
+        product.setStatus(active ? "ACTIVE" : "INACTIVE");
+        if (product.getVariants() != null) {
+            for (ProductVariant v : product.getVariants()) {
+                v.setStatus(active);
+            }
+        }
+        Product saved = productRepository.save(product);
+        return productMapper.toDetailResponse(saved);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<OrderResponse> getActiveOrdersForProduct(Long productId) {
         List<OrderStatus> activeStatuses = List.of(
@@ -167,6 +247,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
+    @CacheEvict(value = CacheConfig.CACHE_PRODUCTS, allEntries = true)
     public void deleteProduct(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + id));
@@ -217,7 +298,7 @@ public class ProductServiceImpl implements ProductService {
 
         // 3. Xóa mềm sản phẩm (ẩn khỏi toàn bộ danh sách Admin & Khách hàng, ngừng kinh doanh biến thể)
         product.setIsDeleted(true);
-        product.setStatus(false);
+        product.setStatus("INACTIVE");
         if (product.getVariants() != null) {
             for (ProductVariant v : product.getVariants()) {
                 v.setStatus(false);
@@ -261,7 +342,9 @@ public class ProductServiceImpl implements ProductService {
                     throw new BadRequestException("Giá biến thể (" + sku + ") phải lớn hơn 0!");
                 }
 
-                if (v.getStock() != null && v.getStock() < 0) {
+                if (v.getStock() == null) {
+                    v.setStock(0);
+                } else if (v.getStock() < 0) {
                     throw new BadRequestException("Số lượng tồn kho biến thể (" + sku + ") không được âm!");
                 }
 
@@ -431,6 +514,14 @@ public class ProductServiceImpl implements ProductService {
             variant.setOriginalPrice(vReq.getOriginalPrice());
             variant.setStock(vReq.getStock() != null ? vReq.getStock() : 0);
             variant.setImageUrl(vReq.getImageUrl() != null && !vReq.getImageUrl().isBlank() ? vReq.getImageUrl().trim() : product.getImageUrl());
+            if (vReq.getWarehouse() != null && !vReq.getWarehouse().isBlank()) {
+                variant.setWarehouse(vReq.getWarehouse().trim());
+            } else if (variant.getWarehouse() == null || variant.getWarehouse().isBlank()) {
+                variant.setWarehouse("Kho Trung Tâm HCM");
+            }
+            if (vReq.getShelfLocation() != null) {
+                variant.setShelfLocation(vReq.getShelfLocation().isBlank() ? null : vReq.getShelfLocation().trim());
+            }
             variant.setStatus(vReq.getStatus() != null ? vReq.getStatus() : true);
 
             List<ProductOptionValue> matchedOptionVals = new ArrayList<>();
@@ -523,21 +614,157 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
+    @CacheEvict(value = CacheConfig.CACHE_PRODUCTS, allEntries = true)
     public ProductResponse updateProductStock(Long id, Integer stock) {
+        return updateProductStock(id, stock, null);
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(value = CacheConfig.CACHE_PRODUCTS, allEntries = true)
+    public ProductResponse updateProductStock(Long id, Integer stock, java.math.BigDecimal price) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sản phẩm", "id", id));
 
         int newStock = (stock != null && stock >= 0) ? stock : 0;
         product.setStock(newStock);
+        if (price != null && price.compareTo(java.math.BigDecimal.ZERO) >= 0) {
+            product.setPrice(price);
+        }
 
         List<ra.project.server.model.entity.ProductVariant> variants = productVariantRepository.findByProductId(id);
         if (!variants.isEmpty()) {
             ra.project.server.model.entity.ProductVariant first = variants.get(0);
             first.setStock(newStock);
+            if (price != null && price.compareTo(java.math.BigDecimal.ZERO) >= 0) {
+                first.setPrice(price);
+            }
             productVariantRepository.save(first);
         }
 
         Product saved = productRepository.save(product);
         return productMapper.toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(value = CacheConfig.CACHE_PRODUCTS, allEntries = true)
+    public ra.project.server.model.dto.response.ProductVariantResponse updateVariantStock(Long variantId, Integer quantity, Boolean isDelta) {
+        return updateVariantStock(variantId, quantity, isDelta, null, null);
+    }
+
+    @Override
+    @Transactional
+    public ra.project.server.model.dto.response.ProductVariantResponse updateVariantStock(Long variantId, Integer quantity, Boolean isDelta, java.math.BigDecimal price, java.math.BigDecimal originalPrice) {
+        ra.project.server.model.entity.ProductVariant variant = productVariantRepository.findById(variantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Biến thể sản phẩm", "id", variantId));
+
+        int newStock;
+        if (Boolean.TRUE.equals(isDelta)) {
+            int current = variant.getStock() != null ? variant.getStock() : 0;
+            newStock = Math.max(0, current + (quantity != null ? quantity : 0));
+        } else {
+            newStock = (quantity != null && quantity >= 0) ? quantity : 0;
+        }
+
+        variant.setStock(newStock);
+        if (price != null && price.compareTo(java.math.BigDecimal.ZERO) >= 0) {
+            variant.setPrice(price);
+        }
+        if (originalPrice != null && originalPrice.compareTo(java.math.BigDecimal.ZERO) >= 0) {
+            variant.setOriginalPrice(originalPrice);
+        }
+        ra.project.server.model.entity.ProductVariant savedVariant = productVariantRepository.save(variant);
+
+        if (variant.getProduct() != null) {
+            productRepository.syncProductTotalStock(variant.getProduct().getId());
+        }
+
+        return productMapper.toVariantResponse(savedVariant);
+    }
+
+    @Override
+    @Transactional
+    public ra.project.server.model.dto.response.ProductVariantResponse updateVariantLocation(Long variantId, String warehouse, String shelfLocation) {
+        ra.project.server.model.entity.ProductVariant variant = productVariantRepository.findById(variantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Biến thể sản phẩm", "id", variantId));
+        if (warehouse != null) {
+            variant.setWarehouse(warehouse.isBlank() ? "Kho Trung Tâm HCM" : warehouse.trim());
+        }
+        if (shelfLocation != null) {
+            variant.setShelfLocation(shelfLocation.isBlank() ? null : shelfLocation.trim());
+        }
+        ra.project.server.model.entity.ProductVariant savedVariant = productVariantRepository.save(variant);
+        return productMapper.toVariantResponse(savedVariant);
+    }
+
+    @Override
+    @Transactional
+    public ra.project.server.model.dto.response.ProductVariantResponse createVariant(Long productId, java.util.Map<String, Object> body) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Sản phẩm", "id", productId));
+
+        String title = body.get("title") != null ? body.get("title").toString().trim() : "Biến thể mới";
+        String sku = body.get("sku") != null ? body.get("sku").toString().trim().toUpperCase() : null;
+        if (sku == null || sku.isBlank()) {
+            sku = "SKU-" + productId + "-" + (System.currentTimeMillis() % 100000);
+        }
+
+        java.math.BigDecimal price = java.math.BigDecimal.ZERO;
+        if (body.get("price") != null) {
+            try {
+                price = new java.math.BigDecimal(body.get("price").toString().trim());
+            } catch (Exception ignored) {}
+        }
+        if (price.compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            price = product.getPrice() != null ? product.getPrice() : java.math.BigDecimal.ZERO;
+        }
+
+        java.math.BigDecimal originalPrice = null;
+        if (body.get("originalPrice") != null) {
+            try {
+                originalPrice = new java.math.BigDecimal(body.get("originalPrice").toString().trim());
+            } catch (Exception ignored) {}
+        }
+
+        int stock = 0;
+        if (body.get("stock") != null) {
+            try {
+                stock = Integer.parseInt(body.get("stock").toString().trim());
+            } catch (Exception ignored) {}
+        }
+
+        String imageUrl = body.get("imageUrl") != null ? body.get("imageUrl").toString().trim() : product.getImageUrl();
+        String warehouse = body.get("warehouse") != null && !body.get("warehouse").toString().isBlank()
+                ? body.get("warehouse").toString().trim()
+                : "Kho Trung Tâm HCM";
+        String shelfLocation = body.get("shelfLocation") != null && !body.get("shelfLocation").toString().isBlank()
+                ? body.get("shelfLocation").toString().trim()
+                : null;
+
+        if (productVariantRepository.existsBySkuIgnoreCase(sku)) {
+            sku = sku + "-" + (System.currentTimeMillis() % 1000);
+        }
+
+        ra.project.server.model.entity.ProductVariant variant = ra.project.server.model.entity.ProductVariant.builder()
+                .product(product)
+                .sku(sku)
+                .price(price)
+                .originalPrice(originalPrice)
+                .stock(stock)
+                .imageUrl(imageUrl)
+                .warehouse(warehouse)
+                .shelfLocation(shelfLocation)
+                .status(true)
+                .build();
+
+        ra.project.server.model.entity.ProductVariant savedVariant = productVariantRepository.save(variant);
+        productRepository.syncProductTotalStock(productId);
+
+        ra.project.server.model.dto.response.ProductVariantResponse response = productMapper.toVariantResponse(savedVariant);
+        if (response != null && (response.getTitle() == null || response.getTitle().equals("Tiêu chuẩn"))) {
+            response.setTitle(title);
+        }
+        return response;
     }
 }

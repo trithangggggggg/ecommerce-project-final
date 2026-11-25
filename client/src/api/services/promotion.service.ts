@@ -12,7 +12,9 @@ export interface PromotionCheckResult {
   finalTotal: number;
   minOrder?: string;
   expiry?: string;
-  isValid: boolean;
+  type?: 'ORDER' | 'SHIPPING';
+  isValid?: boolean;
+  valid?: boolean;
   message?: string;
 }
 
@@ -25,12 +27,16 @@ export const promotionService = {
     return Array.isArray(data) ? data : [];
   },
 
-  async checkPromotion(code: string, subtotal: number): Promise<PromotionCheckResult> {
-    const response = await axiosClient.get<ApiResponse<PromotionCheckResult>>(
-      ENDPOINTS.PROMOTIONS.CHECK,
-      { params: { code, subtotal } }
+  async applyPromotion(code: string, subtotal: number, shippingFee?: number): Promise<PromotionCheckResult> {
+    const response = await axiosClient.post<ApiResponse<PromotionCheckResult>>(
+      ENDPOINTS.PROMOTIONS.APPLY,
+      { code, subtotal, shippingFee }
     );
     return response.data?.data || (response.data as unknown as PromotionCheckResult);
+  },
+
+  async checkPromotion(code: string, subtotal: number, shippingFee?: number): Promise<PromotionCheckResult> {
+    return this.applyPromotion(code, subtotal, shippingFee);
   },
 
   async getAvailablePromotions(): Promise<PromoItem[]> {
@@ -41,7 +47,14 @@ export const promotionService = {
     return Array.isArray(data) ? data : [];
   },
 
-  async createPromotion(promo: Omit<PromoItem, 'id'>): Promise<PromoItem> {
+  async getPromotionById(id: number): Promise<PromoItem> {
+    const response = await axiosClient.get<ApiResponse<PromoItem>>(
+      ENDPOINTS.ADMIN_PROMOTIONS.DETAIL(id)
+    );
+    return response.data?.data || (response.data as unknown as PromoItem);
+  },
+
+  async createPromotion(promo: Omit<PromoItem, 'id' | 'usedCount'> & { usedCount?: number }): Promise<PromoItem> {
     const response = await axiosClient.post<ApiResponse<PromoItem>>(
       ENDPOINTS.ADMIN_PROMOTIONS.LIST,
       promo
@@ -53,6 +66,15 @@ export const promotionService = {
     const response = await axiosClient.put<ApiResponse<PromoItem>>(
       ENDPOINTS.ADMIN_PROMOTIONS.DETAIL(id),
       promo
+    );
+    return response.data?.data || (response.data as unknown as PromoItem);
+  },
+
+  async togglePromotionStatus(id: number, status?: 'ACTIVE' | 'INACTIVE'): Promise<PromoItem> {
+    const response = await axiosClient.put<ApiResponse<PromoItem>>(
+      ENDPOINTS.ADMIN_PROMOTIONS.STATUS(id),
+      null,
+      status ? { params: { status } } : undefined
     );
     return response.data?.data || (response.data as unknown as PromoItem);
   },

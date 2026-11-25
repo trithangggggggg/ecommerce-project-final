@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import ra.project.server.model.enums.OrderStatus;
 import ra.project.server.model.enums.PaymentMethod;
+import ra.project.server.model.enums.PaymentStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -28,11 +29,25 @@ public class OrderResponse {
     private BigDecimal totalAmount;
     private OrderStatus status;
     private PaymentMethod paymentMethod;
+    private PaymentStatus paymentStatus;
+    private String sepayInvoiceNumber;
+    private String sepayOrderId;
+    private String paymentReference;
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime paidAt;
     private String note;
     private String cancelReason;
     private String compensationCoupon;
     private String couponCode;
     private BigDecimal discountAmount;
+    private String shippingCouponCode;
+    private BigDecimal shippingDiscount;
+    private BigDecimal shippingFee;
+    private Long carrierId;
+    private String carrierName;
+    private String carrierCode;
+    private String trackingCode;
     private List<OrderItemResponse> orderItems;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")

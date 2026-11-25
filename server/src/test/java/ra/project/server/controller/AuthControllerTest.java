@@ -11,11 +11,14 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import ra.project.server.common.response.ApiResponse;
+import ra.project.server.exception.BadRequestException;
 import ra.project.server.exception.ConflictException;
 import ra.project.server.exception.GlobalExceptionHandler;
 import ra.project.server.exception.UnauthorizedException;
 import ra.project.server.model.dto.request.LoginRequest;
 import ra.project.server.model.dto.request.RegisterRequest;
+import ra.project.server.model.dto.request.ResendOtpRequest;
+import ra.project.server.model.dto.request.VerifyOtpRequest;
 import ra.project.server.model.dto.response.AuthResponse;
 import ra.project.server.model.dto.response.UserProfileResponse;
 import ra.project.server.model.enums.Role;
@@ -155,5 +158,78 @@ class AuthControllerTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("Tên đăng nhập hoặc mật khẩu không chính xác"));
+    }
+
+    @Test
+    void whenVerifyOtpSuccess_thenReturn200WithToken() throws Exception {
+        UserProfileResponse userProfile = UserProfileResponse.builder()
+                .id(1L)
+                .username("nguyenvana")
+                .email("vana@gmail.com")
+                .role(Role.CUSTOMER)
+                .build();
+
+        AuthResponse authResponse = AuthResponse.builder()
+                .accessToken("verified.jwt.token")
+                .tokenType("Bearer")
+                .user(userProfile)
+                .build();
+
+        when(authService.verifyOtp(any(VerifyOtpRequest.class)))
+                .thenReturn(ApiResponse.success("Xác thực OTP thành công! Tài khoản của bạn đã được kích hoạt.", authResponse));
+
+        String requestJson = """
+                {
+                    "email": "vana@gmail.com",
+                    "otp": "123456"
+                }
+                """;
+
+        mockMvc.perform(post("/api/auth/verify-otp")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Xác thực OTP thành công! Tài khoản của bạn đã được kích hoạt."))
+                .andExpect(jsonPath("$.data.accessToken").value("verified.jwt.token"));
+    }
+
+    @Test
+    void whenVerifyOtpInvalid_thenReturn400() throws Exception {
+        when(authService.verifyOtp(any(VerifyOtpRequest.class)))
+                .thenThrow(new BadRequestException("Mã OTP không chính xác. Vui lòng kiểm tra lại!"));
+
+        String requestJson = """
+                {
+                    "email": "vana@gmail.com",
+                    "otp": "999999"
+                }
+                """;
+
+        mockMvc.perform(post("/api/auth/verify-otp")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Mã OTP không chính xác. Vui lòng kiểm tra lại!"));
+    }
+
+    @Test
+    void whenResendOtpSuccess_thenReturn200() throws Exception {
+        when(authService.resendOtp(any(ResendOtpRequest.class)))
+                .thenReturn(ApiResponse.success("Mã OTP mới đã được gửi tới email vana@gmail.com. Vui lòng kiểm tra hộp thư!", null));
+
+        String requestJson = """
+                {
+                    "email": "vana@gmail.com"
+                }
+                """;
+
+        mockMvc.perform(post("/api/auth/resend-otp")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Mã OTP mới đã được gửi tới email vana@gmail.com. Vui lòng kiểm tra hộp thư!"));
     }
 }

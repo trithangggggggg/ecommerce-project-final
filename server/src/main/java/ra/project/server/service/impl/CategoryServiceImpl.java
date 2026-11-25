@@ -1,8 +1,15 @@
 package ra.project.server.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import ra.project.server.common.response.PageResponse;
+import ra.project.server.config.CacheConfig;
 import ra.project.server.exception.BadRequestException;
 import ra.project.server.exception.ResourceNotFoundException;
 import ra.project.server.mapper.CategoryMapper;
@@ -27,8 +34,9 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheConfig.CACHE_CATEGORIES, key = "'all'")
     public List<CategoryResponse> getAllCategories() {
-        return categoryRepository.findAll()
+        return categoryRepository.findAllByOrderByDisplayOrderAscIdAsc()
                 .stream()
                 .map(categoryMapper::toResponse)
                 .collect(Collectors.toList());
@@ -36,6 +44,39 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheConfig.CACHE_CATEGORIES, key = "'active'")
+    public List<CategoryResponse> getActiveCategories() {
+        return categoryRepository.findByStatusTrueOrderByDisplayOrderAscIdAsc()
+                .stream()
+                .map(categoryMapper::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<CategoryResponse> searchAdminCategories(String keyword, Boolean status, Pageable pageable) {
+        List<CategoryResponse> filtered = categoryRepository.findAllByOrderByDisplayOrderAscIdAsc()
+                .stream()
+                .filter(c -> {
+                    if (!StringUtils.hasText(keyword)) return true;
+                    String q = keyword.trim().toLowerCase();
+                    return c.getName().toLowerCase().contains(q)
+                            || (c.getSlug() != null && c.getSlug().toLowerCase().contains(q))
+                            || (c.getDescription() != null && c.getDescription().toLowerCase().contains(q));
+                })
+                .filter(c -> status == null || status.equals(c.getStatus()))
+                .map(categoryMapper::toResponse)
+                .collect(Collectors.toList());
+
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), filtered.size());
+        List<CategoryResponse> slice = start >= filtered.size() ? List.of() : filtered.subList(start, end);
+        return PageResponse.from(new PageImpl<>(slice, pageable, filtered.size()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = CacheConfig.CACHE_CATEGORIES, key = "#id")
     public CategoryResponse getCategoryById(Long id) {
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy danh mục với ID: " + id));
@@ -43,6 +84,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @CacheEvict(value = CacheConfig.CACHE_CATEGORIES, allEntries = true)
     public CategoryResponse createCategory(CategoryRequest request) {
         if (categoryRepository.existsByNameIgnoreCase(request.getName().trim())) {
             throw new BadRequestException("Tên danh mục '" + request.getName().trim() + "' đã tồn tại!");
@@ -54,6 +96,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @CacheEvict(value = CacheConfig.CACHE_CATEGORIES, allEntries = true)
     public CategoryResponse updateCategory(Long id, CategoryRequest request) {
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy danh mục với ID: " + id));
@@ -68,6 +111,17 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @CacheEvict(value = CacheConfig.CACHE_CATEGORIES, allEntries = true)
+    public CategoryResponse toggleCategoryStatus(Long id, Boolean status) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy danh mục với ID: " + id));
+        category.setStatus(status != null ? status : !Boolean.TRUE.equals(category.getStatus()));
+        Category saved = categoryRepository.save(category);
+        return categoryMapper.toResponse(saved);
+    }
+
+    @Override
+    @CacheEvict(value = CacheConfig.CACHE_CATEGORIES, allEntries = true)
     public void deleteCategory(Long id) {
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy danh mục với ID: " + id));
