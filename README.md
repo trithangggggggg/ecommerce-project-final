@@ -73,7 +73,7 @@
 Hệ thống CI/CD được cấu hình tự động tại `.github/workflows/ci-cd.yml` với các bước kiểm soát chất lượng nghiêm ngặt:
 
 ```
-[Git Push / PR] ──► [dev]
+[Git Push / PR] ──► [dev / main]
                          │
         ┌────────────────┴────────────────┐
         ▼                                 ▼
@@ -91,11 +91,11 @@ Gradle 8.14 + JDK 21             Node 20 + npm ci
         │ Thành công                      │ Lỗi: Gửi log chi tiết
         ▼                                 ▼
 [Push Images lên GHCR]            [Build Failed]
-(Chỉ chạy khi push/merge vào dev)
+(Chạy khi push/merge vào dev hoặc main)
         │
         ▼
 [Deploy SSH lên VPS 163.223.9.81]
-- Kéo source code mới nhất nhánh dev
+- Kéo source code mới nhất nhánh tương ứng
 - Cập nhật biến môi trường an toàn
 - Zero-downtime container rolling restart
 ```
